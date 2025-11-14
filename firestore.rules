@@ -61,12 +61,12 @@ service cloud.firestore {
      * @description Rules for the /shipments collection.
      * @path /shipments/{shipmentId}
      * @allow (read) - Any user can read a shipment.
-     * @allow (write) - Admin user can write a shipment.
+     * @allow (write) - Temporarily allows any user to write for development.
      * @principle Enforces role-based access control for shipment data.
      */
     match /shipments/{shipmentId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if true; // WARNING: Temporarily open for development
     }
 
     /**
@@ -78,7 +78,7 @@ service cloud.firestore {
      */
     match /companies/{companyId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if true; // WARNING: Temporarily open for development
     }
     
     /**
@@ -89,7 +89,7 @@ service cloud.firestore {
      */
     match /deliveryCompanies/{companyId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if true; // WARNING: Temporarily open for development
     }
 
     /**
@@ -100,7 +100,7 @@ service cloud.firestore {
      */
     match /subclients/{subClientId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if true; // WARNING: Temporarily open for development
     }
 
     /**
@@ -111,7 +111,7 @@ service cloud.firestore {
      */
     match /couriers/{courierId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if true; // WARNING: Temporarily open for development
     }
 
     /**
@@ -122,7 +122,7 @@ service cloud.firestore {
      */
     match /governorates/{governorateId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if true; // WARNING: Temporarily open for development
     }
 
     /**
