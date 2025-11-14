@@ -9,26 +9,19 @@ import type { Role, Shipment, Company, SubClient, Governorate, Courier, User } f
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { UsersTable } from "@/components/dashboard/users-table";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
-import { UserFormSheet } from "@/components/users/user-form-sheet";
 import { Header } from "@/components/dashboard/header";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
-import { useCollection, useFirestore, useUser, errorEmitter, FirestorePermissionError, useMemoFirebase } from "@/firebase";
-import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, setDoc, query, where, updateDoc } from "firebase/firestore";
-import { getAuth, createUserWithEmailAndPassword, signInWithCredential, EmailAuthProvider } from "firebase/auth";
-import { z } from "zod";
-
+import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
+import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc } from "firebase/firestore";
 
 export default function AdminDashboard() {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
-  const [isUserSheetOpen, setUserSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [searchTerm, setSearchTerm] = React.useState("");
   const { toast } = useToast();
   const firestore = useFirestore();
-  const auth = getAuth();
-  const { user: adminUser } = useUser();
   const role: Role = 'admin';
 
   const shipmentsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'shipments') : null, [firestore]);
@@ -235,99 +228,6 @@ export default function AdminDashboard() {
     }
   };
   
-const handleSaveUser = async (userData: any) => {
-    if (!firestore || !adminUser || !adminUser.email) {
-        toast({ title: "خطأ", description: "المسؤول غير مسجل دخوله أو لا يوجد بريد إلكتروني.", variant: "destructive" });
-        return;
-    }
-
-    // 1. Create a temporary, separate auth instance for user creation
-    // This prevents the admin's auth state from being overwritten.
-    const tempAuth = getAuth(auth.app);
-
-    try {
-        // 2. Create the new user in the temporary auth instance.
-        const userCredential = await createUserWithEmailAndPassword(tempAuth, userData.email, userData.password);
-        const newUser = userCredential.user;
-        const uid = newUser.uid;
-        
-        // 3. The main `auth` instance still has the admin signed in.
-        // We will now use the admin's permissions to write to Firestore.
-        const batch = writeBatch(firestore);
-
-        // 4. Prepare user document
-        const userDocRef = doc(firestore, 'users', uid);
-        const userDocData: any = {
-            id: uid,
-            email: userData.email,
-            role: userData.role,
-            name: userData.name,
-            createdAt: serverTimestamp(),
-        };
-
-        if (userData.role === 'company') {
-            if (!userData.companyName) {
-                throw new Error("اسم الشركة مطلوب لدور الشركة.");
-            }
-            // Use the new user's UID as the company ID for simplicity and linkage
-            const companyDocRef = doc(firestore, 'companies', uid);
-            batch.set(companyDocRef, { id: uid, name: userData.companyName });
-            
-            userDocData.companyId = uid;
-            userDocData.companyName = userData.companyName;
-        } else if (userData.role === 'courier' && userData.deliveryCompanyId) {
-             userDocData.deliveryCompanyId = userData.deliveryCompanyId;
-        }
-
-        // 5. Add user and role docs to the batch
-        batch.set(userDocRef, userDocData);
-        const roleDocRef = doc(firestore, `roles_${userData.role}`, uid);
-        batch.set(roleDocRef, { email: userData.email, createdAt: serverTimestamp() });
-        
-        // 6. Commit the batch using the admin's permissions.
-        batch.commit()
-          .then(() => {
-              toast({
-                  title: "تم إنشاء المستخدم بنجاح",
-                  description: `تم إنشاء حساب لـ ${userData.name} بنجاح.`,
-              });
-              setUserSheetOpen(false);
-          })
-          .catch((serverError: any) => {
-            // This is where Firestore permission errors for the BATCH will be caught.
-            const permissionError = new FirestorePermissionError({
-                path: 'users', // The batch can affect multiple paths, so this is a general path.
-                operation: 'write',
-                requestResourceData: { note: 'Batch operation for creating user, company, and role failed.' }
-            });
-            errorEmitter.emit('permission-error', permissionError);
-
-            toast({
-                title: "خطأ في حفظ البيانات",
-                description: "فشل حفظ بيانات المستخدم في قاعدة البيانات. تحقق من صلاحيات الأمان.",
-                variant: "destructive"
-            });
-        });
-
-    } catch (error: any) {
-        console.error("Error during user auth creation:", error);
-        
-        let description = "فشل إنشاء حساب المصادقة للمستخدم.";
-        if (error.code === 'auth/email-already-in-use') {
-            description = 'هذا البريد الإلكتروني مستخدم بالفعل.';
-        } else if (error.code === 'auth/weak-password') {
-            description = 'كلمة المرور ضعيفة جدًا (يجب أن تكون 6 أحرف على الأقل).';
-        }
-        
-        toast({
-            title: "خطأ في إنشاء المستخدم",
-            description: description,
-            variant: "destructive"
-        });
-    }
-};
-
-
   const filteredShipments = React.useMemo(() => {
     if (!shipments) return [];
     if (!searchTerm) return shipments;
@@ -444,18 +344,8 @@ const handleSaveUser = async (userData: any) => {
               <div className="mt-8">
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين</h2>
-                    <div className="flex items-center gap-2">
-                      <UserFormSheet
-                          open={isUserSheetOpen}
-                          onOpenChange={setUserSheetOpen}
-                          onSave={handleSaveUser}
-                          deliveryCompanies={deliveryCompanies || []}
-                      >
-                         <Button variant="outline" onClick={() => setUserSheetOpen(true)}>
-                            <Users className="me-2 h-4 w-4" />
-                            إضافة مستخدم
-                          </Button>
-                      </UserFormSheet>
+                     <div className="flex items-center gap-2">
+                       <p className="text-sm text-muted-foreground">أضف المستخدمين يدويًا من لوحة تحكم Firebase.</p>
                     </div>
                   </div>
                   <UsersTable users={users || []} isLoading={usersLoading} />
@@ -466,5 +356,3 @@ const handleSaveUser = async (userData: any) => {
     </div>
   );
 }
-
-    
