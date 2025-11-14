@@ -18,6 +18,9 @@ import { Label } from "@/components/ui/label";
 import { Logo } from '@/components/icons';
 import { useToast } from '@/hooks/use-toast';
 
+// This page is currently not used directly by users. 
+// Account creation is handled by the admin.
+// It's kept for potential future use or direct access if needed.
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -61,7 +64,7 @@ export default function RegisterPage() {
                 <Logo className="mx-auto size-10 text-primary" />
                 <CardTitle className="text-2xl font-headline mt-4">إنشاء حساب جديد</CardTitle>
                 <CardDescription>
-                أدخل معلوماتك لإنشاء حساب
+                  هذه الصفحة مخصصة للاستخدام الداخلي. يتم إنشاء حسابات المستخدمين بواسطة المسؤول.
                 </CardDescription>
             </CardHeader>
             <CardContent>

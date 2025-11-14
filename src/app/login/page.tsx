@@ -33,7 +33,7 @@ export default function LoginPage() {
       await signInWithEmailAndPassword(auth, email, password);
       toast({
         title: "تم تسجيل الدخول بنجاح",
-        description: "أهلاً بك مرة أخرى!",
+        description: "أهلاً بك مرة أخرى! سيتم توجيهك إلى لوحة التحكم.",
       });
       router.push('/');
     } catch (error: any) {
@@ -59,7 +59,7 @@ export default function LoginPage() {
                 <Logo className="mx-auto size-10 text-primary" />
                 <CardTitle className="text-2xl font-headline mt-4">تسجيل الدخول</CardTitle>
                 <CardDescription>
-                أدخل بريدك الإلكتروني أدناه لتسجيل الدخول إلى حسابك
+                  أدخل بريدك الإلكتروني وكلمة المرور للدخول إلى لوحة التحكم الخاصة بك.
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -96,6 +96,9 @@ export default function LoginPage() {
                     {isLoading ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
                 </Button>
                 </form>
+                 <div className="mt-4 text-center text-sm">
+                  لا تملك حسابًا؟ يجب على المسؤول إنشاء حساب لك.
+                </div>
             </CardContent>
         </Card>
     </div>
