@@ -13,7 +13,7 @@ import { UserFormSheet } from "@/components/users/user-form-sheet";
 import { Header } from "@/components/dashboard/header";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
-import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser, useAuth } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc } from "firebase/firestore";
 import { createUserWithEmailAndPassword, getAuth, initializeAuth, indexedDBLocalPersistence } from 'firebase/auth';
 
@@ -566,6 +566,5 @@ export default function AdminDashboard() {
     </div>
   );
 }
-
 
     
