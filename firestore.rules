@@ -82,11 +82,11 @@ service cloud.firestore {
      * @description Rules for the /users collection.
      * @path /users/{userId}
      * @allow (read, write) - Admins can manage all user profiles.
-     * @allow create - A user can create their own profile document.
+     * @allow create - A user can create their own profile document, or an admin can create it.
      */
     match /users/{userId} {
       allow read, update, delete: if isAdmin();
-      allow create: if isSignedIn(); // Allow any signed in user to create a user doc (during sign-up)
+      allow create: if isSignedIn() && (isOwner(userId) || isAdmin());
     }
     
     /**
