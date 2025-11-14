@@ -15,7 +15,7 @@ import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useUser, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, setDoc, query, where, updateDoc } from "firebase/firestore";
-import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, signInWithCredential, EmailAuthProvider } from "firebase/auth";
 import { z } from "zod";
 
 
@@ -236,26 +236,26 @@ export default function AdminDashboard() {
   };
   
 const handleSaveUser = async (userData: any) => {
-    if (!firestore || !adminUser) {
-        toast({ title: "خطأ", description: "المسؤول غير مسجل دخوله.", variant: "destructive" });
+    if (!firestore || !adminUser || !adminUser.email) {
+        toast({ title: "خطأ", description: "المسؤول غير مسجل دخوله أو لا يوجد بريد إلكتروني.", variant: "destructive" });
         return;
     }
 
-    // Create a temporary, separate auth instance for user creation
+    // 1. Create a temporary, separate auth instance for user creation
+    // This prevents the admin's auth state from being overwritten.
     const tempAuth = getAuth(auth.app);
 
     try {
-        // Step 1: Create user in the temporary auth instance.
-        // This will sign in the new user in the background for this instance.
+        // 2. Create the new user in the temporary auth instance.
         const userCredential = await createUserWithEmailAndPassword(tempAuth, userData.email, userData.password);
         const newUser = userCredential.user;
         const uid = newUser.uid;
-
-        // The main 'auth' instance still has the admin signed in.
-        // We will use this admin's permissions to write to Firestore.
+        
+        // 3. The main `auth` instance still has the admin signed in.
+        // We will now use the admin's permissions to write to Firestore.
         const batch = writeBatch(firestore);
 
-        // Prepare user document
+        // 4. Prepare user document
         const userDocRef = doc(firestore, 'users', uid);
         const userDocData: any = {
             id: uid,
@@ -279,12 +279,12 @@ const handleSaveUser = async (userData: any) => {
              userDocData.deliveryCompanyId = userData.deliveryCompanyId;
         }
 
-        // Add user and role docs to the batch
+        // 5. Add user and role docs to the batch
         batch.set(userDocRef, userDocData);
         const roleDocRef = doc(firestore, `roles_${userData.role}`, uid);
         batch.set(roleDocRef, { email: userData.email, createdAt: serverTimestamp() });
         
-        // Step 2: Commit the batch using the admin's permissions.
+        // 6. Commit the batch using the admin's permissions.
         await batch.commit();
 
         toast({
@@ -295,36 +295,27 @@ const handleSaveUser = async (userData: any) => {
 
     } catch (error: any) {
         console.error("Error during user creation process:", error);
-        let description = "حدث خطأ غير متوقع.";
+        
+        // This is where Firestore permission errors for the BATCH will be caught.
+        const permissionError = new FirestorePermissionError({
+            path: 'users', // The batch can affect multiple paths, so this is a general path.
+            operation: 'write',
+            requestResourceData: { note: 'Batch operation for creating user, company, and role failed.' }
+        });
+        errorEmitter.emit('permission-error', permissionError);
 
-        // Handle Auth errors (e.g., email-already-in-use)
-        if (error.code?.startsWith('auth/')) {
-            if (error.code === 'auth/email-already-in-use') {
-                description = 'هذا البريد الإلكتروني مستخدم بالفعل.';
-            } else if (error.code === 'auth/weak-password') {
-                description = 'كلمة المرور ضعيفة جدًا (يجب أن تكون 6 أحرف على الأقل).';
-            }
-            toast({
-                title: "خطأ في إنشاء حساب المصادقة",
-                description: description,
-                variant: "destructive"
-            });
-        } 
-        // Handle Firestore permission errors specifically from the batch commit
-        else {
-             const permissionError = new FirestorePermissionError({
-                path: 'users', // General path for the batch
-                operation: 'write',
-                requestResourceData: { note: 'Batch operation for creating user, company, and role failed.' }
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            // Also show a toast to the user
-            toast({
-                title: "خطأ في حفظ البيانات",
-                description: "فشل حفظ بيانات المستخدم في قاعدة البيانات بسبب خطأ في الصلاحيات.",
-                variant: "destructive"
-            });
+        let description = "فشل حفظ بيانات المستخدم في قاعدة البيانات. تحقق من صلاحيات الأمان.";
+        if (error.code === 'auth/email-already-in-use') {
+            description = 'هذا البريد الإلكتروني مستخدم بالفعل.';
+        } else if (error.code === 'auth/weak-password') {
+            description = 'كلمة المرور ضعيفة جدًا (يجب أن تكون 6 أحرف على الأقل).';
         }
+        
+        toast({
+            title: "خطأ في إنشاء المستخدم",
+            description: description,
+            variant: "destructive"
+        });
     }
 };
 

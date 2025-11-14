@@ -1,98 +1,37 @@
 
-/**
- * @fileoverview Firestore Security Rules for AlSaqr Logistics application.
- *
- * Core Philosophy:
- * This ruleset prioritizes authorization independence through denormalization.
- * It enforces role-based access control using dedicated collections for admin, company, and courier roles.
- * Structural segregation is used to ensure that each collection has consistent security requirements.
- *
- * Data Structure:
- * - /users/{userId}: Stores user profiles and their roles.
- * - /shipments/{shipmentId}: Stores shipment data with denormalized fields for filtering.
- * - /companies/{companyId}: Stores company information (previously clients).
- * - /subclients/{subClientId}: Stores sub-client information.
- * - /deliveryCompanies/{companyId}: Stores logistics company information.
- * - /couriers/{courierId}: Stores courier information.
- * - /governorates/{governorateId}: Stores governorate information.
- * - /roles_admin/{userId}: Grants admin role to the user.
- * - /roles_company/{userId}: Grants company role to the user.
- * - /roles_courier/{userId}: Grants courier role to the user.
- *
- * Key Security Decisions:
- * - Admins have full read/write access to all collections.
- * - Company users can read/write their own shipments.
- * - Couriers can read assigned shipments and only update status/reason.
- * - Role assignments are managed by admins only.
- *
- * Denormalization for Authorization:
- * - Shipments denormalize various IDs to avoid `get()` calls in security rules.
- *
- * Structural Segregation:
- * - User roles are stored in separate collections (/roles_admin, /roles_company, /roles_courier) to simplify security rules.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * @description Checks if the user is signed in.
-     * @return {boolean} True if the user is signed in, false otherwise.
-     */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * @description Checks if the user has the admin role.
-     * @return {boolean} True if the user has the admin role, false otherwise.
-     */
     function isAdmin() {
-      // Grant admin access to a specific email for development and if user has admin role
       return isSignedIn() && (
         exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid)) ||
         request.auth.token.email == "mhanyt21@gmail.com"
       );
     }
     
-    /**
-     * @description Checks if the user has the company role.
-     * @return {boolean} True if the user has the company role, false otherwise.
-     */
     function isCompany() {
       return isSignedIn() && exists(/databases/$(database)/documents/roles_company/$(request.auth.uid));
     }
     
-     /**
-     * @description Checks if the user has the courier role.
-     * @return {boolean} True if the user has the courier role, false otherwise.
-     */
     function isCourier() {
       return isSignedIn() && exists(/databases/$(database)/documents/roles_courier/$(request.auth.uid));
     }
 
-    /**
-     * @description Checks if the user ID matches the requested user ID.
-     * @param {string} userId The user ID to check against.
-     * @return {boolean} True if the user ID matches, false otherwise.
-     */
     function isOwner(userId) {
-      return request.auth.uid == userId;
+      return isSignedIn() && request.auth.uid == userId;
     }
     
-    /**
-     * @description Rules for the /users collection.
-     */
     match /users/{userId} {
-      // Admins can manage all user profiles.
-      // An admin user can create a new user document.
-      allow create: if isAdmin();
-      allow read, update, delete: if isAdmin();
+      allow read: if isSignedIn();
+      // Admins can create/update/delete any user.
+      allow write: if isAdmin();
     }
     
-    /**
-     * @description Rules for the /shipments collection.
-     */
     match /shipments/{shipmentId} {
       allow read: if isAdmin() 
                   || (isCompany() && resource.data.companyId == request.auth.uid) 
@@ -104,51 +43,33 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    /**
-     * @description Rules for the /companies collection.
-     */
     match /companies/{companyId} {
       allow read: if isSignedIn();
-      // Allow an admin to create a company, and only admins to update/delete.
-      allow create: if isAdmin();
-      allow update, delete: if isAdmin();
+      // Admins can create/update/delete companies.
+      allow write: if isAdmin();
     }
     
-    /**
-     * @description Rules for the /deliveryCompanies collection.
-     */
     match /deliveryCompanies/{companyId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    /**
-     * @description Rules for the /subclients collection.
-     */
     match /subclients/{subClientId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    /**
-     * @description Rules for the /couriers collection.
-     */
     match /couriers/{courierId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    /**
-     * @description Rules for the /governorates collection.
-     */
     match /governorates/{governorateId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    /**
-     * @description Role collections are only writable by admins to ensure secure role management.
-     */
+    // Role collections are only writable by admins.
     match /roles_admin/{userId} {
       allow read, write: if isAdmin();
     }
@@ -162,5 +83,4 @@ service cloud.firestore {
     }
   }
 }
-
     
