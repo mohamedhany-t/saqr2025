@@ -16,6 +16,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, setDoc, query, where, updateDoc } from "firebase/firestore";
 import { getAuth, createUserWithEmailAndPassword, signInWithCredential, EmailAuthProvider } from "firebase/auth";
+import { createUser } from "@/lib/actions";
+import { z } from "zod";
+
 
 export default function AdminDashboard() {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
@@ -233,94 +236,29 @@ export default function AdminDashboard() {
   };
   
 const handleSaveUser = async (userData: any) => {
-    if (!firestore || !auth.currentUser) {
-        toast({ title: "خطأ", description: "المسؤول غير مسجل دخوله.", variant: "destructive" });
-        return;
-    }
-
-    // Save current admin credentials
-    const admin = auth.currentUser;
-    const adminEmail = admin.email;
-    if (!adminEmail) {
-        toast({ title: "خطأ", description: "لا يمكن العثور على بريد المسؤول الإلكتروني.", variant: "destructive" });
-        return;
-    }
-
     try {
-        // Step 1: Create the new user in Firebase Auth
-        const { user: newUser } = await createUserWithEmailAndPassword(auth, userData.email, userData.password);
+        const result = await createUser(userData);
 
-        // Step 2: IMPORTANT - The new user is now signed in. We must sign the admin back in.
-        // We need a way to get the admin's password. Since we can't, we will assume for this operation
-        // that the admin can perform these writes. The security rules need to allow an admin to write
-        // to these collections. We will simulate this by preparing the batch, then attempting to commit.
-        
-        const batch = writeBatch(firestore);
-
-        // 1. User document in /users
-        const userDocRef = doc(firestore, 'users', newUser.uid);
-        const userDocData: Partial<User> = {
-            id: newUser.uid,
-            email: userData.email,
-            role: userData.role,
-            name: userData.name,
-            createdAt: serverTimestamp()
-        };
-
-        // 2. Company document if role is 'company'
-        if (userData.role === 'company' && userData.companyName) {
-            const companyDocRef = doc(firestore, 'companies', newUser.uid);
-            batch.set(companyDocRef, { id: newUser.uid, name: userData.companyName });
-            userDocData.companyId = newUser.uid;
-            userDocData.companyName = userData.companyName;
-        }
-
-        // Set the user document data in the batch
-        batch.set(userDocRef, userDocData);
-
-        // 3. Role document in roles_* collection
-        const roleCollectionPath = `roles_${userData.role}`;
-        const roleDocRef = doc(firestore, roleCollectionPath, newUser.uid);
-        batch.set(roleDocRef, { email: userData.email, createdAt: serverTimestamp() });
-        
-        // This commit will be executed by the newly created user.
-        // Firestore rules MUST allow a user to create their own user and role document upon signup.
-        // OR the admin must re-authenticate to perform this write.
-        // Let's adjust the rules to allow initial self-creation.
-        await batch.commit();
-
-        toast({
-            title: "تم إنشاء المستخدم بنجاح",
-            description: `تم إنشاء حساب لـ ${userData.name} بدور ${userData.role}.`,
-        });
-        setUserSheetOpen(false);
-
-    } catch (error: any) {
-        console.error("User creation error:", error);
-        let description = "حدث خطأ غير متوقع أثناء إنشاء المستخدم.";
-        if (error.code === 'auth/email-already-in-use') {
-            description = "هذا البريد الإلكتروني مستخدم بالفعل.";
-        } else if (error.code === 'auth/weak-password') {
-            description = "كلمة المرور ضعيفة جدًا.";
-        } else if (error.code?.includes('permission-denied')) {
-             description = "خطأ في الصلاحيات. تأكد من أن قواعد الأمان تسمح للمسؤول بإنشاء المستخدمين.";
-             const permissionError = new FirestorePermissionError({
-                path: `users/${error.request?.auth?.uid || 'new_user'}`, // Best guess for path
-                operation: 'write',
-                requestResourceData: { note: 'Batch operation for creating user, company, and role failed.' }
+        if (result.success) {
+            toast({
+                title: "تم إنشاء المستخدم بنجاح",
+                description: result.message,
             });
-            errorEmitter.emit('permission-error', permissionError);
+            setUserSheetOpen(false);
+        } else {
+            toast({
+                title: "خطأ في إنشاء المستخدم",
+                description: result.error,
+                variant: "destructive"
+            });
         }
-
+    } catch (error) {
+        console.error("Client-side error calling createUser action:", error);
         toast({
-            title: "خطأ في إنشاء المستخدم",
-            description: description,
+            title: "خطأ غير متوقع",
+            description: "حدث خطأ من جانب العميل أثناء محاولة إنشاء المستخدم.",
             variant: "destructive"
         });
-    } finally {
-        // Re-login the admin regardless of success or failure of the batch write
-        // This is tricky without the password. The best approach is to have security rules that don't require this.
-        // For now, we will rely on the user to log back in if the session is lost.
     }
 };
 
@@ -461,4 +399,3 @@ const handleSaveUser = async (userData: any) => {
     </div>
   );
 }
-
