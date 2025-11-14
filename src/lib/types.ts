@@ -28,8 +28,8 @@ export type Shipment = {
   governorateId: string;
   address: string;
   deliveryDate: Date;
-  companyId: string; // Changed from clientId
-  subClientId?: string;
+  companyId: string;
+  subClientId?: string | null;
   status: ShipmentStatus;
   reason?: string;
   totalAmount: number;
@@ -47,17 +47,19 @@ export interface Company {
 
 export interface SubClient {
   id: string;
-  companyId: string; // Changed from clientId
+  companyId: string;
   name: string;
 }
 
 export interface Courier {
   id: string;
   name: string;
-  companyId: string;
+  deliveryCompanyId: string;
 }
 
 export interface Governorate {
   id: string;
   name: string;
 }
+
+    

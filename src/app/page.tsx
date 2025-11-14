@@ -7,7 +7,8 @@ import {
   LineChart,
   PlusCircle,
   FileUp,
-  Building
+  Building,
+  DatabaseZap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/icons";
@@ -18,11 +19,12 @@ import { StatsCards } from "@/components/dashboard/stats-cards";
 import { UsersTable } from "@/components/dashboard/users-table";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { Header } from "@/components/dashboard/header";
-import { read, utils, WorkBook } from 'xlsx';
+import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc } from "firebase/firestore";
 import { mockUsers } from "@/lib/placeholder-data";
+import { EGYPTIAN_GOVERNORATES } from "@/lib/governorates";
 
 export default function DashboardPage() {
   const [role] = React.useState<Role>("admin");
@@ -56,7 +58,6 @@ export default function DashboardPage() {
   
   const parseExcelDate = (excelDate: any) => {
     if (typeof excelDate === 'number') {
-      // Excel stores dates as number of days since 1900-01-01
       return new Date(Math.round((excelDate - 25569) * 86400 * 1000));
     }
     if (typeof excelDate === 'string') {
@@ -104,10 +105,13 @@ export default function DashboardPage() {
                 updatedAt: serverTimestamp(),
             };
             
-            // Remove undefined or null properties before sending to Firestore
             const cleanShipment = Object.fromEntries(
                 Object.entries(newShipment).filter(([_, v]) => v !== undefined && v !== null)
             );
+
+            if (cleanShipment.subClientId === null) {
+              delete (cleanShipment as Partial<Shipment>).subClientId;
+            }
 
 
             const docRef = doc(shipmentsCollection);
@@ -145,10 +149,13 @@ export default function DashboardPage() {
           updatedAt: serverTimestamp(),
         };
 
-        // Remove undefined or null properties before sending to Firestore
         const cleanShipmentData = Object.fromEntries(
             Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null)
         );
+
+        if (cleanShipmentData.subClientId === null) {
+          delete (cleanShipmentData as Partial<Shipment>).subClientId;
+        }
         
         await addDoc(shipmentsCollection, cleanShipmentData);
         
@@ -166,7 +173,62 @@ export default function DashboardPage() {
             variant: "destructive"
          });
      }
-  }
+  };
+
+  const seedDatabase = async () => {
+    if (!firestore) return;
+
+    try {
+      const batch = writeBatch(firestore);
+
+      // Seed Governorates
+      const governoratesCol = collection(firestore, 'governorates');
+      EGYPTIAN_GOVERNORATES.forEach(name => {
+        const docRef = doc(governoratesCol);
+        batch.set(docRef, { name });
+      });
+
+      // Seed Companies
+      const companiesCol = collection(firestore, 'companies');
+      ["شركة النخبة", "شركة الأمانة", "شركة المستقبل"].forEach(name => {
+        const docRef = doc(companiesCol);
+        batch.set(docRef, { name });
+      });
+
+      // Seed Delivery Companies
+      const deliveryCompaniesCol = collection(firestore, 'deliveryCompanies');
+      ["Aramex", "FedEx", "DHL"].forEach(name => {
+        const docRef = doc(deliveryCompaniesCol);
+        batch.set(docRef, { name });
+      });
+
+      // Seed Couriers
+      const couriersCol = collection(firestore, 'couriers');
+      [
+        { name: "أحمد محمود", companyId: "Aramex" },
+        { name: "محمد علي", companyId: "FedEx" },
+        { name: "سارة حسين", companyId: "DHL" },
+      ].forEach(courier => {
+        const docRef = doc(couriersCol);
+        batch.set(docRef, courier);
+      });
+
+      await batch.commit();
+
+      toast({
+        title: 'تم',
+        description: 'تمت إضافة البيانات الأولية بنجاح إلى قاعدة البيانات.',
+      });
+    } catch (error) {
+      console.error('Error seeding database:', error);
+      toast({
+        title: 'خطأ',
+        description: 'حدث خطأ أثناء إضافة البيانات الأولية.',
+        variant: 'destructive',
+      });
+    }
+  };
+
 
   return (
     <div className="min-h-screen w-full bg-muted/30">
@@ -256,7 +318,13 @@ export default function DashboardPage() {
           </TabsContent>
            <TabsContent value="management">
                 <div className="mt-8">
-                    <h2 className="text-2xl font-headline font-semibold mb-4">إدارة المستخدمين</h2>
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين</h2>
+                      <Button onClick={seedDatabase} variant="outline">
+                        <DatabaseZap className="me-2 h-4 w-4" />
+                        إضافة بيانات أولية
+                      </Button>
+                    </div>
                     <UsersTable users={mockUsers} />
                 </div>
            </TabsContent>
@@ -265,3 +333,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
