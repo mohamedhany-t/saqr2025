@@ -21,7 +21,7 @@ import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { Header } from "@/components/dashboard/header";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc } from "firebase/firestore";
 import { mockUsers } from "@/lib/placeholder-data";
 import { EGYPTIAN_GOVERNORATES } from "@/lib/governorates";
@@ -59,14 +59,12 @@ export default function DashboardPage() {
   const parseExcelDate = (excelDate: any): Date | null => {
     if (!excelDate) return null;
 
-    // If it's already a Date object, return it.
     if (excelDate instanceof Date) {
         if (!isNaN(excelDate.getTime())) {
             return excelDate;
         }
     }
 
-    // If it's a number (Excel's date format)
     if (typeof excelDate === 'number') {
         const date = new Date(Math.round((excelDate - 25569) * 86400 * 1000));
         if (!isNaN(date.getTime())) {
@@ -74,7 +72,6 @@ export default function DashboardPage() {
         }
     }
 
-    // If it's a string, try to parse it
     if (typeof excelDate === 'string') {
         const date = new Date(excelDate);
         if (!isNaN(date.getTime())) {
@@ -82,7 +79,6 @@ export default function DashboardPage() {
         }
     }
     
-    // Return null if parsing fails
     return null;
   }
 
@@ -138,7 +134,14 @@ export default function DashboardPage() {
             importedCount++;
           }
           
-          await batch.commit();
+          batch.commit().catch(serverError => {
+            const permissionError = new FirestorePermissionError({
+                path: 'shipments',
+                operation: 'write',
+                requestResourceData: {note: "Batch import operation"}
+            });
+            errorEmitter.emit('permission-error', permissionError);
+          });
 
           toast({
             title: "تم الاستيراد بنجاح",
@@ -157,38 +160,36 @@ export default function DashboardPage() {
     }
   };
 
-  const handleSaveShipment = async (shipment: Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const handleSaveShipment = (shipment: Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>) => {
      if (!firestore) return;
-     try {
-        const shipmentsCollection = collection(firestore, 'shipments');
+    const shipmentsCollection = collection(firestore, 'shipments');
 
-        const shipmentData = {
-          ...shipment,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        };
+    const shipmentData = {
+      ...shipment,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
 
-        const cleanShipmentData = Object.fromEntries(
-            Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null)
-        );
+    const cleanShipmentData = Object.fromEntries(
+        Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null)
+    );
 
-        
-        await addDoc(shipmentsCollection, cleanShipmentData);
-        
+    addDoc(shipmentsCollection, cleanShipmentData)
+      .then(() => {
         toast({
             title: "تم حفظ الشحنة",
             description: `تم إنشاء الشحنة بنجاح`,
         });
         setShipmentSheetOpen(false);
-
-     } catch(error) {
-         console.error("Error adding document: ", error);
-         toast({
-            title: "خطأ",
-            description: "لم يتم حفظ الشحنة. الرجاء المحاولة مرة أخرى",
-            variant: "destructive"
-         });
-     }
+      })
+      .catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+          path: shipmentsCollection.path,
+          operation: 'create',
+          requestResourceData: cleanShipmentData
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
   };
 
   const seedDatabase = async () => {
@@ -349,5 +350,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    

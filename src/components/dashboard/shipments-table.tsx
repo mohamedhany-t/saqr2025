@@ -59,7 +59,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import type { Shipment, ShipmentStatus, Governorate, Company, Courier, SubClient } from "@/lib/types"
 import { exportToExcel, exportToPDF } from "@/lib/export"
-import { useFirestore } from "@/firebase"
+import { useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase"
 import { doc, writeBatch } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -323,7 +323,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates, companies, subClients, couriers);
   }
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     if (!firestore) return;
     const selectedRows = table.getFilteredSelectedRowModel().rows;
     if (selectedRows.length === 0) {
@@ -331,22 +331,26 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
         return;
     }
 
-    try {
-        const batch = writeBatch(firestore);
-        selectedRows.forEach(row => {
-            const docRef = doc(firestore, "shipments", row.original.id);
-            batch.delete(docRef);
-        });
-        await batch.commit();
+    const batch = writeBatch(firestore);
+    selectedRows.forEach(row => {
+        const docRef = doc(firestore, "shipments", row.original.id);
+        batch.delete(docRef);
+    });
+
+    batch.commit().then(() => {
         toast({ title: `تم حذف ${selectedRows.length} شحنة بنجاح` });
         table.resetRowSelection();
-    } catch (error) {
-        console.error("Error deleting shipments: ", error);
-        toast({ title: "خطأ أثناء الحذف", description: "حدث خطأ غير متوقع.", variant: "destructive"});
-    }
+    }).catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+            path: 'shipments',
+            operation: 'delete',
+            requestResourceData: { note: `Bulk delete of ${selectedRows.length} documents.` }
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
   }
 
-  const handleBulkUpdate = async (update: Partial<Shipment>) => {
+  const handleBulkUpdate = (update: Partial<Shipment>) => {
     if (!firestore) return;
     const selectedRows = table.getFilteredSelectedRowModel().rows;
     if (selectedRows.length === 0) {
@@ -354,19 +358,23 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
         return;
     }
     
-    try {
-        const batch = writeBatch(firestore);
-        selectedRows.forEach(row => {
-            const docRef = doc(firestore, "shipments", row.original.id);
-            batch.update(docRef, {...update, updatedAt: new Date()});
-        });
-        await batch.commit();
+    const batch = writeBatch(firestore);
+    selectedRows.forEach(row => {
+        const docRef = doc(firestore, "shipments", row.original.id);
+        batch.update(docRef, {...update, updatedAt: new Date()});
+    });
+
+    batch.commit().then(() => {
         toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
         table.resetRowSelection();
-    } catch (error) {
-        console.error("Error updating shipments: ", error);
-        toast({ title: "خطأ أثناء التحديث", description: "حدث خطأ غير متوقع.", variant: "destructive"});
-    }
+    }).catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+            path: 'shipments',
+            operation: 'update',
+            requestResourceData: { update, note: `Bulk update of ${selectedRows.length} documents.` }
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
   }
 
   const governorateFilterValue = columnFilters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
