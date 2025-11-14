@@ -3,6 +3,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { Search, Package, Home, Users2, LineChart } from "lucide-react";
+import { useAuth, useUser } from '@/firebase';
+import { signOut } from 'firebase/auth';
 
 import { Input } from "@/components/ui/input";
 import {
@@ -16,9 +18,21 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Logo } from '../icons';
+import { useRouter } from 'next/navigation';
 
 export function Header() {
-  const user = { name: "Admin User", email: "admin@alsaqr.com", avatar: "/placeholder-user.jpg", role: "admin" };
+  const { user } = useUser();
+  const auth = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    router.push('/login');
+  }
+
+  // Fallback values for user while loading
+  const displayName = user?.displayName || user?.email?.split('@')[0] || "User";
+  const displayInitial = displayName?.charAt(0).toUpperCase() || "U";
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4 sm:px-6">
@@ -35,12 +49,11 @@ export function Header() {
             <Package className="h-4 w-4" />
             <span>الشحنات</span>
           </Link>
-          {user.role === 'admin' && (
-             <Link href="#" className="text-muted-foreground transition-colors hover:text-foreground">
-                <Users2 className="h-4 w-4" />
-                <span>المستخدمون</span>
-             </Link>
-          )}
+          {/* We'll add role-based rendering later */}
+          <Link href="#" className="text-muted-foreground transition-colors hover:text-foreground">
+              <Users2 className="h-4 w-4" />
+              <span>المستخدمون</span>
+          </Link>
           <Link href="#" className="text-muted-foreground transition-colors hover:text-foreground">
             <LineChart className="h-4 w-4" />
             <span>التقارير</span>
@@ -62,8 +75,8 @@ export function Header() {
             className="overflow-hidden rounded-full"
           >
             <Avatar>
-              <AvatarImage src={user.avatar} alt={user.name} />
-              <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+              <AvatarImage src={user?.photoURL || undefined} alt={displayName} />
+              <AvatarFallback>{displayInitial}</AvatarFallback>
             </Avatar>
           </Button>
         </DropdownMenuTrigger>
@@ -73,9 +86,11 @@ export function Header() {
           <DropdownMenuItem>الإعدادات</DropdownMenuItem>
           <DropdownMenuItem>الدعم</DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>تسجيل الخروج</DropdownMenuItem>
+          <DropdownMenuItem onClick={handleLogout}>تسجيل الخروج</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </header>
   );
 }
+
+    

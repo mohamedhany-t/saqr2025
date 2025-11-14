@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { useRouter } from "next/navigation";
 import {
   Package,
   Home,
@@ -9,6 +10,7 @@ import {
   FileUp,
   Building,
   DatabaseZap,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/icons";
@@ -21,7 +23,7 @@ import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { Header } from "@/components/dashboard/header";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
-import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc } from "firebase/firestore";
 import { mockUsers } from "@/lib/placeholder-data";
 import { EGYPTIAN_GOVERNORATES } from "@/lib/governorates";
@@ -32,6 +34,9 @@ export default function DashboardPage() {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const firestore = useFirestore();
+  const router = useRouter();
+  const { user, isUserLoading } = useUser();
+
 
   const shipmentsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'shipments') : null, [firestore]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
@@ -51,6 +56,20 @@ export default function DashboardPage() {
   const couriersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'couriers') : null, [firestore]);
   const { data: couriers } = useCollection<Courier>(couriersQuery);
 
+
+  React.useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, isUserLoading, router]);
+
+  if (isUserLoading || !user) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center bg-muted/30">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
@@ -314,7 +333,7 @@ export default function DashboardPage() {
              />
           </TabsContent>
            <TabsContent value="delivered">
-             <ShipmentsTable 
+             <ShipmentsTable _
                 shipments={(shipments || []).filter(s => s.status === 'Delivered')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
@@ -350,3 +369,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
