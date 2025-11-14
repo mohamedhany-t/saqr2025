@@ -20,7 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Logo } from '../icons';
 import { useRouter } from 'next/navigation';
 
-export function Header() {
+export function Header({ onSearchChange }: { onSearchChange: (term: string) => void }) {
   const { user } = useUser();
   const auth = useAuth();
   const router = useRouter();
@@ -52,6 +52,7 @@ export function Header() {
           type="search"
           placeholder="بحث في الشحنات..."
           className="w-full rounded-lg bg-background ps-8 md:w-[200px] lg:w-[320px]"
+          onChange={(e) => onSearchChange(e.target.value)}
         />
       </div>
       <DropdownMenu>
@@ -70,8 +71,8 @@ export function Header() {
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>حسابي</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>الإعدادات</DropdownMenuItem>
-          <DropdownMenuItem>الدعم</DropdownMenuItem>
+          <DropdownMenuItem disabled>الإعدادات</DropdownMenuItem>
+          <DropdownMenuItem disabled>الدعم</DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleLogout}>تسجيل الخروج</DropdownMenuItem>
         </DropdownMenuContent>

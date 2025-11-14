@@ -21,23 +21,27 @@ import type { Role, Shipment, Company, SubClient, Governorate, Courier, User } f
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { UsersTable } from "@/components/dashboard/users-table";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
+import { UserFormSheet } from "@/components/users/user-form-sheet";
 import { Header } from "@/components/dashboard/header";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDoc, setDoc, query, where, getDocs, updateDoc } from "firebase/firestore";
 import { EGYPTIAN_GOVERNORATES } from "@/lib/governorates";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 
 export default function DashboardPage() {
   const [role, setRole] = React.useState<Role | null>(null);
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
+  const [isUserSheetOpen, setUserSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [searchTerm, setSearchTerm] = React.useState("");
   const { toast } = useToast();
   const firestore = useFirestore();
   const router = useRouter();
   const { user, isUserLoading } = useUser();
+  const auth = getAuth();
 
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user || !role) return null;
@@ -115,33 +119,28 @@ export default function DashboardPage() {
           setRole('admin');
           return;
         }
-
-        const adminDoc = doc(firestore, `roles_admin/${user.uid}`);
-        const companyDoc = doc(firestore, `roles_company/${user.uid}`);
-        const courierDoc = doc(firestore, `roles_courier/${user.uid}`);
-        
-        const [adminSnap, companySnap, courierSnap] = await Promise.all([
-          getDoc(adminDoc),
-          getDoc(companyDoc),
-          getDoc(courierDoc)
-        ]);
         
         let userRole: Role | null = null;
-        if (adminSnap.exists()) {
-          userRole = 'admin';
-        } else if (companySnap.exists()) {
-          userRole = 'company';
-        } else if (courierSnap.exists()) {
-          userRole = 'courier';
+        
+        const adminSnap = await getDoc(doc(firestore, `roles_admin/${user.uid}`));
+        if (adminSnap.exists()) userRole = 'admin';
+        else {
+          const companySnap = await getDoc(doc(firestore, `roles_company/${user.uid}`));
+          if (companySnap.exists()) userRole = 'company';
+          else {
+            const courierSnap = await getDoc(doc(firestore, `roles_courier/${user.uid}`));
+            if (courierSnap.exists()) userRole = 'courier';
+          }
         }
 
+
         if (userRole) {
-           await setDoc(userDocRef, {
+           await setDoc(doc(firestore, `users/${user.uid}`), {
              id: user.uid,
              email: user.email,
              role: userRole,
              createdAt: serverTimestamp()
-           });
+           }, { merge: true });
            setRole(userRole);
         } else {
           setRole(null);
@@ -297,6 +296,11 @@ export default function DashboardPage() {
     if (id) { // Update existing shipment
       const docRef = doc(firestore, 'shipments', id);
       const dataToUpdate = { ...cleanShipmentData, updatedAt: serverTimestamp() };
+      
+      if (dataToUpdate.status === 'Delivered') {
+          dataToUpdate.paidAmount = dataToUpdate.totalAmount;
+      }
+      
       updateDoc(docRef, dataToUpdate)
         .then(() => {
           toast({
@@ -317,6 +321,11 @@ export default function DashboardPage() {
     } else { // Add new shipment
       const shipmentsCollection = collection(firestore, 'shipments');
       const dataToAdd = { ...cleanShipmentData, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+      
+      if (dataToAdd.status === 'Delivered') {
+          dataToAdd.paidAmount = dataToAdd.totalAmount;
+      }
+
       addDoc(shipmentsCollection, dataToAdd)
         .then(() => {
           toast({
@@ -335,66 +344,57 @@ export default function DashboardPage() {
         });
     }
   };
-
-
-  const seedDatabase = async () => {
+  
+  const handleSaveUser = async (userData: any) => {
     if (!firestore) return;
-
     try {
-      const batch = writeBatch(firestore);
+        const { user: newUser } = await createUserWithEmailAndPassword(auth, userData.email, userData.password);
+        
+        const userDocRef = doc(firestore, 'users', newUser.uid);
+        await setDoc(userDocRef, {
+            id: newUser.uid,
+            email: userData.email,
+            role: userData.role,
+            name: userData.name,
+            companyId: userData.companyId || null,
+            deliveryCompanyId: userData.deliveryCompanyId || null,
+            createdAt: serverTimestamp()
+        });
 
-      // Seed Governorates
-      const governoratesCol = collection(firestore, 'governorates');
-      EGYPTIAN_GOVERNORATES.forEach(name => {
-        const docRef = doc(governoratesCol);
-        batch.set(docRef, { name });
-      });
+        const roleCollection = `roles_${userData.role}`;
+        const roleDocRef = doc(firestore, roleCollection, newUser.uid);
+        await setDoc(roleDocRef, { email: userData.email });
 
-      // Seed Companies
-      const companiesCol = collection(firestore, 'companies');
-      ["تليجراف", "شركة النخبة", "شركة الأمانة", "شركة المستقبل"].forEach(name => {
-        const docRef = doc(companiesCol);
-        batch.set(docRef, { name });
-      });
-
-      // Seed Delivery Companies
-      const deliveryCompaniesCol = collection(firestore, 'deliveryCompanies');
-      ["Aramex", "FedEx", "DHL"].forEach(name => {
-        const docRef = doc(deliveryCompaniesCol);
-        batch.set(docRef, { name });
-      });
-
-      // Seed Couriers
-      const couriersCol = collection(firestore, 'couriers');
-      [
-        { name: "أحمد محمود", companyId: "Aramex" },
-        { name: "محمد علي", companyId: "FedEx" },
-        { name: "سارة حسين", companyId: "DHL" },
-      ].forEach(courier => {
-        const docRef = doc(couriersCol);
-        batch.set(docRef, courier);
-      });
-
-      await batch.commit();
-
-      toast({
-        title: 'تم',
-        description: 'تمت إضافة البيانات الأولية بنجاح إلى قاعدة البيانات.',
-      });
-    } catch (error) {
-      console.error('Error seeding database:', error);
-      toast({
-        title: 'خطأ',
-        description: 'حدث خطأ أثناء إضافة البيانات الأولية.',
-        variant: 'destructive',
-      });
+        toast({
+            title: "تم إنشاء المستخدم بنجاح",
+            description: `تم إنشاء حساب لـ ${userData.name} بدور ${userData.role}.`,
+        });
+        setUserSheetOpen(false);
+    } catch (error: any) {
+        console.error("Error creating user:", error);
+        toast({
+            title: "خطأ في إنشاء المستخدم",
+            description: error.message || "حدث خطأ غير متوقع.",
+            variant: "destructive"
+        });
     }
   };
+
+  const filteredShipments = React.useMemo(() => {
+    if (!shipments) return [];
+    if (!searchTerm) return shipments;
+    return shipments.filter(shipment => 
+        shipment.shipmentCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        shipment.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        shipment.recipientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        shipment.trackingNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [shipments, searchTerm]);
 
 
   return (
     <div className="min-h-screen w-full bg-muted/30">
-      <Header />
+      <Header onSearchChange={setSearchTerm}/>
       <main className="p-4 sm:px-6 sm:py-0">
         <Tabs defaultValue="all-shipments">
           <div className="flex items-center">
@@ -439,10 +439,10 @@ export default function DashboardPage() {
               </ShipmentFormSheet>
             </div>
           </div>
-          <StatsCards shipments={shipments || []} />
+          <StatsCards shipments={shipments || []} role={role} companies={companies || []} />
           <TabsContent value="all-shipments">
             <ShipmentsTable 
-              shipments={shipments || []} 
+              shipments={filteredShipments} 
               isLoading={shipmentsLoading}
               governorates={governorates || []}
               companies={companies || []}
@@ -455,7 +455,7 @@ export default function DashboardPage() {
           </TabsContent>
           <TabsContent value="in-transit">
              <ShipmentsTable 
-                shipments={(shipments || []).filter(s => s.status === 'In-Transit')}
+                shipments={filteredShipments.filter(s => s.status === 'In-Transit')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
                 companies={companies || []}
@@ -468,7 +468,7 @@ export default function DashboardPage() {
           </TabsContent>
            <TabsContent value="delivered">
              <ShipmentsTable 
-                shipments={(shipments || []).filter(s => s.status === 'Delivered')}
+                shipments={filteredShipments.filter(s => s.status === 'Delivered')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
                 companies={companies || []}
@@ -481,7 +481,7 @@ export default function DashboardPage() {
           </TabsContent>
            <TabsContent value="returned">
              <ShipmentsTable 
-                shipments={(shipments || []).filter(s => s.status === 'Returned')}
+                shipments={filteredShipments.filter(s => s.status === 'Returned')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
                 companies={companies || []}
@@ -498,14 +498,18 @@ export default function DashboardPage() {
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين</h2>
                       <div className="flex items-center gap-2">
-                         <Button variant="outline">
-                            <Users className="me-2 h-4 w-4" />
-                            إضافة مستخدم
-                          </Button>
-                          <Button onClick={seedDatabase} variant="outline">
-                            <DatabaseZap className="me-2 h-4 w-4" />
-                            إضافة بيانات أولية
-                          </Button>
+                        <UserFormSheet
+                            open={isUserSheetOpen}
+                            onOpenChange={setUserSheetOpen}
+                            onSave={handleSaveUser}
+                            companies={companies || []}
+                            deliveryCompanies={deliveryCompanies || []}
+                        >
+                           <Button variant="outline" onClick={() => setUserSheetOpen(true)}>
+                              <Users className="me-2 h-4 w-4" />
+                              إضافة مستخدم
+                            </Button>
+                        </UserFormSheet>
                       </div>
                     </div>
                     <UsersTable users={users || []} isLoading={usersLoading} />
