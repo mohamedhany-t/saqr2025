@@ -84,9 +84,9 @@ service cloud.firestore {
      */
     match /users/{userId} {
       // Admins can manage all user profiles.
-      // A user can create their own profile.
+      // A signed-in user (i.e., the admin performing the action) can create a new user document.
+      allow create: if isSignedIn();
       allow read, update, delete: if isAdmin();
-      allow create: if isAdmin() || (isSignedIn() && isOwner(userId));
     }
     
     /**
@@ -108,8 +108,9 @@ service cloud.firestore {
      */
     match /companies/{companyId} {
       allow read: if isSignedIn();
-      // Admins can create/update/delete companies.
-      allow write: if isAdmin();
+      // Allow any signed-in user (i.e., the admin) to create a company, and only admins to update/delete.
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
     }
     
     /**
