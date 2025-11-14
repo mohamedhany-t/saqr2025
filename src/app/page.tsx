@@ -25,13 +25,14 @@ import { Header } from "@/components/dashboard/header";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
-import { collection, addDoc, serverTimestamp, writeBatch, doc, getDoc, setDoc, query, where } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, writeBatch, doc, getDoc, setDoc, query, where, getDocs, updateDoc } from "firebase/firestore";
 import { EGYPTIAN_GOVERNORATES } from "@/lib/governorates";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 
 export default function DashboardPage() {
   const [role, setRole] = React.useState<Role | null>(null);
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
+  const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -40,9 +41,18 @@ export default function DashboardPage() {
 
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user || !role) return null;
-    let q = collection(firestore, 'shipments');
-    // We will add role based queries later
-    return q;
+    
+    const shipmentsCollection = collection(firestore, 'shipments');
+    
+    if (role === 'company') {
+      return query(shipmentsCollection, where("companyId", "==", user.uid));
+    }
+    if (role === 'courier') {
+      return query(shipmentsCollection, where("assignedCourierId", "==", user.uid));
+    }
+    // Admin sees all
+    return shipmentsCollection;
+
   }, [firestore, user, role]);
 
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
@@ -73,6 +83,12 @@ export default function DashboardPage() {
       router.push('/login');
     }
   }, [user, isUserLoading, router]);
+  
+  const openShipmentForm = (shipment?: Shipment) => {
+    setEditingShipment(shipment);
+    setShipmentSheetOpen(true);
+  };
+
 
   React.useEffect(() => {
     if (user && firestore) {
@@ -92,8 +108,10 @@ export default function DashboardPage() {
             name: 'Admin',
             createdAt: serverTimestamp()
           };
-          await setDoc(userDocRef, adminData);
-          await setDoc(doc(firestore, 'roles_admin', user.uid), {email: user.email});
+          if (!userDocSnap.exists()){
+            await setDoc(userDocRef, adminData);
+            await setDoc(doc(firestore, 'roles_admin', user.uid), {email: user.email});
+          }
           setRole('admin');
           return;
         }
@@ -180,115 +198,144 @@ export default function DashboardPage() {
           const json = utils.sheet_to_json<any>(worksheet);
 
           const batch = writeBatch(firestore);
-          let importedCount = 0;
+          let addedCount = 0;
+          let updatedCount = 0;
           const shipmentsCollection = collection(firestore, 'shipments');
 
           for (const row of json) {
-            const shipmentCode = row['رقم الشحنة']?.toString() || `SH-${Date.now()}-${importedCount}`;
-            const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
-            const creationDate = parseExcelDate(row['التاريخ']);
-            
-            const newShipment: Omit<Shipment, 'id'> = {
-                shipmentCode: shipmentCode,
-                orderNumber: row['رقم الطلب']?.toString() || `ORD-${Date.now()}-${importedCount}`,
-                trackingNumber: row['رقم الشحنة']?.toString() || `TRK-${Date.now()}-${importedCount}`,
-                recipientName: row['المرسل اليه'],
-                recipientPhone: row['التليفون']?.toString(),
-                governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
-                address: row['العنوان'] || 'N/A',
-                totalAmount: parseFloat(row['الاجمالي'] || '0'),
-                paidAmount: parseFloat(row['المدفوع'] || '0'),
-                status: row['حالة الأوردر'] || 'Pending',
-                reason: row['السبب'] || '',
-                deliveryDate: deliveryDate || new Date(),
-                companyId: companies?.find(c => c.name === row['العميل'])?.id || 'imported',
-                subClientId: subClients?.find(sc => sc.name === row['العميل الفرعي'])?.id,
-                createdAt: creationDate || serverTimestamp(),
-                updatedAt: serverTimestamp(),
-            };
-            
-            const cleanShipment: { [key: string]: any } = {};
-            for (const key in newShipment) {
-              const value = (newShipment as any)[key];
-              if (value !== undefined && value !== null && value !== '') {
-                cleanShipment[key] = value;
-              }
-            }
-            
-            if (!cleanShipment.subClientId) {
-                cleanShipment.subClientId = null;
-            }
+              const trackingNumber = row['رقم الشحنة']?.toString();
+              if (!trackingNumber) continue;
 
-            const docRef = doc(shipmentsCollection);
-            batch.set(docRef, cleanShipment);
-            importedCount++;
+              const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
+              const creationDate = parseExcelDate(row['التاريخ']);
+
+              const shipmentData: Partial<Shipment> = {
+                  orderNumber: row['رقم الطلب']?.toString(),
+                  recipientName: row['المرسل اليه'],
+                  recipientPhone: row['التليفون']?.toString(),
+                  governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
+                  address: row['العنوان'] || 'N/A',
+                  totalAmount: parseFloat(String(row['الاجمالي'] || '0').replace(/[^0-9.]/g, '')),
+                  paidAmount: parseFloat(String(row['المدفوع'] || '0').replace(/[^0-9.]/g, '')),
+                  status: row['حالة الأوردر'] || 'Pending',
+                  reason: row['السبب'] || '',
+                  deliveryDate: deliveryDate || new Date(),
+                  companyId: companies?.find(c => c.name === row['العميل'])?.id || 'imported',
+                  subClientId: subClients?.find(sc => sc.name === row['العميل الفرعي'])?.id,
+                  updatedAt: serverTimestamp(),
+              };
+
+              // Clean up undefined/null values
+              const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+              if (!cleanShipmentData.subClientId) {
+                cleanShipmentData.subClientId = null;
+              }
+
+              const q = query(shipmentsCollection, where("trackingNumber", "==", trackingNumber));
+              const querySnapshot = await getDocs(q);
+
+              if (querySnapshot.empty) {
+                  const docRef = doc(shipmentsCollection);
+                  batch.set(docRef, { 
+                      ...cleanShipmentData, 
+                      trackingNumber, 
+                      shipmentCode: row['رقم الشحنة']?.toString() || `SH-${Date.now()}-${addedCount}`,
+                      createdAt: creationDate || serverTimestamp()
+                  });
+                  addedCount++;
+              } else {
+                  const docRef = querySnapshot.docs[0].ref;
+                  batch.update(docRef, cleanShipmentData);
+                  updatedCount++;
+              }
           }
           
-          batch.commit().catch(serverError => {
+          await batch.commit();
+
+          let toastMessage = "";
+          if (addedCount > 0) toastMessage += `تمت إضافة ${addedCount} شحنة جديدة. `;
+          if (updatedCount > 0) toastMessage += `تم تحديث ${updatedCount} شحنة.`;
+          
+          toast({
+            title: "اكتمل الاستيراد بنجاح",
+            description: toastMessage.trim() || "لم يتم العثور على شحنات جديدة أو تحديثات.",
+          });
+
+        } catch (error: any) {
+            console.error("Error importing file:", error);
             const permissionError = new FirestorePermissionError({
                 path: 'shipments',
                 operation: 'write',
-                requestResourceData: {note: "Batch import operation"}
+                requestResourceData: {note: "Batch import operation failed"}
             });
             errorEmitter.emit('permission-error', permissionError);
-          });
-
-          toast({
-            title: "تم الاستيراد بنجاح",
-            description: `تمت إضافة ${importedCount} شحنة جديدة.`,
-          });
-        } catch (error: any) {
-            console.error("Error importing file:", error);
             toast({
                 title: "خطأ في الاستيراد",
-                description: error.message || "حدث خطأ أثناء معالجة الملف. يرجى التأكد من أن الملف بالتنسيق الصحيح.",
+                description: error.message || "حدث خطأ أثناء معالجة الملف.",
                 variant: "destructive"
             });
+        } finally {
+            if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+            }
         }
       };
       reader.readAsBinaryString(file);
     }
   };
 
-  const handleSaveShipment = (shipment: Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>) => {
-     if (!firestore) return;
-    const shipmentsCollection = collection(firestore, 'shipments');
+  const handleSaveShipment = (shipment: Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>, id?: string) => {
+    if (!firestore) return;
 
-    const shipmentData = {
-      ...shipment,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
-
-    const cleanShipmentData: { [key: string]: any } = {};
-    for (const key in shipmentData) {
-        const value = (shipmentData as any)[key];
-        if (value !== undefined && value !== null && value !== '') {
-            cleanShipmentData[key] = value;
-        }
-    }
-    
-    if (!cleanShipmentData.subClientId) {
+    const cleanShipmentData: { [key: string]: any } = Object.fromEntries(
+      Object.entries(shipment).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+    );
+     if (!cleanShipmentData.subClientId) {
         cleanShipmentData.subClientId = null;
     }
 
-    addDoc(shipmentsCollection, cleanShipmentData)
-      .then(() => {
-        toast({
+    if (id) { // Update existing shipment
+      const docRef = doc(firestore, 'shipments', id);
+      const dataToUpdate = { ...cleanShipmentData, updatedAt: serverTimestamp() };
+      updateDoc(docRef, dataToUpdate)
+        .then(() => {
+          toast({
+            title: "تم تحديث الشحنة",
+            description: `تم تحديث الشحنة بنجاح`,
+          });
+          setShipmentSheetOpen(false);
+        })
+        .catch(serverError => {
+          const permissionError = new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'update',
+            requestResourceData: dataToUpdate
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        });
+
+    } else { // Add new shipment
+      const shipmentsCollection = collection(firestore, 'shipments');
+      const dataToAdd = { ...cleanShipmentData, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+      addDoc(shipmentsCollection, dataToAdd)
+        .then(() => {
+          toast({
             title: "تم حفظ الشحنة",
             description: `تم إنشاء الشحنة بنجاح`,
+          });
+          setShipmentSheetOpen(false);
+        })
+        .catch(serverError => {
+          const permissionError = new FirestorePermissionError({
+            path: shipmentsCollection.path,
+            operation: 'create',
+            requestResourceData: dataToAdd
+          });
+          errorEmitter.emit('permission-error', permissionError);
         });
-        setShipmentSheetOpen(false);
-      })
-      .catch(serverError => {
-        const permissionError = new FirestorePermissionError({
-          path: shipmentsCollection.path,
-          operation: 'create',
-          requestResourceData: cleanShipmentData
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      });
+    }
   };
+
 
   const seedDatabase = async () => {
     if (!firestore) return;
@@ -366,7 +413,7 @@ export default function DashboardPage() {
                     className="hidden"
                     accept=".xlsx, .xls"
                 />
-              <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleImportClick}>
+              <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleImportClick} disabled={role === 'courier'}>
                 <FileUp className="h-3.5 w-3.5" />
                 <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
                   استيراد
@@ -376,12 +423,14 @@ export default function DashboardPage() {
                 open={isShipmentSheetOpen}
                 onOpenChange={setShipmentSheetOpen}
                 onSave={handleSaveShipment}
+                shipment={editingShipment}
                 governorates={governorates || []}
                 companies={companies || []}
                 subClients={subClients || []}
                 couriers={couriers || []}
+                role={role}
               >
-                 <Button size="sm" className="h-8 gap-1" onClick={() => setShipmentSheetOpen(true)}>
+                 <Button size="sm" className="h-8 gap-1" onClick={() => openShipmentForm()} disabled={role === 'courier'}>
                     <PlusCircle className="h-3.5 w-3.5" />
                     <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
                       شحنة جديدة
@@ -400,6 +449,8 @@ export default function DashboardPage() {
               deliveryCompanies={deliveryCompanies || []}
               couriers={couriers || []}
               subClients={subClients || []}
+              onEdit={openShipmentForm}
+              role={role}
             />
           </TabsContent>
           <TabsContent value="in-transit">
@@ -411,6 +462,8 @@ export default function DashboardPage() {
                 deliveryCompanies={deliveryCompanies || []}
                 couriers={couriers || []}
                 subClients={subClients || []}
+                onEdit={openShipmentForm}
+                role={role}
              />
           </TabsContent>
            <TabsContent value="delivered">
@@ -422,6 +475,8 @@ export default function DashboardPage() {
                 deliveryCompanies={deliveryCompanies || []}
                 couriers={couriers || []}
                 subClients={subClients || []}
+                onEdit={openShipmentForm}
+                role={role}
              />
           </TabsContent>
            <TabsContent value="returned">
@@ -433,6 +488,8 @@ export default function DashboardPage() {
                 deliveryCompanies={deliveryCompanies || []}
                 couriers={couriers || []}
                 subClients={subClients || []}
+                onEdit={openShipmentForm}
+                role={role}
              />
           </TabsContent>
           {role === 'admin' && (

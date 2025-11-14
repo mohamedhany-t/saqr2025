@@ -45,19 +45,6 @@ export function Header() {
             <Home className="h-4 w-4" />
             <span>الرئيسية</span>
           </Link>
-          <Link href="#" className="text-muted-foreground transition-colors hover:text-foreground">
-            <Package className="h-4 w-4" />
-            <span>الشحنات</span>
-          </Link>
-          {/* We'll add role-based rendering later */}
-          <Link href="#" className="text-muted-foreground transition-colors hover:text-foreground">
-              <Users2 className="h-4 w-4" />
-              <span>المستخدمون</span>
-          </Link>
-          <Link href="#" className="text-muted-foreground transition-colors hover:text-foreground">
-            <LineChart className="h-4 w-4" />
-            <span>التقارير</span>
-          </Link>
         </nav>
       <div className="relative flex-1 md:grow-0">
         <Search className="absolute start-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -92,5 +79,3 @@ export function Header() {
     </header>
   );
 }
-
-    

@@ -3,6 +3,7 @@ import * as React from "react"
 import type {
   ColumnDef,
   ColumnFiltersState,
+  Row,
   SortingState,
   VisibilityState,
 } from "@tanstack/react-table"
@@ -54,10 +55,10 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import type { Shipment, ShipmentStatus, Governorate, Company, Courier, SubClient } from "@/lib/types"
+import type { Shipment, ShipmentStatus, Governorate, Company, Courier, SubClient, Role } from "@/lib/types"
 import { exportToExcel, exportToPDF } from "@/lib/export"
-import { useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase"
-import { doc, writeBatch } from "firebase/firestore"
+import { useFirestore, errorEmitter, FirestorePermissionError, useUser } from "@/firebase"
+import { doc, writeBatch, updateDoc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -97,13 +98,61 @@ const mapStatus = (status: string): ShipmentStatus => {
     return (statusText[status] as ShipmentStatus) || 'Pending';
 }
 
+type ActionCellProps = {
+  row: Row<Shipment>;
+  onEdit: (shipment: Shipment) => void;
+  governorates: Governorate[];
+  companies: Company[];
+  subClients: SubClient[];
+  couriers: Courier[];
+  deliveryCompanies: Company[];
+  role: Role | null;
+};
+
+const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, governorates, companies, subClients, couriers, deliveryCompanies, role }) => {
+  const shipment = row.original;
+  const { toast } = useToast();
+
+  const handleAction = (action: string) => {
+    toast({
+      title: `"${action}" is not implemented yet.`,
+      description: "This feature will be available in a future update.",
+    });
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" className="h-8 w-8 p-0">
+          <span className="sr-only">فتح القائمة</span>
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel>إجراءات</DropdownMenuLabel>
+        <DropdownMenuItem onClick={() => onEdit(shipment)} disabled={role === 'courier'}>
+          <Pencil className="me-2 h-4 w-4" /> تعديل
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handleAction("Details")}>
+          <FileText className="me-2 h-4 w-4" /> تفاصيل
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handleAction("Print")}>
+          <Printer className="me-2 h-4 w-4" /> طباعة
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
 
 export const getColumns = (
     governorates: Governorate[],
     companies: Company[],
     subClients: SubClient[],
     couriers: Courier[],
-    deliveryCompanies: Company[]
+    deliveryCompanies: Company[],
+    onEdit: (shipment: Shipment) => void,
+    role: Role | null,
     ): ColumnDef<Shipment>[] => [
   {
     id: "select",
@@ -266,37 +315,23 @@ export const getColumns = (
   {
     id: "actions",
     enableHiding: false,
-    cell: ({ row }) => {
-      const shipment = row.original
-
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">فتح القائمة</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>إجراءات</DropdownMenuLabel>
-            <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(shipment.shipmentCode)}
-            >
-              نسخ كود الشحنة
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem><Pencil className="me-2 h-4 w-4"/>تعديل</DropdownMenuItem>
-            <DropdownMenuItem><FileText className="me-2 h-4 w-4"/>تفاصيل</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => exportToPDF([shipment], getColumns(governorates, companies, subClients, couriers, deliveryCompanies).filter(c => c.id !== 'select' && c.id !== 'actions'), governorates, companies, subClients, couriers)}><Printer className="me-2 h-4 w-4"/>طباعة</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )
-    },
+    cell: (props) => (
+      <ActionsCell
+        {...props}
+        onEdit={onEdit}
+        governorates={governorates}
+        companies={companies}
+        subClients={subClients}
+        couriers={couriers}
+        deliveryCompanies={deliveryCompanies}
+        role={role}
+      />
+    ),
   },
 ]
 
 
-export function ShipmentsTable({ shipments, isLoading, governorates, companies, couriers, subClients, deliveryCompanies }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[], companies: Company[], couriers: Courier[], subClients: SubClient[], deliveryCompanies: Company[] }) {
+export function ShipmentsTable({ shipments, isLoading, governorates, companies, couriers, subClients, deliveryCompanies, onEdit, role }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[], companies: Company[], couriers: Courier[], subClients: SubClient[], deliveryCompanies: Company[], onEdit: (shipment: Shipment) => void, role: Role | null }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -306,8 +341,9 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
   const [rowSelection, setRowSelection] = React.useState({})
   const { toast } = useToast()
   const firestore = useFirestore();
+  const { user } = useUser();
   
-  const columns = React.useMemo(() => getColumns(governorates, companies, subClients, couriers, deliveryCompanies), [governorates, companies, subClients, couriers, deliveryCompanies]);
+  const columns = React.useMemo(() => getColumns(governorates, companies, subClients, couriers, deliveryCompanies, onEdit, role), [governorates, companies, subClients, couriers, deliveryCompanies, onEdit, role]);
   
   const table = useReactTable({
     data: shipments,
@@ -377,7 +413,22 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     const batch = writeBatch(firestore);
     selectedRows.forEach(row => {
         const docRef = doc(firestore, "shipments", row.original.id);
-        const finalUpdate: { [key: string]: any } = { ...update, updatedAt: new Date() };
+        
+        let finalUpdate: { [key: string]: any } = { ...update, updatedAt: new Date() };
+
+        // Courier can only update status and reason
+        if (role === 'courier') {
+            const allowedUpdates: Partial<Shipment> = {};
+            if (update.status) allowedUpdates.status = update.status;
+            if (update.reason) allowedUpdates.reason = update.reason;
+            finalUpdate = { ...allowedUpdates, updatedAt: new Date() };
+
+            if (Object.keys(allowedUpdates).length === 0) {
+                toast({ title: "ليس لديك صلاحية لتحديث هذه الحقول", variant: "destructive" });
+                return;
+            }
+        }
+        
         batch.update(docRef, finalUpdate);
     });
 
@@ -403,7 +454,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     <div className="w-full">
         <div className="flex items-center justify-between py-4 gap-2 flex-wrap">
             <div className="flex items-center gap-2">
-                 <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleExport}>
+                 <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleExport} disabled={role === 'courier'}>
                     <FileUp className="h-3.5 w-3.5" />
                     <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
                         تصدير
@@ -439,7 +490,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                 </DropdownMenu>
                  <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-8 gap-1">
+                        <Button variant="outline" size="sm" className="h-8 gap-1" disabled={role !== 'admin'}>
                             <ChevronDown className="h-3.5 w-3.5" />
                             <span>
                                 العميل
@@ -488,7 +539,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                     </DropdownMenu>
                      <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                             <Button variant="outline" size="sm" className="h-8 gap-1">
+                             <Button variant="outline" size="sm" className="h-8 gap-1" disabled={role !== 'admin'}>
                                 <Building className="h-3.5 w-3.5" />
                                 <span className="sr-only sm:not-sr-only">تعيين شركة</span>
                              </Button>
@@ -503,7 +554,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                     </DropdownMenu>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                             <Button variant="outline" size="sm" className="h-8 gap-1">
+                             <Button variant="outline" size="sm" className="h-8 gap-1" disabled={role !== 'admin'}>
                                 <User className="h-3.5 w-3.5" />
                                 <span className="sr-only sm:not-sr-only">تعيين مندوب</span>
                              </Button>
@@ -516,7 +567,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
-                     <Button variant="destructive" size="sm" className="h-8 gap-1" onClick={handleBulkDelete}>
+                     <Button variant="destructive" size="sm" className="h-8 gap-1" onClick={handleBulkDelete} disabled={role !== 'admin'}>
                         <Trash2 className="h-3.5 w-3.5" />
                         <span className="sr-only sm:not-sr-only">حذف</span>
                     </Button>
