@@ -149,29 +149,26 @@ service cloud.firestore {
 
     /**
      * @description Rules for the /roles_admin collection.
-     * Admin role management.
+     * Admin role management. Admins can read/write all roles.
      */
     match /roles_admin/{userId} {
-      allow get: if isAdmin();
-      allow list, create, update, delete: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
     /**
      * @description Rules for the /roles_company collection.
-     * Company role management.
+     * Company role management. Admins can read/write all roles.
      */
     match /roles_company/{userId} {
-      allow get: if isAdmin();
-      allow list, create, update, delete: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
     /**
      * @description Rules for the /roles_courier collection.
-     * Courier role management.
+     * Courier role management. Admins can read/write all roles.
      */
     match /roles_courier/{userId} {
-      allow get: if isAdmin();
-      allow list, create, update, delete: if isAdmin();
+      allow read, write: if isAdmin();
     }
   }
 }
