@@ -49,7 +49,7 @@ function SidebarNav() {
       side="right"
       className="border-l"
     >
-      <SidebarHeader className="h-16 flex items-center gap-2.5 px-4 justify-between">
+      <SidebarHeader className="h-14 flex items-center gap-2.5 px-4 justify-between">
         <div className="flex items-center gap-2 group-data-[collapsible=icon]:hidden">
           <Logo className="size-7 text-primary" />
           <h2 className="font-headline text-lg font-semibold text-sidebar-foreground">
@@ -130,7 +130,7 @@ export default function DashboardPage() {
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <div className="min-h-screen w-full bg-background">
+      <div className="min-h-screen w-full bg-background flex flex-row-reverse">
         <SidebarNav />
         <SidebarInset className="bg-muted/30">
           <Header onAddShipment={() => setShipmentSheetOpen(true)} />

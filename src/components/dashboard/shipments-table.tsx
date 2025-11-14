@@ -26,6 +26,7 @@ import {
     Archive,
     ArrowUpDown,
     ChevronDown,
+    FileUp,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -50,6 +51,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import type { Shipment, ShipmentStatus } from "@/lib/types"
+import { exportToExcel, exportToPDF } from "@/lib/export"
 
 const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
     Pending: <Hourglass className="h-4 w-4 text-yellow-500" />,
@@ -178,7 +180,7 @@ export const columns: ColumnDef<Shipment>[] = [
             <DropdownMenuSeparator />
             <DropdownMenuItem><Pencil className="me-2 h-4 w-4"/>تعديل</DropdownMenuItem>
             <DropdownMenuItem><FileText className="me-2 h-4 w-4"/>تفاصيل</DropdownMenuItem>
-            <DropdownMenuItem><Printer className="me-2 h-4 w-4"/>طباعة</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => exportToPDF([shipment], columns.filter(c => c.id !== 'select' && c.id !== 'actions'))}><Printer className="me-2 h-4 w-4"/>طباعة</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )
@@ -216,8 +218,22 @@ export function ShipmentsTable({ shipments }: { shipments: Shipment[] }) {
     },
   })
 
+  const handleExport = () => {
+    const selectedRows = table.getFilteredSelectedRowModel().rows.map(row => row.original);
+    const dataToExport = selectedRows.length > 0 ? selectedRows : data;
+    exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments");
+  }
+
   return (
     <div className="w-full">
+        <div className="flex items-center py-4">
+             <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleExport}>
+                <FileUp className="h-3.5 w-3.5" />
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                    تصدير Excel
+                </span>
+            </Button>
+        </div>
       <div className="rounded-md border bg-card">
         <Table>
           <TableHeader>
