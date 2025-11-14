@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from 'react';
 import {
   Sheet,
   SheetContent,
@@ -20,17 +21,77 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { mockShipments } from "@/lib/placeholder-data"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
+import type { Shipment, ShipmentStatus } from '@/lib/types';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+
+const shipmentSchema = z.object({
+  orderNumber: z.string().min(1, "رقم الطلب مطلوب"),
+  trackingNumber: z.string().min(1, "رقم الشحنة مطلوب"),
+  recipientName: z.string().min(1, "اسم المرسل إليه مطلوب"),
+  recipientPhone: z.string().min(10, "رقم هاتف المستلم غير صحيح"),
+  governorate: z.string().min(1, "المحافظة مطلوبة"),
+  recipientAddress: z.string().min(1, "العنوان مطلوب"),
+  totalAmount: z.coerce.number().min(0, "المبلغ يجب أن يكون إيجابي"),
+  status: z.enum(["Pending", "In-Transit", "Delivered", "Cancelled", "Returned"]),
+  client: z.string().optional(),
+  subClient: z.string().optional(),
+  reason: z.string().optional(),
+  paidAmount: z.coerce.number().optional(),
+  deliveryDate: z.date().optional(),
+  assignedCourierId: z.string().optional(),
+  assignedCourierName: z.string().optional(),
+});
+
 
 type ShipmentFormSheetProps = {
     children: React.ReactNode;
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    shipment?: typeof mockShipments[0]
+    shipment?: Shipment;
+    onSave: (data: Omit<Shipment, 'id' | 'createdAt' | 'updatedAt' | 'shipmentCode'>) => void;
 }
 
-export function ShipmentFormSheet({ children, open, onOpenChange, shipment }: ShipmentFormSheetProps) {
+export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave }: ShipmentFormSheetProps) {
   const isEditing = !!shipment;
+
+  const form = useForm<z.infer<typeof shipmentSchema>>({
+    resolver: zodResolver(shipmentSchema),
+    defaultValues: shipment ? {
+        ...shipment,
+        totalAmount: shipment.totalAmount || 0,
+    } : {
+      orderNumber: "",
+      trackingNumber: "",
+      recipientName: "",
+      recipientPhone: "",
+      governorate: "",
+      recipientAddress: "",
+      totalAmount: 0,
+      status: "Pending",
+    },
+  });
+  
+  React.useEffect(() => {
+    if (open) {
+        form.reset(shipment ? { ...shipment } : {
+            orderNumber: "",
+            trackingNumber: "",
+            recipientName: "",
+            recipientPhone: "",
+            governorate: "",
+            recipientAddress: "",
+            totalAmount: 0,
+            status: "Pending",
+        });
+    }
+  }, [open, shipment, form]);
+
+  const onSubmit = (values: z.infer<typeof shipmentSchema>) => {
+    onSave(values);
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -38,78 +99,139 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment }: Sh
         {children}
       </SheetTrigger>
       <SheetContent className="sm:max-w-2xl">
-        <SheetHeader>
-          <SheetTitle>{isEditing ? "تعديل شحنة" : "إضافة شحنة جديدة"}</SheetTitle>
-          <SheetDescription>
-            {isEditing ? "قم بتحديث تفاصيل الشحنة هنا." : "أدخل تفاصيل الشحنة الجديدة ليتم إنشاؤها."}
-          </SheetDescription>
-        </SheetHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="orderNumber" className="text-right">
-              رقم الطلب
-            </Label>
-            <Input id="orderNumber" defaultValue={shipment?.orderNumber} className="col-span-3" />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="trackingNumber" className="text-right">
-              رقم الشحنة
-            </Label>
-            <Input id="trackingNumber" defaultValue={shipment?.trackingNumber} className="col-span-3" />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="recipientName" className="text-right">
-              المرسل اليه
-            </Label>
-            <Input id="recipientName" defaultValue={shipment?.recipientName} className="col-span-3" />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="recipientPhone" className="text-right">
-              تليفون المستلم
-            </Label>
-            <Input id="recipientPhone" defaultValue={shipment?.recipientPhone} className="col-span-3" />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="governorate" className="text-right">
-              المحافظة
-            </Label>
-            <Input id="governorate" defaultValue={shipment?.governorate} className="col-span-3" />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="recipientAddress" className="text-right">
-              العنوان
-            </Label>
-            <Input id="recipientAddress" defaultValue={shipment?.recipientAddress} className="col-span-3" />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="totalAmount" className="text-right">
-              الإجمالي
-            </Label>
-            <Input id="totalAmount" type="number" defaultValue={shipment?.totalAmount} className="col-span-3" />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="status" className="text-right">
-              الحالة
-            </Label>
-             <Select dir="rtl" defaultValue={shipment?.status}>
-                <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="اختر الحالة" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="Pending">Pending</SelectItem>
-                    <SelectItem value="In-Transit">In-Transit</SelectItem>
-                    <SelectItem value="Delivered">Delivered</SelectItem>
-                    <SelectItem value="Cancelled">Cancelled</SelectItem>
-                    <SelectItem value="Returned">Returned</SelectItem>
-                </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <SheetFooter>
-          <SheetClose asChild>
-            <Button type="submit">حفظ التغييرات</Button>
-          </SheetClose>
-        </SheetFooter>
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
+                <SheetHeader>
+                <SheetTitle>{isEditing ? "تعديل شحنة" : "إضافة شحنة جديدة"}</SheetTitle>
+                <SheetDescription>
+                    {isEditing ? "قم بتحديث تفاصيل الشحنة هنا." : "أدخل تفاصيل الشحنة الجديدة ليتم إنشاؤها."}
+                </SheetDescription>
+                </SheetHeader>
+                <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6">
+                    <FormField
+                        control={form.control}
+                        name="orderNumber"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">رقم الطلب</FormLabel>
+                                <FormControl className="col-span-3">
+                                    <Input {...field} />
+                                </FormControl>
+                                <FormMessage className="col-span-4" />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="trackingNumber"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">رقم الشحنة</FormLabel>
+                                <FormControl className="col-span-3">
+                                    <Input {...field} />
+                                </FormControl>
+                                <FormMessage className="col-span-4" />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="recipientName"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">المرسل اليه</FormLabel>
+                                <FormControl className="col-span-3">
+                                    <Input {...field} />
+                                </FormControl>
+                                <FormMessage className="col-span-4" />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="recipientPhone"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">تليفون المستلم</FormLabel>
+                                <FormControl className="col-span-3">
+                                    <Input {...field} />
+                                </FormControl>
+                                <FormMessage className="col-span-4" />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="governorate"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">المحافظة</FormLabel>
+                                <FormControl className="col-span-3">
+                                    <Input {...field} />
+                                </FormControl>
+                                <FormMessage className="col-span-4" />
+                            </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="recipientAddress"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">العنوان</FormLabel>
+                                <FormControl className="col-span-3">
+                                    <Input {...field} />
+                                </FormControl>
+                                <FormMessage className="col-span-4" />
+                            </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="totalAmount"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">الإجمالي</FormLabel>
+                                <FormControl className="col-span-3">
+                                    <Input type="number" {...field} />
+                                </FormControl>
+                                <FormMessage className="col-span-4" />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="status"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">الحالة</FormLabel>
+                                <Select dir="rtl" onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl className="col-span-3">
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="اختر الحالة" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="Pending">Pending</SelectItem>
+                                        <SelectItem value="In-Transit">In-Transit</SelectItem>
+                                        <SelectItem value="Delivered">Delivered</SelectItem>
+                                        <SelectItem value="Cancelled">Cancelled</SelectItem>
+                                        <SelectItem value="Returned">Returned</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage className="col-span-4" />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+                <SheetFooter>
+                    <SheetClose asChild>
+                        <Button variant="outline">إلغاء</Button>
+                    </SheetClose>
+                    <Button type="submit">حفظ التغييرات</Button>
+                </SheetFooter>
+            </form>
+        </Form>
       </SheetContent>
     </Sheet>
   )
