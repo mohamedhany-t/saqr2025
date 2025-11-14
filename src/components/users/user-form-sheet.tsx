@@ -25,6 +25,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import type { Company } from '@/lib/types';
 
 // Schema for user creation form
 const userSchema = z.object({
@@ -33,6 +34,7 @@ const userSchema = z.object({
   password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
   role: z.enum(["company", "courier"], { required_error: "الدور مطلوب" }),
   companyName: z.string().optional(),
+  deliveryCompanyId: z.string().optional(),
 }).refine(data => {
     // If role is 'company', then companyName must be a non-empty string.
     return data.role !== 'company' || (data.companyName && data.companyName.trim().length > 0);
@@ -47,9 +49,10 @@ type UserFormSheetProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSave: (data: z.infer<typeof userSchema>) => void;
+    deliveryCompanies: Company[];
 }
 
-export function UserFormSheet({ children, open, onOpenChange, onSave }: UserFormSheetProps) {
+export function UserFormSheet({ children, open, onOpenChange, onSave, deliveryCompanies }: UserFormSheetProps) {
   
   const form = useForm<z.infer<typeof userSchema>>({
     resolver: zodResolver(userSchema),
@@ -58,6 +61,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave }: UserForm
       email: "",
       password: "",
       companyName: "",
+      deliveryCompanyId: "",
     },
   });
   
@@ -160,6 +164,28 @@ export function UserFormSheet({ children, open, onOpenChange, onSave }: UserForm
                                     </FormControl>
                                     <FormMessage className="col-span-4" />
                                 </FormItem>
+                            )}
+                        />
+                     )}
+                     {selectedRole === 'courier' && (
+                        <FormField
+                            control={form.control}
+                            name="deliveryCompanyId"
+                            render={({ field }) => (
+                                <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">شركة التوصيل</FormLabel>
+                                <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
+                                    <FormControl className="col-span-3">
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="اختر شركة التوصيل (اختياري)" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {deliveryCompanies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage className="col-span-4" />
+                            </FormItem>
                             )}
                         />
                      )}

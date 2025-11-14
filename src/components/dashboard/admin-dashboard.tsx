@@ -240,17 +240,18 @@ const handleSaveUser = async (userData: any) => {
         return;
     }
     
-    // This is a temporary auth instance to create the new user
-    // It does not sign in the admin out.
-    const tempAuth = getAuth();
+    // This is a temporary, separate auth instance to create the new user.
+    // It does NOT affect the currently signed-in admin user.
+    const tempAuth = getAuth(auth.app);
 
     try {
-        // Step 1: Create user in Firebase Auth
+        // Step 1: Create user in Firebase Auth using the temporary auth instance.
+        // This does not sign in the new user in the admin's browser.
         const userCredential = await createUserWithEmailAndPassword(tempAuth, userData.email, userData.password);
         const newUser = userCredential.user;
         const uid = newUser.uid;
         
-        // Step 2: As the admin, create the user documents in Firestore
+        // Step 2: As the currently logged-in admin, create the user documents in Firestore.
         const batch = writeBatch(firestore);
 
         const userDocRef = doc(firestore, 'users', uid);
@@ -266,18 +267,23 @@ const handleSaveUser = async (userData: any) => {
             if (!userData.companyName) {
                 throw new Error("اسم الشركة مطلوب لدور الشركة.");
             }
+            // The company document ID is the same as the user's UID.
             const companyDocRef = doc(firestore, 'companies', uid);
             batch.set(companyDocRef, { id: uid, name: userData.companyName });
             
             userDocData.companyId = uid;
             userDocData.companyName = userData.companyName;
+        } else if (userData.role === 'courier' && userData.deliveryCompanyId) {
+             userDocData.deliveryCompanyId = userData.deliveryCompanyId;
         }
 
         batch.set(userDocRef, userDocData);
 
+        // Also add to the specific role collection for security rule checks
         const roleDocRef = doc(firestore, `roles_${userData.role}`, uid);
         batch.set(roleDocRef, { email: userData.email, createdAt: serverTimestamp() });
 
+        // This commit is performed by the admin user, who has the correct permissions.
         await batch.commit();
 
         toast({
@@ -434,6 +440,7 @@ const handleSaveUser = async (userData: any) => {
                           open={isUserSheetOpen}
                           onOpenChange={setUserSheetOpen}
                           onSave={handleSaveUser}
+                          deliveryCompanies={deliveryCompanies || []}
                       >
                          <Button variant="outline" onClick={() => setUserSheetOpen(true)}>
                             <Users className="me-2 h-4 w-4" />
