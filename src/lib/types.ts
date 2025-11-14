@@ -25,18 +25,44 @@ export type Shipment = {
   trackingNumber: string;
   recipientName: string;
   recipientPhone: string;
-  governorate: string;
-  recipientAddress: string;
+  governorateId: string;
+  address: string;
   deliveryDate: Date;
-  client: string; // Company name
-  subClient?: string;
+  clientId: string;
+  subClientId?: string;
   status: ShipmentStatus;
   reason?: string;
   totalAmount: number;
   paidAmount: number;
   assignedCompanyId?: string;
   assignedCourierId?: string;
-  assignedCourierName?: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: any; // Can be Date or Firebase Timestamp
+  updatedAt: any; // Can be Date or Firebase Timestamp
 };
+
+export interface Client {
+  id: string;
+  name: string;
+}
+
+export interface SubClient {
+  id: string;
+  clientId: string;
+  name: string;
+}
+
+export interface Company {
+  id: string;
+  name: string;
+}
+
+export interface Courier {
+  id: string;
+  name: string;
+  companyId: string;
+}
+
+export interface Governorate {
+  id: string;
+  name: string;
+}

@@ -24,7 +24,7 @@ import {
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import type { Shipment, ShipmentStatus } from '@/lib/types';
+import type { Shipment, ShipmentStatus, Governorate, Client, SubClient, Courier } from '@/lib/types';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 const shipmentSchema = z.object({
@@ -32,17 +32,16 @@ const shipmentSchema = z.object({
   trackingNumber: z.string().min(1, "رقم الشحنة مطلوب"),
   recipientName: z.string().min(1, "اسم المرسل إليه مطلوب"),
   recipientPhone: z.string().min(10, "رقم هاتف المستلم غير صحيح"),
-  governorate: z.string().min(1, "المحافظة مطلوبة"),
-  recipientAddress: z.string().min(1, "العنوان مطلوب"),
+  governorateId: z.string().min(1, "المحافظة مطلوبة"),
+  address: z.string().min(1, "العنوان مطلوب"),
   totalAmount: z.coerce.number().min(0, "المبلغ يجب أن يكون إيجابي"),
   status: z.enum(["Pending", "In-Transit", "Delivered", "Cancelled", "Returned"]),
-  client: z.string().optional(),
-  subClient: z.string().optional(),
+  clientId: z.string().min(1, "العميل مطلوب"),
+  subClientId: z.string().optional(),
   reason: z.string().optional(),
   paidAmount: z.coerce.number().optional(),
   deliveryDate: z.date().optional(),
   assignedCourierId: z.string().optional(),
-  assignedCourierName: z.string().optional(),
 });
 
 
@@ -52,25 +51,28 @@ type ShipmentFormSheetProps = {
     onOpenChange: (open: boolean) => void;
     shipment?: Shipment;
     onSave: (data: Omit<Shipment, 'id' | 'createdAt' | 'updatedAt' | 'shipmentCode'>) => void;
+    governorates: Governorate[];
+    clients: Client[];
+    subClients: SubClient[];
+    couriers: Courier[];
 }
 
-export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave }: ShipmentFormSheetProps) {
+export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave, governorates, clients, subClients, couriers }: ShipmentFormSheetProps) {
   const isEditing = !!shipment;
 
   const form = useForm<z.infer<typeof shipmentSchema>>({
     resolver: zodResolver(shipmentSchema),
-    defaultValues: shipment ? {
-        ...shipment,
-        totalAmount: shipment.totalAmount || 0,
-    } : {
+    defaultValues: {
       orderNumber: "",
       trackingNumber: "",
       recipientName: "",
       recipientPhone: "",
-      governorate: "",
-      recipientAddress: "",
+      governorateId: "",
+      address: "",
       totalAmount: 0,
       status: "Pending",
+      clientId: "",
+      paidAmount: 0,
     },
   });
   
@@ -81,17 +83,24 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
             trackingNumber: "",
             recipientName: "",
             recipientPhone: "",
-            governorate: "",
-            recipientAddress: "",
+            governorateId: "",
+            address: "",
             totalAmount: 0,
             status: "Pending",
+            clientId: "",
+            paidAmount: 0
         });
     }
   }, [open, shipment, form]);
 
   const onSubmit = (values: z.infer<typeof shipmentSchema>) => {
-    onSave(values);
+    // We remove properties that are not part of the base shipment type
+    const { governorate, ...rest } = values as any;
+    onSave(rest);
   };
+  
+  const selectedClientId = form.watch("clientId");
+  const filteredSubClients = subClients.filter(sc => sc.clientId === selectedClientId);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -108,32 +117,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                 </SheetDescription>
                 </SheetHeader>
                 <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6">
-                    <FormField
-                        control={form.control}
-                        name="orderNumber"
-                        render={({ field }) => (
-                            <FormItem className="grid grid-cols-4 items-center gap-4">
-                                <FormLabel className="text-right">رقم الطلب</FormLabel>
-                                <FormControl className="col-span-3">
-                                    <Input {...field} />
-                                </FormControl>
-                                <FormMessage className="col-span-4" />
-                            </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="trackingNumber"
-                        render={({ field }) => (
-                            <FormItem className="grid grid-cols-4 items-center gap-4">
-                                <FormLabel className="text-right">رقم الشحنة</FormLabel>
-                                <FormControl className="col-span-3">
-                                    <Input {...field} />
-                                </FormControl>
-                                <FormMessage className="col-span-4" />
-                            </FormItem>
-                        )}
-                    />
+                    {/* Form Fields */}
                     <FormField
                         control={form.control}
                         name="recipientName"
@@ -160,12 +144,12 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />
-                    <FormField
+                     <FormField
                         control={form.control}
-                        name="governorate"
+                        name="address"
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
-                                <FormLabel className="text-right">المحافظة</FormLabel>
+                                <FormLabel className="text-right">العنوان</FormLabel>
                                 <FormControl className="col-span-3">
                                     <Input {...field} />
                                 </FormControl>
@@ -175,13 +159,20 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                     />
                      <FormField
                         control={form.control}
-                        name="recipientAddress"
+                        name="governorateId"
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
-                                <FormLabel className="text-right">العنوان</FormLabel>
-                                <FormControl className="col-span-3">
-                                    <Input {...field} />
-                                </FormControl>
+                                <FormLabel className="text-right">المحافظة</FormLabel>
+                                <Select dir="rtl" onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl className="col-span-3">
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="اختر المحافظة" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {governorates.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
@@ -201,6 +192,48 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                     />
                     <FormField
                         control={form.control}
+                        name="clientId"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">العميل</FormLabel>
+                                <Select dir="rtl" onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl className="col-span-3">
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="اختر العميل" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage className="col-span-4" />
+                            </FormItem>
+                        )}
+                    />
+                    {filteredSubClients.length > 0 && (
+                        <FormField
+                            control={form.control}
+                            name="subClientId"
+                            render={({ field }) => (
+                                <FormItem className="grid grid-cols-4 items-center gap-4">
+                                    <FormLabel className="text-right">العميل الفرعي</FormLabel>
+                                    <Select dir="rtl" onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl className="col-span-3">
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="اختر العميل الفرعي" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            {filteredSubClients.map(sc => <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage className="col-span-4" />
+                                </FormItem>
+                            )}
+                        />
+                    )}
+                    <FormField
+                        control={form.control}
                         name="status"
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
@@ -212,13 +245,39 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="Pending">Pending</SelectItem>
-                                        <SelectItem value="In-Transit">In-Transit</SelectItem>
-                                        <SelectItem value="Delivered">Delivered</SelectItem>
-                                        <SelectItem value="Cancelled">Cancelled</SelectItem>
-                                        <SelectItem value="Returned">Returned</SelectItem>
+                                        <SelectItem value="Pending">قيد الانتظار</SelectItem>
+                                        <SelectItem value="In-Transit">قيد التوصيل</SelectItem>
+                                        <SelectItem value="Delivered">تم التوصيل</SelectItem>
+                                        <SelectItem value="Cancelled">تم الإلغاء</SelectItem>
+                                        <SelectItem value="Returned">مرتجع</SelectItem>
                                     </SelectContent>
                                 </Select>
+                                <FormMessage className="col-span-4" />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="orderNumber"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">رقم الطلب</FormLabel>
+                                <FormControl className="col-span-3">
+                                    <Input {...field} />
+                                </FormControl>
+                                <FormMessage className="col-span-4" />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="trackingNumber"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">رقم الشحنة</FormLabel>
+                                <FormControl className="col-span-3">
+                                    <Input {...field} />
+                                </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
                         )}

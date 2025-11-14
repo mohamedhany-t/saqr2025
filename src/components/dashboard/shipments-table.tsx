@@ -27,6 +27,10 @@ import {
     ArrowUpDown,
     ChevronDown,
     FileUp,
+    Trash2,
+    User,
+    Building,
+    CheckSquare
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -39,6 +43,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import {
@@ -49,9 +56,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import type { Shipment, ShipmentStatus } from "@/lib/types"
+import type { Shipment, ShipmentStatus, Governorate, Company, Courier } from "@/lib/types"
 import { exportToExcel, exportToPDF } from "@/lib/export"
+import { useFirestore } from "@/firebase"
+import { doc, writeBatch, deleteDoc } from "firebase/firestore"
+import { useToast } from "@/hooks/use-toast"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
     Pending: <Hourglass className="h-4 w-4 text-yellow-500" />,
@@ -70,7 +88,7 @@ const statusVariants: Record<ShipmentStatus, "default" | "secondary" | "destruct
 }
 
 
-export const columns: ColumnDef<Shipment>[] = [
+export const getColumns = (governorates: Governorate[]): ColumnDef<Shipment>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -111,9 +129,20 @@ export const columns: ColumnDef<Shipment>[] = [
     cell: ({ row }) => <div>{row.getValue("recipientPhone")}</div>,
   },
   {
-    accessorKey: "governorate",
+    accessorKey: "governorateId",
     header: "المحافظة",
-    cell: ({ row }) => <div>{row.getValue("governorate")}</div>,
+    cell: ({ row }) => {
+        const governorate = governorates.find(g => g.id === row.getValue("governorateId"));
+        return <div>{governorate?.name || row.getValue("governorateId")}</div>
+    },
+    filterFn: (row, id, value) => {
+      return value.includes(row.getValue(id))
+    },
+  },
+  {
+    accessorKey: "address",
+    header: "العنوان",
+    cell: ({ row }) => <div>{row.getValue("address")}</div>
   },
     {
     accessorKey: "totalAmount",
@@ -152,9 +181,12 @@ export const columns: ColumnDef<Shipment>[] = [
         <ArrowUpDown className="ms-2 h-4 w-4" />
       </Button>
     ),
-    cell: ({ row }) => (
-      <div>{new Date(row.getValue("createdAt")).toLocaleDateString("ar-EG")}</div>
-    ),
+    cell: ({ row }) => {
+       const createdAt = row.getValue("createdAt") as any;
+       if (!createdAt) return null;
+       const date = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
+       return <div>{date.toLocaleDateString("ar-EG")}</div>
+    },
   },
   {
     id: "actions",
@@ -180,7 +212,7 @@ export const columns: ColumnDef<Shipment>[] = [
             <DropdownMenuSeparator />
             <DropdownMenuItem><Pencil className="me-2 h-4 w-4"/>تعديل</DropdownMenuItem>
             <DropdownMenuItem><FileText className="me-2 h-4 w-4"/>تفاصيل</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => exportToPDF([shipment], columns.filter(c => c.id !== 'select' && c.id !== 'actions'))}><Printer className="me-2 h-4 w-4"/>طباعة</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => exportToPDF([shipment], getColumns(governorates).filter(c => c.id !== 'select' && c.id !== 'actions'))}><Printer className="me-2 h-4 w-4"/>طباعة</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )
@@ -189,8 +221,7 @@ export const columns: ColumnDef<Shipment>[] = [
 ]
 
 
-export function ShipmentsTable({ shipments }: { shipments: Shipment[] }) {
-  const [data, setData] = React.useState(() => [...shipments]);
+export function ShipmentsTable({ shipments, isLoading, governorates }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[] }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -198,9 +229,11 @@ export function ShipmentsTable({ shipments }: { shipments: Shipment[] }) {
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState({})
-
+  
+  const columns = React.useMemo(() => getColumns(governorates), [governorates]);
+  
   const table = useReactTable({
-    data,
+    data: shipments,
     columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
@@ -220,19 +253,29 @@ export function ShipmentsTable({ shipments }: { shipments: Shipment[] }) {
 
   const handleExport = () => {
     const selectedRows = table.getFilteredSelectedRowModel().rows.map(row => row.original);
-    const dataToExport = selectedRows.length > 0 ? selectedRows : data;
-    exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments");
+    const dataToExport = selectedRows.length > 0 ? selectedRows : shipments;
+    exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates);
   }
+
+  const governorateFilterValue = columnFilters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
 
   return (
     <div className="w-full">
-        <div className="flex items-center py-4">
-             <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleExport}>
-                <FileUp className="h-3.5 w-3.5" />
-                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                    تصدير Excel
-                </span>
-            </Button>
+        <div className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-2">
+                 <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleExport}>
+                    <FileUp className="h-3.5 w-3.5" />
+                    <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                        تصدير Excel
+                    </span>
+                </Button>
+                {/* Filters will go here */}
+            </div>
+            {table.getFilteredSelectedRowModel().rows.length > 0 && (
+                 <div className="flex items-center gap-2">
+                   {/* Bulk actions will go here */}
+                 </div>
+            )}
         </div>
       <div className="rounded-md border bg-card">
         <Table>
@@ -255,7 +298,15 @@ export function ShipmentsTable({ shipments }: { shipments: Shipment[] }) {
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
+            {isLoading ? (
+                Array.from({length: 10}).map((_, i) => (
+                    <TableRow key={i}>
+                        <TableCell colSpan={columns.length}>
+                            <Skeleton className="h-6 w-full" />
+                        </TableCell>
+                    </TableRow>
+                ))
+            ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
@@ -277,7 +328,7 @@ export function ShipmentsTable({ shipments }: { shipments: Shipment[] }) {
                   colSpan={columns.length}
                   className="h-24 text-center"
                 >
-                  لا توجد نتائج.
+                  لا توجد شحنات.
                 </TableCell>
               </TableRow>
             )}
