@@ -13,7 +13,7 @@ import { UserFormSheet } from "@/components/users/user-form-sheet";
 import { Header } from "@/components/dashboard/header";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
-import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
+import { useCollection, useFirestore, useUser, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, setDoc, query, where, updateDoc } from "firebase/firestore";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { z } from "zod";
@@ -28,27 +28,28 @@ export default function AdminDashboard() {
   const { toast } = useToast();
   const firestore = useFirestore();
   const auth = getAuth();
+  const { user: adminUser } = useUser();
   const role: Role = 'admin';
 
-  const shipmentsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'shipments') : null, [firestore]);
+  const shipmentsQuery = React.useMemo(() => firestore ? collection(firestore, 'shipments') : null, [firestore]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
-  const companiesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'companies') : null, [firestore]);
+  const companiesQuery = React.useMemo(() => firestore ? collection(firestore, 'companies') : null, [firestore]);
   const { data: companies } = useCollection<Company>(companiesQuery);
 
-  const subClientsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'subclients') : null, [firestore]);
+  const subClientsQuery = React.useMemo(() => firestore ? collection(firestore, 'subclients') : null, [firestore]);
   const { data: subClients } = useCollection<SubClient>(subClientsQuery);
 
-  const governoratesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'governorates') : null, [firestore]);
+  const governoratesQuery = React.useMemo(() => firestore ? collection(firestore, 'governorates') : null, [firestore]);
   const { data: governorates } = useCollection<Governorate>(governoratesQuery);
 
-  const deliveryCompaniesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'deliveryCompanies') : null, [firestore]);
+  const deliveryCompaniesQuery = React.useMemo(() => firestore ? collection(firestore, 'deliveryCompanies') : null, [firestore]);
   const { data: deliveryCompanies } = useCollection<Company>(deliveryCompaniesQuery);
 
-  const couriersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'couriers') : null, [firestore]);
+  const couriersQuery = React.useMemo(() => firestore ? collection(firestore, 'couriers') : null, [firestore]);
   const { data: couriers } = useCollection<Courier>(couriersQuery);
   
-  const usersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
+  const usersQuery = React.useMemo(() => firestore ? collection(firestore, 'users') : null, [firestore]);
   const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
   
   const openShipmentForm = (shipment?: Shipment) => {
@@ -235,22 +236,26 @@ export default function AdminDashboard() {
   };
   
 const handleSaveUser = async (userData: any) => {
-    if (!firestore || !auth.currentUser) {
+    if (!firestore || !adminUser) {
         toast({ title: "خطأ", description: "المسؤول غير مسجل دخوله.", variant: "destructive" });
         return;
     }
 
-    // This is a temporary, separate auth instance to create the new user.
-    // It does NOT affect the currently signed-in admin user.
+    // Create a temporary, separate auth instance for user creation
     const tempAuth = getAuth(auth.app);
 
     try {
+        // Step 1: Create user in the temporary auth instance.
+        // This will sign in the new user in the background for this instance.
         const userCredential = await createUserWithEmailAndPassword(tempAuth, userData.email, userData.password);
         const newUser = userCredential.user;
         const uid = newUser.uid;
-        
+
+        // The main 'auth' instance still has the admin signed in.
+        // We will use this admin's permissions to write to Firestore.
         const batch = writeBatch(firestore);
 
+        // Prepare user document
         const userDocRef = doc(firestore, 'users', uid);
         const userDocData: any = {
             id: uid,
@@ -264,6 +269,7 @@ const handleSaveUser = async (userData: any) => {
             if (!userData.companyName) {
                 throw new Error("اسم الشركة مطلوب لدور الشركة.");
             }
+            // Use the new user's UID as the company ID for simplicity and linkage
             const companyDocRef = doc(firestore, 'companies', uid);
             batch.set(companyDocRef, { id: uid, name: userData.companyName });
             
@@ -273,52 +279,52 @@ const handleSaveUser = async (userData: any) => {
              userDocData.deliveryCompanyId = userData.deliveryCompanyId;
         }
 
+        // Add user and role docs to the batch
         batch.set(userDocRef, userDocData);
-
         const roleDocRef = doc(firestore, `roles_${userData.role}`, uid);
         batch.set(roleDocRef, { email: userData.email, createdAt: serverTimestamp() });
         
-        // This commit is performed by the admin user, who has the correct permissions.
-        batch.commit()
-          .then(() => {
+        // Step 2: Commit the batch using the admin's permissions.
+        await batch.commit();
+
+        toast({
+            title: "تم إنشاء المستخدم بنجاح",
+            description: `تم إنشاء حساب لـ ${userData.name} بنجاح.`,
+        });
+        setUserSheetOpen(false);
+
+    } catch (error: any) {
+        console.error("Error during user creation process:", error);
+        let description = "حدث خطأ غير متوقع.";
+
+        // Handle Auth errors (e.g., email-already-in-use)
+        if (error.code?.startsWith('auth/')) {
+            if (error.code === 'auth/email-already-in-use') {
+                description = 'هذا البريد الإلكتروني مستخدم بالفعل.';
+            } else if (error.code === 'auth/weak-password') {
+                description = 'كلمة المرور ضعيفة جدًا (يجب أن تكون 6 أحرف على الأقل).';
+            }
             toast({
-                title: "تم إنشاء المستخدم بنجاح",
-                description: `تم إنشاء حساب لـ ${userData.name} بنجاح.`,
+                title: "خطأ في إنشاء حساب المصادقة",
+                description: description,
+                variant: "destructive"
             });
-            setUserSheetOpen(false);
-          })
-          .catch((serverError: any) => {
-            // This is where Firestore permission errors for the BATCH will be caught.
-            const permissionError = new FirestorePermissionError({
-                path: 'users', // The batch can affect multiple paths, so this is a general path.
+        } 
+        // Handle Firestore permission errors specifically from the batch commit
+        else {
+             const permissionError = new FirestorePermissionError({
+                path: 'users', // General path for the batch
                 operation: 'write',
                 requestResourceData: { note: 'Batch operation for creating user, company, and role failed.' }
             });
             errorEmitter.emit('permission-error', permissionError);
-
+            // Also show a toast to the user
             toast({
                 title: "خطأ في حفظ البيانات",
-                description: "حدث خطأ أثناء حفظ بيانات المستخدم في قاعدة البيانات بسبب الصلاحيات.",
+                description: "فشل حفظ بيانات المستخدم في قاعدة البيانات بسبب خطأ في الصلاحيات.",
                 variant: "destructive"
             });
-          });
-
-    } catch (error: any) {
-        // This outer catch handles errors from createUserWithEmailAndPassword or synchronous errors.
-        console.error("Error creating user in Auth:", error);
-        let description = "حدث خطأ غير متوقع.";
-
-        if (error.code === 'auth/email-already-in-use') {
-            description = 'هذا البريد الإلكتروني مستخدم بالفعل.';
-        } else if (error.code === 'auth/weak-password') {
-            description = 'كلمة المرور ضعيفة جدًا (يجب أن تكون 6 أحرف على الأقل).';
         }
-
-        toast({
-            title: "خطأ في إنشاء المستخدم",
-            description: description,
-            variant: "destructive"
-        });
     }
 };
 
@@ -461,3 +467,5 @@ const handleSaveUser = async (userData: any) => {
     </div>
   );
 }
+
+    
