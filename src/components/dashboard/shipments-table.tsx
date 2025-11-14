@@ -57,7 +57,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Client, SubClient } from "@/lib/types"
+import type { Shipment, ShipmentStatus, Governorate, Company, Courier, SubClient } from "@/lib/types"
 import { exportToExcel, exportToPDF } from "@/lib/export"
 import { useFirestore } from "@/firebase"
 import { doc, writeBatch } from "firebase/firestore"
@@ -91,7 +91,7 @@ const statusText: Record<ShipmentStatus, string> = {
 
 export const getColumns = (
     governorates: Governorate[],
-    clients: Client[],
+    companies: Company[],
     subClients: SubClient[],
     couriers: Courier[]
     ): ColumnDef<Shipment>[] => [
@@ -184,11 +184,11 @@ export const getColumns = (
     },
   },
   {
-    accessorKey: "clientId",
-    header: "العميل",
+    accessorKey: "companyId",
+    header: "الشركة",
     cell: ({ row }) => {
-        const client = clients.find(c => c.id === row.getValue("clientId"));
-        return <div>{client?.name || row.getValue("clientId")}</div>
+        const company = companies.find(c => c.id === row.getValue("companyId"));
+        return <div>{company?.name || row.getValue("companyId")}</div>
     },
     filterFn: (row, id, value) => {
       return value.includes(row.getValue(id))
@@ -276,7 +276,7 @@ export const getColumns = (
             <DropdownMenuSeparator />
             <DropdownMenuItem><Pencil className="me-2 h-4 w-4"/>تعديل</DropdownMenuItem>
             <DropdownMenuItem><FileText className="me-2 h-4 w-4"/>تفاصيل</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => exportToPDF([shipment], getColumns(governorates, clients, subClients, couriers).filter(c => c.id !== 'select' && c.id !== 'actions'), governorates, clients, subClients, couriers)}><Printer className="me-2 h-4 w-4"/>طباعة</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => exportToPDF([shipment], getColumns(governorates, companies, subClients, couriers).filter(c => c.id !== 'select' && c.id !== 'actions'), governorates, companies, subClients, couriers)}><Printer className="me-2 h-4 w-4"/>طباعة</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )
@@ -285,7 +285,7 @@ export const getColumns = (
 ]
 
 
-export function ShipmentsTable({ shipments, isLoading, governorates, companies, couriers, clients, subClients }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[], companies: Company[], couriers: Courier[], clients: Client[], subClients: SubClient[] }) {
+export function ShipmentsTable({ shipments, isLoading, governorates, companies, couriers, subClients }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[], companies: Company[], couriers: Courier[], subClients: SubClient[] }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -296,7 +296,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
   const { toast } = useToast()
   const firestore = useFirestore();
   
-  const columns = React.useMemo(() => getColumns(governorates, clients, subClients, couriers), [governorates, clients, subClients, couriers]);
+  const columns = React.useMemo(() => getColumns(governorates, companies, subClients, couriers), [governorates, companies, subClients, couriers]);
   
   const table = useReactTable({
     data: shipments,
@@ -320,7 +320,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
   const handleExport = () => {
     const selectedRows = table.getFilteredSelectedRowModel().rows.map(row => row.original);
     const dataToExport = selectedRows.length > 0 ? selectedRows : shipments;
-    exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates, clients, subClients, couriers);
+    exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates, companies, subClients, couriers);
   }
 
   const handleBulkDelete = async () => {

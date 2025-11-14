@@ -2,7 +2,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { Workbook } from 'exceljs';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import type { Shipment, Governorate, Client, SubClient, Courier } from './types';
+import type { Shipment, Governorate, Company, SubClient, Courier } from './types';
 
 // Extend jsPDF with autoTable
 interface jsPDFWithAutoTable extends jsPDF {
@@ -25,7 +25,7 @@ const getCellValue = (
     row: Shipment, 
     accessorKey: string | undefined, 
     governorates: Governorate[],
-    clients: Client[],
+    companies: Company[],
     subClients: SubClient[],
     couriers: Courier[],
     statusText: Record<string, string>
@@ -38,9 +38,9 @@ const getCellValue = (
         case 'governorateId':
             const governorate = governorates.find(g => g.id === value);
             return governorate ? governorate.name : value;
-        case 'clientId':
-            const client = clients.find(c => c.id === value);
-            return client ? client.name : value;
+        case 'companyId':
+            const company = companies.find(c => c.id === value);
+            return company ? company.name : value;
         case 'subClientId':
             const subClient = subClients.find(sc => sc.id === value);
             return subClient ? subClient.name : '';
@@ -74,7 +74,7 @@ export const exportToExcel = (
   columns: ColumnDef<Shipment, any>[],
   filename: string,
   governorates: Governorate[],
-  clients: Client[],
+  companies: Company[],
   subClients: SubClient[],
   couriers: Courier[],
 ) => {
@@ -98,7 +98,7 @@ export const exportToExcel = (
       { header: 'المحافظة', key: 'governorateId', width: 20 },
       { header: 'العنوان', key: 'address', width: 30 },
       { header: 'تاريخ التسليم للمندوب', key: 'deliveryDate', width: 20 },
-      { header: 'العميل', key: 'clientId', width: 20 },
+      { header: 'الشركة', key: 'companyId', width: 20 },
       { header: 'العميل الفرعي', key: 'subClientId', width: 20 },
       { header: 'حالة الأوردر', key: 'status', width: 20 },
       { header: 'السبب', key: 'reason', width: 20 },
@@ -113,7 +113,7 @@ export const exportToExcel = (
     excelColumns.forEach(col => {
         const key = col.key;
         if (key) {
-             rowData[key] = getCellValue(row, key, governorates, clients, subClients, couriers, statusTextMap);
+             rowData[key] = getCellValue(row, key, governorates, companies, subClients, couriers, statusTextMap);
         }
     })
     worksheet.addRow(rowData);
@@ -146,7 +146,7 @@ export const exportToPDF = (
   data: Shipment[],
   columns: ColumnDef<Shipment, any>[],
   governorates: Governorate[],
-  clients: Client[],
+  companies: Company[],
   subClients: SubClient[],
   couriers: Courier[],
 ) => {
@@ -167,7 +167,7 @@ export const exportToPDF = (
     const tableColumns = columns.map(col => getHeader(col));
     const tableRows = data.map(row => {
         return columns.map(col => {
-            return getCellValue(row, (col as any).accessorKey as string, governorates, clients, subClients, couriers, statusTextMap);
+            return getCellValue(row, (col as any).accessorKey as string, governorates, companies, subClients, couriers, statusTextMap);
         })
     });
 

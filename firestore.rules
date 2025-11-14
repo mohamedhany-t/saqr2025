@@ -8,9 +8,9 @@
  *
  * Data Structure:
  * - /shipments/{shipmentId}: Stores shipment data with denormalized fields for filtering.
- * - /clients/{clientId}: Stores client information.
+ * - /companies/{companyId}: Stores company information (previously clients).
  * - /subclients/{subClientId}: Stores sub-client information.
- * - /companies/{companyId}: Stores logistics company information.
+ * - /deliveryCompanies/{companyId}: Stores logistics company information.
  * - /couriers/{courierId}: Stores courier information.
  * - /governorates/{governorateId}: Stores governorate information.
  * - /roles_admin/{userId}: Grants admin role to the user.
@@ -18,12 +18,12 @@
  * - /roles_courier/{userId}: Grants courier role to the user.
  *
  * Key Security Decisions:
- * - Read-only collections (clients, subclients, companies, couriers, governorates) are publicly readable.
+ * - Read-only collections (companies, subclients, deliveryCompanies, couriers, governorates) are publicly readable.
  * - Shipment writes are restricted to users with appropriate roles.
  * - Role assignments are managed through the existence of documents in the role collections.
  *
  * Denormalization for Authorization:
- * - Shipments denormalize 'governorateId', 'clientId', 'subClientId', 'assignedCompanyId', and 'assignedCourierId' to avoid `get()` calls in security rules.
+ * - Shipments denormalize 'governorateId', 'companyId', 'subClientId', 'assignedCompanyId', and 'assignedCourierId' to avoid `get()` calls in security rules.
  *
  * Structural Segregation:
  * - User roles are stored in separate collections (/roles_admin, /roles_company, /roles_courier) to simplify security rules.
@@ -45,7 +45,7 @@ service cloud.firestore {
      * @return {boolean} True if the user has the admin role, false otherwise.
      */
     function isAdmin() {
-      return get(/databases/$(database)/documents/roles_admin/$(request.auth.uid)).data.exists == true;
+      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
     /**
@@ -67,86 +67,63 @@ service cloud.firestore {
      * @principle Enforces role-based access control for shipment data.
      */
     match /shipments/{shipmentId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
     /**
-     * @description Rules for the /clients collection.
-     * @path /clients/{clientId}
-     * @allow (get) - Any user can read client data.
-     * @deny (create) - No user can create client documents.
-     * @principle Allows public read-only access to client data.
+     * @description Rules for the /companies collection (previously clients).
+     * @path /companies/{companyId}
+     * @allow (read) - Any user can read company data.
+     * @deny (write) - No user can write to company documents directly through client.
+     * @principle Allows public read-only access to company data.
      */
-    match /clients/{clientId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+    match /companies/{companyId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    /**
+     * @description Rules for the /deliveryCompanies collection.
+     * @path /deliveryCompanies/{companyId}
+     * @allow (read) - Any user can read company data.
+     * @deny (write) - No user can write to delivery company documents directly through client.
+     */
+    match /deliveryCompanies/{companyId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     /**
      * @description Rules for the /subclients collection.
      * @path /subclients/{subClientId}
-     * @allow (get) - Any user can read subclient data.
-     * @deny (create) - No user can create subclient documents.
-     * @principle Allows public read-only access to subclient data.
+     * @allow (read) - Any user can read subclient data.
+     * @deny (write) - No user can write to subclient documents directly.
      */
     match /subclients/{subClientId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    /**
-     * @description Rules for the /companies collection.
-     * @path /companies/{companyId}
-     * @allow (get) - Any user can read company data.
-     * @deny (create) - No user can create company documents.
-     * @principle Allows public read-only access to company data.
-     */
-    match /companies/{companyId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     /**
      * @description Rules for the /couriers collection.
      * @path /couriers/{courierId}
-     * @allow (get) - Any user can read courier data.
-     * @deny (create) - No user can create courier documents.
-     * @principle Allows public read-only access to courier data.
+     * @allow (read) - Any user can read courier data.
+     * @deny (write) - No user can write courier documents directly.
      */
     match /couriers/{courierId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     /**
      * @description Rules for the /governorates collection.
      * @path /governorates/{governorateId}
-     * @allow (get) - Any user can read governorate data.
-     * @deny (create) - No user can create governorate documents.
-     * @principle Allows public read-only access to governorate data.
+     * @allow (read) - Any user can read governorate data.
+     * @deny (write) - No user can write governorate documents directly.
      */
     match /governorates/{governorateId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     /**

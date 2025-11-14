@@ -28,7 +28,7 @@ export type Shipment = {
   governorateId: string;
   address: string;
   deliveryDate: Date;
-  clientId: string;
+  companyId: string; // Changed from clientId
   subClientId?: string;
   status: ShipmentStatus;
   reason?: string;
@@ -40,19 +40,14 @@ export type Shipment = {
   updatedAt: any; // Can be Date or Firebase Timestamp
 };
 
-export interface Client {
+export interface Company {
   id: string;
   name: string;
 }
 
 export interface SubClient {
   id: string;
-  clientId: string;
-  name: string;
-}
-
-export interface Company {
-  id: string;
+  companyId: string; // Changed from clientId
   name: string;
 }
 

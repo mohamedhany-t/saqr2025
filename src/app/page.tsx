@@ -7,12 +7,13 @@ import {
   LineChart,
   PlusCircle,
   FileUp,
+  Building
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/icons";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Client, SubClient, Governorate, Company, Courier } from "@/lib/types";
+import type { Role, Shipment, Company, SubClient, Governorate, Courier } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { UsersTable } from "@/components/dashboard/users-table";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
@@ -33,8 +34,8 @@ export default function DashboardPage() {
   const shipmentsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'shipments') : null, [firestore]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
-  const clientsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'clients') : null, [firestore]);
-  const { data: clients } = useCollection<Client>(clientsQuery);
+  const companiesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'companies') : null, [firestore]);
+  const { data: companies } = useCollection<Company>(companiesQuery);
 
   const subClientsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'subclients') : null, [firestore]);
   const { data: subClients } = useCollection<SubClient>(subClientsQuery);
@@ -42,8 +43,8 @@ export default function DashboardPage() {
   const governoratesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'governorates') : null, [firestore]);
   const { data: governorates } = useCollection<Governorate>(governoratesQuery);
 
-  const companiesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'companies') : null, [firestore]);
-  const { data: companies } = useCollection<Company>(companiesQuery);
+  const deliveryCompaniesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'deliveryCompanies') : null, [firestore]);
+  const { data: deliveryCompanies } = useCollection<Company>(deliveryCompaniesQuery);
 
   const couriersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'couriers') : null, [firestore]);
   const { data: couriers } = useCollection<Courier>(couriersQuery);
@@ -97,23 +98,20 @@ export default function DashboardPage() {
                 status: row['حالة الأوردر'] || 'Pending',
                 reason: row['السبب'] || '',
                 deliveryDate: row['ريخ التسليم للمندوب'] ? parseExcelDate(row['ريخ التسليم للمندوب']) : new Date(),
-                clientId: clients?.find(c => c.name === row['العميل'])?.id || 'imported',
+                companyId: companies?.find(c => c.name === row['الشركة'])?.id || 'imported',
                 subClientId: subClients?.find(sc => sc.name === row['العميل الفرعي'])?.id || null,
                 createdAt: row['التاريخ'] ? parseExcelDate(row['التاريخ']) : serverTimestamp(),
                 updatedAt: serverTimestamp(),
             };
             
             // Remove undefined or null properties before sending to Firestore
-            Object.keys(newShipment).forEach(key => {
-                const typedKey = key as keyof typeof newShipment;
-                if (newShipment[typedKey] === undefined) {
-                    delete newShipment[typedKey];
-                }
-            });
+            const cleanShipment = Object.fromEntries(
+                Object.entries(newShipment).filter(([_, v]) => v !== undefined && v !== null)
+            );
 
 
             const docRef = doc(shipmentsCollection);
-            batch.set(docRef, newShipment);
+            batch.set(docRef, cleanShipment);
             importedCount++;
           }
           
@@ -147,15 +145,12 @@ export default function DashboardPage() {
           updatedAt: serverTimestamp(),
         };
 
-        // Remove undefined fields before sending to Firestore
-        Object.keys(shipmentData).forEach(key => {
-            const typedKey = key as keyof typeof shipmentData;
-            if (shipmentData[typedKey] === undefined) {
-                delete shipmentData[typedKey];
-            }
-        });
+        // Remove undefined or null properties before sending to Firestore
+        const cleanShipmentData = Object.fromEntries(
+            Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null)
+        );
         
-        await addDoc(shipmentsCollection, shipmentData);
+        await addDoc(shipmentsCollection, cleanShipmentData);
         
         toast({
             title: "تم حفظ الشحنة",
@@ -184,6 +179,7 @@ export default function DashboardPage() {
               <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
               <TabsTrigger value="delivered">تم التوصيل</TabsTrigger>
               <TabsTrigger value="returned">مرتجعات</TabsTrigger>
+              {role === "admin" && <TabsTrigger value="management">الإدارة</TabsTrigger>}
             </TabsList>
             <div className="ms-auto flex items-center gap-2">
                 <input
@@ -204,7 +200,7 @@ export default function DashboardPage() {
                 onOpenChange={setShipmentSheetOpen}
                 onSave={handleSaveShipment}
                 governorates={governorates || []}
-                clients={clients || []}
+                companies={companies || []}
                 subClients={subClients || []}
                 couriers={couriers || []}
               >
@@ -223,9 +219,8 @@ export default function DashboardPage() {
               shipments={shipments || []} 
               isLoading={shipmentsLoading}
               governorates={governorates || []}
-              companies={companies || []}
+              companies={deliveryCompanies || []}
               couriers={couriers || []}
-              clients={clients || []}
               subClients={subClients || []}
             />
           </TabsContent>
@@ -234,9 +229,8 @@ export default function DashboardPage() {
                 shipments={(shipments || []).filter(s => s.status === 'In-Transit')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                companies={companies || []}
+                companies={deliveryCompanies || []}
                 couriers={couriers || []}
-                clients={clients || []}
                 subClients={subClients || []}
              />
           </TabsContent>
@@ -245,9 +239,8 @@ export default function DashboardPage() {
                 shipments={(shipments || []).filter(s => s.status === 'Delivered')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                companies={companies || []}
+                companies={deliveryCompanies || []}
                 couriers={couriers || []}
-                clients={clients || []}
                 subClients={subClients || []}
              />
           </TabsContent>
@@ -256,19 +249,18 @@ export default function DashboardPage() {
                 shipments={(shipments || []).filter(s => s.status === 'Returned')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                companies={companies || []}
+                companies={deliveryCompanies || []}
                 couriers={couriers || []}
-                clients={clients || []}
                 subClients={subClients || []}
              />
           </TabsContent>
+           <TabsContent value="management">
+                <div className="mt-8">
+                    <h2 className="text-2xl font-headline font-semibold mb-4">إدارة المستخدمين</h2>
+                    <UsersTable users={mockUsers} />
+                </div>
+           </TabsContent>
         </Tabs>
-         {role === "admin" && (
-            <div className="mt-8">
-                <h2 className="text-2xl font-headline font-semibold mb-4">إدارة المستخدمين</h2>
-                <UsersTable users={mockUsers} />
-            </div>
-        )}
       </main>
     </div>
   );

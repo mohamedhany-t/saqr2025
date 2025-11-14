@@ -24,7 +24,7 @@ import {
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import type { Shipment, ShipmentStatus, Governorate, Client, SubClient, Courier } from '@/lib/types';
+import type { Shipment, ShipmentStatus, Governorate, Company, SubClient, Courier } from '@/lib/types';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 const shipmentSchema = z.object({
@@ -36,8 +36,8 @@ const shipmentSchema = z.object({
   address: z.string().min(1, "العنوان مطلوب"),
   totalAmount: z.coerce.number().min(0, "المبلغ يجب أن يكون إيجابي"),
   status: z.enum(["Pending", "In-Transit", "Delivered", "Cancelled", "Returned"]),
-  clientId: z.string().min(1, "العميل مطلوب"),
-  subClientId: z.string().optional(),
+  companyId: z.string().min(1, "الشركة مطلوبة"),
+  subClientId: z.string().optional().nullable(),
   reason: z.string().optional(),
   paidAmount: z.coerce.number().optional(),
   deliveryDate: z.date().optional(),
@@ -53,12 +53,12 @@ type ShipmentFormSheetProps = {
     shipment?: Shipment;
     onSave: (data: Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>) => void;
     governorates: Governorate[];
-    clients: Client[];
+    companies: Company[];
     subClients: SubClient[];
     couriers: Courier[];
 }
 
-export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave, governorates, clients, subClients, couriers }: ShipmentFormSheetProps) {
+export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave, governorates, companies, subClients, couriers }: ShipmentFormSheetProps) {
   const isEditing = !!shipment;
 
   const form = useForm<z.infer<typeof shipmentSchema>>({
@@ -72,8 +72,9 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
       address: "",
       totalAmount: 0,
       status: "Pending",
-      clientId: "",
+      companyId: "",
       paidAmount: 0,
+      subClientId: null,
     },
   });
   
@@ -88,8 +89,9 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
             address: "",
             totalAmount: 0,
             status: "Pending",
-            clientId: "",
+            companyId: "",
             paidAmount: 0,
+            subClientId: null,
             shipmentCode: `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
         };
         form.reset(defaultValues as any);
@@ -97,13 +99,14 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   }, [open, shipment, form, isEditing]);
 
   const onSubmit = (values: z.infer<typeof shipmentSchema>) => {
-    // We remove properties that are not part of the base shipment type
-    const { ...rest } = values as any;
-    onSave(rest);
+    const dataToSave = Object.fromEntries(
+        Object.entries(values).filter(([_, v]) => v !== undefined)
+    );
+    onSave(dataToSave as Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>);
   };
   
-  const selectedClientId = form.watch("clientId");
-  const filteredSubClients = subClients.filter(sc => sc.clientId === selectedClientId);
+  const selectedCompanyId = form.watch("companyId");
+  const filteredSubClients = subClients.filter(sc => sc.companyId === selectedCompanyId);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -208,18 +211,18 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                     />
                     <FormField
                         control={form.control}
-                        name="clientId"
+                        name="companyId"
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
-                                <FormLabel className="text-right">العميل</FormLabel>
+                                <FormLabel className="text-right">الشركة</FormLabel>
                                 <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
                                     <FormControl className="col-span-3">
                                         <SelectTrigger>
-                                            <SelectValue placeholder="اختر العميل" />
+                                            <SelectValue placeholder="اختر الشركة" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                        {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                                 <FormMessage className="col-span-4" />
@@ -233,7 +236,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             render={({ field }) => (
                                 <FormItem className="grid grid-cols-4 items-center gap-4">
                                     <FormLabel className="text-right">العميل الفرعي</FormLabel>
-                                    <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
+                                    <Select dir="rtl" onValueChange={field.onChange} value={field.value || ''}>
                                         <FormControl className="col-span-3">
                                             <SelectTrigger>
                                                 <SelectValue placeholder="اختر العميل الفرعي" />

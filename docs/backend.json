@@ -43,9 +43,9 @@
           "description": "Expected delivery date for the shipment.",
           "format": "date-time"
         },
-        "clientId": {
+        "companyId": {
           "type": "string",
-          "description": "Reference to Client. (Relationship: Client 1:N Shipment)"
+          "description": "Reference to Company. (Relationship: Company 1:N Shipment)"
         },
         "subClientId": {
           "type": "string",
@@ -69,7 +69,7 @@
         },
         "assignedCompanyId": {
           "type": "string",
-          "description": "Reference to Company. (Relationship: Company 1:N Shipment)"
+          "description": "Reference to Delivery Company. (Relationship: Company 1:N Shipment)"
         },
         "assignedCourierId": {
           "type": "string",
@@ -85,25 +85,25 @@
         "governorateId",
         "address",
         "deliveryDate",
-        "clientId",
+        "companyId",
         "status",
         "totalAmount",
         "paidAmount"
       ]
     },
-    "Client": {
+    "Company": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Client",
+      "title": "Company",
       "type": "object",
-      "description": "Represents a client in the logistics system.",
+      "description": "Represents a client company in the logistics system.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the client entity."
+          "description": "Unique identifier for the company entity."
         },
         "name": {
           "type": "string",
-          "description": "Name of the client."
+          "description": "Name of the company."
         }
       },
       "required": [
@@ -115,15 +115,15 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "SubClient",
       "type": "object",
-      "description": "Represents a sub-client, which is a subsidiary or branch of a main client.",
+      "description": "Represents a sub-client, which is a subsidiary or branch of a main company.",
       "properties": {
         "id": {
           "type": "string",
           "description": "Unique identifier for the sub-client entity."
         },
-        "clientId": {
+        "companyId": {
           "type": "string",
-          "description": "Reference to Client. (Relationship: Client 1:N SubClient)"
+          "description": "Reference to Company. (Relationship: Company 1:N SubClient)"
         },
         "name": {
           "type": "string",
@@ -132,19 +132,19 @@
       },
       "required": [
         "id",
-        "clientId",
+        "companyId",
         "name"
       ]
     },
-    "Company": {
+    "DeliveryCompany": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Company",
+      "title": "DeliveryCompany",
       "type": "object",
-      "description": "Represents a logistics company.",
+      "description": "Represents a logistics/delivery company.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the company entity."
+          "description": "Unique identifier for the delivery company entity."
         },
         "name": {
           "type": "string",
@@ -170,15 +170,15 @@
           "type": "string",
           "description": "Name of the courier."
         },
-        "companyId": {
+        "deliveryCompanyId": {
           "type": "string",
-          "description": "Reference to Company. (Relationship: Company 1:N Courier)"
+          "description": "Reference to DeliveryCompany. (Relationship: DeliveryCompany 1:N Courier)"
         }
       },
       "required": [
         "id",
         "name",
-        "companyId"
+        "deliveryCompanyId"
       ]
     },
     "Governorate": {
@@ -217,7 +217,7 @@
           "schema": {
             "$ref": "#/backend/entities/Shipment"
           },
-          "description": "Stores shipment data. Includes denormalized 'governorateId', 'clientId', 'subClientId', 'assignedCompanyId', and 'assignedCourierId' for filtering and authorization independence. Includes address field for exports. Also includes governorate name for optimized filtering in excel exports.",
+          "description": "Stores shipment data. Includes denormalized fields for filtering and authorization independence.",
           "params": [
             {
               "name": "shipmentId",
@@ -227,17 +227,17 @@
         }
       },
       {
-        "path": "/clients/{clientId}",
+        "path": "/companies/{companyId}",
         "definition": {
-          "entityName": "Client",
+          "entityName": "Company",
           "schema": {
-            "$ref": "#/backend/entities/Client"
+            "$ref": "#/backend/entities/Company"
           },
-          "description": "Stores client information.",
+          "description": "Stores client company information.",
           "params": [
             {
-              "name": "clientId",
-              "description": "Unique identifier for the client document."
+              "name": "companyId",
+              "description": "Unique identifier for the company document."
             }
           ]
         }
@@ -259,17 +259,17 @@
         }
       },
       {
-        "path": "/companies/{companyId}",
+        "path": "/deliveryCompanies/{companyId}",
         "definition": {
-          "entityName": "Company",
+          "entityName": "DeliveryCompany",
           "schema": {
-            "$ref": "#/backend/entities/Company"
+            "$ref": "#/backend/entities/DeliveryCompany"
           },
-          "description": "Stores logistics company information.",
+          "description": "Stores logistics/delivery company information.",
           "params": [
             {
               "name": "companyId",
-              "description": "Unique identifier for the company document."
+              "description": "Unique identifier for the delivery company document."
             }
           ]
         }
@@ -355,6 +355,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to support the AlSaqr Logistics application, focusing on secure, scalable, and easily maintainable data access patterns. The core principle is Authorization Independence, achieved through denormalization, avoiding `get()` calls in security rules.  We leverage Structural Segregation to maintain homogeneous security requirements within collections. The structure uses path-based ownership and membership maps for authorization. All user roles are stored directly in the database.\n\nShipments are stored in a top-level `shipments` collection. This segregation simplifies querying and management, especially for admin-level operations requiring full visibility across all shipments.  The `shipments` documents denormalize the `governorateId`, `clientId`, `subClientId`, `assignedCompanyId`, and `assignedCourierId` fields to streamline filtering. The `address` is copied into the shipment to allow for excel exports including the shipment address and governorate.\n\nUser roles are managed through dedicated collections (`roles_admin`, `roles_company`, `roles_courier`). The existence of a document for a user in these collections grants the corresponding role, enabling simple and robust security rules without the need for custom claims. This structure supports QAPs, ensuring secure list operations. Security rules can easily check for the existence of a role document based on the authenticated user's ID."
+    "reasoning": "The Firestore structure is designed to support the AlSaqr Logistics application, focusing on secure, scalable, and easily maintainable data access patterns. 'Client' has been replaced with 'Company' for clarity. A new 'deliveryCompanies' collection is added for logistics partners. The core principle remains Authorization Independence, achieved through denormalization, avoiding `get()` calls in security rules.  We leverage Structural Segregation to maintain homogeneous security requirements within collections. The structure uses path-based ownership and membership maps for authorization. All user roles are stored directly in the database."
   }
 }
