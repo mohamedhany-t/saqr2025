@@ -195,8 +195,8 @@ export default function DashboardPage() {
                 recipientPhone: row['التليفون']?.toString(),
                 governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
                 address: row['العنوان'] || 'N/A',
-                totalAmount: parseFloat(row['الاجمالي'] || 0),
-                paidAmount: parseFloat(row['المدفوع'] || 0),
+                totalAmount: parseFloat(row['الاجمالي'] || '0'),
+                paidAmount: parseFloat(row['المدفوع'] || '0'),
                 status: row['حالة الأوردر'] || 'Pending',
                 reason: row['السبب'] || '',
                 deliveryDate: deliveryDate || new Date(),
@@ -459,5 +459,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
