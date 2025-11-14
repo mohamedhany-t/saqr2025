@@ -1,0 +1,341 @@
+
+"use client";
+import React from "react";
+import { PlusCircle, FileUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ShipmentsTable } from "@/components/dashboard/shipments-table";
+import type { Role, Shipment, Company, SubClient, Governorate, Courier } from "@/lib/types";
+import { StatsCards } from "@/components/dashboard/stats-cards";
+import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
+import { Header } from "@/components/dashboard/header";
+import { read, utils } from 'xlsx';
+import { useToast } from "@/hooks/use-toast";
+import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
+import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, setDoc, query, where, updateDoc } from "firebase/firestore";
+
+export default function CompanyDashboard() {
+  const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
+  const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const { toast } = useToast();
+  const firestore = useFirestore();
+  const { user } = useUser();
+  const role: Role = 'company';
+
+  const shipmentsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'shipments'), where("companyId", "==", user.uid));
+  }, [firestore, user]);
+
+  const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
+
+  const companiesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'companies') : null, [firestore]);
+  const { data: companies } = useCollection<Company>(companiesQuery);
+
+  const subClientsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'subclients') : null, [firestore]);
+  const { data: subClients } = useCollection<SubClient>(subClientsQuery);
+
+  const governoratesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'governorates') : null, [firestore]);
+  const { data: governorates } = useCollection<Governorate>(governoratesQuery);
+
+  const deliveryCompaniesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'deliveryCompanies') : null, [firestore]);
+  const { data: deliveryCompanies } = useCollection<Company>(deliveryCompaniesQuery);
+
+  const couriersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'couriers') : null, [firestore]);
+  const { data: couriers } = useCollection<Courier>(couriersQuery);
+
+  const openShipmentForm = (shipment?: Shipment) => {
+    setEditingShipment(shipment);
+    setShipmentSheetOpen(true);
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+  
+  const parseExcelDate = (excelDate: any): Date | null => {
+    if (!excelDate) return null;
+    if (excelDate instanceof Date && !isNaN(excelDate.getTime())) return excelDate;
+    if (typeof excelDate === 'number') {
+      const date = new Date(Math.round((excelDate - 25569) * 86400 * 1000));
+      if (!isNaN(date.getTime())) return date;
+    }
+    if (typeof excelDate === 'string') {
+      const date = new Date(excelDate);
+      if (!isNaN(date.getTime())) return date;
+    }
+    return null;
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && firestore && user) {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const data = e.target?.result;
+          const workbook = read(data, { type: 'binary', cellDates: true });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const json = utils.sheet_to_json<any>(worksheet);
+
+          const batch = writeBatch(firestore);
+          let addedCount = 0;
+          let updatedCount = 0;
+          const shipmentsCollection = collection(firestore, 'shipments');
+
+          for (const row of json) {
+              const trackingNumber = row['رقم الشحنة']?.toString();
+              if (!trackingNumber) continue;
+
+              const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
+              const creationDate = parseExcelDate(row['التاريخ']);
+
+              const shipmentData: Partial<Shipment> = {
+                  orderNumber: row['رقم الطلب']?.toString(),
+                  recipientName: row['المرسل اليه'],
+                  recipientPhone: row['التليفون']?.toString(),
+                  governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
+                  address: row['العنوان'] || 'N/A',
+                  totalAmount: parseFloat(String(row['الاجمالي'] || '0').replace(/[^0-9.]/g, '')),
+                  paidAmount: parseFloat(String(row['المدفوع'] || '0').replace(/[^0-9.]/g, '')),
+                  status: row['حالة الأوردر'] || 'Pending',
+                  reason: row['السبب'] || '',
+                  deliveryDate: deliveryDate || new Date(),
+                  companyId: user.uid, // Always assign to the current company user
+                  subClientId: subClients?.find(sc => sc.name === row['العميل الفرعي'])?.id,
+                  updatedAt: serverTimestamp(),
+              };
+
+              const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+               if (!cleanShipmentData.subClientId) {
+                cleanShipmentData.subClientId = null;
+              }
+
+              const q = query(shipmentsCollection, where("trackingNumber", "==", trackingNumber), where("companyId", "==", user.uid));
+              const querySnapshot = await getDocs(q);
+
+              if (querySnapshot.empty) {
+                  const docRef = doc(shipmentsCollection);
+                  batch.set(docRef, { 
+                      ...cleanShipmentData, 
+                      trackingNumber, 
+                      shipmentCode: row['رقم الشحنة']?.toString() || `SH-${Date.now()}-${addedCount}`,
+                      createdAt: creationDate || serverTimestamp()
+                  });
+                  addedCount++;
+              } else {
+                  const docRef = querySnapshot.docs[0].ref;
+                  batch.update(docRef, cleanShipmentData);
+                  updatedCount++;
+              }
+          }
+          
+          await batch.commit();
+
+          let toastMessage = "";
+          if (addedCount > 0) toastMessage += `تمت إضافة ${addedCount} شحنة جديدة. `;
+          if (updatedCount > 0) toastMessage += `تم تحديث ${updatedCount} شحنة.`;
+          
+          toast({
+            title: "اكتمل الاستيراد بنجاح",
+            description: toastMessage.trim() || "لم يتم العثور على شحنات جديدة أو تحديثات.",
+          });
+
+        } catch (error: any) {
+            console.error("Error importing file:", error);
+            const permissionError = new FirestorePermissionError({
+                path: 'shipments',
+                operation: 'write',
+                requestResourceData: {note: "Batch import operation failed"}
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            toast({
+                title: "خطأ في الاستيراد",
+                description: error.message || "حدث خطأ أثناء معالجة الملف.",
+                variant: "destructive"
+            });
+        } finally {
+            if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+            }
+        }
+      };
+      reader.readAsBinaryString(file);
+    }
+  };
+
+  const handleSaveShipment = (shipment: Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>, id?: string) => {
+    if (!firestore || !user) return;
+
+    const shipmentWithCompany = { ...shipment, companyId: user.uid };
+
+    const cleanShipmentData: { [key: string]: any } = Object.fromEntries(
+      Object.entries(shipmentWithCompany).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+    );
+     if (!cleanShipmentData.subClientId) {
+        cleanShipmentData.subClientId = null;
+    }
+
+    if (id) {
+      const docRef = doc(firestore, 'shipments', id);
+      const dataToUpdate = { ...cleanShipmentData, updatedAt: serverTimestamp() };
+      
+      updateDoc(docRef, dataToUpdate)
+        .then(() => {
+          toast({
+            title: "تم تحديث الشحنة",
+            description: `تم تحديث الشحنة بنجاح`,
+          });
+          setShipmentSheetOpen(false);
+        })
+        .catch(serverError => {
+          const permissionError = new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'update',
+            requestResourceData: dataToUpdate
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        });
+
+    } else {
+      const shipmentsCollection = collection(firestore, 'shipments');
+      const dataToAdd = { ...cleanShipmentData, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+      
+      addDoc(shipmentsCollection, dataToAdd)
+        .then(() => {
+          toast({
+            title: "تم حفظ الشحنة",
+            description: `تم إنشاء الشحنة بنجاح`,
+          });
+          setShipmentSheetOpen(false);
+        })
+        .catch(serverError => {
+          const permissionError = new FirestorePermissionError({
+            path: shipmentsCollection.path,
+            operation: 'create',
+            requestResourceData: dataToAdd
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        });
+    }
+  };
+  
+  const filteredShipments = React.useMemo(() => {
+    if (!shipments) return [];
+    if (!searchTerm) return shipments;
+    return shipments.filter(shipment => 
+        shipment.shipmentCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        shipment.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        shipment.recipientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        shipment.trackingNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [shipments, searchTerm]);
+
+
+  return (
+    <div className="min-h-screen w-full bg-muted/30">
+      <Header onSearchChange={setSearchTerm}/>
+      <main className="p-4 sm:px-6 sm:py-0">
+        <Tabs defaultValue="all-shipments">
+          <div className="flex items-center">
+            <TabsList>
+              <TabsTrigger value="all-shipments">الكل</TabsTrigger>
+              <TabsTrigger value="in-transit" className="hidden sm:flex">قيد التوصيل</TabsTrigger>
+              <TabsTrigger value="delivered" className="hidden sm:flex">تم التوصيل</TabsTrigger>
+              <TabsTrigger value="returned" className="hidden sm:flex">مرتجعات</TabsTrigger>
+            </TabsList>
+            <div className="ms-auto flex items-center gap-2">
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    accept=".xlsx, .xls"
+                />
+              <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleImportClick}>
+                <FileUp className="h-3.5 w-3.5" />
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                  استيراد
+                </span>
+              </Button>
+              <ShipmentFormSheet
+                open={isShipmentSheetOpen}
+                onOpenChange={setShipmentSheetOpen}
+                onSave={handleSaveShipment}
+                shipment={editingShipment}
+                governorates={governorates || []}
+                companies={companies || []}
+                subClients={subClients || []}
+                couriers={couriers || []}
+                role={role}
+              >
+                 <Button size="sm" className="h-8 gap-1" onClick={() => openShipmentForm()}>
+                    <PlusCircle className="h-3.5 w-3.5" />
+                    <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                      شحنة جديدة
+                    </span>
+                  </Button>
+              </ShipmentFormSheet>
+            </div>
+          </div>
+          <StatsCards shipments={shipments || []} role={role} companies={companies || []} />
+          <TabsContent value="all-shipments">
+            <ShipmentsTable 
+              shipments={filteredShipments} 
+              isLoading={shipmentsLoading}
+              governorates={governorates || []}
+              companies={companies || []}
+              deliveryCompanies={deliveryCompanies || []}
+              couriers={couriers || []}
+              subClients={subClients || []}
+              onEdit={openShipmentForm}
+              role={role}
+            />
+          </TabsContent>
+          <TabsContent value="in-transit">
+             <ShipmentsTable 
+                shipments={filteredShipments.filter(s => s.status === 'In-Transit')}
+                isLoading={shipmentsLoading}
+                governorates={governorates || []}
+                companies={companies || []}
+                deliveryCompanies={deliveryCompanies || []}
+                couriers={couriers || []}
+                subClients={subClients || []}
+                onEdit={openShipmentForm}
+                role={role}
+             />
+          </TabsContent>
+           <TabsContent value="delivered">
+             <ShipmentsTable 
+                shipments={filteredShipments.filter(s => s.status === 'Delivered')}
+                isLoading={shipmentsLoading}
+                governorates={governorates || []}
+                companies={companies || []}
+                deliveryCompanies={deliveryCompanies || []}
+                couriers={couriers || []}
+                subClients={subClients || []}
+                onEdit={openShipmentForm}
+                role={role}
+             />
+          </TabsContent>
+           <TabsContent value="returned">
+             <ShipmentsTable 
+                shipments={filteredShipments.filter(s => s.status === 'Returned')}
+                isLoading={shipmentsLoading}
+                governorates={governorates || []}
+                companies={companies || []}
+                deliveryCompanies={deliveryCompanies || []}
+                couriers={couriers || []}
+                subClients={subClients || []}
+                onEdit={openShipmentForm}
+                role={role}
+             />
+          </TabsContent>
+        </Tabs>
+      </main>
+    </div>
+  );
+}

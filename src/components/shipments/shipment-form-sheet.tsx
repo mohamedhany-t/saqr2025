@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from 'react';
@@ -13,7 +14,6 @@ import {
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -21,17 +21,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useForm, Controller } from "react-hook-form"
+import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import type { Shipment, ShipmentStatus, Governorate, Company, SubClient, Courier, Role } from '@/lib/types';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { cn } from '@/lib/utils';
 import { Textarea } from '../ui/textarea';
 
 const shipmentSchema = z.object({
   shipmentCode: z.string().optional(),
-  orderNumber: z.string().min(1, "رقم الطلب مطلوب"),
+  orderNumber: z.string().optional(),
   trackingNumber: z.string().optional(),
   recipientName: z.string().min(1, "اسم المرسل إليه مطلوب"),
   recipientPhone: z.string().min(10, "رقم هاتف المستلم غير صحيح"),
@@ -40,7 +39,7 @@ const shipmentSchema = z.object({
   totalAmount: z.coerce.number().min(0, "المبلغ يجب أن يكون إيجابي"),
   paidAmount: z.coerce.number().optional(),
   status: z.enum(["Pending", "In-Transit", "Delivered", "Cancelled", "Returned"]),
-  companyId: z.string().min(1, "الشركة مطلوبة"),
+  companyId: z.string().optional(),
   subClientId: z.string().optional().nullable(),
   reason: z.string().optional(),
   deliveryDate: z.date().optional(),
@@ -53,7 +52,7 @@ type ShipmentFormSheetProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     shipment?: Shipment;
-    onSave: (data: Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>, id?: string) => void;
+    onSave: (data: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => void;
     governorates: Governorate[];
     companies: Company[];
     subClients: SubClient[];
@@ -67,20 +66,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
 
   const form = useForm<z.infer<typeof shipmentSchema>>({
     resolver: zodResolver(shipmentSchema),
-    defaultValues: isEditing ? shipment : {
-      orderNumber: "",
-      trackingNumber: "",
-      recipientName: "",
-      recipientPhone: "",
-      governorateId: "",
-      address: "",
-      totalAmount: 0,
-      paidAmount: 0,
-      status: "Pending",
-      companyId: "",
-      subClientId: null,
-      shipmentCode: `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
-    },
+    defaultValues: {},
   });
   
   React.useEffect(() => {
@@ -98,19 +84,19 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
             totalAmount: 0,
             paidAmount: 0,
             status: "Pending",
-            companyId: "",
+            companyId: role === 'company' ? companies.find(c => c.id === '')?.id : '', // Pre-fill for company user
             subClientId: null,
             shipmentCode: `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
         };
         form.reset(defaultValues as any);
     }
-  }, [open, shipment, form, isEditing]);
+  }, [open, shipment, form, isEditing, role, companies]);
 
   const onSubmit = (values: z.infer<typeof shipmentSchema>) => {
     const dataToSave = Object.fromEntries(
         Object.entries(values).filter(([_, v]) => v !== undefined)
     );
-    onSave(dataToSave as Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>, shipment?.id);
+    onSave(dataToSave as Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, shipment?.id);
   };
   
   const selectedCompanyId = form.watch("companyId");
@@ -131,8 +117,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                 </SheetDescription>
                 </SheetHeader>
                 <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6">
-                    {/* Form Fields */}
-                     <FormField
+                    <FormField
                         control={form.control}
                         name="shipmentCode"
                         render={({ field }) => (
@@ -217,7 +202,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />
-                    <FormField
+                    {role !== 'company' && <FormField
                         control={form.control}
                         name="companyId"
                         render={({ field }) => (
@@ -236,7 +221,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                 <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
-                    />
+                    />}
                     {filteredSubClients.length > 0 && (
                         <FormField
                             control={form.control}
@@ -296,7 +281,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />
-                    <FormField
+                     <FormField
                         control={form.control}
                         name="orderNumber"
                         render={({ field }) => (

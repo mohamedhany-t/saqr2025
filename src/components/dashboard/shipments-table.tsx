@@ -1,3 +1,4 @@
+
 "use client"
 import * as React from "react"
 import type {
@@ -45,7 +46,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
 import {
   Table,
   TableBody,
@@ -57,8 +57,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import type { Shipment, ShipmentStatus, Governorate, Company, Courier, SubClient, Role } from "@/lib/types"
 import { exportToExcel, exportToPDF } from "@/lib/export"
-import { useFirestore, errorEmitter, FirestorePermissionError, useUser } from "@/firebase"
-import { doc, writeBatch, updateDoc } from "firebase/firestore"
+import { useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase"
+import { doc, writeBatch } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -101,15 +101,10 @@ const mapStatus = (status: string): ShipmentStatus => {
 type ActionCellProps = {
   row: Row<Shipment>;
   onEdit: (shipment: Shipment) => void;
-  governorates: Governorate[];
-  companies: Company[];
-  subClients: SubClient[];
-  couriers: Courier[];
-  deliveryCompanies: Company[];
   role: Role | null;
 };
 
-const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, governorates, companies, subClients, couriers, deliveryCompanies, role }) => {
+const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role }) => {
   const shipment = row.original;
   const { toast } = useToast();
 
@@ -130,13 +125,13 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, governorates, com
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>إجراءات</DropdownMenuLabel>
-        <DropdownMenuItem onClick={() => onEdit(shipment)} disabled={role === 'courier'}>
+        <DropdownMenuItem onClick={() => onEdit(shipment)}>
           <Pencil className="me-2 h-4 w-4" /> تعديل
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handleAction("Details")}>
+        <DropdownMenuItem onClick={() => handleAction("Details")} disabled>
           <FileText className="me-2 h-4 w-4" /> تفاصيل
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handleAction("Print")}>
+        <DropdownMenuItem onClick={() => handleAction("Print")} disabled>
           <Printer className="me-2 h-4 w-4" /> طباعة
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -149,8 +144,6 @@ export const getColumns = (
     governorates: Governorate[],
     companies: Company[],
     subClients: SubClient[],
-    couriers: Courier[],
-    deliveryCompanies: Company[],
     onEdit: (shipment: Shipment) => void,
     role: Role | null,
     ): ColumnDef<Shipment>[] => [
@@ -319,11 +312,6 @@ export const getColumns = (
       <ActionsCell
         {...props}
         onEdit={onEdit}
-        governorates={governorates}
-        companies={companies}
-        subClients={subClients}
-        couriers={couriers}
-        deliveryCompanies={deliveryCompanies}
         role={role}
       />
     ),
@@ -341,9 +329,8 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
   const [rowSelection, setRowSelection] = React.useState({})
   const { toast } = useToast()
   const firestore = useFirestore();
-  const { user } = useUser();
   
-  const columns = React.useMemo(() => getColumns(governorates, companies, subClients, couriers, deliveryCompanies, onEdit, role), [governorates, companies, subClients, couriers, deliveryCompanies, onEdit, role]);
+  const columns = React.useMemo(() => getColumns(governorates, companies, subClients, onEdit, role), [governorates, companies, subClients, onEdit, role]);
   
   const table = useReactTable({
     data: shipments,
@@ -372,11 +359,15 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
   const handleExport = () => {
     const selectedRows = table.getFilteredSelectedRowModel().rows.map(row => row.original);
     const dataToExport = selectedRows.length > 0 ? selectedRows : shipments;
+    if (dataToExport.length === 0) {
+      toast({ title: "لا توجد بيانات للتصدير", variant: "destructive" });
+      return;
+    }
     exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates, companies, subClients, couriers);
   }
 
   const handleBulkDelete = () => {
-    if (!firestore) return;
+    if (!firestore || role !== 'admin') return;
     const selectedRows = table.getFilteredSelectedRowModel().rows;
     if (selectedRows.length === 0) {
         toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
@@ -416,7 +407,6 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
         
         let finalUpdate: { [key: string]: any } = { ...update, updatedAt: new Date() };
 
-        // Courier can only update status and reason
         if (role === 'courier') {
             const allowedUpdates: Partial<Shipment> = {};
             if (update.status) allowedUpdates.status = update.status;
@@ -447,19 +437,17 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
 
   const governorateFilterValue = columnFilters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
   const companyFilterValue = columnFilters.find(f => f.id === 'companyId')?.value as string[] | undefined;
-  const courierFilterValue = columnFilters.find(f => f.id === 'assignedCourierId')?.value as string[] | undefined;
-
 
   return (
     <div className="w-full">
         <div className="flex items-center justify-between py-4 gap-2 flex-wrap">
             <div className="flex items-center gap-2">
-                 <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleExport} disabled={role === 'courier'}>
+                 {role !== 'courier' && <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleExport}>
                     <FileUp className="h-3.5 w-3.5" />
                     <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
                         تصدير
                     </span>
-                </Button>
+                </Button>}
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="sm" className="h-8 gap-1">
@@ -488,9 +476,9 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                         ))}
                     </DropdownMenuContent>
                 </DropdownMenu>
-                 <DropdownMenu>
+                 {role === 'admin' && <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-8 gap-1" disabled={role !== 'admin'}>
+                        <Button variant="outline" size="sm" className="h-8 gap-1">
                             <ChevronDown className="h-3.5 w-3.5" />
                             <span>
                                 العميل
@@ -515,7 +503,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                         </DropdownMenuCheckboxItem>
                         ))}
                     </DropdownMenuContent>
-                </DropdownMenu>
+                </DropdownMenu>}
             </div>
             {table.getFilteredSelectedRowModel().rows.length > 0 && (
                  <div className="flex items-center gap-2">
@@ -537,9 +525,9 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
-                     <DropdownMenu>
+                     {role === 'admin' && <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                             <Button variant="outline" size="sm" className="h-8 gap-1" disabled={role !== 'admin'}>
+                             <Button variant="outline" size="sm" className="h-8 gap-1">
                                 <Building className="h-3.5 w-3.5" />
                                 <span className="sr-only sm:not-sr-only">تعيين شركة</span>
                              </Button>
@@ -551,10 +539,10 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                                 </DropdownMenuItem>
                             ))}
                         </DropdownMenuContent>
-                    </DropdownMenu>
-                    <DropdownMenu>
+                    </DropdownMenu>}
+                    {role === 'admin' && <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                             <Button variant="outline" size="sm" className="h-8 gap-1" disabled={role !== 'admin'}>
+                             <Button variant="outline" size="sm" className="h-8 gap-1">
                                 <User className="h-3.5 w-3.5" />
                                 <span className="sr-only sm:not-sr-only">تعيين مندوب</span>
                              </Button>
@@ -566,11 +554,11 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                                 </DropdownMenuItem>
                             ))}
                         </DropdownMenuContent>
-                    </DropdownMenu>
-                     <Button variant="destructive" size="sm" className="h-8 gap-1" onClick={handleBulkDelete} disabled={role !== 'admin'}>
+                    </DropdownMenu>}
+                     {role === 'admin' && <Button variant="destructive" size="sm" className="h-8 gap-1" onClick={handleBulkDelete}>
                         <Trash2 className="h-3.5 w-3.5" />
                         <span className="sr-only sm:not-sr-only">حذف</span>
-                    </Button>
+                    </Button>}
                  </div>
             )}
         </div>
