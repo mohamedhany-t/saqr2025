@@ -17,10 +17,10 @@ import { StatsCards } from "@/components/dashboard/stats-cards";
 import { UsersTable } from "@/components/dashboard/users-table";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { Header } from "@/components/dashboard/header";
-import { read, utils } from 'xlsx';
+import { read, utils, WorkBook } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, addDoc, serverTimestamp, writeBatch } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, writeBatch, doc } from "firebase/firestore";
 import { mockUsers } from "@/lib/placeholder-data";
 
 export default function DashboardPage() {
@@ -52,6 +52,17 @@ export default function DashboardPage() {
   const handleImportClick = () => {
     fileInputRef.current?.click();
   };
+  
+  const parseExcelDate = (excelDate: any) => {
+    if (typeof excelDate === 'number') {
+      // Excel stores dates as number of days since 1900-01-01
+      return new Date(Math.round((excelDate - 25569) * 86400 * 1000));
+    }
+    if (typeof excelDate === 'string') {
+      return new Date(excelDate);
+    }
+    return new Date();
+  }
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -71,29 +82,29 @@ export default function DashboardPage() {
 
 
           for (const row of json) {
-            const shipmentCode = row['كود الشحنة'] || `SH-${Date.now()}-${importedCount}`;
+            const shipmentCode = row['رقم الشحنة'] || `SH-${Date.now()}-${importedCount}`;
             
-            const newShipment: Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'> = {
+            const newShipment: Omit<Shipment, 'id'> = {
                 shipmentCode: shipmentCode,
-                orderNumber: row['رقم الطلب'] || `ORD-${Date.now()}-${importedCount}`,
-                trackingNumber: row['رقم الشحنة'] || `TRK-${Date.now()}-${importedCount}`,
-                recipientName: row['المرسل إليه'],
-                recipientPhone: row['الهاتف']?.toString(),
+                orderNumber: row['رقم الطلب']?.toString() || `ORD-${Date.now()}-${importedCount}`,
+                trackingNumber: row['رقم الشحنة']?.toString() || `TRK-${Date.now()}-${importedCount}`,
+                recipientName: row['المرسل اليه'],
+                recipientPhone: row['التليفون']?.toString(),
                 governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
                 address: row['العنوان'] || 'N/A',
-                totalAmount: parseFloat(row['الإجمالي'] || 0),
-                status: row['الحالة'] || 'Pending',
-                deliveryDate: row['تاريخ التسليم'] ? new Date(row['تاريخ التسليم']) : new Date(),
+                totalAmount: parseFloat(row['الاجمالي'] || 0),
+                paidAmount: parseFloat(row['المدفوع'] || 0),
+                status: row['حالة الأوردر'] || 'Pending',
+                reason: row['السبب'] || '',
+                deliveryDate: row['ريخ التسليم للمندوب'] ? parseExcelDate(row['ريخ التسليم للمندوب']) : new Date(),
                 clientId: clients?.find(c => c.name === row['العميل'])?.id || 'imported',
-                paidAmount: 0,
+                subClientId: subClients?.find(sc => sc.name === row['العميل الفرعي'])?.id,
+                createdAt: row['التاريخ'] ? parseExcelDate(row['التاريخ']) : serverTimestamp(),
+                updatedAt: serverTimestamp(),
             };
 
-            const docRef = doc(shipmentsCollection, shipmentCode);
-            batch.set(docRef, {
-                ...newShipment,
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-            });
+            const docRef = doc(shipmentsCollection);
+            batch.set(docRef, newShipment);
             importedCount++;
           }
           
@@ -195,6 +206,8 @@ export default function DashboardPage() {
               governorates={governorates || []}
               companies={companies || []}
               couriers={couriers || []}
+              clients={clients || []}
+              subClients={subClients || []}
             />
           </TabsContent>
           <TabsContent value="in-transit">
@@ -204,6 +217,8 @@ export default function DashboardPage() {
                 governorates={governorates || []}
                 companies={companies || []}
                 couriers={couriers || []}
+                clients={clients || []}
+                subClients={subClients || []}
              />
           </TabsContent>
            <TabsContent value="delivered">
@@ -213,6 +228,8 @@ export default function DashboardPage() {
                 governorates={governorates || []}
                 companies={companies || []}
                 couriers={couriers || []}
+                clients={clients || []}
+                subClients={subClients || []}
              />
           </TabsContent>
            <TabsContent value="returned">
@@ -222,6 +239,8 @@ export default function DashboardPage() {
                 governorates={governorates || []}
                 companies={companies || []}
                 couriers={couriers || []}
+                clients={clients || []}
+                subClients={subClients || []}
              />
           </TabsContent>
         </Tabs>

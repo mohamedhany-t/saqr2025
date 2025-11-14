@@ -56,18 +56,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import type { Shipment, ShipmentStatus, Governorate, Company, Courier } from "@/lib/types"
+import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Client, SubClient } from "@/lib/types"
 import { exportToExcel, exportToPDF } from "@/lib/export"
 import { useFirestore } from "@/firebase"
-import { doc, writeBatch, deleteDoc } from "firebase/firestore"
+import { doc, writeBatch } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -96,7 +89,12 @@ const statusText: Record<ShipmentStatus, string> = {
 };
 
 
-export const getColumns = (governorates: Governorate[]): ColumnDef<Shipment>[] => [
+export const getColumns = (
+    governorates: Governorate[],
+    clients: Client[],
+    subClients: SubClient[],
+    couriers: Courier[]
+    ): ColumnDef<Shipment>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -120,20 +118,43 @@ export const getColumns = (governorates: Governorate[]): ColumnDef<Shipment>[] =
     enableHiding: false,
   },
   {
-    accessorKey: "shipmentCode",
-    header: "كود الشحنة",
-    cell: ({ row }) => <div>{row.getValue("shipmentCode")}</div>,
+    accessorKey: "orderNumber",
+    header: "رقم الطلب",
+    cell: ({ row }) => <div>{row.getValue("orderNumber")}</div>,
+  },
+   {
+    accessorKey: "trackingNumber",
+    header: "رقم الشحنة",
+    cell: ({ row }) => <div>{row.getValue("trackingNumber")}</div>,
+  },
+  {
+    accessorKey: "createdAt",
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        التاريخ
+        <ArrowUpDown className="ms-2 h-4 w-4" />
+      </Button>
+    ),
+    cell: ({ row }) => {
+       const createdAt = row.getValue("createdAt") as any;
+       if (!createdAt) return null;
+       const date = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
+       return <div>{date.toLocaleDateString("ar-EG", { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+    },
   },
   {
     accessorKey: "recipientName",
-    header: "المرسل إليه",
+    header: "المرسل اليه",
     cell: ({ row }) => (
         <div className="font-medium">{row.getValue("recipientName")}</div>
     ),
   },
-    {
+  {
     accessorKey: "recipientPhone",
-    header: "الهاتف",
+    header: "التليفون",
     cell: ({ row }) => <div>{row.getValue("recipientPhone")}</div>,
   },
   {
@@ -152,22 +173,41 @@ export const getColumns = (governorates: Governorate[]): ColumnDef<Shipment>[] =
     header: "العنوان",
     cell: ({ row }) => <div>{row.getValue("address")}</div>
   },
-    {
-    accessorKey: "totalAmount",
-    header: () => <div className="text-start">الإجمالي</div>,
+  {
+    accessorKey: "deliveryDate",
+    header: "تاريخ التسليم للمندوب",
+     cell: ({ row }) => {
+       const deliveryDate = row.getValue("deliveryDate") as any;
+       if (!deliveryDate) return null;
+       const date = deliveryDate.toDate ? deliveryDate.toDate() : new Date(deliveryDate);
+       return <div>{date.toLocaleDateString("ar-EG", { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+    },
+  },
+  {
+    accessorKey: "clientId",
+    header: "العميل",
     cell: ({ row }) => {
-      const amount = parseFloat(row.getValue("totalAmount"))
-      const formatted = new Intl.NumberFormat("ar-SA", {
-        style: "currency",
-        currency: "SAR",
-      }).format(amount)
- 
-      return <div className="text-start font-medium">{formatted}</div>
+        const client = clients.find(c => c.id === row.getValue("clientId"));
+        return <div>{client?.name || row.getValue("clientId")}</div>
+    },
+    filterFn: (row, id, value) => {
+      return value.includes(row.getValue(id))
+    },
+  },
+   {
+    accessorKey: "subClientId",
+    header: "العميل الفرعي",
+    cell: ({ row }) => {
+        const subClient = subClients.find(sc => sc.id === row.getValue("subClientId"));
+        return <div>{subClient?.name || ''}</div>
+    },
+    filterFn: (row, id, value) => {
+      return value.includes(row.getValue(id))
     },
   },
   {
     accessorKey: "status",
-    header: "الحالة",
+    header: "حالة الأوردر",
     cell: ({ row }) => {
         const status = row.getValue("status") as ShipmentStatus;
         return (
@@ -182,21 +222,34 @@ export const getColumns = (governorates: Governorate[]): ColumnDef<Shipment>[] =
     },
   },
   {
-    accessorKey: "createdAt",
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        تاريخ الإنشاء
-        <ArrowUpDown className="ms-2 h-4 w-4" />
-      </Button>
-    ),
+    accessorKey: "reason",
+    header: "السبب",
+    cell: ({ row }) => <div>{row.getValue("reason")}</div>,
+  },
+  {
+    accessorKey: "totalAmount",
+    header: () => <div className="text-start">الاجمالي</div>,
     cell: ({ row }) => {
-       const createdAt = row.getValue("createdAt") as any;
-       if (!createdAt) return null;
-       const date = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
-       return <div>{date.toLocaleDateString("ar-EG")}</div>
+      const amount = parseFloat(row.getValue("totalAmount"))
+      const formatted = new Intl.NumberFormat("ar-SA", {
+        style: "currency",
+        currency: "SAR",
+      }).format(amount)
+ 
+      return <div className="text-start font-medium">{formatted}</div>
+    },
+  },
+  {
+    accessorKey: "paidAmount",
+    header: () => <div className="text-start">المدفوع</div>,
+    cell: ({ row }) => {
+      const amount = parseFloat(row.getValue("paidAmount"))
+      const formatted = new Intl.NumberFormat("ar-SA", {
+        style: "currency",
+        currency: "SAR",
+      }).format(amount)
+ 
+      return <div className="text-start font-medium">{formatted}</div>
     },
   },
   {
@@ -223,7 +276,7 @@ export const getColumns = (governorates: Governorate[]): ColumnDef<Shipment>[] =
             <DropdownMenuSeparator />
             <DropdownMenuItem><Pencil className="me-2 h-4 w-4"/>تعديل</DropdownMenuItem>
             <DropdownMenuItem><FileText className="me-2 h-4 w-4"/>تفاصيل</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => exportToPDF([shipment], getColumns(governorates).filter(c => c.id !== 'select' && c.id !== 'actions'), governorates)}><Printer className="me-2 h-4 w-4"/>طباعة</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => exportToPDF([shipment], getColumns(governorates, clients, subClients, couriers).filter(c => c.id !== 'select' && c.id !== 'actions'), governorates, clients, subClients, couriers)}><Printer className="me-2 h-4 w-4"/>طباعة</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )
@@ -232,7 +285,7 @@ export const getColumns = (governorates: Governorate[]): ColumnDef<Shipment>[] =
 ]
 
 
-export function ShipmentsTable({ shipments, isLoading, governorates, companies, couriers }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[], companies: Company[], couriers: Courier[] }) {
+export function ShipmentsTable({ shipments, isLoading, governorates, companies, couriers, clients, subClients }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[], companies: Company[], couriers: Courier[], clients: Client[], subClients: SubClient[] }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -243,7 +296,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
   const { toast } = useToast()
   const firestore = useFirestore();
   
-  const columns = React.useMemo(() => getColumns(governorates), [governorates]);
+  const columns = React.useMemo(() => getColumns(governorates, clients, subClients, couriers), [governorates, clients, subClients, couriers]);
   
   const table = useReactTable({
     data: shipments,
@@ -267,7 +320,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
   const handleExport = () => {
     const selectedRows = table.getFilteredSelectedRowModel().rows.map(row => row.original);
     const dataToExport = selectedRows.length > 0 ? selectedRows : shipments;
-    exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates);
+    exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates, clients, subClients, couriers);
   }
 
   const handleBulkDelete = async () => {
@@ -305,7 +358,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
         const batch = writeBatch(firestore);
         selectedRows.forEach(row => {
             const docRef = doc(firestore, "shipments", row.original.id);
-            batch.update(docRef, update);
+            batch.update(docRef, {...update, updatedAt: new Date()});
         });
         await batch.commit();
         toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
@@ -317,6 +370,9 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
   }
 
   const governorateFilterValue = columnFilters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
+  const companyFilterValue = columnFilters.find(f => f.id === 'assignedCompanyId')?.value as string[] | undefined;
+  const courierFilterValue = columnFilters.find(f => f.id === 'assignedCourierId')?.value as string[] | undefined;
+
 
   return (
     <div className="w-full">
