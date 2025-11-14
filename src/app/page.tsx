@@ -9,6 +9,7 @@ import { useUser, useFirestore } from "@/firebase";
 import AdminDashboard from "@/components/dashboard/admin-dashboard";
 import CompanyDashboard from "@/components/dashboard/company-dashboard";
 import CourierDashboard from "@/components/dashboard/courier-dashboard";
+import { Button } from "@/components/ui/button";
 
 export default function DashboardRouterPage() {
   const [role, setRole] = React.useState<Role | null>(null);
