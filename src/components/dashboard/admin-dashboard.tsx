@@ -13,7 +13,7 @@ import { UserFormSheet } from "@/components/users/user-form-sheet";
 import { Header } from "@/components/dashboard/header";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
-import { useCollection, useFirestore, useUser, errorEmitter, FirestorePermissionError } from "@/firebase";
+import { useCollection, useFirestore, useUser, errorEmitter, FirestorePermissionError, useMemoFirebase } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, setDoc, query, where, updateDoc } from "firebase/firestore";
 import { getAuth, createUserWithEmailAndPassword, signInWithCredential, EmailAuthProvider } from "firebase/auth";
 import { z } from "zod";
@@ -31,25 +31,25 @@ export default function AdminDashboard() {
   const { user: adminUser } = useUser();
   const role: Role = 'admin';
 
-  const shipmentsQuery = React.useMemo(() => firestore ? collection(firestore, 'shipments') : null, [firestore]);
+  const shipmentsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'shipments') : null, [firestore]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
-  const companiesQuery = React.useMemo(() => firestore ? collection(firestore, 'companies') : null, [firestore]);
+  const companiesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'companies') : null, [firestore]);
   const { data: companies } = useCollection<Company>(companiesQuery);
 
-  const subClientsQuery = React.useMemo(() => firestore ? collection(firestore, 'subclients') : null, [firestore]);
+  const subClientsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'subclients') : null, [firestore]);
   const { data: subClients } = useCollection<SubClient>(subClientsQuery);
 
-  const governoratesQuery = React.useMemo(() => firestore ? collection(firestore, 'governorates') : null, [firestore]);
+  const governoratesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'governorates') : null, [firestore]);
   const { data: governorates } = useCollection<Governorate>(governoratesQuery);
 
-  const deliveryCompaniesQuery = React.useMemo(() => firestore ? collection(firestore, 'deliveryCompanies') : null, [firestore]);
+  const deliveryCompaniesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'deliveryCompanies') : null, [firestore]);
   const { data: deliveryCompanies } = useCollection<Company>(deliveryCompaniesQuery);
 
-  const couriersQuery = React.useMemo(() => firestore ? collection(firestore, 'couriers') : null, [firestore]);
+  const couriersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'couriers') : null, [firestore]);
   const { data: couriers } = useCollection<Courier>(couriersQuery);
   
-  const usersQuery = React.useMemo(() => firestore ? collection(firestore, 'users') : null, [firestore]);
+  const usersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
   const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
   
   const openShipmentForm = (shipment?: Shipment) => {
@@ -285,26 +285,34 @@ const handleSaveUser = async (userData: any) => {
         batch.set(roleDocRef, { email: userData.email, createdAt: serverTimestamp() });
         
         // 6. Commit the batch using the admin's permissions.
-        await batch.commit();
+        batch.commit()
+          .then(() => {
+              toast({
+                  title: "تم إنشاء المستخدم بنجاح",
+                  description: `تم إنشاء حساب لـ ${userData.name} بنجاح.`,
+              });
+              setUserSheetOpen(false);
+          })
+          .catch((serverError: any) => {
+            // This is where Firestore permission errors for the BATCH will be caught.
+            const permissionError = new FirestorePermissionError({
+                path: 'users', // The batch can affect multiple paths, so this is a general path.
+                operation: 'write',
+                requestResourceData: { note: 'Batch operation for creating user, company, and role failed.' }
+            });
+            errorEmitter.emit('permission-error', permissionError);
 
-        toast({
-            title: "تم إنشاء المستخدم بنجاح",
-            description: `تم إنشاء حساب لـ ${userData.name} بنجاح.`,
+            toast({
+                title: "خطأ في حفظ البيانات",
+                description: "فشل حفظ بيانات المستخدم في قاعدة البيانات. تحقق من صلاحيات الأمان.",
+                variant: "destructive"
+            });
         });
-        setUserSheetOpen(false);
 
     } catch (error: any) {
-        console.error("Error during user creation process:", error);
+        console.error("Error during user auth creation:", error);
         
-        // This is where Firestore permission errors for the BATCH will be caught.
-        const permissionError = new FirestorePermissionError({
-            path: 'users', // The batch can affect multiple paths, so this is a general path.
-            operation: 'write',
-            requestResourceData: { note: 'Batch operation for creating user, company, and role failed.' }
-        });
-        errorEmitter.emit('permission-error', permissionError);
-
-        let description = "فشل حفظ بيانات المستخدم في قاعدة البيانات. تحقق من صلاحيات الأمان.";
+        let description = "فشل إنشاء حساب المصادقة للمستخدم.";
         if (error.code === 'auth/email-already-in-use') {
             description = 'هذا البريد الإلكتروني مستخدم بالفعل.';
         } else if (error.code === 'auth/weak-password') {
