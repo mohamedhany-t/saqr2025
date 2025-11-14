@@ -28,6 +28,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { User, Role } from "@/lib/types"
+import { Skeleton } from "../ui/skeleton"
 
 const roleIcons: Record<Role, React.ReactNode> = {
     admin: <UserIcon className="h-4 w-4 text-red-500" />,
@@ -116,7 +117,7 @@ export const columns: ColumnDef<User>[] = [
 ]
 
 
-export function UsersTable({ users }: { users: User[] }) {
+export function UsersTable({ users, isLoading }: { users: User[], isLoading: boolean }) {
   
   const table = useReactTable({
     data: users,
@@ -148,7 +149,15 @@ export function UsersTable({ users }: { users: User[] }) {
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
+            {isLoading ? (
+                Array.from({length: 5}).map((_, i) => (
+                    <TableRow key={i}>
+                        <TableCell colSpan={columns.length}>
+                            <Skeleton className="h-6 w-full" />
+                        </TableCell>
+                    </TableRow>
+                ))
+            ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id}>
                   {row.getVisibleCells().map((cell) => (
@@ -197,3 +206,5 @@ export function UsersTable({ users }: { users: User[] }) {
     </div>
   )
 }
+
+    

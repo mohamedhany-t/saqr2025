@@ -25,8 +25,9 @@ import { Header } from "@/components/dashboard/header";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
-import { collection, addDoc, serverTimestamp, writeBatch, doc, getDoc } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, writeBatch, doc, getDoc, setDoc, query, where } from "firebase/firestore";
 import { EGYPTIAN_GOVERNORATES } from "@/lib/governorates";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 
 export default function DashboardPage() {
   const [role, setRole] = React.useState<Role | null>(null);
@@ -63,13 +64,9 @@ export default function DashboardPage() {
   
   const usersQuery = useMemoFirebase(() => {
      if (!firestore || role !== 'admin') return null;
-     // In a real app, you'd probably fetch from a single 'users' collection 
-     // and the roles would be a field on the user document.
-     // For now, we'll fetch all users if the role is admin.
-     // This is not optimal and should be refactored.
      return collection(firestore, 'users');
   }, [firestore, role]);
-  const { data: users } = useCollection<User>(usersQuery);
+  const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
 
   React.useEffect(() => {
     if (!isUserLoading && !user) {
@@ -80,7 +77,22 @@ export default function DashboardPage() {
   React.useEffect(() => {
     if (user && firestore) {
       const checkRole = async () => {
+        const userDocRef = doc(firestore, `users/${user.uid}`);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          setRole(userDocSnap.data().role);
+          return;
+        }
+
         if (user.email === "mhanyt21@gmail.com") {
+          const adminData = {
+            id: user.uid,
+            email: user.email,
+            role: 'admin',
+            name: 'Admin',
+            createdAt: serverTimestamp()
+          };
+          await setDoc(userDocRef, adminData);
           setRole('admin');
           return;
         }
@@ -95,14 +107,25 @@ export default function DashboardPage() {
           getDoc(courierDoc)
         ]);
         
+        let userRole: Role | null = null;
         if (adminSnap.exists()) {
-          setRole('admin');
+          userRole = 'admin';
         } else if (companySnap.exists()) {
-          setRole('company');
+          userRole = 'company';
         } else if (courierSnap.exists()) {
-          setRole('courier');
+          userRole = 'courier';
+        }
+
+        if (userRole) {
+           await setDoc(userDocRef, {
+             id: user.uid,
+             email: user.email,
+             role: userRole,
+             createdAt: serverTimestamp()
+           });
+           setRole(userRole);
         } else {
-          setRole(null); // No specific role found
+          setRole(null);
         }
       };
 
@@ -110,7 +133,7 @@ export default function DashboardPage() {
     }
   }, [user, firestore]);
 
-  if (isUserLoading || (user && !role)) {
+  if (isUserLoading || (user && !role && !usersLoading)) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-muted/30">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -427,7 +450,7 @@ export default function DashboardPage() {
                           </Button>
                       </div>
                     </div>
-                    <UsersTable users={users || []} />
+                    <UsersTable users={users || []} isLoading={usersLoading} />
                 </div>
            </TabsContent>
           )}
@@ -436,3 +459,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    

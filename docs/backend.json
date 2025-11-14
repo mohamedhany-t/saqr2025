@@ -1,5 +1,50 @@
 {
   "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user in the system, including their role and associated company if applicable.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The Firebase Authentication UID of the user."
+        },
+        "name": {
+          "type": "string",
+          "description": "The user's display name."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "role": {
+          "type": "string",
+          "description": "The role of the user within the system.",
+          "enum": ["admin", "company", "courier"]
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the company for 'company' or 'courier' roles."
+        },
+        "companyName": {
+          "type": "string",
+          "description": "Denormalized name of the company for display purposes."
+        },
+        "avatarUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL for the user's avatar image."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the user account was created."
+        }
+      },
+      "required": ["id", "email", "role", "createdAt"]
+    },
     "Shipment": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Shipment",
@@ -211,6 +256,22 @@
   "firestore": {
     "structure": [
       {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profile information, including their role.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "Firebase Auth UID of the user."
+            }
+          ]
+        }
+      },
+      {
         "path": "/shipments/{shipmentId}",
         "definition": {
           "entityName": "Shipment",
@@ -358,3 +419,5 @@
     "reasoning": "The Firestore structure is designed to support the AlSaqr Logistics application, focusing on secure, scalable, and easily maintainable data access patterns. 'Client' has been replaced with 'Company' for clarity. A new 'deliveryCompanies' collection is added for logistics partners. The core principle remains Authorization Independence, achieved through denormalization, avoiding `get()` calls in security rules.  We leverage Structural Segregation to maintain homogeneous security requirements within collections. The structure uses path-based ownership and membership maps for authorization. All user roles are stored directly in the database."
   }
 }
+
+    

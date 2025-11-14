@@ -7,6 +7,7 @@
  * Structural segregation is used to ensure that each collection has consistent security requirements.
  *
  * Data Structure:
+ * - /users/{userId}: Stores user profiles and their roles.
  * - /shipments/{shipmentId}: Stores shipment data with denormalized fields for filtering.
  * - /companies/{companyId}: Stores company information (previously clients).
  * - /subclients/{subClientId}: Stores sub-client information.
@@ -75,6 +76,15 @@ service cloud.firestore {
      */
     function isOwner(userId) {
       return request.auth.uid == userId;
+    }
+    
+    /**
+     * @description Rules for the /users collection.
+     * @path /users/{userId}
+     * @allow (read, write) - Admins can manage all user profiles.
+     */
+    match /users/{userId} {
+      allow read, write: if isAdmin();
     }
     
     /**
@@ -172,3 +182,5 @@ service cloud.firestore {
     }
   }
 }
+
+    
