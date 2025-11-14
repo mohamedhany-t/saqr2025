@@ -15,8 +15,7 @@ import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, setDoc, query, where, updateDoc } from "firebase/firestore";
-import { getAuth, createUserWithEmailAndPassword, signInWithCredential, EmailAuthProvider } from "firebase/auth";
-import { createUser } from "@/lib/actions";
+import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { z } from "zod";
 
 
@@ -236,31 +235,83 @@ export default function AdminDashboard() {
   };
   
 const handleSaveUser = async (userData: any) => {
-    try {
-        const result = await createUser(userData);
+    if (!firestore || !auth.currentUser) {
+        toast({ title: "خطأ", description: "المسؤول غير مسجل دخوله.", variant: "destructive" });
+        return;
+    }
+    
+    // This is a temporary auth instance to create the new user
+    // It does not sign in the admin out.
+    const tempAuth = getAuth();
 
-        if (result.success) {
-            toast({
-                title: "تم إنشاء المستخدم بنجاح",
-                description: result.message,
-            });
-            setUserSheetOpen(false);
-        } else {
-            toast({
-                title: "خطأ في إنشاء المستخدم",
-                description: result.error,
-                variant: "destructive"
-            });
+    try {
+        // Step 1: Create user in Firebase Auth
+        const userCredential = await createUserWithEmailAndPassword(tempAuth, userData.email, userData.password);
+        const newUser = userCredential.user;
+        const uid = newUser.uid;
+        
+        // Step 2: As the admin, create the user documents in Firestore
+        const batch = writeBatch(firestore);
+
+        const userDocRef = doc(firestore, 'users', uid);
+        const userDocData: any = {
+            id: uid,
+            email: userData.email,
+            role: userData.role,
+            name: userData.name,
+            createdAt: serverTimestamp(),
+        };
+
+        if (userData.role === 'company') {
+            if (!userData.companyName) {
+                throw new Error("اسم الشركة مطلوب لدور الشركة.");
+            }
+            const companyDocRef = doc(firestore, 'companies', uid);
+            batch.set(companyDocRef, { id: uid, name: userData.companyName });
+            
+            userDocData.companyId = uid;
+            userDocData.companyName = userData.companyName;
         }
-    } catch (error) {
-        console.error("Client-side error calling createUser action:", error);
+
+        batch.set(userDocRef, userDocData);
+
+        const roleDocRef = doc(firestore, `roles_${userData.role}`, uid);
+        batch.set(roleDocRef, { email: userData.email, createdAt: serverTimestamp() });
+
+        await batch.commit();
+
         toast({
-            title: "خطأ غير متوقع",
-            description: "حدث خطأ من جانب العميل أثناء محاولة إنشاء المستخدم.",
+            title: "تم إنشاء المستخدم بنجاح",
+            description: `تم إنشاء حساب لـ ${userData.name} بنجاح.`,
+        });
+        setUserSheetOpen(false);
+
+    } catch (error: any) {
+        console.error("Error creating user:", error);
+        let description = "حدث خطأ غير متوقع.";
+
+        if (error.code === 'auth/email-already-in-use') {
+            description = 'هذا البريد الإلكتروني مستخدم بالفعل.';
+        } else if (error.code === 'auth/weak-password') {
+            description = 'كلمة المرور ضعيفة جدًا (يجب أن تكون 6 أحرف على الأقل).';
+        } else if (error.code?.includes('permission-denied')) {
+             description = "خطأ في الصلاحيات. تأكد من أن قواعد الأمان تسمح للمسؤول بإنشاء المستخدمين.";
+             const permissionError = new FirestorePermissionError({
+                path: `users`,
+                operation: 'write',
+                requestResourceData: { note: 'Batch operation for creating user, company, and role failed.' }
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        }
+
+        toast({
+            title: "خطأ في إنشاء المستخدم",
+            description: description,
             variant: "destructive"
         });
     }
 };
+
 
   const filteredShipments = React.useMemo(() => {
     if (!shipments) return [];
