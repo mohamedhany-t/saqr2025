@@ -98,10 +98,19 @@ export default function DashboardPage() {
                 reason: row['السبب'] || '',
                 deliveryDate: row['ريخ التسليم للمندوب'] ? parseExcelDate(row['ريخ التسليم للمندوب']) : new Date(),
                 clientId: clients?.find(c => c.name === row['العميل'])?.id || 'imported',
-                subClientId: subClients?.find(sc => sc.name === row['العميل الفرعي'])?.id,
+                subClientId: subClients?.find(sc => sc.name === row['العميل الفرعي'])?.id || null,
                 createdAt: row['التاريخ'] ? parseExcelDate(row['التاريخ']) : serverTimestamp(),
                 updatedAt: serverTimestamp(),
             };
+            
+            // Remove undefined or null properties before sending to Firestore
+            Object.keys(newShipment).forEach(key => {
+                const typedKey = key as keyof typeof newShipment;
+                if (newShipment[typedKey] === undefined) {
+                    delete newShipment[typedKey];
+                }
+            });
+
 
             const docRef = doc(shipmentsCollection);
             batch.set(docRef, newShipment);
@@ -131,12 +140,22 @@ export default function DashboardPage() {
      if (!firestore) return;
      try {
         const shipmentsCollection = collection(firestore, 'shipments');
-        
-        await addDoc(shipmentsCollection, {
-            ...shipment,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
+
+        const shipmentData = {
+          ...shipment,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        };
+
+        // Remove undefined fields before sending to Firestore
+        Object.keys(shipmentData).forEach(key => {
+            const typedKey = key as keyof typeof shipmentData;
+            if (shipmentData[typedKey] === undefined) {
+                delete shipmentData[typedKey];
+            }
         });
+        
+        await addDoc(shipmentsCollection, shipmentData);
         
         toast({
             title: "تم حفظ الشحنة",
