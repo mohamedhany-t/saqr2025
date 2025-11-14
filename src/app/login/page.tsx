@@ -96,12 +96,6 @@ export default function LoginPage() {
                     {isLoading ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
                 </Button>
                 </form>
-                <div className="mt-4 text-center text-sm">
-                ليس لديك حساب؟{" "}
-                <Link href="/register" className="underline">
-                    إنشاء حساب
-                </Link>
-                </div>
             </CardContent>
         </Card>
     </div>

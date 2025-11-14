@@ -10,13 +10,14 @@ import {
   FileUp,
   Building,
   DatabaseZap,
-  Loader2
+  Loader2,
+  Users
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/icons";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, SubClient, Governorate, Courier } from "@/lib/types";
+import type { Role, Shipment, Company, SubClient, Governorate, Courier, User } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { UsersTable } from "@/components/dashboard/users-table";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
@@ -25,11 +26,10 @@ import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc } from "firebase/firestore";
-import { mockUsers } from "@/lib/placeholder-data";
 import { EGYPTIAN_GOVERNORATES } from "@/lib/governorates";
 
 export default function DashboardPage() {
-  const [role] = React.useState<Role>("admin");
+  const [role, setRole] = React.useState<Role | null>(null);
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -37,8 +37,13 @@ export default function DashboardPage() {
   const router = useRouter();
   const { user, isUserLoading } = useUser();
 
+  const shipmentsQuery = useMemoFirebase(() => {
+    if (!firestore || !user || !role) return null;
+    let q = collection(firestore, 'shipments');
+    // We will add role based queries later
+    return q;
+  }, [firestore, user, role]);
 
-  const shipmentsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'shipments') : null, [firestore]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
   const companiesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'companies') : null, [firestore]);
@@ -55,7 +60,12 @@ export default function DashboardPage() {
 
   const couriersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'couriers') : null, [firestore]);
   const { data: couriers } = useCollection<Courier>(couriersQuery);
-
+  
+  const usersQuery = useMemoFirebase(() => {
+     if (!firestore || role !== 'admin') return null;
+     return collection(firestore, 'users');
+  }, [firestore, role]);
+  const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
 
   React.useEffect(() => {
     if (!isUserLoading && !user) {
@@ -63,7 +73,40 @@ export default function DashboardPage() {
     }
   }, [user, isUserLoading, router]);
 
-  if (isUserLoading || !user) {
+  React.useEffect(() => {
+    if (user && firestore) {
+      const rolesToCheck: Role[] = ['admin', 'company', 'courier'];
+      let userRole: Role | null = null;
+  
+      const checkRoles = async () => {
+        const adminDoc = await doc(firestore, `roles_admin/${user.uid}`).get();
+        if (adminDoc.exists()) {
+          setRole('admin');
+          return;
+        }
+        const companyDoc = await doc(firestore, `roles_company/${user.uid}`).get();
+        if (companyDoc.exists()) {
+          setRole('company');
+          return;
+        }
+        const courierDoc = await doc(firestore, `roles_courier/${user.uid}`).get();
+        if (courierDoc.exists()) {
+          setRole('courier');
+          return;
+        }
+        // If no role found, maybe default to something or handle it
+        if (user.email === "mhanyt21@gmail.com") {
+             setRole('admin');
+        } else {
+             setRole(null); // No role found
+        }
+      };
+      
+      checkRoles();
+    }
+  }, [user, firestore]);
+
+  if (isUserLoading || !user || role === null) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-muted/30">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -359,12 +402,18 @@ export default function DashboardPage() {
                 <div className="mt-8">
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين</h2>
-                      <Button onClick={seedDatabase} variant="outline">
-                        <DatabaseZap className="me-2 h-4 w-4" />
-                        إضافة بيانات أولية
-                      </Button>
+                      <div className="flex items-center gap-2">
+                         <Button variant="outline">
+                            <Users className="me-2 h-4 w-4" />
+                            إضافة مستخدم
+                          </Button>
+                          <Button onClick={seedDatabase} variant="outline">
+                            <DatabaseZap className="me-2 h-4 w-4" />
+                            إضافة بيانات أولية
+                          </Button>
+                      </div>
                     </div>
-                    <UsersTable users={mockUsers} />
+                    <UsersTable users={users || []} />
                 </div>
            </TabsContent>
         </Tabs>

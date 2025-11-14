@@ -1,14 +1,15 @@
 export type Role = "admin" | "company" | "courier";
 
 export type User = {
-  id: string;
-  name: string;
+  id: string; // This will be the Firebase Auth UID
+  name?: string;
   email: string;
   role: Role;
-  companyId?: string;
-  companyName?: string;
+  companyId?: string; // For company users, linking to a company in /companies
+  companyName?: string; // Denormalized for display
+  deliveryCompanyId?: string; // For couriers, linking to a delivery company
   avatarUrl?: string;
-  createdAt: Date;
+  createdAt: any; // Can be Date or Firebase Timestamp
 };
 
 export type ShipmentStatus =
@@ -28,14 +29,14 @@ export type Shipment = {
   governorateId: string;
   address: string;
   deliveryDate: Date;
-  companyId: string;
+  companyId: string; // Corresponds to a document ID in /companies
   subClientId?: string | null;
   status: ShipmentStatus;
   reason?: string;
   totalAmount: number;
   paidAmount: number;
-  assignedCompanyId?: string;
-  assignedCourierId?: string;
+  assignedCompanyId?: string; // Corresponds to a document ID in /deliveryCompanies
+  assignedCourierId?: string; // Corresponds to a document ID in /couriers
   createdAt: any; // Can be Date or Firebase Timestamp
   updatedAt: any; // Can be Date or Firebase Timestamp
 };
@@ -61,5 +62,3 @@ export interface Governorate {
   id: string;
   name: string;
 }
-
-    

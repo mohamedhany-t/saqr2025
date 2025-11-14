@@ -55,10 +55,10 @@ export const columns: ColumnDef<User>[] = [
       <div className="flex items-center gap-3">
         <Avatar>
             <AvatarImage src={row.original.avatarUrl} />
-            <AvatarFallback>{row.getValue("name").toString().charAt(0)}</AvatarFallback>
+            <AvatarFallback>{row.original.name ? row.original.name.charAt(0) : row.original.email.charAt(0)}</AvatarFallback>
         </Avatar>
         <div className="flex flex-col">
-            <span className="font-medium">{row.getValue("name")}</span>
+            <span className="font-medium">{row.original.name || 'N/A'}</span>
             <span className="text-sm text-muted-foreground">{row.original.email}</span>
         </div>
       </div>
@@ -85,9 +85,12 @@ export const columns: ColumnDef<User>[] = [
   {
     accessorKey: "createdAt",
     header: "تاريخ الإنشاء",
-    cell: ({ row }) => (
-      <div>{new Date(row.getValue("createdAt")).toLocaleDateString("ar-EG")}</div>
-    ),
+    cell: ({ row }) => {
+        const createdAt = row.getValue("createdAt") as any;
+        if (!createdAt) return 'N/A';
+        const date = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
+        return <div>{date.toLocaleDateString("ar-EG")}</div>
+    }
   },
   {
     id: "actions",
