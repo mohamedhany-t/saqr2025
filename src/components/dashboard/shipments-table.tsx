@@ -326,6 +326,11 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
       columnVisibility,
       rowSelection,
     },
+    initialState: {
+        pagination: {
+            pageSize: 100,
+        }
+    }
   })
 
   const handleExport = () => {

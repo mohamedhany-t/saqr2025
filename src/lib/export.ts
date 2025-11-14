@@ -133,8 +133,7 @@ export const exportToExcel = (
         if (key) {
              rowData[key] = getCellValue(row, key, governorates, companies, subClients, couriers, statusTextMap);
              if(key === 'address'){
-                 const gov = governorates.find(g => g.id === row.governorateId);
-                 rowData[key] = `${row.address}${gov ? `, ${gov.name}` : ''}`;
+                 rowData[key] = row.address; // Don't append governorate to address here
              }
         }
     })
