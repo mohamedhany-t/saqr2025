@@ -69,6 +69,7 @@ export const columns: ColumnDef<User>[] = [
     header: "الدور",
     cell: ({ row }) => {
         const role = row.getValue("role") as Role;
+        if (!role) return null;
         return (
             <Badge variant={roleVariants[role]} className="capitalize flex gap-2">
                 {roleIcons[role]}
@@ -116,10 +117,9 @@ export const columns: ColumnDef<User>[] = [
 
 
 export function UsersTable({ users }: { users: User[] }) {
-  const [data] = React.useState(() => [...users]);
   
   const table = useReactTable({
-    data,
+    data: users,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),

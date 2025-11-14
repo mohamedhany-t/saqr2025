@@ -25,7 +25,7 @@ import { Header } from "@/components/dashboard/header";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
-import { collection, addDoc, serverTimestamp, writeBatch, doc } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, writeBatch, doc, getDoc } from "firebase/firestore";
 import { EGYPTIAN_GOVERNORATES } from "@/lib/governorates";
 
 export default function DashboardPage() {
@@ -63,9 +63,13 @@ export default function DashboardPage() {
   
   const usersQuery = useMemoFirebase(() => {
      if (!firestore || role !== 'admin') return null;
+     // In a real app, you'd probably fetch from a single 'users' collection 
+     // and the roles would be a field on the user document.
+     // For now, we'll fetch all users if the role is admin.
+     // This is not optimal and should be refactored.
      return collection(firestore, 'users');
   }, [firestore, role]);
-  const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
+  const { data: users } = useCollection<User>(usersQuery);
 
   React.useEffect(() => {
     if (!isUserLoading && !user) {
@@ -75,38 +79,38 @@ export default function DashboardPage() {
 
   React.useEffect(() => {
     if (user && firestore) {
-      const rolesToCheck: Role[] = ['admin', 'company', 'courier'];
-      let userRole: Role | null = null;
-  
-      const checkRoles = async () => {
-        const adminDoc = await doc(firestore, `roles_admin/${user.uid}`).get();
-        if (adminDoc.exists()) {
+      const checkRole = async () => {
+        if (user.email === "mhanyt21@gmail.com") {
           setRole('admin');
           return;
         }
-        const companyDoc = await doc(firestore, `roles_company/${user.uid}`).get();
-        if (companyDoc.exists()) {
+
+        const adminDoc = doc(firestore, `roles_admin/${user.uid}`);
+        const companyDoc = doc(firestore, `roles_company/${user.uid}`);
+        const courierDoc = doc(firestore, `roles_courier/${user.uid}`);
+        
+        const [adminSnap, companySnap, courierSnap] = await Promise.all([
+          getDoc(adminDoc),
+          getDoc(companyDoc),
+          getDoc(courierDoc)
+        ]);
+        
+        if (adminSnap.exists()) {
+          setRole('admin');
+        } else if (companySnap.exists()) {
           setRole('company');
-          return;
-        }
-        const courierDoc = await doc(firestore, `roles_courier/${user.uid}`).get();
-        if (courierDoc.exists()) {
+        } else if (courierSnap.exists()) {
           setRole('courier');
-          return;
-        }
-        // If no role found, maybe default to something or handle it
-        if (user.email === "mhanyt21@gmail.com") {
-             setRole('admin');
         } else {
-             setRole(null); // No role found
+          setRole(null); // No specific role found
         }
       };
-      
-      checkRoles();
+
+      checkRole();
     }
   }, [user, firestore]);
 
-  if (isUserLoading || !user || role === null) {
+  if (isUserLoading || (user && !role)) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-muted/30">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -179,12 +183,16 @@ export default function DashboardPage() {
                 updatedAt: serverTimestamp(),
             };
             
-            const cleanShipment = Object.fromEntries(
-              Object.entries(newShipment).filter(([_, v]) => v !== undefined && v !== null && v !== '')
-            );
+            const cleanShipment: { [key: string]: any } = {};
+            for (const key in newShipment) {
+              const value = (newShipment as any)[key];
+              if (value !== undefined && value !== null && value !== '') {
+                cleanShipment[key] = value;
+              }
+            }
             
-            if (cleanShipment.subClientId === undefined) {
-              cleanShipment.subClientId = null;
+            if (!cleanShipment.subClientId) {
+                cleanShipment.subClientId = null;
             }
 
             const docRef = doc(shipmentsCollection);
@@ -228,11 +236,16 @@ export default function DashboardPage() {
       updatedAt: serverTimestamp(),
     };
 
-    const cleanShipmentData = Object.fromEntries(
-        Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== '')
-    );
-     if (cleanShipmentData.subClientId === undefined) {
-      cleanShipmentData.subClientId = null;
+    const cleanShipmentData: { [key: string]: any } = {};
+    for (const key in shipmentData) {
+        const value = (shipmentData as any)[key];
+        if (value !== undefined && value !== null && value !== '') {
+            cleanShipmentData[key] = value;
+        }
+    }
+    
+    if (!cleanShipmentData.subClientId) {
+        cleanShipmentData.subClientId = null;
     }
 
     addDoc(shipmentsCollection, cleanShipmentData)
@@ -398,7 +411,8 @@ export default function DashboardPage() {
                 subClients={subClients || []}
              />
           </TabsContent>
-           <TabsContent value="management">
+          {role === 'admin' && (
+            <TabsContent value="management">
                 <div className="mt-8">
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين</h2>
@@ -416,6 +430,7 @@ export default function DashboardPage() {
                     <UsersTable users={users || []} />
                 </div>
            </TabsContent>
+          )}
         </Tabs>
       </main>
     </div>
