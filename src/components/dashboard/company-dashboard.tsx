@@ -133,7 +133,14 @@ export default function CompanyDashboard() {
               }
           }
           
-          await batch.commit();
+          batch.commit().catch(serverError => {
+            const permissionError = new FirestorePermissionError({
+                path: 'shipments',
+                operation: 'write',
+                requestResourceData: {note: "Batch import operation failed"}
+            });
+            errorEmitter.emit('permission-error', permissionError);
+          });
 
           let toastMessage = "";
           if (addedCount > 0) toastMessage += `تمت إضافة ${addedCount} شحنة جديدة. `;
@@ -149,14 +156,9 @@ export default function CompanyDashboard() {
             const permissionError = new FirestorePermissionError({
                 path: 'shipments',
                 operation: 'write',
-                requestResourceData: {note: "Batch import operation failed"}
+                requestResourceData: {note: "Batch import operation failed due to client-side error"}
             });
             errorEmitter.emit('permission-error', permissionError);
-            toast({
-                title: "خطأ في الاستيراد",
-                description: error.message || "حدث خطأ أثناء معالجة الملف.",
-                variant: "destructive"
-            });
         } finally {
             if (fileInputRef.current) {
                 fileInputRef.current.value = "";

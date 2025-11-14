@@ -58,7 +58,7 @@ import { Badge } from "@/components/ui/badge"
 import type { Shipment, ShipmentStatus, Governorate, Company, Courier, SubClient, Role } from "@/lib/types"
 import { exportToExcel, exportToPDF } from "@/lib/export"
 import { useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase"
-import { doc, writeBatch } from "firebase/firestore"
+import { doc, writeBatch, serverTimestamp } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -405,13 +405,13 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     selectedRows.forEach(row => {
         const docRef = doc(firestore, "shipments", row.original.id);
         
-        let finalUpdate: { [key: string]: any } = { ...update, updatedAt: new Date() };
+        let finalUpdate: { [key: string]: any } = { ...update, updatedAt: serverTimestamp() };
 
         if (role === 'courier') {
             const allowedUpdates: Partial<Shipment> = {};
             if (update.status) allowedUpdates.status = update.status;
             if (update.reason) allowedUpdates.reason = update.reason;
-            finalUpdate = { ...allowedUpdates, updatedAt: new Date() };
+            finalUpdate = { ...allowedUpdates, updatedAt: serverTimestamp() };
 
             if (Object.keys(allowedUpdates).length === 0) {
                 toast({ title: "ليس لديك صلاحية لتحديث هذه الحقول", variant: "destructive" });

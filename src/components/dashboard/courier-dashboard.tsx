@@ -3,7 +3,7 @@
 import React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, SubClient, Governorate, Courier } from "@/lib/types";
+import type { Role, Shipment, Company, SubClient, Governorate, Courier, ShipmentStatus } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { Header } from "@/components/dashboard/header";
