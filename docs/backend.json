@@ -1,0 +1,360 @@
+{
+  "entities": {
+    "Shipment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Shipment",
+      "type": "object",
+      "description": "Represents a shipment record in the logistics system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the shipment entity."
+        },
+        "shipmentCode": {
+          "type": "string",
+          "description": "Unique shipment code in the format SH-YYYYMMDD-0001."
+        },
+        "orderNumber": {
+          "type": "string",
+          "description": "Order number associated with the shipment."
+        },
+        "trackingNumber": {
+          "type": "string",
+          "description": "Tracking number for the shipment."
+        },
+        "recipientName": {
+          "type": "string",
+          "description": "Name of the shipment recipient."
+        },
+        "recipientPhone": {
+          "type": "string",
+          "description": "Phone number of the shipment recipient."
+        },
+        "governorateId": {
+          "type": "string",
+          "description": "Reference to Governorate. (Relationship: Governorate 1:N Shipment)"
+        },
+        "address": {
+          "type": "string",
+          "description": "Address of the shipment recipient."
+        },
+        "deliveryDate": {
+          "type": "string",
+          "description": "Expected delivery date for the shipment.",
+          "format": "date-time"
+        },
+        "clientId": {
+          "type": "string",
+          "description": "Reference to Client. (Relationship: Client 1:N Shipment)"
+        },
+        "subClientId": {
+          "type": "string",
+          "description": "Reference to SubClient. (Relationship: SubClient 1:N Shipment)"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status of the shipment."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason for a particular shipment status (e.g., delayed)."
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "Total amount due for the shipment."
+        },
+        "paidAmount": {
+          "type": "number",
+          "description": "Amount already paid for the shipment."
+        },
+        "assignedCompanyId": {
+          "type": "string",
+          "description": "Reference to Company. (Relationship: Company 1:N Shipment)"
+        },
+        "assignedCourierId": {
+          "type": "string",
+          "description": "Reference to Courier. (Relationship: Courier 1:N Shipment)"
+        }
+      },
+      "required": [
+        "id",
+        "shipmentCode",
+        "orderNumber",
+        "recipientName",
+        "recipientPhone",
+        "governorateId",
+        "address",
+        "deliveryDate",
+        "clientId",
+        "status",
+        "totalAmount",
+        "paidAmount"
+      ]
+    },
+    "Client": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Client",
+      "type": "object",
+      "description": "Represents a client in the logistics system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the client entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the client."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "SubClient": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SubClient",
+      "type": "object",
+      "description": "Represents a sub-client, which is a subsidiary or branch of a main client.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the sub-client entity."
+        },
+        "clientId": {
+          "type": "string",
+          "description": "Reference to Client. (Relationship: Client 1:N SubClient)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the sub-client."
+        }
+      },
+      "required": [
+        "id",
+        "clientId",
+        "name"
+      ]
+    },
+    "Company": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Company",
+      "type": "object",
+      "description": "Represents a logistics company.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the company entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the logistics company."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "Courier": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Courier",
+      "type": "object",
+      "description": "Represents a courier responsible for delivering shipments.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the courier entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the courier."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to Company. (Relationship: Company 1:N Courier)"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "companyId"
+      ]
+    },
+    "Governorate": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Governorate",
+      "type": "object",
+      "description": "Represents a governorate (administrative division).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the governorate entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the governorate."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/shipments/{shipmentId}",
+        "definition": {
+          "entityName": "Shipment",
+          "schema": {
+            "$ref": "#/backend/entities/Shipment"
+          },
+          "description": "Stores shipment data. Includes denormalized 'governorateId', 'clientId', 'subClientId', 'assignedCompanyId', and 'assignedCourierId' for filtering and authorization independence. Includes address field for exports. Also includes governorate name for optimized filtering in excel exports.",
+          "params": [
+            {
+              "name": "shipmentId",
+              "description": "Unique identifier for the shipment document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/clients/{clientId}",
+        "definition": {
+          "entityName": "Client",
+          "schema": {
+            "$ref": "#/backend/entities/Client"
+          },
+          "description": "Stores client information.",
+          "params": [
+            {
+              "name": "clientId",
+              "description": "Unique identifier for the client document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/subclients/{subClientId}",
+        "definition": {
+          "entityName": "SubClient",
+          "schema": {
+            "$ref": "#/backend/entities/SubClient"
+          },
+          "description": "Stores sub-client information.",
+          "params": [
+            {
+              "name": "subClientId",
+              "description": "Unique identifier for the sub-client document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}",
+        "definition": {
+          "entityName": "Company",
+          "schema": {
+            "$ref": "#/backend/entities/Company"
+          },
+          "description": "Stores logistics company information.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "Unique identifier for the company document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/couriers/{courierId}",
+        "definition": {
+          "entityName": "Courier",
+          "schema": {
+            "$ref": "#/backend/entities/Courier"
+          },
+          "description": "Stores courier information.",
+          "params": [
+            {
+              "name": "courierId",
+              "description": "Unique identifier for the courier document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/governorates/{governorateId}",
+        "definition": {
+          "entityName": "Governorate",
+          "schema": {
+            "$ref": "#/backend/entities/Governorate"
+          },
+          "description": "Stores governorate information.",
+          "params": [
+            {
+              "name": "governorateId",
+              "description": "Unique identifier for the governorate document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "user",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Documents in this collection grant admin role to the user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "Firebase Auth UID of the admin user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_company/{userId}",
+        "definition": {
+          "entityName": "user",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Documents in this collection grant company role to the user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "Firebase Auth UID of the company user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_courier/{userId}",
+        "definition": {
+          "entityName": "user",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Documents in this collection grant courier role to the user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "Firebase Auth UID of the courier user."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to support the AlSaqr Logistics application, focusing on secure, scalable, and easily maintainable data access patterns. The core principle is Authorization Independence, achieved through denormalization, avoiding `get()` calls in security rules.  We leverage Structural Segregation to maintain homogeneous security requirements within collections. The structure uses path-based ownership and membership maps for authorization. All user roles are stored directly in the database.\n\nShipments are stored in a top-level `shipments` collection. This segregation simplifies querying and management, especially for admin-level operations requiring full visibility across all shipments.  The `shipments` documents denormalize the `governorateId`, `clientId`, `subClientId`, `assignedCompanyId`, and `assignedCourierId` fields to streamline filtering. The `address` is copied into the shipment to allow for excel exports including the shipment address and governorate.\n\nUser roles are managed through dedicated collections (`roles_admin`, `roles_company`, `roles_courier`). The existence of a document for a user in these collections grants the corresponding role, enabling simple and robust security rules without the need for custom claims. This structure supports QAPs, ensuring secure list operations. Security rules can easily check for the existence of a role document based on the authenticated user's ID."
+  }
+}
