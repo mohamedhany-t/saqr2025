@@ -48,7 +48,8 @@ const getCellValue = (
             const courier = couriers.find(c => c.id === value);
             return courier ? courier.name : '';
         case 'status':
-             return statusText[value as keyof typeof statusText] || value;
+             const statusKey = value as keyof typeof statusText;
+             return statusText[statusKey] || value;
         case 'createdAt':
         case 'deliveryDate':
              if (!value) return '';
@@ -87,6 +88,14 @@ export const exportToExcel = (
     Delivered: 'تم التوصيل',
     Cancelled: 'تم الإلغاء',
     Returned: 'مرتجع',
+    'مؤجل': 'مؤجل',
+    'مغلق او غير متاح': 'مغلق او غير متاح',
+    'فشل التسليم': 'فشل التسليم',
+    'مرتجع ودفع الشحن': 'مرتجع ودفع الشحن',
+    'لاغي': 'لاغي',
+    'المسلمة ودفع كامل': 'المسلمة ودفع كامل',
+    'فضل التسليم': 'فضل التسليم',
+    'لم يتم الرد': 'لم يتم الرد',
   };
 
   const excelColumns = [
@@ -96,9 +105,9 @@ export const exportToExcel = (
       { header: 'المرسل اليه', key: 'recipientName', width: 25 },
       { header: 'التليفون', key: 'recipientPhone', width: 20 },
       { header: 'المحافظة', key: 'governorateId', width: 20 },
-      { header: 'العنوان', key: 'address', width: 30 },
+      { header: 'العنوان', key: 'address', width: 40 },
       { header: 'تاريخ التسليم للمندوب', key: 'deliveryDate', width: 20 },
-      { header: 'الشركة', key: 'companyId', width: 20 },
+      { header: 'العميل', key: 'companyId', width: 20 },
       { header: 'العميل الفرعي', key: 'subClientId', width: 20 },
       { header: 'حالة الأوردر', key: 'status', width: 20 },
       { header: 'السبب', key: 'reason', width: 20 },
@@ -108,27 +117,31 @@ export const exportToExcel = (
     
   worksheet.columns = excelColumns;
   
+  worksheet.views = [{ rightToLeft: true }];
+  worksheet.getRow(1).font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
+  worksheet.getRow(1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF004C99' } // Dark blue
+  };
+  worksheet.getRow(1).alignment = { horizontal: 'right', vertical: 'middle' };
+
   data.forEach(row => {
     const rowData: any = {};
     excelColumns.forEach(col => {
         const key = col.key;
         if (key) {
              rowData[key] = getCellValue(row, key, governorates, companies, subClients, couriers, statusTextMap);
+             if(key === 'address'){
+                 const gov = governorates.find(g => g.id === row.governorateId);
+                 rowData[key] = `${row.address}${gov ? `, ${gov.name}` : ''}`;
+             }
         }
     })
-    worksheet.addRow(rowData);
+    const addedRow = worksheet.addRow(rowData);
+    addedRow.alignment = { horizontal: 'right' };
   });
   
-  worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-  worksheet.getRow(1).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FF0000FF' }
-  };
-  worksheet.getRow(1).alignment = { horizontal: 'right' };
-  worksheet.views = [{ rightToLeft: true }];
-
-
   workbook.xlsx.writeBuffer().then(buffer => {
     const blob = new Blob([buffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

@@ -77,29 +77,23 @@ export default function DashboardPage() {
   
   const parseExcelDate = (excelDate: any): Date | null => {
     if (!excelDate) return null;
-
-    if (excelDate instanceof Date) {
-        if (!isNaN(excelDate.getTime())) {
-            return excelDate;
-        }
+    if (excelDate instanceof Date && !isNaN(excelDate.getTime())) {
+      return excelDate;
     }
-
     if (typeof excelDate === 'number') {
-        const date = new Date(Math.round((excelDate - 25569) * 86400 * 1000));
-        if (!isNaN(date.getTime())) {
-            return date;
-        }
+      const date = new Date(Math.round((excelDate - 25569) * 86400 * 1000));
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
     }
-
     if (typeof excelDate === 'string') {
-        const date = new Date(excelDate);
-        if (!isNaN(date.getTime())) {
-            return date;
-        }
+      const date = new Date(excelDate);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
     }
-    
     return null;
-  }
+  };
 
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -118,10 +112,9 @@ export default function DashboardPage() {
           let importedCount = 0;
           const shipmentsCollection = collection(firestore, 'shipments');
 
-
           for (const row of json) {
-            const shipmentCode = row['رقم الشحنة'] || `SH-${Date.now()}-${importedCount}`;
-            const deliveryDate = parseExcelDate(row['ريخ التسليم للمندوب']);
+            const shipmentCode = row['رقم الشحنة']?.toString() || `SH-${Date.now()}-${importedCount}`;
+            const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
             const creationDate = parseExcelDate(row['التاريخ']);
             
             const newShipment: Omit<Shipment, 'id'> = {
@@ -137,16 +130,19 @@ export default function DashboardPage() {
                 status: row['حالة الأوردر'] || 'Pending',
                 reason: row['السبب'] || '',
                 deliveryDate: deliveryDate || new Date(),
-                companyId: companies?.find(c => c.name === row['الشركة'])?.id || 'imported',
+                companyId: companies?.find(c => c.name === row['العميل'])?.id || 'imported',
                 subClientId: subClients?.find(sc => sc.name === row['العميل الفرعي'])?.id,
                 createdAt: creationDate || serverTimestamp(),
                 updatedAt: serverTimestamp(),
             };
             
             const cleanShipment = Object.fromEntries(
-                Object.entries(newShipment).filter(([_, v]) => v !== undefined && v !== null)
+              Object.entries(newShipment).filter(([_, v]) => v !== undefined && v !== null && v !== '')
             );
-
+            
+            if (cleanShipment.subClientId === undefined) {
+              cleanShipment.subClientId = null;
+            }
 
             const docRef = doc(shipmentsCollection);
             batch.set(docRef, cleanShipment);
@@ -166,11 +162,11 @@ export default function DashboardPage() {
             title: "تم الاستيراد بنجاح",
             description: `تمت إضافة ${importedCount} شحنة جديدة.`,
           });
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error importing file:", error);
             toast({
                 title: "خطأ في الاستيراد",
-                description: "حدث خطأ أثناء معالجة الملف. يرجى التأكد من أن الملف بالتنسيق الصحيح.",
+                description: error.message || "حدث خطأ أثناء معالجة الملف. يرجى التأكد من أن الملف بالتنسيق الصحيح.",
                 variant: "destructive"
             });
         }
@@ -190,8 +186,11 @@ export default function DashboardPage() {
     };
 
     const cleanShipmentData = Object.fromEntries(
-        Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null)
+        Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== '')
     );
+     if (cleanShipmentData.subClientId === undefined) {
+      cleanShipmentData.subClientId = null;
+    }
 
     addDoc(shipmentsCollection, cleanShipmentData)
       .then(() => {
@@ -226,7 +225,7 @@ export default function DashboardPage() {
 
       // Seed Companies
       const companiesCol = collection(firestore, 'companies');
-      ["شركة النخبة", "شركة الأمانة", "شركة المستقبل"].forEach(name => {
+      ["تليجراف", "شركة النخبة", "شركة الأمانة", "شركة المستقبل"].forEach(name => {
         const docRef = doc(companiesCol);
         batch.set(docRef, { name });
       });
@@ -274,9 +273,9 @@ export default function DashboardPage() {
           <div className="flex items-center">
             <TabsList>
               <TabsTrigger value="all-shipments">الكل</TabsTrigger>
-              <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
-              <TabsTrigger value="delivered">تم التوصيل</TabsTrigger>
-              <TabsTrigger value="returned">مرتجعات</TabsTrigger>
+              <TabsTrigger value="in-transit" className="hidden sm:flex">قيد التوصيل</TabsTrigger>
+              <TabsTrigger value="delivered" className="hidden sm:flex">تم التوصيل</TabsTrigger>
+              <TabsTrigger value="returned" className="hidden sm:flex">مرتجعات</TabsTrigger>
               {role === "admin" && <TabsTrigger value="management">الإدارة</TabsTrigger>}
             </TabsList>
             <div className="ms-auto flex items-center gap-2">
@@ -317,7 +316,8 @@ export default function DashboardPage() {
               shipments={shipments || []} 
               isLoading={shipmentsLoading}
               governorates={governorates || []}
-              companies={deliveryCompanies || []}
+              companies={companies || []}
+              deliveryCompanies={deliveryCompanies || []}
               couriers={couriers || []}
               subClients={subClients || []}
             />
@@ -327,17 +327,19 @@ export default function DashboardPage() {
                 shipments={(shipments || []).filter(s => s.status === 'In-Transit')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                companies={deliveryCompanies || []}
+                companies={companies || []}
+                deliveryCompanies={deliveryCompanies || []}
                 couriers={couriers || []}
                 subClients={subClients || []}
              />
           </TabsContent>
            <TabsContent value="delivered">
-             <ShipmentsTable _
+             <ShipmentsTable 
                 shipments={(shipments || []).filter(s => s.status === 'Delivered')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                companies={deliveryCompanies || []}
+                companies={companies || []}
+                deliveryCompanies={deliveryCompanies || []}
                 couriers={couriers || []}
                 subClients={subClients || []}
              />
@@ -347,7 +349,8 @@ export default function DashboardPage() {
                 shipments={(shipments || []).filter(s => s.status === 'Returned')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                companies={deliveryCompanies || []}
+                companies={companies || []}
+                deliveryCompanies={deliveryCompanies || []}
                 couriers={couriers || []}
                 subClients={subClients || []}
              />
@@ -369,5 +372,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    

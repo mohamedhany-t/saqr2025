@@ -9,7 +9,7 @@ export function StatsCards({ shipments }: { shipments: Shipment[]}) {
     const totalShipments = shipments.length;
 
     const stats = [
-        { title: "إجمالي الإيرادات", value: `${totalRevenue.toLocaleString('ar-SA', { style: 'currency', currency: 'SAR' })}`, icon: CircleDollarSign, description: "" },
+        { title: "إجمالي الإيرادات", value: `${totalRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: CircleDollarSign, description: "" },
         { title: "قيد التوصيل", value: `+${inTransit}`, icon: Truck, description: "" },
         { title: "تم التوصيل", value: `+${delivered}`, icon: CheckCircle2, description: "" },
         { title: "إجمالي الشحنات", value: `${totalShipments}`, icon: Package, description: "" },

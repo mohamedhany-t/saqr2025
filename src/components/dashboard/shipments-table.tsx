@@ -43,9 +43,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import {
@@ -80,20 +77,33 @@ const statusVariants: Record<ShipmentStatus, "default" | "secondary" | "destruct
     Returned: "secondary",
 }
 
-const statusText: Record<ShipmentStatus, string> = {
+const statusText: Record<string, string> = {
     Pending: 'قيد الانتظار',
     'In-Transit': 'قيد التوصيل',
     Delivered: 'تم التوصيل',
     Cancelled: 'تم الإلغاء',
     Returned: 'مرتجع',
+    'مؤجل': 'Pending',
+    'مغلق او غير متاح': 'Cancelled',
+    'فشل التسليم': 'Returned',
+    'مرتجع ودفع الشحن': 'Returned',
+    'لاغي': 'Cancelled',
+    'المسلمة ودفع كامل': 'Delivered',
+    'فضل التسليم': 'Returned', // Assuming typo for فشل
+    'لم يتم الرد': 'Returned',
 };
+
+const mapStatus = (status: string): ShipmentStatus => {
+    return (statusText[status] as ShipmentStatus) || 'Pending';
+}
 
 
 export const getColumns = (
     governorates: Governorate[],
     companies: Company[],
     subClients: SubClient[],
-    couriers: Courier[]
+    couriers: Courier[],
+    deliveryCompanies: Company[]
     ): ColumnDef<Shipment>[] => [
   {
     id: "select",
@@ -185,7 +195,7 @@ export const getColumns = (
   },
   {
     accessorKey: "companyId",
-    header: "الشركة",
+    header: "العميل",
     cell: ({ row }) => {
         const company = companies.find(c => c.id === row.getValue("companyId"));
         return <div>{company?.name || row.getValue("companyId")}</div>
@@ -209,7 +219,8 @@ export const getColumns = (
     accessorKey: "status",
     header: "حالة الأوردر",
     cell: ({ row }) => {
-        const status = row.getValue("status") as ShipmentStatus;
+        const statusKey = row.getValue("status") as keyof typeof statusText
+        const status = statusText[statusKey] ? mapStatus(statusKey) : (statusKey as ShipmentStatus);
         return (
             <Badge variant={statusVariants[status]} className="capitalize flex gap-2">
                 {statusIcons[status]}
@@ -231,9 +242,9 @@ export const getColumns = (
     header: () => <div className="text-start">الاجمالي</div>,
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue("totalAmount"))
-      const formatted = new Intl.NumberFormat("ar-SA", {
+      const formatted = new Intl.NumberFormat("ar-EG", {
         style: "currency",
-        currency: "SAR",
+        currency: "EGP",
       }).format(amount)
  
       return <div className="text-start font-medium">{formatted}</div>
@@ -244,9 +255,9 @@ export const getColumns = (
     header: () => <div className="text-start">المدفوع</div>,
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue("paidAmount"))
-      const formatted = new Intl.NumberFormat("ar-SA", {
+      const formatted = new Intl.NumberFormat("ar-EG", {
         style: "currency",
-        currency: "SAR",
+        currency: "EGP",
       }).format(amount)
  
       return <div className="text-start font-medium">{formatted}</div>
@@ -276,7 +287,7 @@ export const getColumns = (
             <DropdownMenuSeparator />
             <DropdownMenuItem><Pencil className="me-2 h-4 w-4"/>تعديل</DropdownMenuItem>
             <DropdownMenuItem><FileText className="me-2 h-4 w-4"/>تفاصيل</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => exportToPDF([shipment], getColumns(governorates, companies, subClients, couriers).filter(c => c.id !== 'select' && c.id !== 'actions'), governorates, companies, subClients, couriers)}><Printer className="me-2 h-4 w-4"/>طباعة</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => exportToPDF([shipment], getColumns(governorates, companies, subClients, couriers, deliveryCompanies).filter(c => c.id !== 'select' && c.id !== 'actions'), governorates, companies, subClients, couriers)}><Printer className="me-2 h-4 w-4"/>طباعة</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )
@@ -285,7 +296,7 @@ export const getColumns = (
 ]
 
 
-export function ShipmentsTable({ shipments, isLoading, governorates, companies, couriers, subClients }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[], companies: Company[], couriers: Courier[], subClients: SubClient[] }) {
+export function ShipmentsTable({ shipments, isLoading, governorates, companies, couriers, subClients, deliveryCompanies }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[], companies: Company[], couriers: Courier[], subClients: SubClient[], deliveryCompanies: Company[] }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -296,7 +307,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
   const { toast } = useToast()
   const firestore = useFirestore();
   
-  const columns = React.useMemo(() => getColumns(governorates, companies, subClients, couriers), [governorates, companies, subClients, couriers]);
+  const columns = React.useMemo(() => getColumns(governorates, companies, subClients, couriers, deliveryCompanies), [governorates, companies, subClients, couriers, deliveryCompanies]);
   
   const table = useReactTable({
     data: shipments,
@@ -361,7 +372,13 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     const batch = writeBatch(firestore);
     selectedRows.forEach(row => {
         const docRef = doc(firestore, "shipments", row.original.id);
-        batch.update(docRef, {...update, updatedAt: new Date()});
+        let finalUpdate: Partial<Shipment> = {...update, updatedAt: new Date()};
+
+        if (update.status === 'Delivered') {
+            finalUpdate.paidAmount = row.original.totalAmount;
+        }
+
+        batch.update(docRef, finalUpdate);
     });
 
     batch.commit().then(() => {
@@ -378,18 +395,18 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
   }
 
   const governorateFilterValue = columnFilters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
-  const companyFilterValue = columnFilters.find(f => f.id === 'assignedCompanyId')?.value as string[] | undefined;
+  const companyFilterValue = columnFilters.find(f => f.id === 'companyId')?.value as string[] | undefined;
   const courierFilterValue = columnFilters.find(f => f.id === 'assignedCourierId')?.value as string[] | undefined;
 
 
   return (
     <div className="w-full">
-        <div className="flex items-center justify-between py-4">
+        <div className="flex items-center justify-between py-4 gap-2 flex-wrap">
             <div className="flex items-center gap-2">
                  <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleExport}>
                     <FileUp className="h-3.5 w-3.5" />
                     <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                        تصدير Excel
+                        تصدير
                     </span>
                 </Button>
                 <DropdownMenu>
@@ -420,10 +437,38 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                         ))}
                     </DropdownMenuContent>
                 </DropdownMenu>
+                 <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8 gap-1">
+                            <ChevronDown className="h-3.5 w-3.5" />
+                            <span>
+                                العميل
+                                {companyFilterValue && companyFilterValue.length > 0 && ` (${companyFilterValue.length})`}
+                            </span>
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                        {companies.map((company) => (
+                        <DropdownMenuCheckboxItem
+                            key={company.id}
+                            checked={companyFilterValue?.includes(company.id)}
+                            onCheckedChange={(checked) => {
+                                const current = companyFilterValue || [];
+                                const newFilter = checked
+                                    ? [...current, company.id]
+                                    : current.filter((id) => id !== company.id);
+                                table.getColumn("companyId")?.setFilterValue(newFilter.length ? newFilter : undefined);
+                            }}
+                        >
+                            {company.name}
+                        </DropdownMenuCheckboxItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
             {table.getFilteredSelectedRowModel().rows.length > 0 && (
                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm text-muted-foreground hidden lg:inline">
                         {table.getFilteredSelectedRowModel().rows.length} شحنات محددة
                     </span>
                     <DropdownMenu>
@@ -434,7 +479,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                              </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                            {Object.entries(statusText).map(([statusValue, statusLabel]) => (
+                            {Object.entries(statusText).filter(([key]) => isNaN(parseInt(key))).map(([statusValue, statusLabel]) => (
                                  <DropdownMenuItem key={statusValue} onSelect={() => handleBulkUpdate({ status: statusValue as ShipmentStatus })}>
                                      {statusLabel}
                                  </DropdownMenuItem>
@@ -449,7 +494,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                              </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                            {companies.map(company => (
+                            {deliveryCompanies.map(company => (
                                 <DropdownMenuItem key={company.id} onSelect={() => handleBulkUpdate({ assignedCompanyId: company.id })}>
                                     {company.name}
                                 </DropdownMenuItem>
@@ -485,7 +530,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id} className="text-right">
+                    <TableHead key={header.id} className="text-right whitespace-nowrap">
                       {header.isPlaceholder
                         ? null
                         : flexRender(
