@@ -60,14 +60,13 @@ service cloud.firestore {
     /**
      * @description Rules for the /shipments collection.
      * @path /shipments/{shipmentId}
-     * @allow (create) - Admin user can create a shipment.
-     * @deny (create) - Non-admin user attempts to create a shipment.
-     * @allow (get) - Any user can read a shipment.
-     * @deny (update) - Non-admin user attempts to update a shipment.
+     * @allow (read) - Any user can read a shipment.
+     * @allow (write) - Admin user can write a shipment.
      * @principle Enforces role-based access control for shipment data.
      */
     match /shipments/{shipmentId} {
-      allow read, write: if isAdmin();
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     /**
