@@ -56,15 +56,36 @@ export default function DashboardPage() {
     fileInputRef.current?.click();
   };
   
-  const parseExcelDate = (excelDate: any) => {
+  const parseExcelDate = (excelDate: any): Date | null => {
+    if (!excelDate) return null;
+
+    // If it's already a Date object, return it.
+    if (excelDate instanceof Date) {
+        if (!isNaN(excelDate.getTime())) {
+            return excelDate;
+        }
+    }
+
+    // If it's a number (Excel's date format)
     if (typeof excelDate === 'number') {
-      return new Date(Math.round((excelDate - 25569) * 86400 * 1000));
+        const date = new Date(Math.round((excelDate - 25569) * 86400 * 1000));
+        if (!isNaN(date.getTime())) {
+            return date;
+        }
     }
+
+    // If it's a string, try to parse it
     if (typeof excelDate === 'string') {
-      return new Date(excelDate);
+        const date = new Date(excelDate);
+        if (!isNaN(date.getTime())) {
+            return date;
+        }
     }
-    return new Date();
+    
+    // Return null if parsing fails
+    return null;
   }
+
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -85,6 +106,8 @@ export default function DashboardPage() {
 
           for (const row of json) {
             const shipmentCode = row['رقم الشحنة'] || `SH-${Date.now()}-${importedCount}`;
+            const deliveryDate = parseExcelDate(row['ريخ التسليم للمندوب']);
+            const creationDate = parseExcelDate(row['التاريخ']);
             
             const newShipment: Omit<Shipment, 'id'> = {
                 shipmentCode: shipmentCode,
@@ -98,20 +121,16 @@ export default function DashboardPage() {
                 paidAmount: parseFloat(row['المدفوع'] || 0),
                 status: row['حالة الأوردر'] || 'Pending',
                 reason: row['السبب'] || '',
-                deliveryDate: row['ريخ التسليم للمندوب'] ? parseExcelDate(row['ريخ التسليم للمندوب']) : new Date(),
+                deliveryDate: deliveryDate || new Date(),
                 companyId: companies?.find(c => c.name === row['الشركة'])?.id || 'imported',
-                subClientId: subClients?.find(sc => sc.name === row['العميل الفرعي'])?.id || null,
-                createdAt: row['التاريخ'] ? parseExcelDate(row['التاريخ']) : serverTimestamp(),
+                subClientId: subClients?.find(sc => sc.name === row['العميل الفرعي'])?.id,
+                createdAt: creationDate || serverTimestamp(),
                 updatedAt: serverTimestamp(),
             };
             
             const cleanShipment = Object.fromEntries(
                 Object.entries(newShipment).filter(([_, v]) => v !== undefined && v !== null)
             );
-
-            if (cleanShipment.subClientId === null) {
-              delete (cleanShipment as Partial<Shipment>).subClientId;
-            }
 
 
             const docRef = doc(shipmentsCollection);
@@ -153,9 +172,6 @@ export default function DashboardPage() {
             Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null)
         );
 
-        if (cleanShipmentData.subClientId === null) {
-          delete (cleanShipmentData as Partial<Shipment>).subClientId;
-        }
         
         await addDoc(shipmentsCollection, cleanShipmentData);
         
