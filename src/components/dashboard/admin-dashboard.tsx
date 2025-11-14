@@ -235,22 +235,42 @@ export default function AdminDashboard() {
   const handleSaveUser = async (userData: any) => {
     if (!firestore) return;
     try {
+        // 1. Create the user in Firebase Auth
         const { user: newUser } = await createUserWithEmailAndPassword(auth, userData.email, userData.password);
         
+        const batch = writeBatch(firestore);
+
+        // 2. Create the user document in /users
         const userDocRef = doc(firestore, 'users', newUser.uid);
-        await setDoc(userDocRef, {
+        const userDocData: Partial<User> = {
             id: newUser.uid,
             email: userData.email,
             role: userData.role,
             name: userData.name,
-            companyId: userData.companyId || null,
-            deliveryCompanyId: userData.deliveryCompanyId || null,
             createdAt: serverTimestamp()
-        });
+        };
 
+        // 3. If it's a company, create a corresponding company document
+        if (userData.role === 'company') {
+            const companyDocRef = doc(firestore, 'companies', newUser.uid);
+            batch.set(companyDocRef, {
+                id: newUser.uid,
+                name: userData.companyName,
+            });
+            // Link user to their own company ID
+            userDocData.companyId = newUser.uid;
+            userDocData.companyName = userData.companyName;
+        }
+        
+        batch.set(userDocRef, userDocData);
+
+        // 4. Add user to the corresponding role collection for security rules
         const roleCollection = `roles_${userData.role}`;
         const roleDocRef = doc(firestore, roleCollection, newUser.uid);
-        await setDoc(roleDocRef, { email: userData.email });
+        batch.set(roleDocRef, { email: userData.email });
+
+        // 5. Commit all writes at once
+        await batch.commit();
 
         toast({
             title: "تم إنشاء المستخدم بنجاح",

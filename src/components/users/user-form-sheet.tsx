@@ -32,14 +32,10 @@ const userSchema = z.object({
   email: z.string().email("بريد إلكتروني غير صالح"),
   password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
   role: z.enum(["company", "courier"], { required_error: "الدور مطلوب" }),
-  companyId: z.string().optional(),
-  deliveryCompanyId: z.string().optional(),
-}).refine(data => data.role !== 'company' || !!data.companyId, {
-    message: "يجب اختيار شركة العميل",
-    path: ["companyId"],
-}).refine(data => data.role !== 'courier' || !!data.deliveryCompanyId, {
-    message: "يجب اختيار شركة التوصيل",
-    path: ["deliveryCompanyId"],
+  companyName: z.string().optional(),
+}).refine(data => data.role !== 'company' || (data.companyName && data.companyName.length > 0), {
+    message: "يجب إدخال اسم الشركة",
+    path: ["companyName"],
 });
 
 
@@ -60,6 +56,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, companies,
       name: "",
       email: "",
       password: "",
+      companyName: "",
     },
   });
   
@@ -154,42 +151,13 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, companies,
                      {selectedRole === 'company' && (
                         <FormField
                             control={form.control}
-                            name="companyId"
+                            name="companyName"
                             render={({ field }) => (
                                 <FormItem className="grid grid-cols-4 items-center gap-4">
-                                    <FormLabel className="text-right">الشركة</FormLabel>
-                                    <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
-                                        <FormControl className="col-span-3">
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="اختر شركة العميل" />
-                                            </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                            {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage className="col-span-4" />
-                                </FormItem>
-                            )}
-                        />
-                     )}
-                     {selectedRole === 'courier' && (
-                        <FormField
-                            control={form.control}
-                            name="deliveryCompanyId"
-                            render={({ field }) => (
-                                <FormItem className="grid grid-cols-4 items-center gap-4">
-                                    <FormLabel className="text-right">شركة التوصيل</FormLabel>
-                                    <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
-                                        <FormControl className="col-span-3">
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="اختر شركة التوصيل" />
-                                            </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                            {deliveryCompanies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
+                                    <FormLabel className="text-right">اسم الشركة</FormLabel>
+                                    <FormControl className="col-span-3">
+                                        <Input {...field} placeholder="ادخل اسم شركة العميل"/>
+                                    </FormControl>
                                     <FormMessage className="col-span-4" />
                                 </FormItem>
                             )}
