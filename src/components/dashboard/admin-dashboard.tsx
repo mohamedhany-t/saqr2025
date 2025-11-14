@@ -239,19 +239,16 @@ const handleSaveUser = async (userData: any) => {
         toast({ title: "خطأ", description: "المسؤول غير مسجل دخوله.", variant: "destructive" });
         return;
     }
-    
+
     // This is a temporary, separate auth instance to create the new user.
     // It does NOT affect the currently signed-in admin user.
     const tempAuth = getAuth(auth.app);
 
     try {
-        // Step 1: Create user in Firebase Auth using the temporary auth instance.
-        // This does not sign in the new user in the admin's browser.
         const userCredential = await createUserWithEmailAndPassword(tempAuth, userData.email, userData.password);
         const newUser = userCredential.user;
         const uid = newUser.uid;
         
-        // Step 2: As the currently logged-in admin, create the user documents in Firestore.
         const batch = writeBatch(firestore);
 
         const userDocRef = doc(firestore, 'users', uid);
@@ -267,7 +264,6 @@ const handleSaveUser = async (userData: any) => {
             if (!userData.companyName) {
                 throw new Error("اسم الشركة مطلوب لدور الشركة.");
             }
-            // The company document ID is the same as the user's UID.
             const companyDocRef = doc(firestore, 'companies', uid);
             batch.set(companyDocRef, { id: uid, name: userData.companyName });
             
@@ -279,35 +275,43 @@ const handleSaveUser = async (userData: any) => {
 
         batch.set(userDocRef, userDocData);
 
-        // Also add to the specific role collection for security rule checks
         const roleDocRef = doc(firestore, `roles_${userData.role}`, uid);
         batch.set(roleDocRef, { email: userData.email, createdAt: serverTimestamp() });
-
+        
         // This commit is performed by the admin user, who has the correct permissions.
-        await batch.commit();
+        batch.commit()
+          .then(() => {
+            toast({
+                title: "تم إنشاء المستخدم بنجاح",
+                description: `تم إنشاء حساب لـ ${userData.name} بنجاح.`,
+            });
+            setUserSheetOpen(false);
+          })
+          .catch((serverError: any) => {
+            // This is where Firestore permission errors for the BATCH will be caught.
+            const permissionError = new FirestorePermissionError({
+                path: 'users', // The batch can affect multiple paths, so this is a general path.
+                operation: 'write',
+                requestResourceData: { note: 'Batch operation for creating user, company, and role failed.' }
+            });
+            errorEmitter.emit('permission-error', permissionError);
 
-        toast({
-            title: "تم إنشاء المستخدم بنجاح",
-            description: `تم إنشاء حساب لـ ${userData.name} بنجاح.`,
-        });
-        setUserSheetOpen(false);
+            toast({
+                title: "خطأ في حفظ البيانات",
+                description: "حدث خطأ أثناء حفظ بيانات المستخدم في قاعدة البيانات بسبب الصلاحيات.",
+                variant: "destructive"
+            });
+          });
 
     } catch (error: any) {
-        console.error("Error creating user:", error);
+        // This outer catch handles errors from createUserWithEmailAndPassword or synchronous errors.
+        console.error("Error creating user in Auth:", error);
         let description = "حدث خطأ غير متوقع.";
 
         if (error.code === 'auth/email-already-in-use') {
             description = 'هذا البريد الإلكتروني مستخدم بالفعل.';
         } else if (error.code === 'auth/weak-password') {
             description = 'كلمة المرور ضعيفة جدًا (يجب أن تكون 6 أحرف على الأقل).';
-        } else if (error.code?.includes('permission-denied')) {
-             description = "خطأ في الصلاحيات. تأكد من أن قواعد الأمان تسمح للمسؤول بإنشاء المستخدمين.";
-             const permissionError = new FirestorePermissionError({
-                path: `users`,
-                operation: 'write',
-                requestResourceData: { note: 'Batch operation for creating user, company, and role failed.' }
-            });
-            errorEmitter.emit('permission-error', permissionError);
         }
 
         toast({
