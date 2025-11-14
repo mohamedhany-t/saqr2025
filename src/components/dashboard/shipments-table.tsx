@@ -1,10 +1,5 @@
 "use client"
 import * as React from "react"
-import {
-  CaretSortIcon,
-  ChevronDownIcon,
-  DotsHorizontalIcon,
-} from "@radix-ui/react-icons"
 import type {
   ColumnDef,
   ColumnFiltersState,
@@ -28,7 +23,9 @@ import {
     Pencil,
     Printer,
     Hourglass,
-    Archive
+    Archive,
+    ArrowUpDown,
+    ChevronDown,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -150,7 +147,7 @@ export const columns: ColumnDef<Shipment>[] = [
         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
       >
         تاريخ الإنشاء
-        <CaretSortIcon className="ms-2 h-4 w-4" />
+        <ArrowUpDown className="ms-2 h-4 w-4" />
       </Button>
     ),
     cell: ({ row }) => (
@@ -168,7 +165,7 @@ export const columns: ColumnDef<Shipment>[] = [
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 w-8 p-0">
               <span className="sr-only">فتح القائمة</span>
-              <DotsHorizontalIcon className="h-4 w-4" />
+              <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">

@@ -1,6 +1,5 @@
 "use client"
 import * as React from "react"
-import { DotsHorizontalIcon } from "@radix-ui/react-icons"
 import type { ColumnDef } from "@tanstack/react-table"
 import {
   flexRender,
@@ -98,7 +97,7 @@ export const columns: ColumnDef<User>[] = [
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 w-8 p-0">
               <span className="sr-only">فتح القائمة</span>
-              <DotsHorizontalIcon className="h-4 w-4" />
+              <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
