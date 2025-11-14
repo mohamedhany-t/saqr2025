@@ -377,12 +377,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     const batch = writeBatch(firestore);
     selectedRows.forEach(row => {
         const docRef = doc(firestore, "shipments", row.original.id);
-        let finalUpdate: Partial<Shipment> = {...update, updatedAt: new Date()};
-
-        if (update.status === 'Delivered') {
-            finalUpdate.paidAmount = row.original.totalAmount;
-        }
-
+        const finalUpdate: { [key: string]: any } = { ...update, updatedAt: new Date() };
         batch.update(docRef, finalUpdate);
     });
 
