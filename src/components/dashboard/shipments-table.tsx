@@ -87,6 +87,14 @@ const statusVariants: Record<ShipmentStatus, "default" | "secondary" | "destruct
     Returned: "secondary",
 }
 
+const statusText: Record<ShipmentStatus, string> = {
+    Pending: 'قيد الانتظار',
+    'In-Transit': 'قيد التوصيل',
+    Delivered: 'تم التوصيل',
+    Cancelled: 'تم الإلغاء',
+    Returned: 'مرتجع',
+};
+
 
 export const getColumns = (governorates: Governorate[]): ColumnDef<Shipment>[] => [
   {
@@ -165,9 +173,12 @@ export const getColumns = (governorates: Governorate[]): ColumnDef<Shipment>[] =
         return (
             <Badge variant={statusVariants[status]} className="capitalize flex gap-2">
                 {statusIcons[status]}
-                <span>{status}</span>
+                <span>{statusText[status] || status}</span>
             </Badge>
         )
+    },
+    filterFn: (row, id, value) => {
+      return value.includes(row.getValue(id))
     },
   },
   {
@@ -212,7 +223,7 @@ export const getColumns = (governorates: Governorate[]): ColumnDef<Shipment>[] =
             <DropdownMenuSeparator />
             <DropdownMenuItem><Pencil className="me-2 h-4 w-4"/>تعديل</DropdownMenuItem>
             <DropdownMenuItem><FileText className="me-2 h-4 w-4"/>تفاصيل</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => exportToPDF([shipment], getColumns(governorates).filter(c => c.id !== 'select' && c.id !== 'actions'))}><Printer className="me-2 h-4 w-4"/>طباعة</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => exportToPDF([shipment], getColumns(governorates).filter(c => c.id !== 'select' && c.id !== 'actions'), governorates)}><Printer className="me-2 h-4 w-4"/>طباعة</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )
@@ -221,7 +232,7 @@ export const getColumns = (governorates: Governorate[]): ColumnDef<Shipment>[] =
 ]
 
 
-export function ShipmentsTable({ shipments, isLoading, governorates }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[] }) {
+export function ShipmentsTable({ shipments, isLoading, governorates, companies, couriers }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[], companies: Company[], couriers: Courier[] }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -229,6 +240,8 @@ export function ShipmentsTable({ shipments, isLoading, governorates }: { shipmen
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState({})
+  const { toast } = useToast()
+  const firestore = useFirestore();
   
   const columns = React.useMemo(() => getColumns(governorates), [governorates]);
   
@@ -257,6 +270,52 @@ export function ShipmentsTable({ shipments, isLoading, governorates }: { shipmen
     exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates);
   }
 
+  const handleBulkDelete = async () => {
+    if (!firestore) return;
+    const selectedRows = table.getFilteredSelectedRowModel().rows;
+    if (selectedRows.length === 0) {
+        toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
+        return;
+    }
+
+    try {
+        const batch = writeBatch(firestore);
+        selectedRows.forEach(row => {
+            const docRef = doc(firestore, "shipments", row.original.id);
+            batch.delete(docRef);
+        });
+        await batch.commit();
+        toast({ title: `تم حذف ${selectedRows.length} شحنة بنجاح` });
+        table.resetRowSelection();
+    } catch (error) {
+        console.error("Error deleting shipments: ", error);
+        toast({ title: "خطأ أثناء الحذف", description: "حدث خطأ غير متوقع.", variant: "destructive"});
+    }
+  }
+
+  const handleBulkUpdate = async (update: Partial<Shipment>) => {
+    if (!firestore) return;
+    const selectedRows = table.getFilteredSelectedRowModel().rows;
+    if (selectedRows.length === 0) {
+        toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
+        return;
+    }
+    
+    try {
+        const batch = writeBatch(firestore);
+        selectedRows.forEach(row => {
+            const docRef = doc(firestore, "shipments", row.original.id);
+            batch.update(docRef, update);
+        });
+        await batch.commit();
+        toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
+        table.resetRowSelection();
+    } catch (error) {
+        console.error("Error updating shipments: ", error);
+        toast({ title: "خطأ أثناء التحديث", description: "حدث خطأ غير متوقع.", variant: "destructive"});
+    }
+  }
+
   const governorateFilterValue = columnFilters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
 
   return (
@@ -269,11 +328,89 @@ export function ShipmentsTable({ shipments, isLoading, governorates }: { shipmen
                         تصدير Excel
                     </span>
                 </Button>
-                {/* Filters will go here */}
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8 gap-1">
+                            <ChevronDown className="h-3.5 w-3.5" />
+                            <span>
+                                المحافظة
+                                {governorateFilterValue && governorateFilterValue.length > 0 && ` (${governorateFilterValue.length})`}
+                            </span>
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                        {governorates.map((governorate) => (
+                        <DropdownMenuCheckboxItem
+                            key={governorate.id}
+                            checked={governorateFilterValue?.includes(governorate.id)}
+                            onCheckedChange={(checked) => {
+                                const current = governorateFilterValue || [];
+                                const newFilter = checked
+                                    ? [...current, governorate.id]
+                                    : current.filter((id) => id !== governorate.id);
+                                table.getColumn("governorateId")?.setFilterValue(newFilter.length ? newFilter : undefined);
+                            }}
+                        >
+                            {governorate.name}
+                        </DropdownMenuCheckboxItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
             {table.getFilteredSelectedRowModel().rows.length > 0 && (
                  <div className="flex items-center gap-2">
-                   {/* Bulk actions will go here */}
+                    <span className="text-sm text-muted-foreground">
+                        {table.getFilteredSelectedRowModel().rows.length} شحنات محددة
+                    </span>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                             <Button variant="outline" size="sm" className="h-8 gap-1">
+                                <CheckSquare className="h-3.5 w-3.5" />
+                                <span className="sr-only sm:not-sr-only">تغيير الحالة</span>
+                             </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            {Object.entries(statusText).map(([statusValue, statusLabel]) => (
+                                 <DropdownMenuItem key={statusValue} onSelect={() => handleBulkUpdate({ status: statusValue as ShipmentStatus })}>
+                                     {statusLabel}
+                                 </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                     <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                             <Button variant="outline" size="sm" className="h-8 gap-1">
+                                <Building className="h-3.5 w-3.5" />
+                                <span className="sr-only sm:not-sr-only">تعيين شركة</span>
+                             </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            {companies.map(company => (
+                                <DropdownMenuItem key={company.id} onSelect={() => handleBulkUpdate({ assignedCompanyId: company.id })}>
+                                    {company.name}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                             <Button variant="outline" size="sm" className="h-8 gap-1">
+                                <User className="h-3.5 w-3.5" />
+                                <span className="sr-only sm:not-sr-only">تعيين مندوب</span>
+                             </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                           {couriers.map(courier => (
+                                <DropdownMenuItem key={courier.id} onSelect={() => handleBulkUpdate({ assignedCourierId: courier.id })}>
+                                    {courier.name}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                     <Button variant="destructive" size="sm" className="h-8 gap-1" onClick={handleBulkDelete}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span className="sr-only sm:not-sr-only">حذف</span>
+                    </Button>
                  </div>
             )}
         </div>
@@ -284,7 +421,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates }: { shipmen
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className="text-right">
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -313,7 +450,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates }: { shipmen
                   data-state={row.getIsSelected() && "selected"}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} className="text-right">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()

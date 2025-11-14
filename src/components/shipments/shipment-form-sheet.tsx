@@ -29,7 +29,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 
 const shipmentSchema = z.object({
   orderNumber: z.string().min(1, "رقم الطلب مطلوب"),
-  trackingNumber: z.string().min(1, "رقم الشحنة مطلوب"),
+  trackingNumber: z.string().optional(),
   recipientName: z.string().min(1, "اسم المرسل إليه مطلوب"),
   recipientPhone: z.string().min(10, "رقم هاتف المستلم غير صحيح"),
   governorateId: z.string().min(1, "المحافظة مطلوبة"),
@@ -42,6 +42,7 @@ const shipmentSchema = z.object({
   paidAmount: z.coerce.number().optional(),
   deliveryDate: z.date().optional(),
   assignedCourierId: z.string().optional(),
+  shipmentCode: z.string().optional(),
 });
 
 
@@ -50,7 +51,7 @@ type ShipmentFormSheetProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     shipment?: Shipment;
-    onSave: (data: Omit<Shipment, 'id' | 'createdAt' | 'updatedAt' | 'shipmentCode'>) => void;
+    onSave: (data: Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>) => void;
     governorates: Governorate[];
     clients: Client[];
     subClients: SubClient[];
@@ -78,7 +79,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   
   React.useEffect(() => {
     if (open) {
-        form.reset(shipment ? { ...shipment } : {
+        const defaultValues = isEditing ? { ...shipment } : {
             orderNumber: "",
             trackingNumber: "",
             recipientName: "",
@@ -88,14 +89,16 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
             totalAmount: 0,
             status: "Pending",
             clientId: "",
-            paidAmount: 0
-        });
+            paidAmount: 0,
+            shipmentCode: `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
+        };
+        form.reset(defaultValues as any);
     }
-  }, [open, shipment, form]);
+  }, [open, shipment, form, isEditing]);
 
   const onSubmit = (values: z.infer<typeof shipmentSchema>) => {
     // We remove properties that are not part of the base shipment type
-    const { governorate, ...rest } = values as any;
+    const { ...rest } = values as any;
     onSave(rest);
   };
   
@@ -107,7 +110,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
       <SheetTrigger asChild>
         {children}
       </SheetTrigger>
-      <SheetContent className="sm:max-w-2xl">
+      <SheetContent className="sm:max-w-2xl" dir="rtl">
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
                 <SheetHeader>
@@ -118,6 +121,19 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                 </SheetHeader>
                 <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6">
                     {/* Form Fields */}
+                     <FormField
+                        control={form.control}
+                        name="shipmentCode"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">كود الشحنة</FormLabel>
+                                <FormControl className="col-span-3">
+                                    <Input {...field} disabled />
+                                </FormControl>
+                                <FormMessage className="col-span-4" />
+                            </FormItem>
+                        )}
+                    />
                     <FormField
                         control={form.control}
                         name="recipientName"
@@ -163,7 +179,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">المحافظة</FormLabel>
-                                <Select dir="rtl" onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
                                     <FormControl className="col-span-3">
                                         <SelectTrigger>
                                             <SelectValue placeholder="اختر المحافظة" />
@@ -196,7 +212,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">العميل</FormLabel>
-                                <Select dir="rtl" onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
                                     <FormControl className="col-span-3">
                                         <SelectTrigger>
                                             <SelectValue placeholder="اختر العميل" />
@@ -217,7 +233,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             render={({ field }) => (
                                 <FormItem className="grid grid-cols-4 items-center gap-4">
                                     <FormLabel className="text-right">العميل الفرعي</FormLabel>
-                                    <Select dir="rtl" onValueChange={field.onChange} defaultValue={field.value}>
+                                    <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
                                         <FormControl className="col-span-3">
                                             <SelectTrigger>
                                                 <SelectValue placeholder="اختر العميل الفرعي" />
@@ -238,7 +254,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">الحالة</FormLabel>
-                                <Select dir="rtl" onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
                                     <FormControl className="col-span-3">
                                         <SelectTrigger>
                                             <SelectValue placeholder="اختر الحالة" />

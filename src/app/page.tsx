@@ -20,7 +20,7 @@ import { Header } from "@/components/dashboard/header";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, writeBatch } from "firebase/firestore";
 import { mockUsers } from "@/lib/placeholder-data";
 
 export default function DashboardPage() {
@@ -65,16 +65,20 @@ export default function DashboardPage() {
           const worksheet = workbook.Sheets[sheetName];
           const json = utils.sheet_to_json<any>(worksheet);
 
-          const shipmentsCollection = collection(firestore, 'shipments');
+          const batch = writeBatch(firestore);
           let importedCount = 0;
+          const shipmentsCollection = collection(firestore, 'shipments');
+
 
           for (const row of json) {
-             const newShipment: Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'> = {
-                shipmentCode: row['كود الشحنة'] || `SH-${Date.now()}-${importedCount}`,
+            const shipmentCode = row['كود الشحنة'] || `SH-${Date.now()}-${importedCount}`;
+            
+            const newShipment: Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'> = {
+                shipmentCode: shipmentCode,
                 orderNumber: row['رقم الطلب'] || `ORD-${Date.now()}-${importedCount}`,
                 trackingNumber: row['رقم الشحنة'] || `TRK-${Date.now()}-${importedCount}`,
                 recipientName: row['المرسل إليه'],
-                recipientPhone: row['الهاتف'],
+                recipientPhone: row['الهاتف']?.toString(),
                 governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
                 address: row['العنوان'] || 'N/A',
                 totalAmount: parseFloat(row['الإجمالي'] || 0),
@@ -83,14 +87,17 @@ export default function DashboardPage() {
                 clientId: clients?.find(c => c.name === row['العميل'])?.id || 'imported',
                 paidAmount: 0,
             };
-            
-            await addDoc(shipmentsCollection, {
+
+            const docRef = doc(shipmentsCollection, shipmentCode);
+            batch.set(docRef, {
                 ...newShipment,
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
             });
             importedCount++;
           }
+          
+          await batch.commit();
 
           toast({
             title: "تم الاستيراد بنجاح",
@@ -113,18 +120,16 @@ export default function DashboardPage() {
      if (!firestore) return;
      try {
         const shipmentsCollection = collection(firestore, 'shipments');
-        const shipmentCode = `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String((shipments?.length || 0) + 1).padStart(4, '0')}`;
         
         await addDoc(shipmentsCollection, {
             ...shipment,
-            shipmentCode,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
         });
         
         toast({
             title: "تم حفظ الشحنة",
-            description: `تم إنشاء الشحنة بنجاح برقم ${shipmentCode}`,
+            description: `تم إنشاء الشحنة بنجاح`,
         });
         setShipmentSheetOpen(false);
 
@@ -188,6 +193,8 @@ export default function DashboardPage() {
               shipments={shipments || []} 
               isLoading={shipmentsLoading}
               governorates={governorates || []}
+              companies={companies || []}
+              couriers={couriers || []}
             />
           </TabsContent>
           <TabsContent value="in-transit">
@@ -195,6 +202,8 @@ export default function DashboardPage() {
                 shipments={(shipments || []).filter(s => s.status === 'In-Transit')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
+                companies={companies || []}
+                couriers={couriers || []}
              />
           </TabsContent>
            <TabsContent value="delivered">
@@ -202,6 +211,8 @@ export default function DashboardPage() {
                 shipments={(shipments || []).filter(s => s.status === 'Delivered')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
+                companies={companies || []}
+                couriers={couriers || []}
              />
           </TabsContent>
            <TabsContent value="returned">
@@ -209,6 +220,8 @@ export default function DashboardPage() {
                 shipments={(shipments || []).filter(s => s.status === 'Returned')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
+                companies={companies || []}
+                couriers={couriers || []}
              />
           </TabsContent>
         </Tabs>

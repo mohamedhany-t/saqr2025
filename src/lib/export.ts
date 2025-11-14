@@ -33,7 +33,7 @@ const getCellValue = (row: Shipment, accessorKey: string | undefined, governorat
     
     if (accessorKey === 'address') {
         const governorate = governorates.find(g => g.id === row.governorateId);
-        return `${row.address}, ${governorate?.name || ''}`;
+        return `${row.address}${governorate ? `, ${governorate.name}`: ''}`;
     }
 
     const keys = accessorKey.split('.');
@@ -93,7 +93,8 @@ export const exportToExcel = (
   
   // Style header
   worksheet.getRow(1).font = { bold: true };
-  worksheet.getRow(1).alignment = { horizontal: 'center' };
+  worksheet.getRow(1).alignment = { horizontal: 'right' };
+  worksheet.views = [{ rightToLeft: true }];
 
 
   // Write to buffer and trigger download
@@ -142,7 +143,7 @@ export const exportToPDF = (
             // Header
             doc.setFontSize(20);
             doc.setTextColor(40);
-            doc.text("تقرير الشحنات", data.settings.margin.left, 15);
+            doc.text("تقرير الشحنات", data.settings.margin.left, 15, { align: 'right' });
         },
     });
 
