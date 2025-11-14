@@ -1,7 +1,7 @@
 
 "use client";
 import React from "react";
-import { PlusCircle, FileUp, Users } from "lucide-react";
+import { PlusCircle, FileUp, Users, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
@@ -9,26 +9,32 @@ import type { Role, Shipment, Company, SubClient, Governorate, Courier, User } f
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { UsersTable } from "@/components/dashboard/users-table";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
+import { UserFormSheet } from "@/components/users/user-form-sheet";
 import { Header } from "@/components/dashboard/header";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
-import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
-import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc } from "firebase/firestore";
+import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
+import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc } from "firebase/firestore";
+import { createUserWithEmailAndPassword, getAuth, initializeAuth, indexedDBLocalPersistence } from 'firebase/auth';
+
 
 export default function AdminDashboard() {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
+  const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [searchTerm, setSearchTerm] = React.useState("");
   const { toast } = useToast();
+  const { user: adminUser } = useUser();
   const firestore = useFirestore();
+  const auth = useAuth();
   const role: Role = 'admin';
 
   const shipmentsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'shipments') : null, [firestore]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
   const companiesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'companies') : null, [firestore]);
-  const { data: companies } = useCollection<Company>(companiesQuery);
+  const { data: companies, isLoading: companiesLoading } = useCollection<Company>(companiesQuery);
 
   const subClientsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'subclients') : null, [firestore]);
   const { data: subClients } = useCollection<SubClient>(subClientsQuery);
@@ -37,7 +43,7 @@ export default function AdminDashboard() {
   const { data: governorates } = useCollection<Governorate>(governoratesQuery);
 
   const deliveryCompaniesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'deliveryCompanies') : null, [firestore]);
-  const { data: deliveryCompanies } = useCollection<Company>(deliveryCompaniesQuery);
+  const { data: deliveryCompanies, isLoading: deliveryCompaniesLoading } = useCollection<Company>(deliveryCompaniesQuery);
 
   const couriersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'couriers') : null, [firestore]);
   const { data: couriers } = useCollection<Courier>(couriersQuery);
@@ -49,6 +55,87 @@ export default function AdminDashboard() {
     setEditingShipment(shipment);
     setShipmentSheetOpen(true);
   };
+  
+  const handleSeedData = async () => {
+    if (!firestore) return;
+    toast({ title: "جاري إضافة البيانات الوهمية...", description: "قد تستغرق هذه العملية بضع لحظات." });
+
+    try {
+        const batch = writeBatch(firestore);
+
+        // Seed Companies and their users
+        for (let i = 1; i <= 5; i++) {
+            const companyName = `الشركة الوهمية ${i}`;
+            const email = `company${i}@example.com`;
+            const uid = `mock_company_uid_${i}`;
+
+            // Company doc
+            const companyRef = doc(firestore, 'companies', uid);
+            batch.set(companyRef, { id: uid, name: companyName });
+
+            // User doc
+            const userRef = doc(firestore, 'users', uid);
+            batch.set(userRef, {
+                id: uid,
+                email: email,
+                name: companyName,
+                role: 'company',
+                companyId: uid,
+                companyName: companyName,
+                createdAt: serverTimestamp(),
+            });
+
+            // Role doc
+            const roleRef = doc(firestore, 'roles_company', uid);
+            batch.set(roleRef, { email: email, createdAt: serverTimestamp() });
+        }
+
+        // Seed Couriers and their users
+        for (let i = 1; i <= 10; i++) {
+            const courierName = `المندوب الوهمي ${i}`;
+            const email = `courier${i}@example.com`;
+            const uid = `mock_courier_uid_${i}`;
+
+            // Courier doc
+             const courierRef = doc(firestore, 'couriers', uid);
+             batch.set(courierRef, { id: uid, name: courierName, deliveryCompanyId: 'mock_delivery_co' });
+
+
+            // User doc
+            const userRef = doc(firestore, 'users', uid);
+            batch.set(userRef, {
+                id: uid,
+                email: email,
+                name: courierName,
+                role: 'courier',
+                createdAt: serverTimestamp(),
+            });
+
+            // Role doc
+            const roleRef = doc(firestore, 'roles_courier', uid);
+            batch.set(roleRef, { email: email, createdAt: serverTimestamp() });
+        }
+        
+         // Seed Governorates and Delivery Companies
+        const govs = ["القاهرة", "الجيزة", "الأسكندرية", "أسوان", "الأقصر", "البحيرة", "المنوفية", "الشرقية"];
+        govs.forEach(g => {
+            const govRef = doc(collection(firestore, 'governorates'));
+            batch.set(govRef, { id: govRef.id, name: g });
+        });
+
+        const delivCoRef = doc(firestore, 'deliveryCompanies', 'mock_delivery_co');
+        batch.set(delivCoRef, { id: 'mock_delivery_co', name: 'شركة توصيل وهمية' });
+
+
+        await batch.commit();
+        toast({ title: "اكتملت العملية بنجاح", description: "تمت إضافة 5 شركات و 10 مناديب بنجاح. قم بتحديث الصفحة." });
+
+    } catch (error: any) {
+        console.error("Error seeding data:", error);
+        toast({ variant: "destructive", title: "حدث خطأ أثناء إضافة البيانات", description: error.message });
+    }
+  }
+
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
@@ -227,6 +314,111 @@ export default function AdminDashboard() {
         });
     }
   };
+
+  const handleSaveUser = async (data: any) => {
+    if (!firestore || !auth) {
+        toast({ variant: "destructive", title: "خطأ", description: "خدمات Firebase غير متاحة" });
+        return;
+    }
+    
+    setIsUserSheetOpen(false);
+    toast({ title: "جاري إنشاء المستخدم...", description: "قد تستغرق هذه العملية بضع لحظات." });
+
+    let tempAuth: any;
+    try {
+        // Use a temporary, separate auth instance for creating the user
+        // This prevents the admin from being logged out
+        tempAuth = initializeAuth(auth.app, {
+            persistence: indexedDBLocalPersistence,
+            // popupRedirectResolver: undefined
+        });
+
+        const userCredential = await createUserWithEmailAndPassword(tempAuth, data.email, data.password);
+        const newUser = userCredential.user;
+
+        const batch = writeBatch(firestore);
+
+        // 1. Create Company/Courier document if needed
+        let companyId = null;
+        let companyName = null;
+        if (data.role === 'company') {
+            const companyRef = doc(firestore, 'companies', newUser.uid);
+            companyId = newUser.uid;
+            companyName = data.companyName;
+            batch.set(companyRef, {
+                id: companyId,
+                name: companyName,
+            });
+        } else if (data.role === 'courier') {
+            const courierRef = doc(firestore, 'couriers', newUser.uid);
+            batch.set(courierRef, {
+                id: newUser.uid,
+                name: data.name,
+                deliveryCompanyId: data.deliveryCompanyId || null
+            });
+        }
+
+        // 2. Create User document
+        const userDocRef = doc(firestore, 'users', newUser.uid);
+        const userPayload: any = {
+            id: newUser.uid,
+            email: data.email,
+            name: data.name,
+            role: data.role,
+            createdAt: serverTimestamp(),
+        };
+        if (companyId) {
+            userPayload.companyId = companyId;
+            userPayload.companyName = companyName;
+        }
+        if (data.role === 'courier' && data.deliveryCompanyId) {
+            userPayload.deliveryCompanyId = data.deliveryCompanyId;
+        }
+        batch.set(userDocRef, userPayload);
+
+        // 3. Create Role document
+        const roleCollectionName = `roles_${data.role}`;
+        const roleDocRef = doc(firestore, roleCollectionName, newUser.uid);
+        batch.set(roleDocRef, { email: data.email, createdAt: serverTimestamp() });
+        
+        // The batch commit is executed with the ADMIN's permissions
+        await batch.commit();
+
+        toast({
+            title: "تم إنشاء المستخدم بنجاح!",
+            description: `تم إنشاء حساب لـ ${data.name} بدور "${data.role}".`,
+        });
+
+    } catch (error: any) {
+        console.error("Error creating user:", error);
+        let description = "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.";
+        if (error.code === 'auth/email-already-in-use') {
+            description = "هذا البريد الإلكتروني مستخدم بالفعل.";
+        } else if (error.code === 'auth/weak-password') {
+            description = "كلمة المرور ضعيفة جدًا. يجب أن تتكون من 6 أحرف على الأقل.";
+        } else if (error.code?.includes('permission-denied')) {
+             description = "خطأ في الصلاحيات. تأكد من أن قواعد الأمان تسمح للمسؤول بإنشاء المستخدمين.";
+             const permissionError = new FirestorePermissionError({
+                path: 'users', // The batch can affect multiple paths, so this is a general path.
+                operation: 'write',
+                requestResourceData: { note: 'Batch operation for creating user, company, and role failed.' }
+             });
+             errorEmitter.emit('permission-error', permissionError);
+        }
+
+        toast({
+            variant: "destructive",
+            title: "فشل إنشاء المستخدم",
+            description: description,
+        });
+    } finally {
+        if (tempAuth) {
+            // Clean up the temporary auth instance
+            await tempAuth.signOut();
+        }
+    }
+};
+
   
   const filteredShipments = React.useMemo(() => {
     if (!shipments) return [];
@@ -265,6 +457,12 @@ export default function AdminDashboard() {
                 <FileUp className="h-3.5 w-3.5" />
                 <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
                   استيراد
+                </span>
+              </Button>
+               <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleSeedData}>
+                <Database className="h-3.5 w-3.5" />
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                  إضافة بيانات وهمية
                 </span>
               </Button>
               <ShipmentFormSheet
@@ -345,10 +543,22 @@ export default function AdminDashboard() {
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين</h2>
                      <div className="flex items-center gap-2">
-                       <p className="text-sm text-muted-foreground">أضف المستخدمين يدويًا من لوحة تحكم Firebase.</p>
+                       <UserFormSheet 
+                          open={isUserSheetOpen}
+                          onOpenChange={setIsUserSheetOpen}
+                          onSave={handleSaveUser}
+                          deliveryCompanies={deliveryCompanies || []}
+                       >
+                            <Button size="sm" className="h-8 gap-1">
+                                <PlusCircle className="h-3.5 w-3.5" />
+                                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                                  إضافة مستخدم
+                                </span>
+                            </Button>
+                       </UserFormSheet>
                     </div>
                   </div>
-                  <UsersTable users={users || []} isLoading={usersLoading} />
+                  <UsersTable users={users || []} isLoading={usersLoading || companiesLoading || deliveryCompaniesLoading} companies={companies ?? []} deliveryCompanies={deliveryCompanies ?? []}/>
               </div>
          </TabsContent>
         </Tabs>
@@ -356,3 +566,6 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
+
+    

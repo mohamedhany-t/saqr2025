@@ -1,3 +1,4 @@
+
 "use client"
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
@@ -27,7 +28,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import type { User, Role } from "@/lib/types"
+import type { User, Role, Company } from "@/lib/types"
 import { Skeleton } from "../ui/skeleton"
 
 const roleIcons: Record<Role, React.ReactNode> = {
@@ -48,7 +49,7 @@ const roleVariants: Record<Role, "default" | "secondary" | "destructive" | "outl
     courier: "outline",
 }
 
-export const columns: ColumnDef<User>[] = [
+export const getColumns = (companies: Company[], deliveryCompanies: Company[]): ColumnDef<User>[] => [
   {
     accessorKey: "name",
     header: "الاسم",
@@ -82,7 +83,17 @@ export const columns: ColumnDef<User>[] = [
   {
     accessorKey: "companyName",
     header: "الشركة",
-    cell: ({ row }) => <div>{row.getValue("companyName") || 'N/A'}</div>,
+    cell: ({ row }) => {
+        const user = row.original;
+        if (user.role === 'company') {
+            return <div>{user.companyName || 'N/A'}</div>;
+        }
+        if (user.role === 'courier') {
+            const deliveryCompany = deliveryCompanies.find(dc => dc.id === user.deliveryCompanyId);
+            return <div>{deliveryCompany?.name || 'N/A'}</div>
+        }
+        return <div>N/A</div>;
+    },
   },
   {
     accessorKey: "createdAt",
@@ -107,8 +118,8 @@ export const columns: ColumnDef<User>[] = [
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>إجراءات</DropdownMenuLabel>
-            <DropdownMenuItem>تعديل</DropdownMenuItem>
-            <DropdownMenuItem>حذف</DropdownMenuItem>
+            <DropdownMenuItem disabled>تعديل</DropdownMenuItem>
+            <DropdownMenuItem disabled>حذف</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )
@@ -117,7 +128,9 @@ export const columns: ColumnDef<User>[] = [
 ]
 
 
-export function UsersTable({ users, isLoading }: { users: User[], isLoading: boolean }) {
+export function UsersTable({ users, isLoading, companies, deliveryCompanies }: { users: User[], isLoading: boolean, companies: Company[], deliveryCompanies: Company[] }) {
+  
+  const columns = React.useMemo(() => getColumns(companies, deliveryCompanies), [companies, deliveryCompanies]);
   
   const table = useReactTable({
     data: users,
