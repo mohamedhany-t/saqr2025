@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from 'react';
@@ -13,7 +14,6 @@ import {
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -24,17 +24,20 @@ import {
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import type { Company, Role } from '@/lib/types';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
+// Schema for user creation form
 const userSchema = z.object({
   name: z.string().min(1, "الاسم مطلوب"),
   email: z.string().email("بريد إلكتروني غير صالح"),
   password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
   role: z.enum(["company", "courier"], { required_error: "الدور مطلوب" }),
   companyName: z.string().optional(),
-}).refine(data => data.role !== 'company' || (data.companyName && data.companyName.length > 0), {
-    message: "يجب إدخال اسم الشركة",
+}).refine(data => {
+    // If role is 'company', then companyName must be a non-empty string.
+    return data.role !== 'company' || (data.companyName && data.companyName.trim().length > 0);
+}, {
+    message: "اسم الشركة مطلوب عند اختيار دور 'شركة'",
     path: ["companyName"],
 });
 
@@ -44,11 +47,9 @@ type UserFormSheetProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSave: (data: z.infer<typeof userSchema>) => void;
-    companies: Company[];
-    deliveryCompanies: Company[];
 }
 
-export function UserFormSheet({ children, open, onOpenChange, onSave, companies, deliveryCompanies }: UserFormSheetProps) {
+export function UserFormSheet({ children, open, onOpenChange, onSave }: UserFormSheetProps) {
   
   const form = useForm<z.infer<typeof userSchema>>({
     resolver: zodResolver(userSchema),
@@ -83,11 +84,10 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, companies,
                 <SheetHeader>
                     <SheetTitle>إضافة مستخدم جديد</SheetTitle>
                     <SheetDescription>
-                        أدخل تفاصيل المستخدم الجديد ودوره في النظام.
+                        أدخل تفاصيل المستخدم الجديد ودوره في النظام. سيتم إنشاء حساب له للدخول إلى لوحة التحكم الخاصة به.
                     </SheetDescription>
                 </SheetHeader>
                 <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6">
-                    {/* Form Fields */}
                      <FormField
                         control={form.control}
                         name="name"

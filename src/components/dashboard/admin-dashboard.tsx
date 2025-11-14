@@ -235,9 +235,13 @@ export default function AdminDashboard() {
 const handleSaveUser = async (userData: any) => {
     if (!firestore) return;
     try {
+        // Create user in Firebase Auth first
         const { user: newUser } = await createUserWithEmailAndPassword(auth, userData.email, userData.password);
         
+        // Prepare a batch write for Firestore
         const batch = writeBatch(firestore);
+        
+        // 1. Create user document in /users collection
         const userDocRef = doc(firestore, 'users', newUser.uid);
         const userDocData: Partial<User> = {
             id: newUser.uid,
@@ -247,43 +251,56 @@ const handleSaveUser = async (userData: any) => {
             createdAt: serverTimestamp()
         };
 
-        if (userData.role === 'company') {
+        // 2. If user is a 'company', create a corresponding company document
+        if (userData.role === 'company' && userData.companyName) {
             const companyDocRef = doc(firestore, 'companies', newUser.uid);
             batch.set(companyDocRef, { id: newUser.uid, name: userData.companyName });
+            
+            // Add company info to the user document
             userDocData.companyId = newUser.uid;
             userDocData.companyName = userData.companyName;
         }
         
+        // Set the user document data in the batch
         batch.set(userDocRef, userDocData);
 
-        const roleCollection = `roles_${userData.role}`;
-        const roleDocRef = doc(firestore, roleCollection, newUser.uid);
-        batch.set(roleDocRef, { email: userData.email });
+        // 3. Create a role document in the corresponding roles_* collection
+        const roleCollectionPath = `roles_${userData.role}`;
+        const roleDocRef = doc(firestore, roleCollectionPath, newUser.uid);
+        batch.set(roleDocRef, { email: userData.email, createdAt: serverTimestamp() });
 
-        batch.commit()
-            .then(() => {
-                toast({
-                    title: "تم إنشاء المستخدم بنجاح",
-                    description: `تم إنشاء حساب لـ ${userData.name} بدور ${userData.role}.`,
-                });
-                setUserSheetOpen(false);
-            })
-            .catch(serverError => {
-                const permissionError = new FirestorePermissionError({
-                    path: 'users',
-                    operation: 'write',
-                    requestResourceData: { note: 'Batch operation for creating user, company, and role.' }
-                });
-                errorEmitter.emit('permission-error', permissionError);
-            });
+        // Commit the entire batch
+        await batch.commit();
+
+        toast({
+            title: "تم إنشاء المستخدم بنجاح",
+            description: `تم إنشاء حساب لـ ${userData.name} بدور ${userData.role}.`,
+        });
+        setUserSheetOpen(false);
 
     } catch (error: any) {
         // This will catch Auth errors like 'email-already-in-use'
+        // or Firestore permission errors if the batch fails.
+        let description = error.message || "حدث خطأ غير متوقع.";
+        if (error.code === 'auth/email-already-in-use') {
+            description = "هذا البريد الإلكتروني مستخدم بالفعل.";
+        }
+        
         toast({
             title: "خطأ في إنشاء المستخدم",
-            description: error.message || "حدث خطأ غير متوقع.",
+            description: description,
             variant: "destructive"
         });
+
+        // For permission errors, we could also emit a contextual error
+        if (error.code?.includes('permission-denied')) {
+             const permissionError = new FirestorePermissionError({
+                path: 'users',
+                operation: 'write',
+                requestResourceData: { note: 'Batch operation for creating user, company, and role failed.' }
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        }
     }
 };
 
@@ -408,8 +425,6 @@ const handleSaveUser = async (userData: any) => {
                           open={isUserSheetOpen}
                           onOpenChange={setUserSheetOpen}
                           onSave={handleSaveUser}
-                          companies={companies || []}
-                          deliveryCompanies={deliveryCompanies || []}
                       >
                          <Button variant="outline" onClick={() => setUserSheetOpen(true)}>
                             <Users className="me-2 h-4 w-4" />
