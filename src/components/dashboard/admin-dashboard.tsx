@@ -25,30 +25,30 @@ export default function AdminDashboard() {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [searchTerm, setSearchTerm] = React.useState("");
   const { toast } = useToast();
-  const { user: adminUser } = useUser();
+  const { user } = useUser();
   const firestore = useFirestore();
   const auth = useAuth();
   const role: Role = 'admin';
 
-  const shipmentsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'shipments') : null, [firestore]);
+  const shipmentsQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'shipments') : null, [firestore, user]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
-  const companiesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'companies') : null, [firestore]);
+  const companiesQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'companies') : null, [firestore, user]);
   const { data: companies, isLoading: companiesLoading } = useCollection<Company>(companiesQuery);
 
-  const subClientsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'subclients') : null, [firestore]);
+  const subClientsQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'subclients') : null, [firestore, user]);
   const { data: subClients } = useCollection<SubClient>(subClientsQuery);
 
-  const governoratesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'governorates') : null, [firestore]);
+  const governoratesQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'governorates') : null, [firestore, user]);
   const { data: governorates } = useCollection<Governorate>(governoratesQuery);
 
-  const deliveryCompaniesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'deliveryCompanies') : null, [firestore]);
+  const deliveryCompaniesQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'deliveryCompanies') : null, [firestore, user]);
   const { data: deliveryCompanies, isLoading: deliveryCompaniesLoading } = useCollection<Company>(deliveryCompaniesQuery);
 
-  const couriersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'couriers') : null, [firestore]);
+  const couriersQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'couriers') : null, [firestore, user]);
   const { data: couriers } = useCollection<Courier>(couriersQuery);
   
-  const usersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
+  const usersQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'users') : null, [firestore, user]);
   const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
   
   const openShipmentForm = (shipment?: Shipment) => {
@@ -382,12 +382,22 @@ export default function AdminDashboard() {
         batch.set(roleDocRef, { email: data.email, createdAt: serverTimestamp() });
         
         // The batch commit is executed with the ADMIN's permissions
-        await batch.commit();
-
-        toast({
-            title: "تم إنشاء المستخدم بنجاح!",
-            description: `تم إنشاء حساب لـ ${data.name} بدور "${data.role}".`,
-        });
+        batch.commit()
+          .then(() => {
+                toast({
+                    title: "تم إنشاء المستخدم بنجاح!",
+                    description: `تم إنشاء حساب لـ ${data.name} بدور "${data.role}".`,
+                });
+          })
+          .catch((serverError: any) => {
+            // This is where Firestore permission errors for the BATCH will be caught.
+            const permissionError = new FirestorePermissionError({
+                path: 'users', // The batch can affect multiple paths, so this is a general path.
+                operation: 'write',
+                requestResourceData: { note: 'Batch operation for creating user, company, and role failed.' }
+            });
+            errorEmitter.emit('permission-error', permissionError);
+          });
 
     } catch (error: any) {
         console.error("Error creating user:", error);
@@ -399,7 +409,7 @@ export default function AdminDashboard() {
         } else if (error.code?.includes('permission-denied')) {
              description = "خطأ في الصلاحيات. تأكد من أن قواعد الأمان تسمح للمسؤول بإنشاء المستخدمين.";
              const permissionError = new FirestorePermissionError({
-                path: 'users', // The batch can affect multiple paths, so this is a general path.
+                path: 'users', // Best guess for path
                 operation: 'write',
                 requestResourceData: { note: 'Batch operation for creating user, company, and role failed.' }
              });
@@ -566,5 +576,3 @@ export default function AdminDashboard() {
     </div>
   );
 }
-
-    
