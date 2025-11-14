@@ -93,6 +93,7 @@ export default function DashboardPage() {
             createdAt: serverTimestamp()
           };
           await setDoc(userDocRef, adminData);
+          await setDoc(doc(firestore, 'roles_admin', user.uid), {email: user.email});
           setRole('admin');
           return;
         }
