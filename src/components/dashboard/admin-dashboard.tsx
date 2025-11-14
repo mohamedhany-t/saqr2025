@@ -232,15 +232,12 @@ export default function AdminDashboard() {
     }
   };
   
-  const handleSaveUser = async (userData: any) => {
+const handleSaveUser = async (userData: any) => {
     if (!firestore) return;
     try {
-        // 1. Create the user in Firebase Auth
         const { user: newUser } = await createUserWithEmailAndPassword(auth, userData.email, userData.password);
         
         const batch = writeBatch(firestore);
-
-        // 2. Create the user document in /users
         const userDocRef = doc(firestore, 'users', newUser.uid);
         const userDocData: Partial<User> = {
             id: newUser.uid,
@@ -250,42 +247,45 @@ export default function AdminDashboard() {
             createdAt: serverTimestamp()
         };
 
-        // 3. If it's a company, create a corresponding company document
         if (userData.role === 'company') {
             const companyDocRef = doc(firestore, 'companies', newUser.uid);
-            batch.set(companyDocRef, {
-                id: newUser.uid,
-                name: userData.companyName,
-            });
-            // Link user to their own company ID
+            batch.set(companyDocRef, { id: newUser.uid, name: userData.companyName });
             userDocData.companyId = newUser.uid;
             userDocData.companyName = userData.companyName;
         }
         
         batch.set(userDocRef, userDocData);
 
-        // 4. Add user to the corresponding role collection for security rules
         const roleCollection = `roles_${userData.role}`;
         const roleDocRef = doc(firestore, roleCollection, newUser.uid);
         batch.set(roleDocRef, { email: userData.email });
 
-        // 5. Commit all writes at once
-        await batch.commit();
+        batch.commit()
+            .then(() => {
+                toast({
+                    title: "تم إنشاء المستخدم بنجاح",
+                    description: `تم إنشاء حساب لـ ${userData.name} بدور ${userData.role}.`,
+                });
+                setUserSheetOpen(false);
+            })
+            .catch(serverError => {
+                const permissionError = new FirestorePermissionError({
+                    path: 'users',
+                    operation: 'write',
+                    requestResourceData: { note: 'Batch operation for creating user, company, and role.' }
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            });
 
-        toast({
-            title: "تم إنشاء المستخدم بنجاح",
-            description: `تم إنشاء حساب لـ ${userData.name} بدور ${userData.role}.`,
-        });
-        setUserSheetOpen(false);
     } catch (error: any) {
-        console.error("Error creating user:", error);
+        // This will catch Auth errors like 'email-already-in-use'
         toast({
             title: "خطأ في إنشاء المستخدم",
             description: error.message || "حدث خطأ غير متوقع.",
             variant: "destructive"
         });
     }
-  };
+};
 
   const filteredShipments = React.useMemo(() => {
     if (!shipments) return [];
