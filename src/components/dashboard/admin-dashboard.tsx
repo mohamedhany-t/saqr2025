@@ -15,7 +15,7 @@ import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser, useAuth } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc } from "firebase/firestore";
-import { createUserWithEmailAndPassword, getAuth, initializeAuth, indexedDBLocalPersistence } from 'firebase/auth';
+import { createUserWithEmailAndPassword, initializeAuth, indexedDBLocalPersistence } from 'firebase/auth';
 
 
 export default function AdminDashboard() {
@@ -30,25 +30,46 @@ export default function AdminDashboard() {
   const auth = useAuth();
   const role: Role = 'admin';
 
-  const shipmentsQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'shipments') : null, [firestore, user]);
+  const shipmentsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'shipments'));
+  }, [firestore, user]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
-  const companiesQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'companies') : null, [firestore, user]);
+  const companiesQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'companies'));
+  }, [firestore, user]);
   const { data: companies, isLoading: companiesLoading } = useCollection<Company>(companiesQuery);
 
-  const subClientsQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'subclients') : null, [firestore, user]);
+  const subClientsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'subclients'));
+  }, [firestore, user]);
   const { data: subClients } = useCollection<SubClient>(subClientsQuery);
 
-  const governoratesQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'governorates') : null, [firestore, user]);
+  const governoratesQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'governorates'));
+  }, [firestore, user]);
   const { data: governorates } = useCollection<Governorate>(governoratesQuery);
 
-  const deliveryCompaniesQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'deliveryCompanies') : null, [firestore, user]);
+  const deliveryCompaniesQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'deliveryCompanies'));
+  }, [firestore, user]);
   const { data: deliveryCompanies, isLoading: deliveryCompaniesLoading } = useCollection<Company>(deliveryCompaniesQuery);
 
-  const couriersQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'couriers') : null, [firestore, user]);
+  const couriersQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'couriers'));
+  }, [firestore, user]);
   const { data: couriers } = useCollection<Courier>(couriersQuery);
   
-  const usersQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'users') : null, [firestore, user]);
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'users'));
+  }, [firestore, user]);
   const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
   
   const openShipmentForm = (shipment?: Shipment) => {
@@ -56,84 +77,12 @@ export default function AdminDashboard() {
     setShipmentSheetOpen(true);
   };
   
-  const handleSeedData = async () => {
-    if (!firestore) return;
-    toast({ title: "جاري إضافة البيانات الوهمية...", description: "قد تستغرق هذه العملية بضع لحظات." });
-
-    try {
-        const batch = writeBatch(firestore);
-
-        // Seed Companies and their users
-        for (let i = 1; i <= 5; i++) {
-            const companyName = `الشركة الوهمية ${i}`;
-            const email = `company${i}@example.com`;
-            const uid = `mock_company_uid_${i}`;
-
-            // Company doc
-            const companyRef = doc(firestore, 'companies', uid);
-            batch.set(companyRef, { id: uid, name: companyName });
-
-            // User doc
-            const userRef = doc(firestore, 'users', uid);
-            batch.set(userRef, {
-                id: uid,
-                email: email,
-                name: companyName,
-                role: 'company',
-                companyId: uid,
-                companyName: companyName,
-                createdAt: serverTimestamp(),
-            });
-
-            // Role doc
-            const roleRef = doc(firestore, 'roles_company', uid);
-            batch.set(roleRef, { email: email, createdAt: serverTimestamp() });
-        }
-
-        // Seed Couriers and their users
-        for (let i = 1; i <= 10; i++) {
-            const courierName = `المندوب الوهمي ${i}`;
-            const email = `courier${i}@example.com`;
-            const uid = `mock_courier_uid_${i}`;
-
-            // Courier doc
-             const courierRef = doc(firestore, 'couriers', uid);
-             batch.set(courierRef, { id: uid, name: courierName, deliveryCompanyId: 'mock_delivery_co' });
-
-
-            // User doc
-            const userRef = doc(firestore, 'users', uid);
-            batch.set(userRef, {
-                id: uid,
-                email: email,
-                name: courierName,
-                role: 'courier',
-                createdAt: serverTimestamp(),
-            });
-
-            // Role doc
-            const roleRef = doc(firestore, 'roles_courier', uid);
-            batch.set(roleRef, { email: email, createdAt: serverTimestamp() });
-        }
-        
-         // Seed Governorates and Delivery Companies
-        const govs = ["القاهرة", "الجيزة", "الأسكندرية", "أسوان", "الأقصر", "البحيرة", "المنوفية", "الشرقية"];
-        govs.forEach(g => {
-            const govRef = doc(collection(firestore, 'governorates'));
-            batch.set(govRef, { id: govRef.id, name: g });
-        });
-
-        const delivCoRef = doc(firestore, 'deliveryCompanies', 'mock_delivery_co');
-        batch.set(delivCoRef, { id: 'mock_delivery_co', name: 'شركة توصيل وهمية' });
-
-
-        await batch.commit();
-        toast({ title: "اكتملت العملية بنجاح", description: "تمت إضافة 5 شركات و 10 مناديب بنجاح. قم بتحديث الصفحة." });
-
-    } catch (error: any) {
-        console.error("Error seeding data:", error);
-        toast({ variant: "destructive", title: "حدث خطأ أثناء إضافة البيانات", description: error.message });
-    }
+  const handleSeedData = () => {
+    toast({ 
+        title: "هذه الميزة للـ Node.js فقط", 
+        description: "يرجى تشغيل السكربت `admin-seed.js` من الـ terminal باستخدام `npm run seed`.",
+        variant: "destructive"
+    });
   }
 
 
