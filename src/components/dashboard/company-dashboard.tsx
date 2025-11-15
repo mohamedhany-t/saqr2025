@@ -34,7 +34,7 @@ export default function CompanyDashboard() {
   const companiesQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'companies') : null, [firestore, user]);
   const { data: companies } = useCollection<Company>(companiesQuery);
 
-  const subClientsQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'subclients') : null, [firestore, user]);
+  const subClientsQuery = useMemoFirebase(() => firestore && user ? query(collection(firestore, 'subclients'), where("companyId", "==", user.uid)) : null, [firestore, user]);
   const { data: subClients } = useCollection<SubClient>(subClientsQuery);
 
   const governoratesQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'governorates') : null, [firestore, user]);

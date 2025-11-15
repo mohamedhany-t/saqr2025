@@ -1,7 +1,7 @@
 
 "use client";
 import React from "react";
-import { PlusCircle, FileUp, Users, Database } from "lucide-react";
+import { PlusCircle, FileUp, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
@@ -559,7 +559,7 @@ export default function AdminDashboard() {
                           onSave={handleSaveUser}
                           deliveryCompanies={deliveryCompanies || []}
                        >
-                            <Button size="sm" className="h-8 gap-1">
+                            <Button size="sm" className="h-8 gap-1" onClick={() => setIsUserSheetOpen(true)}>
                                 <PlusCircle className="h-3.5 w-3.5" />
                                 <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
                                   إضافة مستخدم

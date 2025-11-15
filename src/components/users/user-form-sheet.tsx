@@ -45,7 +45,7 @@ const userSchema = z.object({
 
 
 type UserFormSheetProps = {
-    children: React.ReactNode;
+    children?: React.ReactNode;
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSave: (data: z.infer<typeof userSchema>) => void;
