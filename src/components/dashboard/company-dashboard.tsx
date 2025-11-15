@@ -31,7 +31,10 @@ export default function CompanyDashboard() {
 
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
-  const companiesQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'companies') : null, [firestore, user]);
+  const companiesQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'companies');
+  }, [firestore, user]);
   const { data: companies } = useCollection<Company>(companiesQuery);
 
   const subClientsQuery = useMemoFirebase(() => {
@@ -40,13 +43,22 @@ export default function CompanyDashboard() {
   }, [firestore, user]);
   const { data: subClients } = useCollection<SubClient>(subClientsQuery);
 
-  const governoratesQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'governorates') : null, [firestore, user]);
+  const governoratesQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'governorates');
+  }, [firestore, user]);
   const { data: governorates } = useCollection<Governorate>(governoratesQuery);
 
-  const deliveryCompaniesQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'deliveryCompanies') : null, [firestore, user]);
+  const deliveryCompaniesQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'deliveryCompanies');
+  }, [firestore, user]);
   const { data: deliveryCompanies } = useCollection<Company>(deliveryCompaniesQuery);
 
-  const couriersQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'couriers') : null, [firestore, user]);
+  const couriersQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'couriers');
+  }, [firestore, user]);
   const { data: couriers } = useCollection<Courier>(couriersQuery);
 
   const openShipmentForm = (shipment?: Shipment) => {
