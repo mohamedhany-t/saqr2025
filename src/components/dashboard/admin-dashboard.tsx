@@ -423,9 +423,12 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
     return companies.map(company => {
         const companyShipments = shipments.filter(s => s.companyId === company.id);
         const totalRevenue = companyShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
+        const totalCommission = companyShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
+        const netRevenue = totalRevenue - totalCommission;
         return {
             ...company,
             totalRevenue,
+            netRevenue,
             shipmentCount: companyShipments.length
         }
     })
@@ -586,12 +589,20 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold">
+                                    <div className="text-xl font-bold">
                                         {company.totalRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
                                     </div>
                                     <p className="text-xs text-muted-foreground">
-                                        من إجمالي {company.shipmentCount} شحنة
+                                        إجمالي الإيرادات من {company.shipmentCount} شحنة
                                     </p>
+                                    <div className="mt-2 pt-2 border-t">
+                                        <div className="text-lg font-bold text-primary">
+                                            {company.netRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            المبلغ المستحق للدفع (بعد العمولات)
+                                        </p>
+                                    </div>
                                 </CardContent>
                             </Card>
                         ))}
