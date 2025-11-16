@@ -37,6 +37,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSignedIn();
       allow update: if isOwner(userId);
+      allow create: if isAdmin();
     }
     
     match /companies/{companyId} {
