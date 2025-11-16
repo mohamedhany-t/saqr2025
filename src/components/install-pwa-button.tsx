@@ -82,7 +82,6 @@ export function InstallPwaButton() {
       size="icon"
       onClick={handleInstallClick}
       aria-label="Install App"
-      className="hidden md:inline-flex"
     >
       <Download className="h-4 w-4" />
     </Button>
