@@ -327,7 +327,7 @@ export const getColumns = (
 ]
 
 
-export function ShipmentsTable({ shipments, isLoading, governorates, companies, couriers, subClients, deliveryCompanies, onEdit, role }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[], companies: Company[], couriers: Courier[], subClients: SubClient[], deliveryCompanies: Company[], onEdit: (shipment: Shipment) => void, role: Role | null }) {
+export function ShipmentsTable({ shipments, isLoading, governorates, companies, couriers, subClients, deliveryCompanies, onEdit, role, onBulkUpdate }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[], companies: Company[], couriers: Courier[], subClients: SubClient[], deliveryCompanies: Company[], onEdit: (shipment: Shipment) => void, role: Role | null, onBulkUpdate?: (selectedRows: Shipment[], update: Partial<Shipment>) => void }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -401,7 +401,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     });
   }
 
-  const handleBulkUpdate = (update: Partial<Shipment>) => {
+  const handleGenericBulkUpdate = (update: Partial<Shipment>) => {
     if (!firestore) return;
     const selectedRows = table.getFilteredSelectedRowModel().rows;
     if (selectedRows.length === 0) {
@@ -409,24 +409,18 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
         return;
     }
     
+    // If a role-specific handler is provided (e.g., for couriers), use it.
+    if (onBulkUpdate) {
+        onBulkUpdate(selectedRows.map(row => row.original), update);
+        table.resetRowSelection();
+        return;
+    }
+
+    // Generic handler primarily for admin
     const batch = writeBatch(firestore);
     selectedRows.forEach(row => {
         const docRef = doc(firestore, "shipments", row.original.id);
-        
-        let finalUpdate: { [key: string]: any } = { ...update, updatedAt: serverTimestamp() };
-
-        if (role === 'courier') {
-            const allowedUpdates: Partial<Shipment> = {};
-            if (update.status) allowedUpdates.status = update.status;
-            if (update.reason) allowedUpdates.reason = update.reason;
-            finalUpdate = { ...allowedUpdates, updatedAt: serverTimestamp() };
-
-            if (Object.keys(allowedUpdates).length === 0) {
-                toast({ title: "ليس لديك صلاحية لتحديث هذه الحقول", variant: "destructive" });
-                return;
-            }
-        }
-        
+        const finalUpdate: { [key: string]: any } = { ...update, updatedAt: serverTimestamp() };
         batch.update(docRef, finalUpdate);
     });
 
@@ -527,7 +521,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
                             {Object.entries(statusText).filter(([key]) => isNaN(parseInt(key))).map(([statusValue, statusLabel]) => (
-                                 <DropdownMenuItem key={statusValue} onSelect={() => handleBulkUpdate({ status: statusValue as ShipmentStatus })}>
+                                 <DropdownMenuItem key={statusValue} onSelect={() => handleGenericBulkUpdate({ status: statusValue as ShipmentStatus })}>
                                      {statusLabel}
                                  </DropdownMenuItem>
                             ))}
@@ -542,7 +536,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
                             {deliveryCompanies.map(company => (
-                                <DropdownMenuItem key={company.id} onSelect={() => handleBulkUpdate({ assignedCompanyId: company.id })}>
+                                <DropdownMenuItem key={company.id} onSelect={() => handleGenericBulkUpdate({ assignedCompanyId: company.id })}>
                                     {company.name}
                                 </DropdownMenuItem>
                             ))}
@@ -557,7 +551,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
                            {couriers.map(courier => (
-                                <DropdownMenuItem key={courier.id} onSelect={() => handleBulkUpdate({ assignedCourierId: courier.id })}>
+                                <DropdownMenuItem key={courier.id} onSelect={() => handleGenericBulkUpdate({ assignedCourierId: courier.id })}>
                                     {courier.name}
                                 </DropdownMenuItem>
                             ))}

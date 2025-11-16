@@ -9,7 +9,7 @@ import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { Header } from "@/components/dashboard/header";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
-import { collection, serverTimestamp, doc, query, where, updateDoc, getDoc } from "firebase/firestore";
+import { collection, serverTimestamp, doc, query, where, updateDoc, getDoc, writeBatch } from "firebase/firestore";
 
 export default function CourierDashboard() {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
@@ -20,8 +20,13 @@ export default function CourierDashboard() {
   const { user } = useUser();
   const role: Role = 'courier';
 
-  // Memoize all Firestore queries to prevent re-renders and unnecessary reads.
-  // Queries now depend on `user` and `firestore` and only run when they are available.
+  const userQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+  const { data: courierUser } = useDoc<User>(userQuery);
+
+
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, 'shipments'), where("assignedCourierId", "==", user.uid));
@@ -68,9 +73,35 @@ export default function CourierDashboard() {
     setEditingShipment(shipment);
     setShipmentSheetOpen(true);
   };
+  
+  const calculateCommissionAndPaidAmount = (status: ShipmentStatus, totalAmount: number, collectedAmount: number, commissionRate: number) => {
+    const update: { paidAmount?: number; courierCommission?: number, collectedAmount?: number } = {};
+    switch (status) {
+        case 'Delivered':
+            update.paidAmount = totalAmount;
+            update.courierCommission = commissionRate;
+            update.collectedAmount = totalAmount; 
+            break;
+        case 'Partially Delivered':
+            update.paidAmount = collectedAmount;
+            update.courierCommission = commissionRate;
+            break;
+        case 'Evasion':
+            update.paidAmount = 0;
+            update.courierCommission = commissionRate;
+            update.collectedAmount = 0;
+            break;
+        default: // Returned, Cancelled, etc.
+            update.paidAmount = 0;
+            update.courierCommission = 0;
+            update.collectedAmount = 0;
+            break;
+    }
+    return update;
+  }
 
   const handleSaveShipment = async (shipment: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
-    if (!firestore || !id || !user) return;
+    if (!firestore || !id || !user || !courierUser) return;
 
     const originalShipmentDocSnap = await getDoc(doc(firestore, 'shipments', id));
     if (!originalShipmentDocSnap.exists()) {
@@ -79,8 +110,7 @@ export default function CourierDashboard() {
     }
     const originalShipmentData = originalShipmentDocSnap.data() as Shipment;
 
-    const courierUserDoc = await getDoc(doc(firestore, 'users', user.uid));
-    const commissionRate = courierUserDoc.data()?.commissionRate || 0;
+    const commissionRate = courierUser.commissionRate || 0;
 
     const dataToUpdate: { [key: string]: any } = {
         updatedAt: serverTimestamp(),
@@ -89,38 +119,14 @@ export default function CourierDashboard() {
     // Always include status, reason, and collectedAmount if they are in the form data
     if (shipment.status !== undefined) dataToUpdate.status = shipment.status;
     if (shipment.reason !== undefined) dataToUpdate.reason = shipment.reason;
-    if (shipment.collectedAmount !== undefined) dataToUpdate.collectedAmount = Number(shipment.collectedAmount);
-
+    const collectedAmount = shipment.collectedAmount !== undefined ? Number(shipment.collectedAmount) : originalShipmentData.collectedAmount || 0;
+    if (shipment.collectedAmount !== undefined) dataToUpdate.collectedAmount = collectedAmount;
 
     const newStatus = shipment.status || originalShipmentData.status;
 
     // Recalculate paid amount and commission based on the new status
-    switch (newStatus) {
-        case 'Delivered':
-            dataToUpdate.paidAmount = originalShipmentData.totalAmount;
-            dataToUpdate.courierCommission = commissionRate;
-            dataToUpdate.collectedAmount = originalShipmentData.totalAmount; // Ensure collected is full
-            break;
-        case 'Partially Delivered':
-            const collectedAmount = Number(shipment.collectedAmount) || 0;
-            dataToUpdate.paidAmount = collectedAmount;
-            dataToUpdate.courierCommission = commissionRate; // Commission is earned
-            break;
-        case 'Evasion':
-            dataToUpdate.paidAmount = 0;
-            dataToUpdate.courierCommission = commissionRate; // Commission is earned
-            dataToUpdate.collectedAmount = 0;
-            break;
-        case 'Returned':
-        case 'Cancelled':
-        case 'Pending':
-        case 'In-Transit':
-            dataToUpdate.paidAmount = 0;
-            dataToUpdate.courierCommission = 0;
-            dataToUpdate.collectedAmount = 0;
-            break;
-    }
-
+    const calculatedFields = calculateCommissionAndPaidAmount(newStatus, originalShipmentData.totalAmount, collectedAmount, commissionRate);
+    Object.assign(dataToUpdate, calculatedFields);
 
     if (Object.keys(dataToUpdate).length <= 1) { // Only updatedAt
         toast({ title: "لا توجد تغييرات للحفظ", variant: "default"});
@@ -147,6 +153,51 @@ export default function CourierDashboard() {
         errorEmitter.emit('permission-error', permissionError);
       });
   };
+
+  const handleBulkUpdateShipments = (selectedRows: Shipment[], update: Partial<Shipment>) => {
+    if (!firestore || !courierUser) return;
+    if (selectedRows.length === 0) {
+        toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
+        return;
+    }
+
+    const commissionRate = courierUser.commissionRate || 0;
+    const batch = writeBatch(firestore);
+
+    selectedRows.forEach(row => {
+        const docRef = doc(firestore, "shipments", row.id);
+        
+        let finalUpdate: { [key: string]: any } = { updatedAt: serverTimestamp() };
+        
+        // Only allow status and reason from the bulk update dropdown
+        const allowedUpdates: Partial<Shipment> = {};
+        if (update.status) allowedUpdates.status = update.status;
+        if (update.reason) allowedUpdates.reason = update.reason;
+
+        if (Object.keys(allowedUpdates).length === 0) {
+            return; // Skip if no valid fields to update
+        }
+
+        const newStatus = allowedUpdates.status || row.status;
+        const calculatedFields = calculateCommissionAndPaidAmount(newStatus, row.totalAmount, row.collectedAmount || 0, commissionRate);
+
+        Object.assign(finalUpdate, allowedUpdates, calculatedFields);
+        
+        batch.update(docRef, finalUpdate);
+    });
+
+    batch.commit().then(() => {
+        toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
+    }).catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+            path: 'shipments',
+            operation: 'update',
+            requestResourceData: { update, note: `Bulk update of ${selectedRows.length} documents.` }
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
+};
+
   
   const filteredShipments = React.useMemo(() => {
     if (!shipments) return [];
@@ -184,6 +235,7 @@ export default function CourierDashboard() {
               couriers={couriers || []}
               subClients={subClients || []}
               onEdit={openShipmentForm}
+              onBulkUpdate={handleBulkUpdateShipments}
               role={role}
             />
           </TabsContent>
@@ -197,6 +249,7 @@ export default function CourierDashboard() {
                 couriers={couriers || []}
                 subClients={subClients || []}
                 onEdit={openShipmentForm}
+                onBulkUpdate={handleBulkUpdateShipments}
                 role={role}
              />
           </TabsContent>
@@ -210,6 +263,7 @@ export default function CourierDashboard() {
                 couriers={couriers || []}
                 subClients={subClients || []}
                 onEdit={openShipmentForm}
+                onBulkUpdate={handleBulkUpdateShipments}
                 role={role}
              />
           </TabsContent>
@@ -223,6 +277,7 @@ export default function CourierDashboard() {
                 couriers={couriers || []}
                 subClients={subClients || []}
                 onEdit={openShipmentForm}
+                onBulkUpdate={handleBulkUpdateShipments}
                 role={role}
              />
           </TabsContent>
