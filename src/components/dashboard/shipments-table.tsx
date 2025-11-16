@@ -113,7 +113,8 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role }) => {
   const { toast } = useToast();
 
   const handlePrint = () => {
-    const printUrl = `/print/${shipment.id}`;
+    if (role === 'courier') return; // Couriers can't print
+    const printUrl = `/print/bulk?ids=${shipment.id}`;
     window.open(printUrl, '_blank', 'width=800,height=600');
   };
 
@@ -131,9 +132,9 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role }) => {
         <DropdownMenuItem onClick={() => onEdit(shipment)}>
           <Pencil className="me-2 h-4 w-4" /> تعديل
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handlePrint}>
+        {role !== 'courier' && <DropdownMenuItem onClick={handlePrint}>
           <Printer className="me-2 h-4 w-4" /> طباعة الملصق
-        </DropdownMenuItem>
+        </DropdownMenuItem>}
         <DropdownMenuItem disabled>
           <FileText className="me-2 h-4 w-4" /> تفاصيل
         </DropdownMenuItem>
@@ -517,10 +518,10 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                     <span className="text-sm text-muted-foreground hidden lg:inline">
                         {table.getFilteredSelectedRowModel().rows.length} شحنات محددة
                     </span>
-                    <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleBulkPrint}>
+                    {role !== 'courier' && <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleBulkPrint}>
                         <Printer className="h-3.5 w-3.5" />
                         <span className="sr-only sm:not-sr-only">طباعة المحدد</span>
-                    </Button>
+                    </Button>}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                              <Button variant="outline" size="sm" className="h-8 gap-1">
