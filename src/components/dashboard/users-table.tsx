@@ -80,6 +80,18 @@ export const getColumns = (companies: Company[], deliveryCompanies: Company[]): 
         )
     },
   },
+    {
+    accessorKey: "commissionRate",
+    header: "العمولة",
+    cell: ({ row }) => {
+        const user = row.original;
+        if (user.role === 'courier') {
+            const rate = user.commissionRate || 0;
+            return <div>{rate.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div>;
+        }
+        return <div>N/A</div>;
+    },
+  },
   {
     accessorKey: "companyName",
     header: "الشركة",
@@ -219,5 +231,3 @@ export function UsersTable({ users, isLoading, companies, deliveryCompanies }: {
     </div>
   )
 }
-
-    

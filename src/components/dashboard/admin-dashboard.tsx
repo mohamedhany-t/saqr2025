@@ -1,8 +1,9 @@
 
 "use client";
 import React from "react";
-import { PlusCircle, FileUp, Database } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
 import type { Role, Shipment, Company, SubClient, Governorate, Courier, User } from "@/lib/types";
@@ -303,7 +304,8 @@ export default function AdminDashboard() {
             batch.set(courierRef, {
                 id: newUser.uid,
                 name: data.name,
-                deliveryCompanyId: data.deliveryCompanyId || null
+                deliveryCompanyId: data.deliveryCompanyId || null,
+                commissionRate: data.commissionRate || 0,
             });
         }
 
@@ -320,8 +322,13 @@ export default function AdminDashboard() {
             userPayload.companyId = companyId;
             userPayload.companyName = companyName;
         }
-        if (data.role === 'courier' && data.deliveryCompanyId) {
-            userPayload.deliveryCompanyId = data.deliveryCompanyId;
+        if (data.role === 'courier') {
+             if (data.deliveryCompanyId) {
+                userPayload.deliveryCompanyId = data.deliveryCompanyId;
+            }
+             if (data.commissionRate) {
+                userPayload.commissionRate = data.commissionRate;
+            }
         }
         batch.set(userDocRef, userPayload);
 
@@ -390,6 +397,23 @@ export default function AdminDashboard() {
     );
   }, [shipments, searchTerm]);
 
+  const courierDues = React.useMemo(() => {
+    if (!users || !shipments) return [];
+    const courierUsers = users.filter(u => u.role === 'courier');
+    return courierUsers.map(courier => {
+        const courierShipments = shipments.filter(s => s.assignedCourierId === courier.id);
+        const totalCollected = courierShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
+        const totalCommission = courierShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
+        const netDue = totalCollected - totalCommission;
+        return {
+            ...courier,
+            totalCollected,
+            totalCommission,
+            netDue
+        }
+    })
+  }, [users, shipments]);
+
 
   return (
     <div className="min-h-screen w-full bg-muted/30">
@@ -432,7 +456,7 @@ export default function AdminDashboard() {
                 governorates={governorates || []}
                 companies={companies || []}
                 subClients={subClients || []}
-                couriers={couriers || []}
+                couriers={users?.filter(u => u.role === 'courier') || []}
                 role={role}
               >
                  <Button size="sm" className="h-8 gap-1" onClick={() => openShipmentForm()}>
@@ -498,6 +522,32 @@ export default function AdminDashboard() {
              />
           </TabsContent>
           <TabsContent value="management">
+                <div className="mt-8">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-headline font-semibold">المبالغ المستحقة على المناديب</h2>
+                  </div>
+                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {courierDues.map(courier => (
+                            <Card key={courier.id}>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                        <UserIcon className="h-4 w-4 text-muted-foreground" />
+                                        {courier.name}
+                                    </CardTitle>
+                                    <Wallet className="h-4 w-4 text-muted-foreground" />
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-bold">
+                                        {courier.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        إجمالي التحصيل: {courier.totalCollected.toLocaleString('ar-EG')} - إجمالي العمولات: {courier.totalCommission.toLocaleString('ar-EG')}
+                                    </p>
+                                </CardContent>
+                            </Card>
+                        ))}
+                   </div>
+              </div>
               <div className="mt-8">
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين</h2>

@@ -24,7 +24,7 @@ import {
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import type { Shipment, ShipmentStatus, Governorate, Company, SubClient, Courier, Role } from '@/lib/types';
+import type { Shipment, ShipmentStatus, Governorate, Company, SubClient, Courier, Role, User } from '@/lib/types';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '../ui/textarea';
 
@@ -38,12 +38,14 @@ const shipmentSchema = z.object({
   address: z.string().min(1, "العنوان مطلوب"),
   totalAmount: z.coerce.number().min(0, "المبلغ يجب أن يكون إيجابي"),
   paidAmount: z.coerce.number().optional(),
-  status: z.enum(["Pending", "In-Transit", "Delivered", "Cancelled", "Returned"]),
+  status: z.enum(["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion", "Cancelled", "Returned"]),
   companyId: z.string().optional(),
   subClientId: z.string().optional().nullable(),
   reason: z.string().optional(),
   deliveryDate: z.date().optional(),
   assignedCourierId: z.string().optional(),
+  collectedAmount: z.coerce.number().optional(),
+  courierCommission: z.coerce.number().optional(),
 });
 
 
@@ -56,7 +58,7 @@ type ShipmentFormSheetProps = {
     governorates: Governorate[];
     companies: Company[];
     subClients: SubClient[];
-    couriers: Courier[];
+    couriers: User[]; // Use User type which includes commissionRate
     role: Role | null;
 }
 
@@ -95,12 +97,34 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   const onSubmit = (values: z.infer<typeof shipmentSchema>) => {
     const dataToSave = Object.fromEntries(
         Object.entries(values).filter(([_, v]) => v !== undefined)
-    );
+    ) as Partial<Shipment>;
+
+    if (isCourier) {
+        const courier = couriers.find(c => c.id === shipment?.assignedCourierId);
+        const commissionRate = courier?.commissionRate || 0;
+        
+        if (values.status === 'Delivered') {
+            dataToSave.courierCommission = commissionRate;
+            dataToSave.paidAmount = shipment?.totalAmount;
+        } else if (values.status === 'Partially Delivered') {
+            dataToSave.courierCommission = commissionRate;
+            dataToSave.paidAmount = values.collectedAmount;
+        } else if (values.status === 'Evasion') {
+            dataToSave.courierCommission = commissionRate;
+            dataToSave.paidAmount = 0;
+        } else {
+             dataToSave.courierCommission = 0;
+             dataToSave.paidAmount = 0;
+        }
+    }
+
+
     onSave(dataToSave as Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, shipment?.id);
   };
   
   const selectedCompanyId = form.watch("companyId");
   const filteredSubClients = subClients.filter(sc => sc.companyId === selectedCompanyId);
+  const selectedStatus = form.watch("status");
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -260,6 +284,8 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                         <SelectItem value="Pending">قيد الانتظار</SelectItem>
                                         <SelectItem value="In-Transit">قيد التوصيل</SelectItem>
                                         <SelectItem value="Delivered">تم التوصيل</SelectItem>
+                                        <SelectItem value="Partially Delivered">تم التوصيل جزئياً</SelectItem>
+                                        <SelectItem value="Evasion">تهرب</SelectItem>
                                         <SelectItem value="Cancelled">تم الإلغاء</SelectItem>
                                         <SelectItem value="Returned">مرتجع</SelectItem>
                                     </SelectContent>
@@ -268,6 +294,21 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />
+                    {isCourier && selectedStatus === 'Partially Delivered' && (
+                        <FormField
+                            control={form.control}
+                            name="collectedAmount"
+                            render={({ field }) => (
+                                <FormItem className="grid grid-cols-4 items-center gap-4">
+                                    <FormLabel className="text-right">المبلغ المحصّل</FormLabel>
+                                    <FormControl className="col-span-3">
+                                        <Input type="number" {...field} placeholder="أدخل المبلغ المحصل" />
+                                    </FormControl>
+                                    <FormMessage className="col-span-4" />
+                                </FormItem>
+                            )}
+                        />
+                    )}
                      <FormField
                         control={form.control}
                         name="reason"

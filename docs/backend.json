@@ -41,6 +41,10 @@
           "type": "string",
           "format": "date-time",
           "description": "The timestamp when the user account was created."
+        },
+        "commissionRate": {
+            "type": "number",
+            "description": "Fixed commission rate for couriers."
         }
       },
       "required": ["id", "email", "role", "createdAt"]
@@ -98,7 +102,8 @@
         },
         "status": {
           "type": "string",
-          "description": "Current status of the shipment."
+          "description": "Current status of the shipment.",
+          "enum": ["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion", "Cancelled", "Returned"]
         },
         "reason": {
           "type": "string",
@@ -111,6 +116,14 @@
         "paidAmount": {
           "type": "number",
           "description": "Amount already paid for the shipment."
+        },
+        "collectedAmount": {
+            "type": "number",
+            "description": "The actual amount collected by the courier, used for partial deliveries."
+        },
+        "courierCommission": {
+            "type": "number",
+            "description": "The commission earned by the courier for this specific shipment."
         },
         "assignedCompanyId": {
           "type": "string",
@@ -218,6 +231,10 @@
         "deliveryCompanyId": {
           "type": "string",
           "description": "Reference to DeliveryCompany. (Relationship: DeliveryCompany 1:N Courier)"
+        },
+        "commissionRate": {
+            "type": "number",
+            "description": "Fixed commission amount per delivered or evaded shipment."
         }
       },
       "required": [
@@ -419,5 +436,3 @@
     "reasoning": "The Firestore structure is designed to support the AlSaqr Logistics application, focusing on secure, scalable, and easily maintainable data access patterns. 'Client' has been replaced with 'Company' for clarity. A new 'deliveryCompanies' collection is added for logistics partners. The core principle remains Authorization Independence, achieved through denormalization, avoiding `get()` calls in security rules.  We leverage Structural Segregation to maintain homogeneous security requirements within collections. The structure uses path-based ownership and membership maps for authorization. All user roles are stored directly in the database."
   }
 }
-
-    

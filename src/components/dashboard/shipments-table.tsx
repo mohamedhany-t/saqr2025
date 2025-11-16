@@ -32,7 +32,9 @@ import {
     Trash2,
     User,
     Building,
-    CheckSquare
+    CheckSquare,
+    AlertTriangle,
+    MinusCircle
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -66,6 +68,8 @@ const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
     Pending: <Hourglass className="h-4 w-4 text-yellow-500" />,
     "In-Transit": <Truck className="h-4 w-4 text-blue-500" />,
     Delivered: <CheckCircle2 className="h-4 w-4 text-green-500" />,
+    "Partially Delivered": <MinusCircle className="h-4 w-4 text-green-600" />,
+    Evasion: <AlertTriangle className="h-4 w-4 text-purple-500" />,
     Cancelled: <XCircle className="h-4 w-4 text-red-500" />,
     Returned: <Archive className="h-4 w-4 text-orange-500" />,
 }
@@ -74,6 +78,8 @@ const statusVariants: Record<ShipmentStatus, "default" | "secondary" | "destruct
     Pending: "outline",
     "In-Transit": "secondary",
     Delivered: "default",
+    "Partially Delivered": "default",
+    Evasion: "secondary",
     Cancelled: "destructive",
     Returned: "secondary",
 }
@@ -82,6 +88,8 @@ const statusText: Record<string, string> = {
     Pending: 'قيد الانتظار',
     'In-Transit': 'قيد التوصيل',
     Delivered: 'تم التوصيل',
+    'Partially Delivered': 'تم التوصيل جزئياً',
+    Evasion: 'تهرب',
     Cancelled: 'تم الإلغاء',
     Returned: 'مرتجع',
     'مؤجل': 'Pending',

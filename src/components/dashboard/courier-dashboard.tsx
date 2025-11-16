@@ -3,13 +3,13 @@
 import React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, SubClient, Governorate, Courier, ShipmentStatus } from "@/lib/types";
+import type { Role, Shipment, Company, SubClient, Governorate, Courier, ShipmentStatus, User } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { Header } from "@/components/dashboard/header";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
-import { collection, serverTimestamp, doc, query, where, updateDoc } from "firebase/firestore";
+import { collection, serverTimestamp, doc, query, where, updateDoc, getDoc } from "firebase/firestore";
 
 export default function CourierDashboard() {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
@@ -24,43 +24,84 @@ export default function CourierDashboard() {
     if (!firestore || !user) return null;
     return query(collection(firestore, 'shipments'), where("assignedCourierId", "==", user.uid));
   }, [firestore, user]);
-
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
-  const companiesQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'companies') : null, [firestore, user]);
+  const companiesQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'companies');
+  }, [firestore, user]);
   const { data: companies } = useCollection<Company>(companiesQuery);
 
-  const subClientsQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'subclients') : null, [firestore, user]);
+  const subClientsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'subclients');
+  }, [firestore, user]);
   const { data: subClients } = useCollection<SubClient>(subClientsQuery);
 
-  const governoratesQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'governorates') : null, [firestore, user]);
+  const governoratesQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'governorates');
+  }, [firestore, user]);
   const { data: governorates } = useCollection<Governorate>(governoratesQuery);
 
-  const deliveryCompaniesQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'deliveryCompanies') : null, [firestore, user]);
+  const deliveryCompaniesQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'deliveryCompanies');
+  }, [firestore, user]);
   const { data: deliveryCompanies } = useCollection<Company>(deliveryCompaniesQuery);
 
-  const couriersQuery = useMemoFirebase(() => firestore && user ? collection(firestore, 'couriers') : null, [firestore, user]);
+  const couriersQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'couriers');
+  }, [firestore, user]);
   const { data: couriers } = useCollection<Courier>(couriersQuery);
+  
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'users'));
+  }, [firestore, user]);
+  const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
 
   const openShipmentForm = (shipment?: Shipment) => {
     setEditingShipment(shipment);
     setShipmentSheetOpen(true);
   };
 
-  const handleSaveShipment = (shipment: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
-    if (!firestore || !id) return;
+ const handleSaveShipment = async (shipment: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
+    if (!firestore || !id || !user) return;
 
-    // Couriers can only update status and reason
-    const dataToUpdate: { status?: ShipmentStatus; reason?: string; updatedAt: any } = {
+    const courierUserDoc = await getDoc(doc(firestore, 'users', user.uid));
+    const commissionRate = courierUserDoc.data()?.commissionRate || 0;
+
+    const dataToUpdate: { [key: string]: any } = {
         updatedAt: serverTimestamp(),
     };
+
     if (shipment.status) {
         dataToUpdate.status = shipment.status;
+        
+        if (shipment.status === 'Delivered') {
+            const originalShipmentDoc = await getDoc(doc(firestore, 'shipments', id));
+            dataToUpdate.paidAmount = originalShipmentDoc.data()?.totalAmount || 0;
+            dataToUpdate.courierCommission = commissionRate;
+        } else if (shipment.status === 'Partially Delivered') {
+            dataToUpdate.paidAmount = shipment.collectedAmount || 0;
+            dataToUpdate.courierCommission = commissionRate;
+        } else if (shipment.status === 'Evasion') {
+            dataToUpdate.paidAmount = 0;
+            dataToUpdate.courierCommission = commissionRate;
+        } else {
+            dataToUpdate.paidAmount = 0;
+            dataToUpdate.courierCommission = 0;
+        }
     }
     if (shipment.reason) {
         dataToUpdate.reason = shipment.reason;
     }
-    
+     if (shipment.collectedAmount !== undefined) {
+        dataToUpdate.collectedAmount = shipment.collectedAmount;
+    }
+
     if (Object.keys(dataToUpdate).length === 1) { // Only updatedAt
         toast({ title: "لا توجد تغييرات للحفظ", variant: "destructive"});
         return;
@@ -140,7 +181,7 @@ export default function CourierDashboard() {
           </TabsContent>
            <TabsContent value="delivered">
              <ShipmentsTable 
-                shipments={filteredShipments.filter(s => s.status === 'Delivered')}
+                shipments={filteredShipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
                 companies={companies || []}
@@ -174,7 +215,7 @@ export default function CourierDashboard() {
         governorates={governorates || []}
         companies={companies || []}
         subClients={subClients || []}
-        couriers={couriers || []}
+        couriers={users?.filter(u => u.role === 'courier') || []}
         role={role}
       >
         {/* This component is now controlled programmatically, so no trigger child is needed here. */}

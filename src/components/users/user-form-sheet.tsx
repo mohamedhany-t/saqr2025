@@ -35,6 +35,7 @@ const userSchema = z.object({
   role: z.enum(["company", "courier"], { required_error: "الدور مطلوب" }),
   companyName: z.string().optional(),
   deliveryCompanyId: z.string().optional(),
+  commissionRate: z.coerce.number().optional().default(0),
 }).refine(data => {
     // If role is 'company', then companyName must be a non-empty string.
     return data.role !== 'company' || (data.companyName && data.companyName.trim().length > 0);
@@ -62,6 +63,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, deliveryCo
       password: "",
       companyName: "",
       deliveryCompanyId: "",
+      commissionRate: 0,
     },
   });
   
@@ -168,26 +170,41 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, deliveryCo
                         />
                      )}
                      {selectedRole === 'courier' && (
-                        <FormField
-                            control={form.control}
-                            name="deliveryCompanyId"
-                            render={({ field }) => (
-                                <FormItem className="grid grid-cols-4 items-center gap-4">
-                                <FormLabel className="text-right">شركة التوصيل</FormLabel>
-                                <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
-                                    <FormControl className="col-span-3">
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="اختر شركة التوصيل (اختياري)" />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        {deliveryCompanies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                                <FormMessage className="col-span-4" />
-                            </FormItem>
-                            )}
-                        />
+                        <>
+                            <FormField
+                                control={form.control}
+                                name="deliveryCompanyId"
+                                render={({ field }) => (
+                                    <FormItem className="grid grid-cols-4 items-center gap-4">
+                                    <FormLabel className="text-right">شركة التوصيل</FormLabel>
+                                    <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
+                                        <FormControl className="col-span-3">
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="اختر شركة التوصيل (اختياري)" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            {deliveryCompanies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage className="col-span-4" />
+                                </FormItem>
+                                )}
+                            />
+                             <FormField
+                                control={form.control}
+                                name="commissionRate"
+                                render={({ field }) => (
+                                    <FormItem className="grid grid-cols-4 items-center gap-4">
+                                        <FormLabel className="text-right">عمولة التوصيل</FormLabel>
+                                        <FormControl className="col-span-3">
+                                            <Input type="number" {...field} placeholder="عمولة ثابتة لكل توصيلة"/>
+                                        </FormControl>
+                                        <FormMessage className="col-span-4" />
+                                    </FormItem>
+                                )}
+                            />
+                        </>
                      )}
                 </div>
                 <SheetFooter>
