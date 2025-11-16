@@ -81,28 +81,39 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   
   React.useEffect(() => {
     if (open) {
-        const defaultValues = isEditing ? { 
+      if (isEditing && shipment) {
+        const defaultValues = {
           ...shipment,
           deliveryDate: shipment.deliveryDate ? (shipment.deliveryDate as any).toDate() : undefined,
-         } : {
-            orderNumber: "",
-            trackingNumber: "",
-            recipientName: "",
-            recipientPhone: "",
-            governorateId: "",
-            address: "",
-            totalAmount: 0,
-            paidAmount: 0,
-            status: "Pending",
-            companyId: role === 'company' ? companies.find(c => c.id === '')?.id : '', // Pre-fill for company user
-            subClientId: null,
-            reason: "",
-            collectedAmount: 0,
-            shipmentCode: `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
+          collectedAmount: shipment.collectedAmount ?? 0, // Ensure defined value
+          paidAmount: shipment.paidAmount ?? 0,
+          totalAmount: shipment.totalAmount ?? 0,
+          reason: shipment.reason ?? '',
+          subClientId: shipment.subClientId ?? null
         };
         form.reset(defaultValues as any);
+      } else {
+        const defaultValues = {
+          orderNumber: "",
+          trackingNumber: "",
+          recipientName: "",
+          recipientPhone: "",
+          governorateId: "",
+          address: "",
+          totalAmount: 0,
+          paidAmount: 0,
+          status: "Pending" as ShipmentStatus,
+          companyId: role === 'company' ? companies.find(c => c.id === '')?.id : '',
+          subClientId: null,
+          reason: "",
+          collectedAmount: 0,
+          shipmentCode: `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
+        };
+        form.reset(defaultValues);
+      }
     }
-  }, [open, shipment, form, isEditing, role, companies]);
+  }, [open, shipment, isEditing, form, role, companies]);
+
 
   const onSubmit = (values: z.infer<typeof shipmentSchema>) => {
     onSave(values, shipment?.id);
@@ -347,5 +358,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
     </Sheet>
   )
 }
+
+    
 
     
