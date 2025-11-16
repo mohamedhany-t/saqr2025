@@ -31,31 +31,11 @@ import type { Company, User } from '@/lib/types';
 const userSchema = z.object({
   name: z.string().min(1, "الاسم مطلوب"),
   email: z.string().email("بريد إلكتروني غير صالح"),
-  password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل").optional(),
+  password: z.string().optional(),
   role: z.enum(["company", "courier", "admin"], { required_error: "الدور مطلوب" }),
   companyName: z.string().optional(),
   deliveryCompanyId: z.string().optional(),
   commissionRate: z.coerce.number().optional().default(0),
-}).superRefine((data, ctx) => {
-    // If creating a new user (password is present), password must be valid.
-    if (data.password !== undefined && data.password.length < 6) {
-        ctx.addIssue({
-            code: z.ZodIssueCode.too_small,
-            minimum: 6,
-            type: "string",
-            inclusive: true,
-            message: "كلمة المرور يجب أن تكون 6 أحرف على الأقل",
-            path: ["password"],
-        });
-    }
-    // If role is 'company', companyName must be a non-empty string.
-    if (data.role === 'company' && (!data.companyName || data.companyName.trim().length === 0)) {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "اسم الشركة مطلوب عند اختيار دور 'شركة'",
-            path: ["companyName"],
-        });
-    }
 });
 
 
@@ -71,11 +51,25 @@ type UserFormSheetProps = {
 export function UserFormSheet({ children, open, onOpenChange, onSave, user, deliveryCompanies }: UserFormSheetProps) {
   const isEditing = !!user;
 
-  const formSchemaForMode = isEditing 
-    ? userSchema.omit({ password: true }) // Password is not editable
-    : userSchema;
+    const formSchemaForMode = userSchema.superRefine((data, ctx) => {
+        if (!isEditing && (!data.password || data.password.length < 6)) {
+             ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "كلمة المرور يجب أن تكون 6 أحرف على الأقل",
+                path: ["password"],
+            });
+        }
+        if (data.role === 'company' && (!data.companyName || data.companyName.trim().length === 0)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "اسم الشركة مطلوب عند اختيار دور 'شركة'",
+                path: ["companyName"],
+            });
+        }
+    });
 
-  const form = useForm({
+
+  const form = useForm<z.infer<typeof formSchemaForMode>>({
     resolver: zodResolver(formSchemaForMode),
     defaultValues: {
       name: "",
@@ -103,6 +97,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
           name: "",
           email: "",
           password: "",
+          role: undefined,
           companyName: "",
           deliveryCompanyId: "",
           commissionRate: 0,
