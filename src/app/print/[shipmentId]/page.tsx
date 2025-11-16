@@ -1,10 +1,10 @@
 
 'use client';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { useFirestore, useMemoFirebase } from '@/firebase';
+import { useFirestore } from '@/firebase';
 import { doc, collection, getDocs, query, where, documentId, CollectionReference, getDoc } from 'firebase/firestore';
-import type { Shipment, Governorate } from '@/lib/types';
+import type { Shipment } from '@/lib/types';
 import { ShipmentLabel } from '@/components/shipments/shipment-label';
 import { Loader2 } from 'lucide-react';
 import { WithId } from '@/firebase/firestore/use-collection';
@@ -94,7 +94,6 @@ export default function PrintShipmentPage() {
                 }
 
                 try {
-                    // Fetch all shipments
                     const shipmentsCollection = collection(firestore, 'shipments') as CollectionReference<Shipment>;
                     const allFetchedShipments: WithId<Shipment>[] = [];
                     const idChunks = [];
@@ -116,7 +115,6 @@ export default function PrintShipmentPage() {
                         .map(id => allFetchedShipments.find(s => s.id === id))
                         .filter((s): s is WithId<Shipment> => s !== undefined);
                     
-                    // Fetch all governorates for the map
                     const governoratesCollection = collection(firestore, 'governorates');
                     const govSnapshot = await getDocs(governoratesCollection);
                     const govMap = new Map(govSnapshot.docs.map(doc => [doc.id, doc.data().name]));
@@ -138,7 +136,6 @@ export default function PrintShipmentPage() {
                     if (shipmentSnap.exists()) {
                         const shipmentData = { id: shipmentSnap.id, ...shipmentSnap.data() } as WithId<Shipment>;
                         
-                        // Fetch only the single required governorate
                         const governorateDocRef = doc(firestore, 'governorates', shipmentData.governorateId);
                         const govSnap = await getDoc(governorateDocRef);
                         const govName = govSnap.exists() ? govSnap.data().name : '';
