@@ -250,14 +250,13 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             render={({ field }) => (
                                 <FormItem className="grid grid-cols-4 items-center gap-4">
                                     <FormLabel className="text-right">المندوب</FormLabel>
-                                    <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
+                                    <Select dir="rtl" onValueChange={field.onChange} defaultValue={field.value}>
                                         <FormControl className="col-span-3">
                                             <SelectTrigger>
                                                 <SelectValue placeholder="اختر المندوب" />
                                             </SelectTrigger>
                                         </FormControl>
                                         <SelectContent>
-                                            <SelectItem value="">بلا مندوب</SelectItem>
                                             {couriers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                                         </SelectContent>
                                     </Select>
