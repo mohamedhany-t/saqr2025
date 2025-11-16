@@ -20,6 +20,8 @@ export default function CourierDashboard() {
   const { user } = useUser();
   const role: Role = 'courier';
 
+  // Memoize all Firestore queries to prevent re-renders and unnecessary reads.
+  // Queries now depend on `user` and `firestore` and only run when they are available.
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, 'shipments'), where("assignedCourierId", "==", user.uid));
@@ -67,7 +69,7 @@ export default function CourierDashboard() {
     setShipmentSheetOpen(true);
   };
 
- const handleSaveShipment = async (shipment: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
+  const handleSaveShipment = async (shipment: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
     if (!firestore || !id || !user) return;
 
     const originalShipmentDocSnap = await getDoc(doc(firestore, 'shipments', id));
@@ -84,34 +86,39 @@ export default function CourierDashboard() {
         updatedAt: serverTimestamp(),
     };
 
-    if (shipment.status && shipment.status !== originalShipmentData.status) {
-        dataToUpdate.status = shipment.status;
-        
-        if (shipment.status === 'Delivered') {
+    // Always include status, reason, and collectedAmount if they are in the form data
+    if (shipment.status !== undefined) dataToUpdate.status = shipment.status;
+    if (shipment.reason !== undefined) dataToUpdate.reason = shipment.reason;
+    if (shipment.collectedAmount !== undefined) dataToUpdate.collectedAmount = Number(shipment.collectedAmount);
+
+
+    const newStatus = shipment.status || originalShipmentData.status;
+
+    // Recalculate paid amount and commission based on the new status
+    switch (newStatus) {
+        case 'Delivered':
             dataToUpdate.paidAmount = originalShipmentData.totalAmount;
             dataToUpdate.courierCommission = commissionRate;
-        } else if (shipment.status === 'Partially Delivered') {
+            dataToUpdate.collectedAmount = originalShipmentData.totalAmount; // Ensure collected is full
+            break;
+        case 'Partially Delivered':
             const collectedAmount = Number(shipment.collectedAmount) || 0;
             dataToUpdate.paidAmount = collectedAmount;
-            dataToUpdate.courierCommission = commissionRate;
-        } else if (shipment.status === 'Evasion') {
+            dataToUpdate.courierCommission = commissionRate; // Commission is earned
+            break;
+        case 'Evasion':
             dataToUpdate.paidAmount = 0;
-            dataToUpdate.courierCommission = commissionRate;
-        } else {
+            dataToUpdate.courierCommission = commissionRate; // Commission is earned
+            dataToUpdate.collectedAmount = 0;
+            break;
+        case 'Returned':
+        case 'Cancelled':
+        case 'Pending':
+        case 'In-Transit':
             dataToUpdate.paidAmount = 0;
             dataToUpdate.courierCommission = 0;
-        }
-    }
-    if (shipment.reason !== undefined) {
-        dataToUpdate.reason = shipment.reason;
-    }
-    if (shipment.collectedAmount !== undefined) {
-        dataToUpdate.collectedAmount = Number(shipment.collectedAmount);
-    }
-    
-    // Specifically check for status change to 'Delivered' to update paidAmount
-    if(shipment.status === 'Delivered'){
-        dataToUpdate.paidAmount = originalShipmentData.totalAmount;
+            dataToUpdate.collectedAmount = 0;
+            break;
     }
 
 
@@ -208,7 +215,7 @@ export default function CourierDashboard() {
           </TabsContent>
            <TabsContent value="returned">
              <ShipmentsTable 
-                shipments={filteredShipments.filter(s => s.status === 'Returned')}
+                shipments={filteredShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled' || s.status === 'Evasion')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
                 companies={companies || []}
@@ -238,5 +245,3 @@ export default function CourierDashboard() {
     </div>
   );
 }
-
-    
