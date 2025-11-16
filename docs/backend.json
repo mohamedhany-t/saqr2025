@@ -22,15 +22,11 @@
         "role": {
           "type": "string",
           "description": "The role of the user within the system.",
-          "enum": ["admin", "company", "courier"]
+          "enum": ["admin", "courier"]
         },
-        "companyId": {
+        "deliveryCompanyId": {
           "type": "string",
-          "description": "Reference to the company for 'company' or 'courier' roles."
-        },
-        "companyName": {
-          "type": "string",
-          "description": "Denormalized name of the company for display purposes."
+          "description": "Reference to the delivery company for 'courier' roles."
         },
         "avatarUrl": {
           "type": "string",
@@ -92,14 +88,6 @@
           "description": "Expected delivery date for the shipment.",
           "format": "date-time"
         },
-        "companyId": {
-          "type": "string",
-          "description": "Reference to Company. (Relationship: Company 1:N Shipment)"
-        },
-        "subClientId": {
-          "type": "string",
-          "description": "Reference to SubClient. (Relationship: SubClient 1:N Shipment)"
-        },
         "status": {
           "type": "string",
           "description": "Current status of the shipment.",
@@ -143,7 +131,6 @@
         "governorateId",
         "address",
         "deliveryDate",
-        "companyId",
         "status",
         "totalAmount",
         "paidAmount"
@@ -152,51 +139,6 @@
     "Company": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Company",
-      "type": "object",
-      "description": "Represents a client company in the logistics system.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the company entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "Name of the company."
-        }
-      },
-      "required": [
-        "id",
-        "name"
-      ]
-    },
-    "SubClient": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "SubClient",
-      "type": "object",
-      "description": "Represents a sub-client, which is a subsidiary or branch of a main company.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the sub-client entity."
-        },
-        "companyId": {
-          "type": "string",
-          "description": "Reference to Company. (Relationship: Company 1:N SubClient)"
-        },
-        "name": {
-          "type": "string",
-          "description": "Name of the sub-client."
-        }
-      },
-      "required": [
-        "id",
-        "companyId",
-        "name"
-      ]
-    },
-    "DeliveryCompany": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "DeliveryCompany",
       "type": "object",
       "description": "Represents a logistics/delivery company.",
       "properties": {
@@ -230,7 +172,7 @@
         },
         "deliveryCompanyId": {
           "type": "string",
-          "description": "Reference to DeliveryCompany. (Relationship: DeliveryCompany 1:N Courier)"
+          "description": "Reference to Company. (Relationship: Company 1:N Courier)"
         },
         "commissionRate": {
             "type": "number",
@@ -295,7 +237,7 @@
           "schema": {
             "$ref": "#/backend/entities/Shipment"
           },
-          "description": "Stores shipment data. Includes denormalized fields for filtering and authorization independence.",
+          "description": "Stores shipment data.",
           "params": [
             {
               "name": "shipmentId",
@@ -311,43 +253,11 @@
           "schema": {
             "$ref": "#/backend/entities/Company"
           },
-          "description": "Stores client company information.",
+          "description": "Stores shipping company information.",
           "params": [
             {
               "name": "companyId",
               "description": "Unique identifier for the company document."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/subclients/{subClientId}",
-        "definition": {
-          "entityName": "SubClient",
-          "schema": {
-            "$ref": "#/backend/entities/SubClient"
-          },
-          "description": "Stores sub-client information.",
-          "params": [
-            {
-              "name": "subClientId",
-              "description": "Unique identifier for the sub-client document."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/deliveryCompanies/{companyId}",
-        "definition": {
-          "entityName": "DeliveryCompany",
-          "schema": {
-            "$ref": "#/backend/entities/DeliveryCompany"
-          },
-          "description": "Stores logistics/delivery company information.",
-          "params": [
-            {
-              "name": "companyId",
-              "description": "Unique identifier for the delivery company document."
             }
           ]
         }
@@ -401,22 +311,6 @@
         }
       },
       {
-        "path": "/roles_company/{userId}",
-        "definition": {
-          "entityName": "user",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Documents in this collection grant company role to the user.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "Firebase Auth UID of the company user."
-            }
-          ]
-        }
-      },
-      {
         "path": "/roles_courier/{userId}",
         "definition": {
           "entityName": "user",
@@ -433,6 +327,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to support the AlSaqr Logistics application, focusing on secure, scalable, and easily maintainable data access patterns. 'Client' has been replaced with 'Company' for clarity. A new 'deliveryCompanies' collection is added for logistics partners. The core principle remains Authorization Independence, achieved through denormalization, avoiding `get()` calls in security rules.  We leverage Structural Segregation to maintain homogeneous security requirements within collections. The structure uses path-based ownership and membership maps for authorization. All user roles are stored directly in the database."
+    "reasoning": "The Firestore structure is simplified to focus on Shipping Companies and Couriers. The 'Client Company' concept has been removed. The 'companies' collection now stores shipping companies. The user roles are simplified to 'admin' and 'courier'."
   }
 }

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, SubClient, Governorate, Courier, User } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, User } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { UsersTable } from "@/components/dashboard/users-table";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
@@ -38,29 +38,17 @@ export default function AdminDashboard() {
   }, [firestore, user]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
-  const companiesQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'companies'));
-  }, [firestore, user]);
-  const { data: companies, isLoading: companiesLoading } = useCollection<Company>(companiesQuery);
-
-  const subClientsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'subclients'));
-  }, [firestore, user]);
-  const { data: subClients } = useCollection<SubClient>(subClientsQuery);
-
   const governoratesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, 'governorates'));
   }, [firestore, user]);
   const { data: governorates } = useCollection<Governorate>(governoratesQuery);
 
-  const deliveryCompaniesQuery = useMemoFirebase(() => {
+  const companiesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'deliveryCompanies'));
+    return query(collection(firestore, 'companies'));
   }, [firestore, user]);
-  const { data: deliveryCompanies, isLoading: deliveryCompaniesLoading } = useCollection<Company>(deliveryCompaniesQuery);
+  const { data: companies, isLoading: companiesLoading } = useCollection<Company>(companiesQuery);
 
   const couriersQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -152,16 +140,11 @@ export default function AdminDashboard() {
                   status: row['حالة الأوردر'] || 'Pending',
                   reason: row['السبب'] || '',
                   deliveryDate: deliveryDate || new Date(),
-                  companyId: companies?.find(c => c.name === row['العميل'])?.id || 'imported',
-                  subClientId: subClients?.find(sc => sc.name === row['العميل الفرعي'])?.id,
                   updatedAt: serverTimestamp(),
               };
 
               const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
-              if (!cleanShipmentData.subClientId) {
-                cleanShipmentData.subClientId = null;
-              }
-
+              
               const q = query(shipmentsCollection, where("trackingNumber", "==", trackingNumber));
               const querySnapshot = await getDocs(q);
 
@@ -224,9 +207,6 @@ export default function AdminDashboard() {
     const cleanShipmentData: { [key: string]: any } = Object.fromEntries(
       Object.entries(shipment).filter(([_, v]) => v !== undefined && v !== null && v !== '')
     );
-     if (!cleanShipmentData.subClientId) {
-        cleanShipmentData.subClientId = null;
-    }
 
     if (id) {
       const docRef = doc(firestore, 'shipments', id);
@@ -289,20 +269,25 @@ export default function AdminDashboard() {
         const userUpdatePayload: any = { name: data.name };
         if (data.role === 'courier' && data.commissionRate !== undefined) {
             userUpdatePayload.commissionRate = data.commissionRate;
+            userUpdatePayload.deliveryCompanyId = data.deliveryCompanyId || null;
         }
         batch.update(userDocRef, userUpdatePayload);
 
-        if (data.role === 'company' && data.companyName) {
-            const companyDocRef = doc(firestore, 'companies', userId);
-            batch.update(companyDocRef, { name: data.companyName });
-        } else if (data.role === 'courier') {
+        if (data.role === 'courier') {
             const courierDocRef = doc(firestore, 'couriers', userId);
-            const courierUpdatePayload: any = { name: data.name };
+            const courierUpdatePayload: any = { 
+                name: data.name,
+                deliveryCompanyId: data.deliveryCompanyId || null
+            };
             if (data.commissionRate !== undefined) {
                  courierUpdatePayload.commissionRate = data.commissionRate;
             }
             batch.update(courierDocRef, courierUpdatePayload);
+        } else if (data.role === 'company' && data.companyName) {
+            const companyDocRef = doc(firestore, 'companies', userId);
+            batch.update(companyDocRef, { name: data.companyName });
         }
+
 
         batch.commit()
           .then(() => {
@@ -327,14 +312,7 @@ export default function AdminDashboard() {
 
             const batch = writeBatch(firestore);
 
-            let companyId = null;
-            let companyName = null;
-            if (data.role === 'company') {
-                const companyRef = doc(firestore, 'companies', newUser.uid);
-                companyId = newUser.uid;
-                companyName = data.companyName;
-                batch.set(companyRef, { id: companyId, name: companyName });
-            } else if (data.role === 'courier') {
+            if (data.role === 'courier') {
                 const courierRef = doc(firestore, 'couriers', newUser.uid);
                 batch.set(courierRef, {
                     id: newUser.uid,
@@ -352,10 +330,6 @@ export default function AdminDashboard() {
                 role: data.role,
                 createdAt: serverTimestamp(),
             };
-            if (companyId) {
-                userPayload.companyId = companyId;
-                userPayload.companyName = companyName;
-            }
             if (data.role === 'courier') {
                  if (data.deliveryCompanyId) userPayload.deliveryCompanyId = data.deliveryCompanyId;
                  if (data.commissionRate) userPayload.commissionRate = data.commissionRate;
@@ -481,8 +455,8 @@ export default function AdminDashboard() {
                 onSave={handleSaveShipment}
                 shipment={editingShipment}
                 governorates={governorates || []}
-                companies={companies || []}
-                subClients={subClients || []}
+                companies={[]}
+                subClients={[]}
                 couriers={users?.filter(u => u.role === 'courier') || []}
                 role={role}
               >
@@ -495,16 +469,16 @@ export default function AdminDashboard() {
               </ShipmentFormSheet>
             </div>
           </div>
-          <StatsCards shipments={shipments || []} role={role} companies={companies || []} />
+          <StatsCards shipments={shipments || []} role={role} companies={[]} />
           <TabsContent value="all-shipments">
             <ShipmentsTable 
               shipments={filteredShipments} 
               isLoading={shipmentsLoading}
               governorates={governorates || []}
-              companies={companies || []}
-              deliveryCompanies={deliveryCompanies || []}
+              companies={[]}
+              deliveryCompanies={companies || []}
               couriers={couriers || []}
-              subClients={subClients || []}
+              subClients={[]}
               onEdit={openShipmentForm}
               role={role}
             />
@@ -514,10 +488,10 @@ export default function AdminDashboard() {
                 shipments={filteredShipments.filter(s => s.status === 'In-Transit')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                companies={companies || []}
-                deliveryCompanies={deliveryCompanies || []}
+                companies={[]}
+                deliveryCompanies={companies || []}
                 couriers={couriers || []}
-                subClients={subClients || []}
+                subClients={[]}
                 onEdit={openShipmentForm}
                 role={role}
              />
@@ -527,10 +501,10 @@ export default function AdminDashboard() {
                 shipments={filteredShipments.filter(s => s.status === 'Delivered')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                companies={companies || []}
-                deliveryCompanies={deliveryCompanies || []}
+                companies={[]}
+                deliveryCompanies={companies || []}
                 couriers={couriers || []}
-                subClients={subClients || []}
+                subClients={[]}
                 onEdit={openShipmentForm}
                 role={role}
              />
@@ -540,10 +514,10 @@ export default function AdminDashboard() {
                 shipments={filteredShipments.filter(s => s.status === 'Returned')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                companies={companies || []}
-                deliveryCompanies={deliveryCompanies || []}
+                companies={[]}
+                deliveryCompanies={companies || []}
                 couriers={couriers || []}
-                subClients={subClients || []}
+                subClients={[]}
                 onEdit={openShipmentForm}
                 role={role}
              />
@@ -577,14 +551,14 @@ export default function AdminDashboard() {
               </div>
               <div className="mt-8">
                   <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين</h2>
+                    <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين والشركات</h2>
                      <div className="flex items-center gap-2">
                        <UserFormSheet 
                           open={isUserSheetOpen}
                           onOpenChange={setIsUserSheetOpen}
                           onSave={handleSaveUser}
                           user={editingUser}
-                          deliveryCompanies={deliveryCompanies || []}
+                          deliveryCompanies={companies || []}
                        >
                             <Button size="sm" className="h-8 gap-1" onClick={() => openUserForm()}>
                                 <PlusCircle className="h-3.5 w-3.5" />
@@ -595,7 +569,7 @@ export default function AdminDashboard() {
                        </UserFormSheet>
                     </div>
                   </div>
-                  <UsersTable users={users || []} isLoading={usersLoading || companiesLoading || deliveryCompaniesLoading} companies={companies ?? []} deliveryCompanies={deliveryCompanies ?? []} onEdit={openUserForm}/>
+                  <UsersTable users={users || []} isLoading={usersLoading || companiesLoading} companies={companies ?? []} deliveryCompanies={companies ?? []} onEdit={openUserForm}/>
               </div>
          </TabsContent>
         </Tabs>
@@ -603,5 +577,3 @@ export default function AdminDashboard() {
     </div>
   );
 }
-
-    

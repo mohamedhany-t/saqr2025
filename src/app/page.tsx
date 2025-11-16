@@ -7,7 +7,6 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import type { Role } from "@/lib/types";
 import { useUser, useFirestore } from "@/firebase";
 import AdminDashboard from "@/components/dashboard/admin-dashboard";
-import CompanyDashboard from "@/components/dashboard/company-dashboard";
 import CourierDashboard from "@/components/dashboard/courier-dashboard";
 import { Button } from "@/components/ui/button";
 
@@ -36,7 +35,6 @@ export default function DashboardRouterPage() {
           if (userDocSnap.exists() && userDocSnap.data().role) {
             setRole(userDocSnap.data().role);
           } else {
-            // Special case for initial admin setup
             if (user.email === "mhanyt21@gmail.com") {
               const adminData = {
                 id: user.uid,
@@ -47,22 +45,16 @@ export default function DashboardRouterPage() {
               };
               if (!userDocSnap.exists()) {
                 await setDoc(userDocRef, adminData);
-                // Also add to roles_admin collection for security rules
                 await setDoc(doc(firestore, 'roles_admin', user.uid), { email: user.email });
               }
               setRole('admin');
             } else {
-              // Fallback for users that might exist in role collections but not in users collection yet
               let userRole: Role | null = null;
               const adminSnap = await getDoc(doc(firestore, `roles_admin/${user.uid}`));
               if (adminSnap.exists()) userRole = 'admin';
               else {
-                const companySnap = await getDoc(doc(firestore, `roles_company/${user.uid}`));
-                if (companySnap.exists()) userRole = 'company';
-                else {
-                  const courierSnap = await getDoc(doc(firestore, `roles_courier/${user.uid}`));
-                  if (courierSnap.exists()) userRole = 'courier';
-                }
+                const courierSnap = await getDoc(doc(firestore, `roles_courier/${user.uid}`));
+                if (courierSnap.exists()) userRole = 'courier';
               }
 
               if (userRole) {
@@ -98,16 +90,12 @@ export default function DashboardRouterPage() {
     );
   }
 
-  // Render the appropriate dashboard based on the user's role
   switch (role) {
     case "admin":
       return <AdminDashboard />;
-    case "company":
-      return <CompanyDashboard />;
     case "courier":
       return <CourierDashboard />;
     default:
-      // This is the "Unauthorized" page for users with no role or who encountered a permission issue.
       return (
          <div className="flex min-h-screen w-full items-center justify-center bg-muted/30 flex-col gap-4 text-center p-4">
             <h1 className="text-2xl font-bold text-destructive">غير مصرح لك بالدخول</h1>

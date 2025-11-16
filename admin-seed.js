@@ -3,14 +3,12 @@ const admin = require('firebase-admin');
 const fs = require('fs');
 
 // --- إعدادات ---
-const NUM_COMPANIES = 5;
+const NUM_COMPANIES = 3; // Now shipping companies
 const NUM_COURIERS = 10;
 const NUM_SHIPMENTS = 50;
 const ADMIN_EMAIL = 'mhanyt21@gmail.com'; // Admin user from the app
 
 // --- تحميل ملف الصلاحيات ---
-// IMPORTANT: Download this file from your Firebase Project settings > Service accounts
-// and save it as `serviceAccountKey.json` in the same directory as this script.
 let serviceAccount;
 try {
     serviceAccount = require('./serviceAccountKey.json');
@@ -82,21 +80,24 @@ async function seedGovernorates() {
 }
 
 
-async function seedDeliveryCompanies() {
-    console.log('\n--- Seeding Delivery Companies ---');
+async function seedShippingCompanies(count) {
+    console.log(`\n--- Seeding ${count} Shipping Companies ---');
     const batch = db.batch();
-    const deliveryCompanies = [
-        { id: 'dc_1', name: 'شركة البرق السريع' },
-        { id: 'dc_2', name: 'شركة الصقر للشحن' },
-        { id: 'dc_3', name: 'شركة وصلني إكسبريس' },
-    ];
-    deliveryCompanies.forEach(company => {
-        const docRef = db.collection('deliveryCompanies').doc(company.id);
-        batch.set(docRef, company);
-    });
+    const shippingCompanies = [];
+    const companyNames = ['شركة البرق السريع', 'شركة الصقر للشحن', 'شركة وصلني إكسبريس', 'شركة النيل للنقل', 'شركة الأمانة السريعة'];
+
+    for (let i = 0; i < count; i++) {
+        const companyData = {
+            id: `comp_${i+1}`,
+            name: companyNames[i] || `شركة شحن وهمية ${i+1}`
+        };
+        shippingCompanies.push(companyData);
+        const docRef = db.collection('companies').doc(companyData.id);
+        batch.set(docRef, companyData);
+    }
     await batch.commit();
-    log(`Seeded ${deliveryCompanies.length} delivery companies.`);
-    return deliveryCompanies;
+    log(`Seeded ${shippingCompanies.length} shipping companies.`);
+    return shippingCompanies;
 }
 
 async function seedAdminUsers() {
@@ -127,55 +128,25 @@ async function seedAdminUsers() {
     }
 }
 
-async function seedCompanies(count) {
-    console.log(`\n--- Seeding ${count} Companies ---`);
-    const companies = [];
-    for (let i = 1; i <= count; i++) {
-        const email = `company${i}@alsaqr.com`;
-        const name = `شركة العميل الوهمية ${i}`;
-        
-        const userRecord = await createFirebaseUser(email, 'password', name);
-        const batch = db.batch();
 
-        const companyRef = db.collection('companies').doc(userRecord.uid);
-        batch.set(companyRef, { id: userRecord.uid, name });
-
-        const userRef = db.collection('users').doc(userRecord.uid);
-        batch.set(userRef, {
-            id: userRecord.uid,
-            email: email,
-            name: name,
-            role: 'company',
-            companyId: userRecord.uid,
-            companyName: name,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-
-        const roleRef = db.collection('roles_company').doc(userRecord.uid);
-        batch.set(roleRef, { email: email });
-
-        await batch.commit();
-        companies.push({ id: userRecord.uid, name });
-    }
-    return companies;
-}
-
-async function seedCouriers(count, deliveryCompanies) {
+async function seedCouriers(count, shippingCompanies) {
     console.log(`\n--- Seeding ${count} Couriers ---`);
     const couriers = [];
     for (let i = 1; i <= count; i++) {
         const email = `courier${i}@alsaqr.com`;
         const name = `المندوب الوهمي ${i}`;
+        const commissionRate = Math.floor(Math.random() * 20) + 10; // Random commission between 10 and 30
         
         const userRecord = await createFirebaseUser(email, 'password', name);
-        const assignedDeliveryCompany = getRandomItem(deliveryCompanies);
+        const assignedShippingCompany = getRandomItem(shippingCompanies);
         const batch = db.batch();
         
         const courierRef = db.collection('couriers').doc(userRecord.uid);
         batch.set(courierRef, {
             id: userRecord.uid,
             name: name,
-            deliveryCompanyId: assignedDeliveryCompany.id,
+            deliveryCompanyId: assignedShippingCompany.id,
+            commissionRate: commissionRate,
         });
 
         const userRef = db.collection('users').doc(userRecord.uid);
@@ -184,7 +155,8 @@ async function seedCouriers(count, deliveryCompanies) {
             email: email,
             name: name,
             role: 'courier',
-            deliveryCompanyId: assignedDeliveryCompany.id,
+            deliveryCompanyId: assignedShippingCompany.id,
+            commissionRate: commissionRate,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         
@@ -192,12 +164,12 @@ async function seedCouriers(count, deliveryCompanies) {
         batch.set(roleRef, { email: email });
         
         await batch.commit();
-        couriers.push({ id: userRecord.uid, name, deliveryCompanyId: assignedDeliveryCompany.id });
+        couriers.push({ id: userRecord.uid, name, deliveryCompanyId: assignedShippingCompany.id });
     }
     return couriers;
 }
 
-async function seedShipments(count, companies, couriers, governorates) {
+async function seedShipments(count, couriers, governorates) {
     console.log(`\n--- Seeding ${count} Shipments ---`);
     const batch = db.batch();
     const shipmentsRef = db.collection('shipments');
@@ -209,7 +181,6 @@ async function seedShipments(count, companies, couriers, governorates) {
         const status = getRandomItem(SHIPMENT_STATUSES);
         const totalAmount = Math.floor(Math.random() * 1000) + 50;
 
-        const company = getRandomItem(companies);
         const courier = getRandomItem(couriers);
         const governorate = getRandomItem(governorates);
 
@@ -223,8 +194,6 @@ async function seedShipments(count, companies, couriers, governorates) {
             governorateId: governorate.id,
             address: `شارع وهمي رقم ${i + 1}, ${governorate.name}`,
             deliveryDate: admin.firestore.Timestamp.fromDate(deliveryDate),
-            companyId: company.id,
-            subClientId: null,
             status: status,
             reason: (status === 'Returned' || status === 'Cancelled') ? getRandomItem(SHIPMENT_REASONS) : '',
             totalAmount: totalAmount,
@@ -247,15 +216,13 @@ async function main() {
         console.log("\x1b[34m%s\x1b[0m", "Starting database seeding process...");
 
         const governorates = await seedGovernorates();
-        const deliveryCompanies = await seedDeliveryCompanies();
+        const shippingCompanies = await seedShippingCompanies(NUM_COMPANIES);
         await seedAdminUsers();
-        const companies = await seedCompanies(NUM_COMPANIES);
-        const couriers = await seedCouriers(NUM_COURIERS, deliveryCompanies);
-        await seedShipments(NUM_SHIPMENTS, companies, couriers, governorates);
+        const couriers = await seedCouriers(NUM_COURIERS, shippingCompanies);
+        await seedShipments(NUM_SHIPMENTS, couriers, governorates);
         
         console.log("\n\x1b[32m%s\x1b[0m", "Database seeding completed successfully!");
         console.log("You can now log in with the following dummy accounts (password for all is 'password'):");
-        for (let i = 1; i <= NUM_COMPANIES; i++) console.log(`- Company: company${i}@alsaqr.com`);
         for (let i = 1; i <= NUM_COURIERS; i++) console.log(`- Courier: courier${i}@alsaqr.com`);
 
     } catch (error) {

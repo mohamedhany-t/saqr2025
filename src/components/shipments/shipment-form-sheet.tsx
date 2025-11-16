@@ -39,8 +39,6 @@ const shipmentSchema = z.object({
   totalAmount: z.coerce.number().min(0, "المبلغ يجب أن يكون إيجابي"),
   paidAmount: z.coerce.number().optional(),
   status: z.enum(["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion", "Cancelled", "Returned"]),
-  companyId: z.string().optional(),
-  subClientId: z.string().optional().nullable(),
   reason: z.string().optional(),
   deliveryDate: z.date().optional(),
   assignedCourierId: z.string().optional(),
@@ -85,11 +83,10 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
         const defaultValues = {
           ...shipment,
           deliveryDate: shipment.deliveryDate ? (shipment.deliveryDate as any).toDate() : undefined,
-          collectedAmount: shipment.collectedAmount ?? 0, // Ensure defined value
+          collectedAmount: shipment.collectedAmount ?? 0,
           paidAmount: shipment.paidAmount ?? 0,
           totalAmount: shipment.totalAmount ?? 0,
           reason: shipment.reason ?? '',
-          subClientId: shipment.subClientId ?? null
         };
         form.reset(defaultValues as any);
       } else {
@@ -103,8 +100,6 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           totalAmount: 0,
           paidAmount: 0,
           status: "Pending" as ShipmentStatus,
-          companyId: role === 'company' ? companies.find(c => c.id === '')?.id : '',
-          subClientId: null,
           reason: "",
           collectedAmount: 0,
           shipmentCode: `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
@@ -119,8 +114,6 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
     onSave(values, shipment?.id);
   };
   
-  const selectedCompanyId = form.watch("companyId");
-  const filteredSubClients = subClients.filter(sc => sc.companyId === selectedCompanyId);
   const selectedStatus = form.watch("status");
 
   return (
@@ -223,48 +216,6 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />
-                    {role === 'admin' && <FormField
-                        control={form.control}
-                        name="companyId"
-                        render={({ field }) => (
-                            <FormItem className="grid grid-cols-4 items-center gap-4">
-                                <FormLabel className="text-right">الشركة</FormLabel>
-                                <Select dir="rtl" onValueChange={field.onChange} value={field.value} disabled={isCourier}>
-                                    <FormControl className="col-span-3">
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="اختر الشركة" />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                                <FormMessage className="col-span-4" />
-                            </FormItem>
-                        )}
-                    />}
-                    {!isCourier && filteredSubClients.length > 0 && (
-                        <FormField
-                            control={form.control}
-                            name="subClientId"
-                            render={({ field }) => (
-                                <FormItem className="grid grid-cols-4 items-center gap-4">
-                                    <FormLabel className="text-right">العميل الفرعي</FormLabel>
-                                    <Select dir="rtl" onValueChange={field.onChange} value={field.value || ''} disabled={isCourier}>
-                                        <FormControl className="col-span-3">
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="اختر العميل الفرعي" />
-                                            </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                            {filteredSubClients.map(sc => <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage className="col-span-4" />
-                                </FormItem>
-                            )}
-                        />
-                    )}
                     <FormField
                         control={form.control}
                         name="status"
@@ -358,7 +309,3 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
     </Sheet>
   )
 }
-
-    
-
-    

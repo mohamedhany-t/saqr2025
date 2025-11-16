@@ -33,19 +33,16 @@ import { Skeleton } from "../ui/skeleton"
 
 const roleIcons: Record<Role, React.ReactNode> = {
     admin: <UserIcon className="h-4 w-4 text-red-500" />,
-    company: <Building className="h-4 w-4 text-blue-500" />,
     courier: <Truck className="h-4 w-4 text-green-500" />,
 }
 
 const roleText: Record<Role, string> = {
     admin: "مسؤول",
-    company: "شركة",
     courier: "مندوب",
 }
 
 const roleVariants: Record<Role, "default" | "secondary" | "destructive" | "outline"> = {
     admin: "destructive",
-    company: "secondary",
     courier: "outline",
 }
 
@@ -96,13 +93,10 @@ export const getColumns = (companies: Company[], deliveryCompanies: Company[], o
     },
   },
   {
-    accessorKey: "companyName",
-    header: "الشركة",
+    accessorKey: "deliveryCompanyId",
+    header: "شركة الشحن",
     cell: ({ row }) => {
         const user = row.original;
-        if (user.role === 'company') {
-            return <div>{user.companyName || 'N/A'}</div>;
-        }
         if (user.role === 'courier') {
             const deliveryCompany = deliveryCompanies.find(dc => dc.id === user.deliveryCompanyId);
             return <div>{deliveryCompany?.name || <span className="text-muted-foreground">غير محدد</span>}</div>
@@ -242,5 +236,3 @@ export function UsersTable({ users, isLoading, companies, deliveryCompanies, onE
     </div>
   )
 }
-
-    

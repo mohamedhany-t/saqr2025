@@ -245,28 +245,6 @@ export const getColumns = (
     },
   },
   {
-    accessorKey: "companyId",
-    header: "العميل",
-    cell: ({ row }) => {
-        const company = companies.find(c => c.id === row.getValue("companyId"));
-        return <div>{company?.name || row.getValue("companyId")}</div>
-    },
-    filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id))
-    },
-  },
-   {
-    accessorKey: "subClientId",
-    header: "العميل الفرعي",
-    cell: ({ row }) => {
-        const subClient = subClients.find(sc => sc.id === row.getValue("subClientId"));
-        return <div>{subClient?.name || ''}</div>
-    },
-    filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id))
-    },
-  },
-  {
     accessorKey: "status",
     header: "حالة الأوردر",
     cell: ({ row }) => {
@@ -439,7 +417,6 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
   }
 
   const governorateFilterValue = columnFilters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
-  const companyFilterValue = columnFilters.find(f => f.id === 'companyId')?.value as string[] | undefined;
 
   return (
     <div className="w-full">
@@ -479,34 +456,6 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                         ))}
                     </DropdownMenuContent>
                 </DropdownMenu>
-                 {role === 'admin' && <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-8 gap-1">
-                            <ChevronDown className="h-3.5 w-3.5" />
-                            <span>
-                                العميل
-                                {companyFilterValue && companyFilterValue.length > 0 && ` (${companyFilterValue.length})`}
-                            </span>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                        {companies.map((company) => (
-                        <DropdownMenuCheckboxItem
-                            key={company.id}
-                            checked={companyFilterValue?.includes(company.id)}
-                            onCheckedChange={(checked) => {
-                                const current = companyFilterValue || [];
-                                const newFilter = checked
-                                    ? [...current, company.id]
-                                    : current.filter((id) => id !== company.id);
-                                table.getColumn("companyId")?.setFilterValue(newFilter.length ? newFilter : undefined);
-                            }}
-                        >
-                            {company.name}
-                        </DropdownMenuCheckboxItem>
-                        ))}
-                    </DropdownMenuContent>
-                </DropdownMenu>}
             </div>
             {table.getFilteredSelectedRowModel().rows.length > 0 && (
                  <div className="flex items-center gap-2">

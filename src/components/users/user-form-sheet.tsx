@@ -33,7 +33,7 @@ const userSchema = z.object({
   name: z.string().min(1, "الاسم مطلوب"),
   email: z.string().email("بريد إلكتروني غير صالح"),
   password: z.string().optional(),
-  role: z.enum(["company", "courier", "admin"], { required_error: "الدور مطلوب" }),
+  role: z.enum(["courier", "admin"], { required_error: "الدور مطلوب" }),
   companyName: z.string().optional(),
   deliveryCompanyId: z.string().optional(),
   commissionRate: z.coerce.number().optional(),
@@ -60,13 +60,6 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
                 path: ["password"],
             });
         }
-        if (data.role === 'company' && (!data.companyName || data.companyName.trim().length === 0)) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "اسم الشركة مطلوب عند اختيار دور 'شركة'",
-                path: ["companyName"],
-            });
-        }
     });
 
 
@@ -89,7 +82,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
           name: user.name || '',
           email: user.email,
           role: user.role,
-          companyName: user.companyName || '',
+          companyName: '', // This role is removed
           commissionRate: user.commissionRate || 0,
           deliveryCompanyId: user.deliveryCompanyId || '',
         });
@@ -98,7 +91,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
           name: "",
           email: "",
           password: "",
-          role: undefined,
+          role: 'courier',
           companyName: "",
           deliveryCompanyId: "",
           commissionRate: 0,
@@ -135,7 +128,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">الاسم</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input {...field} />
+                                    <Input {...field} value={field.value ?? ''} />
                                 </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
@@ -148,7 +141,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">البريد الإلكتروني</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input type="email" {...field} disabled={isEditing} />
+                                    <Input type="email" {...field} disabled={isEditing} value={field.value ?? ''}/>
                                 </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
@@ -161,7 +154,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">كلمة المرور</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input type="password" {...field} />
+                                    <Input type="password" {...field} value={field.value ?? ''} />
                                 </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
@@ -180,7 +173,6 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="company">شركة</SelectItem>
                                         <SelectItem value="courier">مندوب</SelectItem>
                                     </SelectContent>
                                 </Select>
@@ -188,21 +180,6 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
                             </FormItem>
                         )}
                     />
-                     {selectedRole === 'company' && (
-                        <FormField
-                            control={form.control}
-                            name="companyName"
-                            render={({ field }) => (
-                                <FormItem className="grid grid-cols-4 items-center gap-4">
-                                    <FormLabel className="text-right">اسم الشركة</FormLabel>
-                                    <FormControl className="col-span-3">
-                                        <Input {...field} placeholder="ادخل اسم شركة العميل"/>
-                                    </FormControl>
-                                    <FormMessage className="col-span-4" />
-                                </FormItem>
-                            )}
-                        />
-                     )}
                      {selectedRole === 'courier' && (
                         <>
                             <FormField
@@ -210,11 +187,11 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
                                 name="deliveryCompanyId"
                                 render={({ field }) => (
                                     <FormItem className="grid grid-cols-4 items-center gap-4">
-                                    <FormLabel className="text-right">شركة التوصيل</FormLabel>
-                                    <Select dir="rtl" onValuechange={field.onChange} value={field.value}>
+                                    <FormLabel className="text-right">شركة الشحن</FormLabel>
+                                    <Select dir="rtl" onValueChange={field.onChange} value={field.value ?? ''}>
                                         <FormControl className="col-span-3">
                                             <SelectTrigger>
-                                                <SelectValue placeholder="اختر شركة التوصيل (اختياري)" />
+                                                <SelectValue placeholder="اختر شركة الشحن (اختياري)" />
                                             </SelectTrigger>
                                         </FormControl>
                                         <SelectContent>
@@ -232,7 +209,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
                                     <FormItem className="grid grid-cols-4 items-center gap-4">
                                         <FormLabel className="text-right">عمولة التوصيل</FormLabel>
                                         <FormControl className="col-span-3">
-                                            <Input type="number" {...field} placeholder="عمولة ثابتة لكل توصيلة"/>
+                                            <Input type="number" {...field} placeholder="عمولة ثابتة لكل توصيلة" value={field.value ?? 0} />
                                         </FormControl>
                                         <FormMessage className="col-span-4" />
                                     </FormItem>

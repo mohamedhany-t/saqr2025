@@ -14,10 +14,6 @@ service cloud.firestore {
       );
     }
     
-    function isCompany() {
-      return isSignedIn() && exists(/databases/$(database)/documents/roles_company/$(request.auth.uid));
-    }
-    
     function isCourier() {
       return isSignedIn() && exists(/databases/$(database)/documents/roles_courier/$(request.auth.uid));
     }
@@ -28,33 +24,19 @@ service cloud.firestore {
     
     match /users/{userId} {
       allow read: if isSignedIn();
-      // Admins can create/update/delete any user.
       allow write: if isAdmin();
     }
     
     match /shipments/{shipmentId} {
       allow read: if isAdmin() 
-                  || (isCompany() && resource.data.companyId == request.auth.uid) 
                   || (isCourier() && resource.data.assignedCourierId == request.auth.uid);
-      allow create: if isAdmin() || isCompany();
+      allow create: if isAdmin();
       allow update: if isAdmin()
-                    || (isCompany() && request.resource.data.companyId == request.auth.uid)
                     || (isCourier() && request.resource.data.assignedCourierId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
       allow delete: if isAdmin();
     }
 
     match /companies/{companyId} {
-      allow read: if isSignedIn();
-      // Admins can create/update/delete companies.
-      allow write: if isAdmin();
-    }
-    
-    match /deliveryCompanies/{companyId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
-    match /subclients/{subClientId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
@@ -69,12 +51,7 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Role collections are only writable by admins.
     match /roles_admin/{userId} {
-      allow read, write: if isAdmin();
-    }
-
-    match /roles_company/{userId} {
       allow read, write: if isAdmin();
     }
 
