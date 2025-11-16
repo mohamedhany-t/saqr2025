@@ -81,7 +81,7 @@ async function seedGovernorates() {
 
 
 async function seedShippingCompanies(count) {
-    console.log(`\n--- Seeding ${count} Shipping Companies ---');
+    console.log(`\n--- Seeding ${count} Shipping Companies ---`);
     const batch = db.batch();
     const shippingCompanies = [];
     const companyNames = ['شركة البرق السريع', 'شركة الصقر للشحن', 'شركة وصلني إكسبريس', 'شركة النيل للنقل', 'شركة الأمانة السريعة'];
