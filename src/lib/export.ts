@@ -53,6 +53,12 @@ const getCellValue = (
     ): any => {
     if (!accessorKey) return '';
     
+    if (accessorKey === 'netDue') {
+        const paidAmount = row.paidAmount || 0;
+        const commission = row.courierCommission || 0;
+        return paidAmount - commission;
+    }
+    
     const value = (row as any)[accessorKey];
 
     switch (accessorKey) {
@@ -130,8 +136,10 @@ export const exportToExcel = (
       { header: 'تاريخ التسليم للمندوب', key: 'deliveryDate', width: 20 },
       { header: 'حالة الأوردر', key: 'status', width: 20 },
       { header: 'السبب', key: 'reason', width: 20 },
-      { header: 'الاجمالي', key: 'totalAmount', width: 15 },
-      { header: 'المدفوع', key: 'paidAmount', width: 15 },
+      { header: 'الاجمالي', key: 'totalAmount', width: 15, style: { numFmt: '#,##0.00' } },
+      { header: 'المدفوع', key: 'paidAmount', width: 15, style: { numFmt: '#,##0.00' } },
+      { header: 'عمولة المندوب', key: 'courierCommission', width: 15, style: { numFmt: '#,##0.00' } },
+      { header: 'المستحق للدفع', key: 'netDue', width: 15, style: { numFmt: '#,##0.00' } },
     ];
     
   worksheet.columns = excelColumns;
@@ -222,5 +230,3 @@ export const exportToPDF = (
 
     doc.save('shipments_report.pdf');
 };
-
-    
