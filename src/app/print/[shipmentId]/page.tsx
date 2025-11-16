@@ -2,8 +2,8 @@
 'use client';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
-import { doc, collection, getDocs, query, where, documentId, CollectionReference } from 'firebase/firestore';
+import { useFirestore, useMemoFirebase } from '@/firebase';
+import { doc, collection, getDocs, query, where, documentId, CollectionReference, getDoc } from 'firebase/firestore';
 import type { Shipment, Governorate } from '@/lib/types';
 import { ShipmentLabel } from '@/components/shipments/shipment-label';
 import { Loader2 } from 'lucide-react';
@@ -15,105 +15,9 @@ const isBulkPrint = (shipmentId: string | string[] | undefined): shipmentId is '
 
 const MAX_IDS_PER_QUERY = 30; // Firestore 'in' query limit
 
-// Component for handling bulk printing logic
-function BulkPrintHandler({ onDataLoaded, governorateNameMap, originUrl }: { onDataLoaded: (shipments: WithId<Shipment>[]) => void, governorateNameMap: Map<string, string>, originUrl: string }) {
-    const firestore = useFirestore();
-    const [bulkShipments, setBulkShipments] = useState<WithId<Shipment>[] | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-
-    useEffect(() => {
-        if (!firestore) return;
-
-        const fetchBulkShipments = async () => {
-            const idsFromStorage = sessionStorage.getItem('bulkPrintShipmentIds');
-            const shipmentIds = idsFromStorage ? JSON.parse(idsFromStorage) : [];
-            sessionStorage.removeItem('bulkPrintShipmentIds');
-
-            if (shipmentIds.length === 0) {
-                setBulkShipments([]);
-                setIsLoading(false);
-                return;
-            }
-
-            try {
-                const shipmentsCollection = collection(firestore, 'shipments') as CollectionReference<Shipment>;
-                const allFetchedShipments: WithId<Shipment>[] = [];
-
-                const idChunks = [];
-                for (let i = 0; i < shipmentIds.length; i += MAX_IDS_PER_QUERY) {
-                    idChunks.push(shipmentIds.slice(i, i + MAX_IDS_PER_QUERY));
-                }
-
-                const queryPromises = idChunks.map(chunk =>
-                    getDocs(query(shipmentsCollection, where(documentId(), 'in', chunk)))
-                );
-
-                const querySnapshots = await Promise.all(queryPromises);
-
-                for (const querySnapshot of querySnapshots) {
-                    querySnapshot.forEach(docSnap => {
-                        if (docSnap.exists()) {
-                            allFetchedShipments.push({ id: docSnap.id, ...docSnap.data() } as WithId<Shipment>);
-                        }
-                    });
-                }
-                
-                const orderedShipments = shipmentIds
-                    .map(id => allFetchedShipments.find(s => s.id === id))
-                    .filter((s): s is WithId<Shipment> => s !== undefined);
-                
-                setBulkShipments(orderedShipments);
-            } catch (error) {
-                console.error("Error fetching bulk shipments:", error);
-                setBulkShipments([]);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchBulkShipments();
-    }, [firestore]);
-    
-    useEffect(() => {
-        if (!isLoading && bulkShipments) {
-            onDataLoaded(bulkShipments);
-        }
-    }, [isLoading, bulkShipments, onDataLoaded]);
-    
-    if (isLoading) {
-         return <div className="flex h-screen items-center justify-center"><Loader2 className="h-12 w-12 animate-spin" /></div>;
-    }
-    
-    return <PrintView shipments={bulkShipments} originUrl={originUrl} governorateNameMap={governorateNameMap} />;
-}
-
-// Component for handling single shipment printing
-function SinglePrintHandler({ shipmentId, onDataLoaded, governorateNameMap, originUrl }: { shipmentId: string, onDataLoaded: (shipments: WithId<Shipment>[]) => void, governorateNameMap: Map<string, string>, originUrl: string }) {
-    const firestore = useFirestore();
-    const shipmentQuery = useMemoFirebase(() => {
-        if (!firestore || !shipmentId) return null;
-        return doc(firestore, 'shipments', shipmentId);
-    }, [firestore, shipmentId]);
-
-    const { data: shipment, isLoading } = useDoc<Shipment>(shipmentQuery);
-
-    useEffect(() => {
-        if (!isLoading) {
-            onDataLoaded(shipment ? [shipment] : []);
-        }
-    }, [isLoading, shipment, onDataLoaded]);
-
-    if (isLoading) {
-        return <div className="flex h-screen items-center justify-center"><Loader2 className="h-12 w-12 animate-spin" /></div>;
-    }
-
-    return <PrintView shipments={shipment ? [shipment] : []} originUrl={originUrl} governorateNameMap={governorateNameMap} />;
-}
-
-
-// Component to render the labels and trigger print
+// Universal PrintView component
 function PrintView({ shipments, originUrl, governorateNameMap }: { shipments: WithId<Shipment>[] | null, originUrl: string, governorateNameMap: Map<string, string> }) {
-     useEffect(() => {
+    useEffect(() => {
         if (shipments && originUrl) {
             if (shipments.length > 0) {
                  const timer = setTimeout(() => {
@@ -157,44 +61,108 @@ function PrintView({ shipments, originUrl, governorateNameMap }: { shipments: Wi
     );
 }
 
-
 export default function PrintShipmentPage() {
     const params = useParams();
     const firestore = useFirestore();
     const [originUrl, setOriginUrl] = useState('');
-     const [shipmentsToPrint, setShipmentsToPrint] = useState<WithId<Shipment>[] | null>(null);
+    const [shipments, setShipments] = useState<WithId<Shipment>[] | null>(null);
+    const [governorateNameMap, setGovernorateNameMap] = useState<Map<string, string>>(new Map());
+    const [isLoading, setIsLoading] = useState(true);
+
+    const shipmentIdOrBulk = params.shipmentId;
 
     useEffect(() => {
         setOriginUrl(window.location.origin);
     }, []);
 
-    const governoratesQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return collection(firestore, 'governorates');
-    }, [firestore]);
-    const { data: governorates, isLoading: isLoadingGovernorates } = useCollection<Governorate>(governoratesQuery);
+    useEffect(() => {
+        if (!firestore || !originUrl || !shipmentIdOrBulk) return;
 
-    const governorateNameMap = useMemo(() => {
-        if (!governorates) return new Map<string, string>();
-        return new Map(governorates.map(g => [g.id, g.name]));
-    }, [governorates]);
-    
-    const shipmentIdOrBulk = params.shipmentId;
-    const isBulk = isBulkPrint(shipmentIdOrBulk);
-    
-    const handleDataLoaded = (shipments: WithId<Shipment>[]) => {
-        setShipmentsToPrint(shipments);
-    };
+        const fetchAndSetData = async () => {
+            setIsLoading(true);
 
-    if (isLoadingGovernorates || !originUrl) {
+            if (isBulkPrint(shipmentIdOrBulk)) {
+                // --- BULK PRINT LOGIC ---
+                const idsFromStorage = sessionStorage.getItem('bulkPrintShipmentIds');
+                const shipmentIds = idsFromStorage ? JSON.parse(idsFromStorage) : [];
+                sessionStorage.removeItem('bulkPrintShipmentIds');
+
+                if (shipmentIds.length === 0) {
+                    setShipments([]);
+                    setIsLoading(false);
+                    return;
+                }
+
+                try {
+                    // Fetch all shipments
+                    const shipmentsCollection = collection(firestore, 'shipments') as CollectionReference<Shipment>;
+                    const allFetchedShipments: WithId<Shipment>[] = [];
+                    const idChunks = [];
+                    for (let i = 0; i < shipmentIds.length; i += MAX_IDS_PER_QUERY) {
+                        idChunks.push(shipmentIds.slice(i, i + MAX_IDS_PER_QUERY));
+                    }
+                    const queryPromises = idChunks.map(chunk => getDocs(query(shipmentsCollection, where(documentId(), 'in', chunk))));
+                    const querySnapshots = await Promise.all(queryPromises);
+
+                    querySnapshots.forEach(querySnapshot => {
+                        querySnapshot.forEach(docSnap => {
+                            if (docSnap.exists()) {
+                                allFetchedShipments.push({ id: docSnap.id, ...docSnap.data() } as WithId<Shipment>);
+                            }
+                        });
+                    });
+                    
+                    const orderedShipments = shipmentIds
+                        .map(id => allFetchedShipments.find(s => s.id === id))
+                        .filter((s): s is WithId<Shipment> => s !== undefined);
+                    
+                    // Fetch all governorates for the map
+                    const governoratesCollection = collection(firestore, 'governorates');
+                    const govSnapshot = await getDocs(governoratesCollection);
+                    const govMap = new Map(govSnapshot.docs.map(doc => [doc.id, doc.data().name]));
+
+                    setShipments(orderedShipments);
+                    setGovernorateNameMap(govMap);
+
+                } catch (error) {
+                    console.error("Error fetching bulk data:", error);
+                    setShipments([]);
+                }
+
+            } else if (typeof shipmentIdOrBulk === 'string') {
+                // --- SINGLE PRINT LOGIC (FAST PATH) ---
+                try {
+                    const shipmentDocRef = doc(firestore, 'shipments', shipmentIdOrBulk);
+                    const shipmentSnap = await getDoc(shipmentDocRef);
+
+                    if (shipmentSnap.exists()) {
+                        const shipmentData = { id: shipmentSnap.id, ...shipmentSnap.data() } as WithId<Shipment>;
+                        
+                        // Fetch only the single required governorate
+                        const governorateDocRef = doc(firestore, 'governorates', shipmentData.governorateId);
+                        const govSnap = await getDoc(governorateDocRef);
+                        const govName = govSnap.exists() ? govSnap.data().name : '';
+                        
+                        setShipments([shipmentData]);
+                        setGovernorateNameMap(new Map([[shipmentData.governorateId, govName]]));
+                    } else {
+                        setShipments([]);
+                    }
+                } catch (error) {
+                    console.error("Error fetching single shipment:", error);
+                    setShipments([]);
+                }
+            }
+            setIsLoading(false);
+        };
+
+        fetchAndSetData();
+
+    }, [firestore, originUrl, shipmentIdOrBulk]);
+
+    if (isLoading || !originUrl) {
          return <div className="flex h-screen items-center justify-center"><Loader2 className="h-12 w-12 animate-spin" /></div>;
     }
 
-    if (isBulk) {
-        return <BulkPrintHandler onDataLoaded={handleDataLoaded} governorateNameMap={governorateNameMap} originUrl={originUrl} />;
-    } else if (typeof shipmentIdOrBulk === 'string') {
-        return <SinglePrintHandler shipmentId={shipmentIdOrBulk} onDataLoaded={handleDataLoaded} governorateNameMap={governorateNameMap} originUrl={originUrl} />;
-    }
-    
-    return <PrintView shipments={[]} originUrl={originUrl} governorateNameMap={governorateNameMap} />;
+    return <PrintView shipments={shipments} originUrl={originUrl} governorateNameMap={governorateNameMap} />;
 }
