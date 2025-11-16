@@ -36,8 +36,7 @@ service cloud.firestore {
     
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow update: if isOwner(userId);
-      allow create: if isAdmin();
+      allow create, update: if isAdmin() || isOwner(userId);
     }
     
     match /companies/{companyId} {
@@ -59,6 +58,16 @@ service cloud.firestore {
 
     match /governorates/{governorateId} {
       allow read: if isSignedIn();
+    }
+    
+    match /roles_admin/{userId} {
+      allow read, write: if isAdmin();
+    }
+    match /roles_company/{userId} {
+      allow read, write: if isAdmin();
+    }
+    match /roles_courier/{userId} {
+      allow read, write: if isAdmin();
     }
   }
 }
