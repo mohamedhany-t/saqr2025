@@ -50,17 +50,13 @@ export default function AdminDashboard() {
   }, [firestore, user]);
   const { data: companies, isLoading: companiesLoading } = useCollection<Company>(companiesQuery);
 
-  const couriersQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'couriers'));
-  }, [firestore, user]);
-  const { data: couriers } = useCollection<Courier>(couriersQuery);
-  
   const usersQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, 'users'));
   }, [firestore, user]);
   const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
+
+  const courierUsers = React.useMemo(() => users?.filter(u => u.role === 'courier') || [], [users]);
   
   const openShipmentForm = (shipment?: Shipment) => {
     setEditingShipment(shipment);
@@ -269,13 +265,17 @@ export default function AdminDashboard() {
         const userDocRef = doc(firestore, 'users', userId);
 
         const userUpdatePayload: any = { name: data.name };
-        if (data.role === 'courier' && data.commissionRate !== undefined) {
+        
+        // This is the crucial part: update the corresponding profile collection
+        if (data.role === 'courier') {
             userUpdatePayload.commissionRate = data.commissionRate;
-        }
-        if(data.role === 'company'){
+            const courierDocRef = doc(firestore, 'couriers', userId);
+            batch.update(courierDocRef, { name: data.name, commissionRate: data.commissionRate });
+        } else if(data.role === 'company'){
             const companyDocRef = doc(firestore, 'companies', userId);
             batch.update(companyDocRef, { name: data.name });
         }
+        
         batch.update(userDocRef, userUpdatePayload);
 
         batch.commit()
@@ -295,6 +295,7 @@ export default function AdminDashboard() {
         toast({ title: "جاري إنشاء المستخدم...", description: "قد تستغرق هذه العملية بضع لحظات." });
         let tempAuth: any;
         try {
+            // Using a temporary auth instance prevents the current admin from being signed out.
             tempAuth = initializeAuth(auth.app, { persistence: indexedDBLocalPersistence });
             const userCredential = await createUserWithEmailAndPassword(tempAuth, data.email, data.password);
             const newUser = userCredential.user;
@@ -376,6 +377,7 @@ export default function AdminDashboard() {
             });
         } finally {
             if (tempAuth) {
+                // The temporary auth instance is not needed anymore
                 await tempAuth.signOut();
             }
         }
@@ -395,7 +397,6 @@ export default function AdminDashboard() {
 
   const courierDues = React.useMemo(() => {
     if (!users || !shipments) return [];
-    const courierUsers = users.filter(u => u.role === 'courier');
     return courierUsers.map(courier => {
         const courierShipments = shipments.filter(s => s.assignedCourierId === courier.id);
         const totalCollected = courierShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
@@ -408,7 +409,7 @@ export default function AdminDashboard() {
             netDue
         }
     })
-  }, [users, shipments]);
+  }, [users, shipments, courierUsers]);
 
 
   return (
@@ -450,7 +451,7 @@ export default function AdminDashboard() {
                 onSave={handleSaveShipment}
                 shipment={editingShipment}
                 governorates={governorates || []}
-                couriers={users?.filter(u => u.role === 'courier') || []}
+                couriers={courierUsers}
                 role={role}
               >
                  <Button size="sm" className="h-8 gap-1" onClick={() => openShipmentForm()}>
@@ -469,7 +470,7 @@ export default function AdminDashboard() {
               isLoading={shipmentsLoading}
               governorates={governorates || []}
               companies={companies || []}
-              couriers={couriers || []}
+              couriers={courierUsers}
               onEdit={openShipmentForm}
               role={role}
             />
@@ -480,7 +481,7 @@ export default function AdminDashboard() {
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
                 companies={companies || []}
-                couriers={couriers || []}
+                couriers={courierUsers}
                 onEdit={openShipmentForm}
                 role={role}
              />
@@ -491,7 +492,7 @@ export default function AdminDashboard() {
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
                 companies={companies || []}
-                couriers={couriers || []}
+                couriers={courierUsers}
                 onEdit={openShipmentForm}
                 role={role}
              />
@@ -502,7 +503,7 @@ export default function AdminDashboard() {
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
                 companies={companies || []}
-                couriers={couriers || []}
+                couriers={courierUsers}
                 onEdit={openShipmentForm}
                 role={role}
              />
@@ -561,3 +562,5 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
+    

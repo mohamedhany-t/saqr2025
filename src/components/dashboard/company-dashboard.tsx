@@ -35,13 +35,6 @@ export default function CompanyDashboard() {
     return query(collection(firestore, 'governorates'));
   }, [firestore, user]);
   const { data: governorates } = useCollection<Governorate>(governoratesQuery);
-
-  const couriersQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    // Fetch all couriers for assignment dropdown
-    return query(collection(firestore, 'couriers'));
-  }, [firestore, user]);
-  const { data: couriers } = useCollection<Courier>(couriersQuery);
   
   const usersQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -291,7 +284,7 @@ export default function CompanyDashboard() {
               isLoading={shipmentsLoading}
               governorates={governorates || []}
               companies={[]}
-              couriers={couriers || []}
+              couriers={courierUsers || []}
               onEdit={openShipmentForm}
               role={role}
             />
@@ -302,7 +295,7 @@ export default function CompanyDashboard() {
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
                 companies={[]}
-                couriers={couriers || []}
+                couriers={courierUsers || []}
                 onEdit={openShipmentForm}
                 role={role}
              />
@@ -313,7 +306,7 @@ export default function CompanyDashboard() {
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
                 companies={[]}
-                couriers={couriers || []}
+                couriers={courierUsers || []}
                 onEdit={openShipmentForm}
                 role={role}
              />
@@ -324,7 +317,7 @@ export default function CompanyDashboard() {
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
                 companies={[]}
-                couriers={couriers || []}
+                couriers={courierUsers || []}
                 onEdit={openShipmentForm}
                 role={role}
              />
@@ -334,3 +327,5 @@ export default function CompanyDashboard() {
     </div>
   );
 }
+
+    

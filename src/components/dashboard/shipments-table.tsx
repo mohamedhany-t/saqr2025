@@ -152,7 +152,7 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role }) => {
 export const getColumns = (
     governorates: Governorate[],
     companies: Company[],
-    couriers: Courier[],
+    couriers: User[],
     onEdit: (shipment: Shipment) => void,
     role: Role | null,
     ): ColumnDef<Shipment>[] => [
@@ -320,7 +320,7 @@ export const getColumns = (
 ]
 
 
-export function ShipmentsTable({ shipments, isLoading, governorates, companies, couriers, onEdit, role, onBulkUpdate }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[], companies: Company[], couriers: Courier[], onEdit: (shipment: Shipment) => void, role: Role | null, onBulkUpdate?: (selectedRows: Shipment[], update: Partial<Shipment>) => void }) {
+export function ShipmentsTable({ shipments, isLoading, governorates, companies, couriers, onEdit, role, onBulkUpdate }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[], companies: Company[], couriers: User[], onEdit: (shipment: Shipment) => void, role: Role | null, onBulkUpdate?: (selectedRows: Shipment[], update: Partial<Shipment>) => void }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -372,7 +372,9 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
       toast({ title: "لا توجد بيانات للتصدير", variant: "destructive" });
       return;
     }
-    exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates, companies, couriers);
+    // Casting couriers from User[] to Courier[] for export function
+    const couriersForExport = couriers.map(c => ({ id: c.id, name: c.name || '', commissionRate: c.commissionRate }));
+    exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates, companies, couriersForExport);
   }
 
   const handleBulkDelete = () => {
@@ -651,3 +653,5 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     </div>
   )
 }
+
+    
