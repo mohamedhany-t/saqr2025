@@ -15,19 +15,18 @@ import { collection, serverTimestamp, doc, query, where, updateDoc, getDoc, writ
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
 import { Loader2 } from "lucide-react";
-import { AppLayout } from "../layout/app-layout";
 
 interface CourierDashboardProps {
   shipmentToEdit?: Shipment | null;
   isEditSheetOpen?: boolean;
   onEditSheetOpenChange?: (open: boolean) => void;
   role: Role | null;
+  searchTerm: string;
 }
 
-export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange, role }: CourierDashboardProps) {
+export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange, role, searchTerm }: CourierDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
-  const [searchTerm, setSearchTerm] = React.useState("");
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
@@ -208,21 +207,12 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
 };
 
   
-  const { activeShipments, finishedShipments, inTransitShipments, returnedShipments } = React.useMemo(() => {
-    if (!shipments) return { activeShipments: [], finishedShipments: [], inTransitShipments: [], returnedShipments: [] };
+  const { activeShipments, finishedShipments } = React.useMemo(() => {
+    if (!shipments) return { activeShipments: [], finishedShipments: [] };
     const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Evasion'];
-    
     const active = shipments.filter(s => !finishedStatuses.includes(s.status));
     const finished = shipments.filter(s => finishedStatuses.includes(s.status));
-    const inTransit = active.filter(s => s.status === 'In-Transit');
-    const returned = active.filter(s => s.status === 'Returned' || s.status === 'Cancelled');
-
-    return { 
-        activeShipments: active, 
-        finishedShipments: finished,
-        inTransitShipments: inTransit,
-        returnedShipments: returned
-    };
+    return { activeShipments: active, finishedShipments: finished };
   }, [shipments]);
 
 
@@ -294,28 +284,22 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
     />
   );
 
-  const renderTabTrigger = (value: string, label: string, count: number) => (
-    <TabsTrigger value={value} className="flex items-center gap-2">
-      {label}
-      <Badge variant="secondary" className="rounded-full">{count}</Badge>
-    </TabsTrigger>
-  );
-
 
   return (
-    <AppLayout role={role}>
-      <main className="p-4 sm:px-6 sm:py-0">
-        <Tabs defaultValue="all-active">
+    <>
+      <Header onSearchChange={() => {}} />
+      <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
+        <Tabs defaultValue="all">
           <div className="flex items-center">
             <TabsList>
-               {renderTabTrigger("all-active", "الشحنات النشطة", activeShipments.length)}
-               {renderTabTrigger("in-transit", "قيد التوصيل", inTransitShipments.length)}
-               {renderTabTrigger("returned", "مرتجعات", returnedShipments.length)}
-               {renderTabTrigger("finished", "الطرود المنتهية", finishedShipments.length)}
+               <TabsTrigger value="all">الكل</TabsTrigger>
+               <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
+               <TabsTrigger value="returned">مرتجعات</TabsTrigger>
+               <TabsTrigger value="finished">الطرود المنتهية</TabsTrigger>
             </TabsList>
           </div>
           <StatsCards shipments={shipments || []} role={role} />
-          <TabsContent value="all-active">
+          <TabsContent value="all">
              {isMobile ? renderShipmentList(filteredActiveShipments) : renderDesktopTable(filteredActiveShipments)}
           </TabsContent>
           <TabsContent value="in-transit">
@@ -340,6 +324,6 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
       >
         <div />
       </ShipmentFormSheet>
-    </AppLayout>
+    </>
   );
 }

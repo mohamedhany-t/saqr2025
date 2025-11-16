@@ -27,23 +27,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { AppLayout } from "../layout/app-layout";
 
 interface AdminDashboardProps {
   shipmentToEdit?: Shipment | null;
   isEditSheetOpen?: boolean;
   onEditSheetOpenChange?: (open: boolean) => void;
   role: Role | null;
+  searchTerm: string;
 }
 
-export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange, role }: AdminDashboardProps) {
+export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange, role, searchTerm }: AdminDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const [editingUser, setEditingUser] = React.useState<User | undefined>(undefined);
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const [searchTerm, setSearchTerm] = React.useState("");
   const { toast } = useToast();
   const { user } = useUser();
   const firestore = useFirestore();
@@ -493,10 +492,11 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
 
 
   return (
-    <AppLayout role={role}>
-      <main className="p-4 sm:px-6 sm:py-0">
+    <>
+      <Header onSearchChange={() => {}} />
+      <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
         <Tabs defaultValue="all-shipments">
-          <div className="flex items-center flex-wrap gap-2">
+          <div className="flex items-center">
             <TabsList>
               <TabsTrigger value="all-shipments">الكل</TabsTrigger>
               <TabsTrigger value="in-transit" className="hidden sm:flex">قيد التوصيل</TabsTrigger>
@@ -513,23 +513,17 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
                     className="hidden"
                     accept=".xlsx, .xls"
                 />
-              <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleImportClick}>
-                <FileUp className="h-3.5 w-3.5" />
-                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                  استيراد
-                </span>
+              <Button variant="outline" size="sm" onClick={handleImportClick}>
+                <FileUp className="h-4 w-4" />
+                <span className="sr-only sm:not-sr-only">استيراد</span>
               </Button>
-               <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleSeedData}>
-                <Database className="h-3.5 w-3.5" />
-                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                  إضافة بيانات وهمية
-                </span>
+               <Button variant="outline" size="sm" onClick={handleSeedData}>
+                <Database className="h-4 w-4" />
+                <span className="sr-only sm:not-sr-only">بيانات وهمية</span>
               </Button>
-               <Button size="sm" className="h-8 gap-1" onClick={() => openShipmentForm()}>
-                  <PlusCircle className="h-3.5 w-3.5" />
-                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                    شحنة جديدة
-                  </span>
+               <Button size="sm" onClick={() => openShipmentForm()}>
+                  <PlusCircle className="h-4 w-4" />
+                  <span className="sr-only sm:not-sr-only">شحنة جديدة</span>
                 </Button>
             </div>
           </div>
@@ -674,9 +668,9 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
                           onSave={handleSaveUser}
                           user={editingUser}
                        >
-                            <Button size="sm" className="h-8 gap-1" onClick={() => openUserForm()}>
-                                <PlusCircle className="h-3.5 w-3.5" />
-                                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                            <Button size="sm" onClick={() => openUserForm()}>
+                                <PlusCircle className="h-4 w-4" />
+                                <span className="sr-only sm:not-sr-only">
                                   إضافة مستخدم
                                 </span>
                             </Button>
@@ -715,6 +709,6 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </AppLayout>
+    </>
   );
 }

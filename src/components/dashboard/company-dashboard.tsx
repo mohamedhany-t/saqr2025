@@ -14,20 +14,19 @@ import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, setDoc } from "firebase/firestore";
-import { AppLayout } from "../layout/app-layout";
 
 interface CompanyDashboardProps {
   shipmentToEdit?: Shipment | null;
   isEditSheetOpen?: boolean;
   onEditSheetOpenChange?: (open: boolean) => void;
   role: Role | null;
+  searchTerm: string;
 }
 
-export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange, role }: CompanyDashboardProps) {
+export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange, role, searchTerm }: CompanyDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const [searchTerm, setSearchTerm] = React.useState("");
   const { toast } = useToast();
   const { user } = useUser();
   const firestore = useFirestore();
@@ -259,16 +258,17 @@ export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEd
 
 
   return (
-    <AppLayout role={role}>
-      <main className="p-4 sm:px-6 sm:py-0">
+    <>
+      <Header onSearchChange={() => {}} />
+      <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
         <Tabs defaultValue="all-shipments">
-          <div className="flex items-center flex-wrap gap-2">
+          <div className="flex items-center">
             <TabsList>
               <TabsTrigger value="all-shipments">الكل</TabsTrigger>
               <TabsTrigger value="in-transit" className="hidden sm:flex">قيد التوصيل</TabsTrigger>
               <TabsTrigger value="delivered" className="hidden sm:flex">تم التوصيل</TabsTrigger>
               <TabsTrigger value="returned" className="hidden sm:flex">مرتجعات</TabsTrigger>
-              <TabsTrigger value="returned-to-sender" className="hidden sm:flex">مرتجع للراسل</TabsTrigger>
+               <TabsTrigger value="returned-to-sender" className="hidden sm:flex">مرتجع للراسل</TabsTrigger>
             </TabsList>
             <div className="ms-auto flex items-center gap-2">
                 <input
@@ -278,15 +278,15 @@ export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEd
                     className="hidden"
                     accept=".xlsx, .xls"
                 />
-              <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleImportClick}>
-                <FileUp className="h-3.5 w-3.5" />
-                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+              <Button variant="outline" size="sm" onClick={handleImportClick}>
+                <FileUp className="h-4 w-4" />
+                <span className="sr-only sm:not-sr-only">
                   استيراد
                 </span>
               </Button>
-              <Button size="sm" className="h-8 gap-1" onClick={() => openShipmentForm()}>
-                <PlusCircle className="h-3.5 w-3.5" />
-                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+              <Button size="sm" onClick={() => openShipmentForm()}>
+                <PlusCircle className="h-4 w-4" />
+                <span className="sr-only sm:not-sr-only">
                   شحنة جديدة
                 </span>
               </Button>
@@ -362,6 +362,6 @@ export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEd
       >
         <div />
       </ShipmentFormSheet>
-    </AppLayout>
+    </>
   );
 }

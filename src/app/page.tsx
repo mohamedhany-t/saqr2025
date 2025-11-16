@@ -11,7 +11,7 @@ import AdminDashboard from "@/components/dashboard/admin-dashboard";
 import CourierDashboard from "@/components/dashboard/courier-dashboard";
 import CompanyDashboard from "@/components/dashboard/company-dashboard";
 import { Button } from "@/components/ui/button";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { AppLayout } from "@/components/layout/app-layout";
 
 export default function DashboardRouterPage() {
   const [role, setRole] = React.useState<Role | null>(null);
@@ -76,6 +76,8 @@ export default function DashboardRouterPage() {
           if (userDocSnap.exists() && userDocSnap.data().role) {
             setRole(userDocSnap.data().role);
           } else {
+            // This is a fallback/setup logic for the very first login or if the user doc is missing
+            // For the admin user specified
             if (user.email === "mhanyt21@gmail.com") {
               const adminData = {
                 id: user.uid,
@@ -84,12 +86,14 @@ export default function DashboardRouterPage() {
                 name: user.displayName || 'Admin',
                 createdAt: serverTimestamp()
               };
+              // Create the user and role documents if they don't exist
               if (!userDocSnap.exists()) {
                 await setDoc(userDocRef, adminData);
                 await setDoc(doc(firestore, 'roles_admin', user.uid), { email: user.email });
               }
               setRole('admin');
             } else {
+              // Check role collections for other users
               let userRole: Role | null = null;
               const adminSnap = await getDoc(doc(firestore, `roles_admin/${user.uid}`));
               if (adminSnap.exists()) userRole = 'admin';
@@ -103,6 +107,7 @@ export default function DashboardRouterPage() {
               }
 
               if (userRole) {
+                // Create user document if it doesn't exist
                 await setDoc(doc(firestore, `users/${user.uid}`), {
                   id: user.uid,
                   email: user.email,
@@ -112,7 +117,7 @@ export default function DashboardRouterPage() {
                 }, { merge: true });
                 setRole(userRole);
               } else {
-                setRole(null); 
+                setRole(null); // No role found
               }
             }
           }
@@ -144,18 +149,13 @@ export default function DashboardRouterPage() {
         role: role
       };
 
-      let dashboardComponent;
-
       switch (role) {
         case "admin":
-          dashboardComponent = <AdminDashboard {...dashboardProps} />;
-          break;
+          return <AdminDashboard {...dashboardProps} />;
         case "company":
-          dashboardComponent = <CompanyDashboard {...dashboardProps} />;
-          break;
+          return <CompanyDashboard {...dashboardProps} />;
         case "courier":
-          dashboardComponent = <CourierDashboard {...dashboardProps} />;
-          break;
+          return <CourierDashboard {...dashboardProps} />;
         default:
           return (
             <div className="flex min-h-screen w-full items-center justify-center bg-muted/30 flex-col gap-4 text-center p-4">
@@ -167,17 +167,13 @@ export default function DashboardRouterPage() {
             </div>
           );
       }
-
-      return (
-        <SidebarProvider>
-            {dashboardComponent}
-        </SidebarProvider>
-      )
   }
 
   return (
     <Suspense fallback={<div className="flex min-h-screen w-full items-center justify-center bg-muted/30"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
-        <PageContent />
+        <AppLayout>
+            <PageContent />
+        </AppLayout>
     </Suspense>
   );
 }
