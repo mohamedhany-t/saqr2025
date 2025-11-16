@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import * as React from 'react';
@@ -35,7 +36,7 @@ const userSchema = z.object({
   role: z.enum(["company", "courier", "admin"], { required_error: "الدور مطلوب" }),
   companyName: z.string().optional(),
   deliveryCompanyId: z.string().optional(),
-  commissionRate: z.coerce.number().optional().default(0),
+  commissionRate: z.coerce.number().optional(),
 });
 
 
@@ -83,7 +84,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
   
   React.useEffect(() => {
     if (open) {
-      if (isEditing) {
+      if (isEditing && user) {
         form.reset({
           name: user.name || '',
           email: user.email,
@@ -210,7 +211,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
                                 render={({ field }) => (
                                     <FormItem className="grid grid-cols-4 items-center gap-4">
                                     <FormLabel className="text-right">شركة التوصيل</FormLabel>
-                                    <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
+                                    <Select dir="rtl" onValuechange={field.onChange} value={field.value}>
                                         <FormControl className="col-span-3">
                                             <SelectTrigger>
                                                 <SelectValue placeholder="اختر شركة التوصيل (اختياري)" />
