@@ -26,19 +26,21 @@ export default function RootLayout({
          <style>
           {`
             @media print {
-              body * {
-                visibility: hidden;
+              body, html {
+                margin: 0;
+                padding: 0;
+                height: 100%;
               }
-              #printable-label, #printable-label * {
-                visibility: visible;
+              body > *:not(#printable-area) {
+                display: none;
               }
-              #printable-label {
+              #printable-area {
+                display: block;
+                height: 100%;
+                width: 100%;
                 position: absolute;
                 left: 0;
                 top: 0;
-                width: 100%;
-                height: 100%;
-                box-sizing: border-box;
               }
                @page {
                 size: A4;
@@ -52,11 +54,15 @@ export default function RootLayout({
         </style>
       </head>
       <body className="font-body antialiased">
-        <FirebaseClientProvider>
-          {children}
-        </FirebaseClientProvider>
+        <div id="printable-area">
+          <FirebaseClientProvider>
+            {children}
+          </FirebaseClientProvider>
+        </div>
         <Toaster />
       </body>
     </html>
   );
 }
+
+    

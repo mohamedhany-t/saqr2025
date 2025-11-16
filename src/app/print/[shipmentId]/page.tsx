@@ -17,7 +17,7 @@ const SingleShipmentPrint = ({ shipmentId, originUrl }: { shipmentId: string, or
     const firestore = useFirestore();
 
     useEffect(() => {
-        if (!firestore) return;
+        if (!firestore || !shipmentId) return;
 
         const fetchSingleShipment = async () => {
             try {
@@ -27,8 +27,11 @@ const SingleShipmentPrint = ({ shipmentId, originUrl }: { shipmentId: string, or
                 if (shipmentSnap.exists()) {
                     const shipmentData = { id: shipmentSnap.id, ...shipmentSnap.data() } as WithId<Shipment>;
                     
-                    const govSnap = await getDoc(doc(firestore, 'governorates', shipmentData.governorateId));
-                    const govName = govSnap.exists() ? govSnap.data().name : '';
+                    let govName = '';
+                    if (shipmentData.governorateId) {
+                         const govSnap = await getDoc(doc(firestore, 'governorates', shipmentData.governorateId));
+                         govName = govSnap.exists() ? govSnap.data().name : '';
+                    }
                     
                     setData({ shipment: shipmentData, govName });
                 } else {
@@ -72,8 +75,8 @@ const SingleShipmentPrint = ({ shipmentId, originUrl }: { shipmentId: string, or
     }
 
     return (
-        <div className="p-4 flex flex-col gap-0">
-            <div className="w-full h-screen">
+        <div className="p-0 m-0">
+            <div className="w-full h-full">
                 <ShipmentLabel 
                     shipment={data.shipment} 
                     governorateName={data.govName}
@@ -100,7 +103,9 @@ const BulkShipmentPrint = ({ originUrl }: { originUrl: string }) => {
         const fetchBulkData = async () => {
             const idsFromStorage = sessionStorage.getItem('bulkPrintShipmentIds');
             const shipmentIds = idsFromStorage ? JSON.parse(idsFromStorage) : [];
-            sessionStorage.removeItem('bulkPrintShipmentIds');
+            if (shipmentIds.length > 0) {
+                 sessionStorage.removeItem('bulkPrintShipmentIds');
+            }
 
             if (shipmentIds.length === 0) {
                 setShipments([]);
@@ -181,9 +186,9 @@ const BulkShipmentPrint = ({ originUrl }: { originUrl: string }) => {
     }
     
     return (
-        <div className="p-4 flex flex-col gap-0">
-            {shipments.map((shipment) => (
-                 <div key={shipment.id} className="w-full h-screen page-break">
+        <div className="p-0 m-0 flex flex-col gap-0">
+            {shipments.map((shipment, index) => (
+                 <div key={shipment.id} className={`w-full h-screen ${index < shipments.length - 1 ? 'page-break' : ''}`}>
                     <ShipmentLabel 
                         shipment={shipment} 
                         governorateName={governorateNameMap.get(shipment.governorateId) || ''} 
@@ -200,7 +205,7 @@ const BulkShipmentPrint = ({ originUrl }: { originUrl: string }) => {
 export default function PrintShipmentPage() {
     const params = useParams();
     const [originUrl, setOriginUrl] = useState('');
-    const shipmentIdOrBulk = params.shipmentId;
+    const shipmentIdOrBulk = params.shipmentId as string;
     
     useEffect(() => {
         setOriginUrl(window.location.origin);
@@ -214,7 +219,7 @@ export default function PrintShipmentPage() {
         return <BulkShipmentPrint originUrl={originUrl} />;
     }
     
-    if (typeof shipmentIdOrBulk === 'string') {
+    if (shipmentIdOrBulk) {
         return <SingleShipmentPrint shipmentId={shipmentIdOrBulk} originUrl={originUrl} />;
     }
 
@@ -229,3 +234,6 @@ export default function PrintShipmentPage() {
     );
 }
 
+
+
+    
