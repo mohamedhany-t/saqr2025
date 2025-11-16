@@ -1,7 +1,7 @@
 
 "use client";
 import React from "react";
-import { PlusCircle, FileUp, Database, User as UserIcon, Wallet } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Wallet, DollarSign, BadgePercent } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -512,15 +512,30 @@ export default function AdminDashboard() {
                                         <UserIcon className="h-4 w-4 text-muted-foreground" />
                                         {courier.name}
                                     </CardTitle>
-                                    <Wallet className="h-4 w-4 text-primary" />
                                 </CardHeader>
                                 <CardContent>
                                     <div className="text-2xl font-bold">
                                         {courier.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
                                     </div>
                                     <p className="text-xs text-muted-foreground">
-                                        إجمالي التحصيل: {courier.totalCollected.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})} - إجمالي العمولات: {courier.totalCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}
+                                        المبلغ المستحق للدفع
                                     </p>
+                                    <div className="mt-4 space-y-2 text-sm">
+                                        <div className="flex justify-between items-center">
+                                            <span className="flex items-center gap-2 text-muted-foreground">
+                                                <DollarSign className="h-4 w-4" />
+                                                إجمالي التحصيل:
+                                            </span>
+                                            <span className="font-medium">{courier.totalCollected.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="flex items-center gap-2 text-muted-foreground">
+                                                <BadgePercent className="h-4 w-4" />
+                                                إجمالي العمولات:
+                                            </span>
+                                            <span className="font-medium">{courier.totalCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                        </div>
+                                    </div>
                                 </CardContent>
                             </Card>
                         ))}
@@ -557,3 +572,4 @@ export default function AdminDashboard() {
     
 
     
+
