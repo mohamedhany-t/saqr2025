@@ -9,8 +9,8 @@ export const metadata: Metadata = {
   description: "Efficient Shipment Management",
   manifest: "/manifest.json",
   icons: {
-    icon: '/icon.png',
-    apple: '/icon.png',
+    icon: '/fav.png',
+    apple: '/fav.png',
   },
 };
 
