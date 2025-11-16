@@ -14,7 +14,7 @@ interface ShipmentLabelProps {
 
 export function ShipmentLabel({ shipment, governorateName, editUrl }: ShipmentLabelProps) {
   return (
-    <div className="w-[377px] h-auto bg-white border border-black p-4 font-sans text-black" dir="rtl">
+    <div id="printable-label" className="w-[377px] h-auto bg-white border border-black p-4 font-sans text-black" dir="rtl">
         {/* Header */}
         <div className="flex justify-between items-center border-b-2 border-black pb-2 mb-2">
             <div className="text-right">
