@@ -94,6 +94,7 @@ export default function CompanyDashboard() {
 
               const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
               const creationDate = parseExcelDate(row['التاريخ']);
+              const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
 
               const shipmentData: Partial<Shipment> = {
                   orderNumber: row['رقم الطلب']?.toString(),
@@ -101,7 +102,7 @@ export default function CompanyDashboard() {
                   recipientPhone: row['التليفون']?.toString(),
                   governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
                   address: row['العنوان'] || 'N/A',
-                  totalAmount: parseFloat(String(row['الاجمالي'] || '0').replace(/[^0-9.]/g, '')),
+                  totalAmount: parseFloat(String(totalAmountValue).replace(/[^0-9.]/g, '')),
                   paidAmount: parseFloat(String(row['المدفوع'] || '0').replace(/[^0-9.]/g, '')),
                   status: row['حالة الأوردر'] || 'Pending',
                   reason: row['السبب'] || '',
@@ -233,11 +234,11 @@ export default function CompanyDashboard() {
 
 
   return (
-    <div className="min-h-screen w-full bg-muted/30">
+    <div className="min-h-screen w-full bg-background">
       <Header onSearchChange={setSearchTerm}/>
       <main className="p-4 sm:px-6 sm:py-0">
         <Tabs defaultValue="all-shipments">
-          <div className="flex items-center">
+          <div className="flex items-center flex-wrap gap-2">
             <TabsList>
               <TabsTrigger value="all-shipments">الكل</TabsTrigger>
               <TabsTrigger value="in-transit" className="hidden sm:flex">قيد التوصيل</TabsTrigger>
@@ -265,6 +266,7 @@ export default function CompanyDashboard() {
                 shipment={editingShipment}
                 governorates={governorates || []}
                 couriers={courierUsers || []}
+                companies={[]}
                 role={role}
               >
                  <Button size="sm" className="h-8 gap-1" onClick={() => openShipmentForm()}>
@@ -326,3 +328,6 @@ export default function CompanyDashboard() {
     </div>
   );
 }
+
+
+    

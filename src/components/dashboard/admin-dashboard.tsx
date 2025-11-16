@@ -124,6 +124,7 @@ export default function AdminDashboard() {
 
               const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
               const creationDate = parseExcelDate(row['التاريخ']);
+              const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
 
               const shipmentData: Partial<Shipment> = {
                   orderNumber: row['رقم الطلب']?.toString(),
@@ -131,7 +132,7 @@ export default function AdminDashboard() {
                   recipientPhone: row['التليفون']?.toString(),
                   governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
                   address: row['العنوان'] || 'N/A',
-                  totalAmount: parseFloat(String(row['الاجمالي'] || '0').replace(/[^0-9.]/g, '')),
+                  totalAmount: parseFloat(String(totalAmountValue).replace(/[^0-9.]/g, '')),
                   paidAmount: parseFloat(String(row['المدفوع'] || '0').replace(/[^0-9.]/g, '')),
                   status: row['حالة الأوردر'] || 'Pending',
                   reason: row['السبب'] || '',
@@ -229,8 +230,7 @@ export default function AdminDashboard() {
     } else {
       const shipmentsCollection = collection(firestore, 'shipments');
       const docRef = doc(shipmentsCollection);
-      // Admin creating a shipment means it's for their "own" company, which is the admin account itself.
-      const dataToAdd = { ...cleanShipmentData, id: docRef.id, companyId: user.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+      const dataToAdd = { ...cleanShipmentData, id: docRef.id, companyId: shipment.companyId || user.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
       
       setDoc(docRef, dataToAdd)
         .then(() => {
@@ -337,22 +337,12 @@ export default function AdminDashboard() {
             const roleDocRef = doc(firestore, roleCollectionName, newUser.uid);
             batch.set(roleDocRef, { email: data.email, createdAt: serverTimestamp() });
             
-            batch.commit()
-              .then(() => {
-                    toast({
-                        title: "تم إنشاء المستخدم بنجاح!",
-                        description: `تم إنشاء حساب لـ ${data.name} بدور "${data.role}".`,
-                    });
-              })
-              .catch((serverError: any) => {
-                const permissionError = new FirestorePermissionError({
-                    path: 'users', // Simplified path for batch operation error
-                    operation: 'write',
-                    requestResourceData: { note: 'Batch operation for creating user and role failed.' }
-                });
-                errorEmitter.emit('permission-error', permissionError);
-              });
+            await batch.commit();
 
+            toast({
+                title: "تم إنشاء المستخدم بنجاح!",
+                description: `تم إنشاء حساب لـ ${data.name} بدور "${data.role}".`,
+            });
         } catch (error: any) {
             console.error("Error creating user:", error);
             let description = "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.";
@@ -413,11 +403,11 @@ export default function AdminDashboard() {
 
 
   return (
-    <div className="min-h-screen w-full bg-muted/30">
+    <div className="min-h-screen w-full bg-muted/40">
       <Header onSearchChange={setSearchTerm}/>
       <main className="p-4 sm:px-6 sm:py-0">
         <Tabs defaultValue="all-shipments">
-          <div className="flex items-center">
+          <div className="flex items-center flex-wrap gap-2">
             <TabsList>
               <TabsTrigger value="all-shipments">الكل</TabsTrigger>
               <TabsTrigger value="in-transit" className="hidden sm:flex">قيد التوصيل</TabsTrigger>
@@ -452,6 +442,7 @@ export default function AdminDashboard() {
                 shipment={editingShipment}
                 governorates={governorates || []}
                 couriers={courierUsers}
+                companies={companies || []}
                 role={role}
               >
                  <Button size="sm" className="h-8 gap-1" onClick={() => openShipmentForm()}>
@@ -562,5 +553,7 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
+    
 
     
