@@ -13,6 +13,26 @@ const getHeader = (columnDef: ColumnDef<Shipment, any>): string => {
     if (typeof columnDef.header === 'string') {
         return columnDef.header;
     }
+    // Attempt to extract header from a function if it's simple
+    if (typeof columnDef.header === 'function') {
+        try {
+            const rendered = columnDef.header({
+                // Provide a mock context if needed
+                table: {} as any,
+                column: {
+                    toggleSorting: () => {},
+                    getIsSorted: () => false,
+                } as any,
+            });
+            if(typeof rendered === 'string') return rendered;
+            // A bit of a hack to get simple string headers from JSX
+            if(React.isValidElement(rendered) && typeof rendered.props.children === 'string') {
+                return rendered.props.children;
+            }
+        } catch (e) {
+            // Fallback for complex headers
+        }
+    }
     const key = (columnDef as any).accessorKey;
     if (typeof key === 'string') {
         const result = key.replace(/([A-Z])/g, " $1");
@@ -40,6 +60,9 @@ const getCellValue = (
         case 'assignedCourierId':
             const courier = couriers.find(c => c.id === value);
             return courier ? courier.name : '';
+        case 'companyId':
+            const company = companies.find(c => c.id === value);
+            return company ? company.name : '';
         case 'status':
              const statusKey = value as keyof typeof statusText;
              return statusText[statusKey] || value;
@@ -93,6 +116,7 @@ export const exportToExcel = (
   const excelColumns = [
       { header: 'رقم الطلب', key: 'orderNumber', width: 15 },
       { header: 'رقم الشحنة', key: 'trackingNumber', width: 20 },
+      { header: 'الشركة', key: 'companyId', width: 25 },
       { header: 'التاريخ', key: 'createdAt', width: 20 },
       { header: 'المرسل اليه', key: 'recipientName', width: 25 },
       { header: 'التليفون', key: 'recipientPhone', width: 20 },

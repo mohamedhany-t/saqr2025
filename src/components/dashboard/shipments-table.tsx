@@ -58,7 +58,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Role } from "@/lib/types"
+import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Role, User } from "@/lib/types"
 import { exportToExcel, exportToPDF } from "@/lib/export"
 import { useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase"
 import { doc, writeBatch, serverTimestamp } from "firebase/firestore"
@@ -152,6 +152,7 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role }) => {
 export const getColumns = (
     governorates: Governorate[],
     companies: Company[],
+    couriers: Courier[],
     onEdit: (shipment: Shipment) => void,
     role: Role | null,
     ): ColumnDef<Shipment>[] => [
@@ -186,6 +187,20 @@ export const getColumns = (
     accessorKey: "trackingNumber",
     header: "رقم الشحنة",
     cell: ({ row }) => <div>{row.getValue("trackingNumber")}</div>,
+  },
+   {
+    accessorKey: "companyId",
+    header: "الشركة",
+    cell: ({ row }) => {
+        const company = companies.find(c => c.id === row.getValue("companyId"));
+        return <div className="flex items-center gap-2">
+            {company && <Building className="h-4 w-4 text-muted-foreground" />}
+            <span>{company?.name || ''}</span>
+        </div>
+    },
+    filterFn: (row, id, value) => {
+      return value.includes(row.getValue(id))
+    },
   },
   {
     accessorKey: "createdAt",
@@ -316,7 +331,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
   const { toast } = useToast()
   const firestore = useFirestore();
   
-  const columns = React.useMemo(() => getColumns(governorates, companies, onEdit, role), [governorates, companies, onEdit, role]);
+  const columns = React.useMemo(() => getColumns(governorates, companies, couriers, onEdit, role), [governorates, companies, couriers, onEdit, role]);
   
   const table = useReactTable({
     data: shipments,
@@ -338,9 +353,17 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     initialState: {
         pagination: {
             pageSize: 100,
+        },
+        columnVisibility: {
+          companyId: role !== 'admin'
         }
     }
   })
+  
+  React.useEffect(() => {
+    table.getColumn('companyId')?.toggleVisibility(role === 'admin');
+  }, [role, table]);
+
 
   const handleExport = () => {
     const selectedRows = table.getFilteredSelectedRowModel().rows.map(row => row.original);
@@ -416,6 +439,8 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
   }
 
   const governorateFilterValue = columnFilters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
+  const companyFilterValue = columnFilters.find(f => f.id === 'companyId')?.value as string[] | undefined;
+
 
   return (
     <div className="w-full">
@@ -455,6 +480,34 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                         ))}
                     </DropdownMenuContent>
                 </DropdownMenu>
+                {role === 'admin' && <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8 gap-1">
+                            <ChevronDown className="h-3.5 w-3.5" />
+                            <span>
+                                الشركة
+                                {companyFilterValue && companyFilterValue.length > 0 && ` (${companyFilterValue.length})`}
+                            </span>
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                        {companies.map((company) => (
+                        <DropdownMenuCheckboxItem
+                            key={company.id}
+                            checked={companyFilterValue?.includes(company.id)}
+                            onCheckedChange={(checked) => {
+                                const current = companyFilterValue || [];
+                                const newFilter = checked
+                                    ? [...current, company.id]
+                                    : current.filter((id) => id !== company.id);
+                                table.getColumn("companyId")?.setFilterValue(newFilter.length ? newFilter : undefined);
+                            }}
+                        >
+                            {company.name}
+                        </DropdownMenuCheckboxItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>}
             </div>
             {table.getFilteredSelectedRowModel().rows.length > 0 && (
                  <div className="flex items-center gap-2">
@@ -487,6 +540,21 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                            {couriers.map(courier => (
                                 <DropdownMenuItem key={courier.id} onSelect={() => handleGenericBulkUpdate({ assignedCourierId: courier.id })}>
                                     {courier.name}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>}
+                    {role === 'admin' && <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                             <Button variant="outline" size="sm" className="h-8 gap-1">
+                                <Building className="h-3.5 w-3.5" />
+                                <span className="sr-only sm:not-sr-only">تعيين شركة</span>
+                             </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                           {companies.map(company => (
+                                <DropdownMenuItem key={company.id} onSelect={() => handleGenericBulkUpdate({ companyId: company.id })}>
+                                    {company.name}
                                 </DropdownMenuItem>
                             ))}
                         </DropdownMenuContent>
