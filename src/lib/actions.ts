@@ -4,25 +4,15 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
 import { z } from 'zod';
-import "dotenv/config";
 
 
 // This is a workaround to use service account credentials in a Vercel-like environment
 function getServiceAccount() {
-  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (serviceAccountJson) {
-    try {
-        return JSON.parse(serviceAccountJson);
-    } catch(e) {
-        console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT JSON:", e);
-        return null;
-    }
-  }
   // Fallback for local development if serviceAccountKey.json exists
   try {
     return require('../../serviceAccountKey.json');
   } catch (e) {
-    console.error("Service account key not found. Please set FIREBASE_SERVICE_ACCOUNT env var or place serviceAccountKey.json in the root.");
+    console.error("Service account key not found. Please place serviceAccountKey.json in the root.");
     return null;
   }
 }
