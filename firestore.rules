@@ -39,7 +39,7 @@ service cloud.firestore {
       allow create: if isAdmin() || isCompany();
       allow update: if isAdmin()
                     || (isCompany() && request.resource.data.companyId == request.auth.uid)
-                    || (isCourier() && request.resource.data.assignedCourierId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission']));
+                    || (isCourier() && request.resource.data.assignedCourierId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
       allow delete: if isAdmin();
     }
 
