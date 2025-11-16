@@ -106,13 +106,17 @@ type ActionCellProps = {
   row: Row<Shipment>;
   onEdit: (shipment: Shipment) => void;
   role: Role | null;
+  governorates: Governorate[];
 };
 
-const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role }) => {
+const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role, governorates }) => {
   const shipment = row.original;
 
   const handlePrint = () => {
-    const printUrl = `/print/${shipment.id}`;
+    const governorateName = governorates.find(g => g.id === shipment.governorateId)?.name || '';
+    const dataToPrint = [{ ...shipment, governorateName }];
+    sessionStorage.setItem('printData', JSON.stringify(dataToPrint));
+    const printUrl = `/print/single`;
     window.open(printUrl, '_blank', 'width=800,height=600');
   };
 
@@ -295,6 +299,7 @@ export const getColumns = (
         {...props}
         onEdit={onEdit}
         role={role}
+        governorates={governorates}
       />
     ),
   },
@@ -364,8 +369,12 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
         toast({ title: "لم يتم تحديد أي شحنات للطباعة", variant: "destructive" });
         return;
     }
-    const idsToPrint = selectedRows.map(row => row.original.id);
-    sessionStorage.setItem('bulkPrintShipmentIds', JSON.stringify(idsToPrint));
+    const dataToPrint = selectedRows.map(row => {
+        const shipment = row.original;
+        const governorateName = governorates.find(g => g.id === shipment.governorateId)?.name || '';
+        return { ...shipment, governorateName };
+    });
+    sessionStorage.setItem('printData', JSON.stringify(dataToPrint));
     
     const printUrl = `/print/bulk`;
     window.open(printUrl, '_blank', 'width=800,height=600');
