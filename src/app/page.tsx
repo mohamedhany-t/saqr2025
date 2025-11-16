@@ -13,7 +13,7 @@ import CompanyDashboard from "@/components/dashboard/company-dashboard";
 import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/layout/app-layout";
 
-export default function DashboardRouterPage() {
+function PageContent() {
   const [role, setRole] = React.useState<Role | null>(null);
   const [isLoadingRole, setIsLoadingRole] = React.useState(true);
   const { user, isUserLoading } = useUser();
@@ -21,6 +21,7 @@ export default function DashboardRouterPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [searchTerm, setSearchTerm] = React.useState("");
 
   // State for handling shipment editing via URL
   const [editingShipmentFromUrl, setEditingShipmentFromUrl] = React.useState<Shipment | null>(null);
@@ -133,47 +134,54 @@ export default function DashboardRouterPage() {
     }
   }, [user, firestore]);
   
-  const PageContent = () => {
-      if (isUserLoading || isLoadingRole) {
+  if (isUserLoading || isLoadingRole) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center bg-muted/30">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const dashboardProps = {
+    shipmentToEdit: editingShipmentFromUrl,
+    isEditSheetOpen: isEditSheetOpen,
+    onEditSheetOpenChange: handleSheetOpenChange,
+    role: role,
+    searchTerm: searchTerm
+  };
+
+  const renderDashboard = () => {
+    switch (role) {
+      case "admin":
+        return <AdminDashboard {...dashboardProps} />;
+      case "company":
+        return <CompanyDashboard {...dashboardProps} />;
+      case "courier":
+        return <CourierDashboard {...dashboardProps} />;
+      default:
         return (
-          <div className="flex min-h-screen w-full items-center justify-center bg-muted/30">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <div className="flex min-h-screen w-full items-center justify-center bg-muted/30 flex-col gap-4 text-center p-4">
+              <h1 className="text-2xl font-bold text-destructive">غير مصرح لك بالدخول</h1>
+              <p className="max-w-md">
+                  ليس لديك الصلاحيات اللازمة لعرض هذه الصفحة. قد يكون السبب أن حسابك لا يمتلك الدور المناسب أو أنك تحاول الوصول إلى بيانات لا تخصك. يرجى التواصل مع مسؤول النظام إذا كنت تعتقد أن هذا خطأ.
+              </p>
+              <Button onClick={() => router.push('/login')}>العودة لصفحة تسجيل الدخول</Button>
           </div>
         );
-      }
-
-      const dashboardProps = {
-        shipmentToEdit: editingShipmentFromUrl,
-        isEditSheetOpen: isEditSheetOpen,
-        onEditSheetOpenChange: handleSheetOpenChange,
-        role: role
-      };
-
-      switch (role) {
-        case "admin":
-          return <AdminDashboard {...dashboardProps} />;
-        case "company":
-          return <CompanyDashboard {...dashboardProps} />;
-        case "courier":
-          return <CourierDashboard {...dashboardProps} />;
-        default:
-          return (
-            <div className="flex min-h-screen w-full items-center justify-center bg-muted/30 flex-col gap-4 text-center p-4">
-                <h1 className="text-2xl font-bold text-destructive">غير مصرح لك بالدخول</h1>
-                <p className="max-w-md">
-                    ليس لديك الصلاحيات اللازمة لعرض هذه الصفحة. قد يكون السبب أن حسابك لا يمتلك الدور المناسب أو أنك تحاول الوصول إلى بيانات لا تخصك. يرجى التواصل مع مسؤول النظام إذا كنت تعتقد أن هذا خطأ.
-                </p>
-                <Button onClick={() => router.push('/login')}>العودة لصفحة تسجيل الدخول</Button>
-            </div>
-          );
-      }
+    }
   }
 
   return (
+    <AppLayout onSearchChange={setSearchTerm}>
+      {renderDashboard()}
+    </AppLayout>
+  )
+}
+
+export default function DashboardRouterPage() {
+  return (
     <Suspense fallback={<div className="flex min-h-screen w-full items-center justify-center bg-muted/30"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
-        <AppLayout>
-            <PageContent />
-        </AppLayout>
+        <PageContent />
     </Suspense>
   );
 }
