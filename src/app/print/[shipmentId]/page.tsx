@@ -28,77 +28,83 @@ export default function PrintShipmentPage() {
         setOriginUrl(window.location.origin);
     }, []);
 
-    const shipmentIds = useMemo(() => {
-        const shipmentId = params.shipmentId;
-        if (isBulkPrint(shipmentId)) {
-            const idsFromStorage = sessionStorage.getItem('bulkPrintShipmentIds');
-            if (idsFromStorage) {
-                try {
-                    const parsedIds = JSON.parse(idsFromStorage);
-                    sessionStorage.removeItem('bulkPrintShipmentIds'); // Clean up after reading
-                    return Array.isArray(parsedIds) ? parsedIds : [];
-                } catch (e) {
-                    console.error("Failed to parse shipment IDs from sessionStorage", e);
-                    return [];
-                }
-            }
-            return [];
-        }
-        return shipmentId ? [shipmentId as string] : [];
-    }, [params.shipmentId]);
+    const shipmentIdOrBulk = params.shipmentId;
 
     useEffect(() => {
-        if (!firestore || shipmentIds.length === 0) {
+        if (!firestore) {
             setIsLoading(false);
             return;
         }
 
-        const fetchAllShipments = async () => {
+        const fetchShipments = async () => {
             setIsLoading(true);
-            const shipmentsCollection = collection(firestore, 'shipments') as CollectionReference<Shipment>;
-            const allFetchedShipments: WithId<Shipment>[] = [];
 
             try {
-                // Split shipmentIds into chunks of MAX_IDS_PER_QUERY
-                const idChunks = [];
-                for (let i = 0; i < shipmentIds.length; i += MAX_IDS_PER_QUERY) {
-                    idChunks.push(shipmentIds.slice(i, i + MAX_IDS_PER_QUERY));
+                if (isBulkPrint(shipmentIdOrBulk)) {
+                    // --- BULK PRINT LOGIC ---
+                    const idsFromStorage = sessionStorage.getItem('bulkPrintShipmentIds');
+                    const shipmentIds = idsFromStorage ? JSON.parse(idsFromStorage) : [];
+                    sessionStorage.removeItem('bulkPrintShipmentIds'); // Clean up
+
+                    if (shipmentIds.length === 0) {
+                        setShipments([]);
+                        return;
+                    }
+
+                    const shipmentsCollection = collection(firestore, 'shipments') as CollectionReference<Shipment>;
+                    const allFetchedShipments: WithId<Shipment>[] = [];
+
+                    const idChunks = [];
+                    for (let i = 0; i < shipmentIds.length; i += MAX_IDS_PER_QUERY) {
+                        idChunks.push(shipmentIds.slice(i, i + MAX_IDS_PER_QUERY));
+                    }
+
+                    const queryPromises = idChunks.map(chunk =>
+                        getDocs(query(shipmentsCollection, where(documentId(), 'in', chunk)))
+                    );
+
+                    const querySnapshots = await Promise.all(queryPromises);
+
+                    for (const querySnapshot of querySnapshots) {
+                        querySnapshot.forEach(docSnap => {
+                            if (docSnap.exists()) {
+                                allFetchedShipments.push({ id: docSnap.id, ...docSnap.data() } as WithId<Shipment>);
+                            }
+                        });
+                    }
+
+                    const orderedShipments = shipmentIds
+                        .map(id => allFetchedShipments.find(s => s.id === id))
+                        .filter((s): s is WithId<Shipment> => s !== undefined);
+
+                    setShipments(orderedShipments);
+                } else {
+                    // --- SINGLE PRINT LOGIC ---
+                    const singleShipmentId = shipmentIdOrBulk as string;
+                     if (!singleShipmentId) {
+                         setShipments([]);
+                         return;
+                     }
+                    const shipmentDocRef = doc(firestore, 'shipments', singleShipmentId);
+                    const docSnap = await getDoc(shipmentDocRef);
+
+                    if (docSnap.exists()) {
+                        setShipments([{ id: docSnap.id, ...docSnap.data() } as WithId<Shipment>]);
+                    } else {
+                        setShipments([]);
+                    }
                 }
-
-                // Create a query for each chunk and run them in parallel
-                const queryPromises = idChunks.map(chunk =>
-                    getDocs(query(shipmentsCollection, where(documentId(), 'in', chunk)))
-                );
-
-                const querySnapshots = await Promise.all(queryPromises);
-
-                // Process results from all queries
-                for (const querySnapshot of querySnapshots) {
-                    querySnapshot.forEach(docSnap => {
-                        if (docSnap.exists()) {
-                            allFetchedShipments.push({ id: docSnap.id, ...docSnap.data() } as WithId<Shipment>);
-                        }
-                    });
-                }
-                
-                // Preserve original order if possible
-                const orderedShipments = shipmentIds
-                  .map(id => allFetchedShipments.find(s => s.id === id))
-                  .filter((s): s is WithId<Shipment> => s !== undefined);
-
-
-                setShipments(orderedShipments);
             } catch (error) {
-                console.error("Error fetching bulk shipments:", error);
+                console.error("Error fetching shipment(s):", error);
                 setShipments([]);
             } finally {
                 setIsLoading(false);
             }
         };
 
-        fetchAllShipments();
+        fetchShipments();
 
-    }, [firestore, shipmentIds]);
+    }, [firestore, shipmentIdOrBulk]);
 
 
     const governoratesQuery = useMemoFirebase(() => {
