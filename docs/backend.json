@@ -56,6 +56,10 @@
           "type": "string",
           "description": "Unique identifier for the shipment entity."
         },
+        "senderName": {
+            "type": "string",
+            "description": "Name of the sub-client or sender."
+        },
         "shipmentCode": {
           "type": "string",
           "description": "Unique shipment code in the format SH-YYYYMMDD-0001."
@@ -343,3 +347,5 @@
     "reasoning": "The Firestore structure now includes a 'company' role. Companies are users that can manage their own shipments. Couriers are independent and are assigned to shipments directly. The 'companies' collection stores public profiles for these company users. The 'shipments' collection now uses 'companyId' to link to the user UID of the owning company."
   }
 }
+
+    

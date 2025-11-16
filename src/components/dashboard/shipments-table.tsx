@@ -106,20 +106,16 @@ type ActionCellProps = {
   row: Row<Shipment>;
   onEdit: (shipment: Shipment) => void;
   role: Role | null;
-  governorates: Governorate[];
 };
 
-const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role, governorates }) => {
+const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role }) => {
   const shipment = row.original;
   const { toast } = useToast();
 
   const handlePrint = () => {
-    const governorateName = governorates.find(g => g.id === shipment.governorateId)?.name || 'N/A';
-    
     // Pass all necessary data via sessionStorage
     const dataToPass = {
         ...shipment,
-        governorateName: governorateName, // Make sure this is included
         editUrl: `${window.location.origin}/?edit=${shipment.id}`,
     };
 
@@ -215,6 +211,11 @@ export const getColumns = (
     filterFn: (row, id, value) => {
       return value.includes(row.getValue(id))
     },
+  },
+  {
+    accessorKey: "senderName",
+    header: "الراسل",
+    cell: ({ row }) => <div>{row.getValue("senderName")}</div>,
   },
   {
     accessorKey: "createdAt",
@@ -317,7 +318,6 @@ export const getColumns = (
         {...props}
         onEdit={onEdit}
         role={role}
-        governorates={governorates}
       />
     ),
   },
@@ -391,10 +391,8 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     // Map selected rows to include necessary data like governorate name
     const dataToPass = selectedRows.map(row => {
         const shipment = row.original;
-        const governorateName = governorates.find(g => g.id === shipment.governorateId)?.name || 'N/A';
         return {
             ...shipment,
-            governorateName,
             editUrl: `${window.location.origin}/?edit=${shipment.id}`,
         };
     });
@@ -595,7 +593,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                             </Button>
                         </>
                     )}
-                    {role === 'admin' && (
+                    {(role === 'admin' || role === 'company') && (
                          <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" size="sm" className="h-8 gap-1">
@@ -700,3 +698,5 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     </div>
   )
 }
+
+    

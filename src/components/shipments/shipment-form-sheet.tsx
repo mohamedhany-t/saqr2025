@@ -31,6 +31,7 @@ import { Textarea } from '../ui/textarea';
 
 const shipmentSchema = z.object({
   shipmentCode: z.string().optional(),
+  senderName: z.string().optional(),
   orderNumber: z.string().optional(),
   trackingNumber: z.string().optional(),
   recipientName: z.string().min(1, "اسم المرسل إليه مطلوب"),
@@ -96,6 +97,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
         form.reset(defaultValues as any);
       } else {
         const defaultValues = {
+          senderName: "",
           orderNumber: "",
           trackingNumber: "",
           recipientName: "",
@@ -145,6 +147,19 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                 <FormLabel className="text-right">كود الشحنة</FormLabel>
                                 <FormControl className="col-span-3">
                                     <Input {...field} disabled />
+                                </FormControl>
+                                <FormMessage className="col-span-4" />
+                            </FormItem>
+                        )}
+                    />}
+                    {(isAdmin || isCompany) && <FormField
+                        control={form.control}
+                        name="senderName"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">الراسل</FormLabel>
+                                <FormControl className="col-span-3">
+                                    <Input {...field} disabled={isCourier} />
                                 </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
@@ -356,3 +371,5 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
     </Sheet>
   )
 }
+
+    

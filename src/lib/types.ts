@@ -25,6 +25,7 @@ export type ShipmentStatus =
 export type Shipment = {
   id: string;
   shipmentCode: string; // SH-YYYYMMDD-0001
+  senderName?: string; // Sub-client
   orderNumber: string;
   trackingNumber: string;
   recipientName: string;
@@ -59,3 +60,5 @@ export interface Governorate {
   id: string;
   name: string;
 }
+
+    

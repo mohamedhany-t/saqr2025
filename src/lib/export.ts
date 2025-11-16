@@ -121,6 +121,7 @@ export const exportToExcel = (
       { header: 'رقم الطلب', key: 'orderNumber', width: 15 },
       { header: 'رقم الشحنة', key: 'trackingNumber', width: 20 },
       { header: 'الشركة', key: 'companyId', width: 25 },
+      { header: 'الراسل', key: 'senderName', width: 25 },
       { header: 'التاريخ', key: 'createdAt', width: 20 },
       { header: 'المرسل اليه', key: 'recipientName', width: 25 },
       { header: 'التليفون', key: 'recipientPhone', width: 20 },
@@ -221,3 +222,5 @@ export const exportToPDF = (
 
     doc.save('shipments_report.pdf');
 };
+
+    
