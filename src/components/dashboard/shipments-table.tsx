@@ -113,12 +113,11 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role, governorate
   const shipment = row.original;
 
   const handlePrint = () => {
-    const governorateName = governorates.find(g => g.id === shipment.governorateId)?.name || '';
-    const dataToPrint = [{ ...shipment, governorateName }];
-    sessionStorage.setItem('printData', JSON.stringify(dataToPrint));
-    const printUrl = `/print/single`;
+    // Open a new window for the single shipment, passing its ID in the URL
+    const printUrl = `/print/${shipment.id}`;
     window.open(printUrl, '_blank', 'width=800,height=600');
   };
+
 
   return (
     <DropdownMenu>
@@ -369,16 +368,12 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
         toast({ title: "لم يتم تحديد أي شحنات للطباعة", variant: "destructive" });
         return;
     }
-    const dataToPrint = selectedRows.map(row => {
-        const shipment = row.original;
-        const governorateName = governorates.find(g => g.id === shipment.governorateId)?.name || '';
-        return { ...shipment, governorateName };
-    });
-    sessionStorage.setItem('printData', JSON.stringify(dataToPrint));
-    
-    const printUrl = `/print/bulk`;
+    // Create a URL with all selected shipment IDs
+    const ids = selectedRows.map(row => row.original.id);
+    const printUrl = `/print/bulk?ids=${ids.join(',')}`;
     window.open(printUrl, '_blank', 'width=800,height=600');
   }
+
 
   const handleBulkDelete = () => {
     if (!firestore || role !== 'admin') return;
