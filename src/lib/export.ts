@@ -2,7 +2,9 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { Workbook } from 'exceljs';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import type { Shipment, Governorate, Company, Courier } from './types';
+import type { Shipment, Governorate, Company, User } from './types';
+import React from 'react';
+
 
 // Extend jsPDF with autoTable
 interface jsPDFWithAutoTable extends jsPDF {
@@ -46,7 +48,7 @@ const getCellValue = (
     accessorKey: string | undefined, 
     governorates: Governorate[],
     companies: Company[],
-    couriers: Courier[],
+    users: User[],
     statusText: Record<string, string>
     ): any => {
     if (!accessorKey) return '';
@@ -58,7 +60,7 @@ const getCellValue = (
             const governorate = governorates.find(g => g.id === value);
             return governorate ? governorate.name : value;
         case 'assignedCourierId':
-            const courier = couriers.find(c => c.id === value);
+            const courier = users.find(u => u.id === value);
             return courier ? courier.name : '';
         case 'companyId':
             const company = companies.find(c => c.id === value);
@@ -92,7 +94,7 @@ export const exportToExcel = (
   filename: string,
   governorates: Governorate[],
   companies: Company[],
-  couriers: Courier[],
+  users: User[],
 ) => {
   const workbook = new Workbook();
   const worksheet = workbook.addWorksheet('Shipments');
@@ -101,6 +103,8 @@ export const exportToExcel = (
     Pending: 'قيد الانتظار',
     'In-Transit': 'قيد التوصيل',
     Delivered: 'تم التوصيل',
+    'Partially Delivered': 'تم التوصيل جزئياً',
+    Evasion: 'تهرب',
     Cancelled: 'تم الإلغاء',
     Returned: 'مرتجع',
     'مؤجل': 'مؤجل',
@@ -145,7 +149,7 @@ export const exportToExcel = (
     excelColumns.forEach(col => {
         const key = col.key;
         if (key) {
-             rowData[key] = getCellValue(row, key, governorates, companies, couriers, statusTextMap);
+             rowData[key] = getCellValue(row, key, governorates, companies, users, statusTextMap);
              if(key === 'address'){
                  rowData[key] = row.address; // Don't append governorate to address here
              }
@@ -173,7 +177,7 @@ export const exportToPDF = (
   columns: ColumnDef<Shipment, any>[],
   governorates: Governorate[],
   companies: Company[],
-  couriers: Courier[],
+  users: User[],
 ) => {
     const doc = new jsPDF() as jsPDFWithAutoTable;
     
@@ -184,6 +188,8 @@ export const exportToPDF = (
       Pending: 'قيد الانتظار',
       'In-Transit': 'قيد التوصيل',
       Delivered: 'تم التوصيل',
+      'Partially Delivered': 'تم التوصيل جزئياً',
+      Evasion: 'تهرب',
       Cancelled: 'تم الإلغاء',
       Returned: 'مرتجع',
     };
@@ -191,7 +197,7 @@ export const exportToPDF = (
     const tableColumns = columns.map(col => getHeader(col));
     const tableRows = data.map(row => {
         return columns.map(col => {
-            return getCellValue(row, (col as any).accessorKey as string, governorates, companies, couriers, statusTextMap);
+            return getCellValue(row, (col as any).accessorKey as string, governorates, companies, users, statusTextMap);
         })
     });
 
