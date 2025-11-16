@@ -7,75 +7,57 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function getUserRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    // Helper functions to check roles from dedicated collections
+    function isRole(role) {
+      return exists(/databases/$(database)/documents/roles_$(role)/$(request.auth.uid));
     }
-
+    
     function isAdmin() {
-      return isSignedIn() && getUserRole() == 'admin';
+      return isSignedIn() && isRole('admin');
     }
     
     function isCompany() {
-       return isSignedIn() && getUserRole() == 'company';
+       return isSignedIn() && isRole('company');
     }
 
     function isCourier() {
-      return isSignedIn() && getUserRole() == 'courier';
+      return isSignedIn() && isRole('courier');
     }
-
+    
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
-    
-    // Admins can read/write everything
-    // Companies can only manage their own data
-    // Couriers can only manage their assigned shipments
+
+    // Admins can read/write everything for simplicity and performance.
+    // Granular rules can be added back if needed, but this is a performance fix.
+    match /{path=**} {
+      allow read, write: if isAdmin();
+    }
     
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow create: if isAdmin();
-      allow update: if isAdmin() || isOwner(userId);
-      allow delete: if isAdmin();
+      allow update: if isOwner(userId);
     }
     
     match /companies/{companyId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin(); // Only admins can create/edit company profiles
     }
 
     match /couriers/{courierId} {
        allow read: if isSignedIn();
-       allow write: if isAdmin(); // Only admins can create/edit courier profiles
     }
 
     match /shipments/{shipmentId} {
-      allow read: if isAdmin() 
-                  || (isCompany() && resource.data.companyId == request.auth.uid)
+      allow read: if (isCompany() && resource.data.companyId == request.auth.uid)
                   || (isCourier() && resource.data.assignedCourierId == request.auth.uid);
-      allow create: if isAdmin() || isCompany();
-      allow update: if isAdmin()
-                    || (isCompany() && resource.data.companyId == request.auth.uid) // Company can edit all fields of their shipment
+      allow create: if isCompany();
+      allow update: if (isCompany() && resource.data.companyId == request.auth.uid)
                     || (isCourier() && request.resource.data.assignedCourierId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
-      allow delete: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
+      allow delete: if isCompany() && resource.data.companyId == request.auth.uid;
     }
-
 
     match /governorates/{governorateId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
-    match /roles_admin/{userId} {
-      allow read, write: if isAdmin();
-    }
-    
-     match /roles_company/{userId} {
-      allow read, write: if isAdmin();
-    }
-
-    match /roles_courier/{userId} {
-      allow read, write: if isAdmin();
     }
   }
 }
-    
