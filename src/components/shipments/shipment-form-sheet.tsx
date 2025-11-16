@@ -74,7 +74,6 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   const isCourier = role === 'courier';
   const isAdmin = role === 'admin';
   const isCompany = role === 'company';
-  const isCompanyOrAdmin = isAdmin || isCompany;
 
 
   const form = useForm<z.infer<typeof shipmentSchema>>({
@@ -138,7 +137,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                 </SheetDescription>
                 </SheetHeader>
                 <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6">
-                    {isCompanyOrAdmin && <FormField
+                    {(isAdmin || isCompany) && <FormField
                         control={form.control}
                         name="shipmentCode"
                         render={({ field }) => (
@@ -243,28 +242,26 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />}
-                     {isCompanyOrAdmin && (
-                        <FormField
-                            control={form.control}
-                            name="assignedCourierId"
-                            render={({ field }) => (
-                                <FormItem className="grid grid-cols-4 items-center gap-4">
-                                    <FormLabel className="text-right">المندوب</FormLabel>
-                                    <Select dir="rtl" onValueChange={field.onChange} defaultValue={field.value}>
-                                        <FormControl className="col-span-3">
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="اختر المندوب" />
-                                            </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                            {couriers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage className="col-span-4" />
-                                </FormItem>
-                            )}
-                        />
-                    )}
+                     <FormField
+                        control={form.control}
+                        name="assignedCourierId"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">المندوب</FormLabel>
+                                <Select dir="rtl" onValueChange={field.onChange} defaultValue={field.value} disabled={!isAdmin}>
+                                    <FormControl className="col-span-3">
+                                        <SelectTrigger>
+                                            <SelectValue placeholder={isAdmin ? "اختر المندوب" : "لا يمكن التغيير"} />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {couriers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage className="col-span-4" />
+                            </FormItem>
+                        )}
+                    />
                     <FormField
                         control={form.control}
                         name="status"
@@ -320,7 +317,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />
-                     {isCompanyOrAdmin && <FormField
+                     {(isAdmin || isCompany) && <FormField
                         control={form.control}
                         name="orderNumber"
                         render={({ field }) => (
@@ -333,7 +330,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />}
-                    {isCompanyOrAdmin && <FormField
+                    {(isAdmin || isCompany) && <FormField
                         control={form.control}
                         name="trackingNumber"
                         render={({ field }) => (

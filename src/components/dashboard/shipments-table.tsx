@@ -111,11 +111,30 @@ type ActionCellProps = {
 
 const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role, governorates }) => {
   const shipment = row.original;
+  const { toast } = useToast();
 
   const handlePrint = () => {
-    // Open a new window for the single shipment, passing its ID in the URL
-    const printUrl = `/print/${shipment.id}`;
-    window.open(printUrl, '_blank', 'width=800,height=600');
+    const governorateName = governorates.find(g => g.id === shipment.governorateId)?.name || 'N/A';
+    
+    // Pass all necessary data via sessionStorage
+    const dataToPass = {
+        ...shipment,
+        governorateName: governorateName, // Make sure this is included
+        editUrl: `${window.location.origin}/?edit=${shipment.id}`,
+    };
+
+    try {
+        sessionStorage.setItem('printableShipmentData', JSON.stringify([dataToPass]));
+        const printUrl = `/print/bulk`;
+        window.open(printUrl, '_blank', 'width=800,height=600');
+    } catch (e) {
+        console.error("Error setting session storage", e);
+        toast({
+            title: "خطأ في الطباعة",
+            description: "لا يمكن تخزين بيانات الشحنة للطباعة. قد تكون مساحة التخزين ممتلئة.",
+            variant: "destructive"
+        });
+    }
   };
 
 
@@ -368,10 +387,30 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
         toast({ title: "لم يتم تحديد أي شحنات للطباعة", variant: "destructive" });
         return;
     }
-    // Create a URL with all selected shipment IDs
-    const ids = selectedRows.map(row => row.original.id);
-    const printUrl = `/print/bulk?ids=${ids.join(',')}`;
-    window.open(printUrl, '_blank', 'width=800,height=600');
+    
+    // Map selected rows to include necessary data like governorate name
+    const dataToPass = selectedRows.map(row => {
+        const shipment = row.original;
+        const governorateName = governorates.find(g => g.id === shipment.governorateId)?.name || 'N/A';
+        return {
+            ...shipment,
+            governorateName,
+            editUrl: `${window.location.origin}/?edit=${shipment.id}`,
+        };
+    });
+
+    try {
+        sessionStorage.setItem('printableShipmentData', JSON.stringify(dataToPass));
+        const printUrl = `/print/bulk`;
+        window.open(printUrl, '_blank', 'width=800,height=600');
+    } catch (e) {
+        console.error("Error setting session storage", e);
+        toast({
+            title: "خطأ في الطباعة",
+            description: "لا يمكن تخزين بيانات الشحنات للطباعة. قد تكون مساحة التخزين ممتلئة.",
+            variant: "destructive"
+        });
+    }
   }
 
 
@@ -514,12 +553,10 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                     <span className="text-sm text-muted-foreground hidden lg:inline">
                         {table.getFilteredSelectedRowModel().rows.length} شحنات محددة
                     </span>
-                    {role === 'admin' && (
-                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleBulkPrint}>
-                            <Printer className="h-3.5 w-3.5" />
-                            <span className="sr-only sm:not-sr-only">طباعة المحدد</span>
-                        </Button>
-                    )}
+                    <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleBulkPrint}>
+                        <Printer className="h-3.5 w-3.5" />
+                        <span className="sr-only sm:not-sr-only">طباعة المحدد</span>
+                    </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                              <Button variant="outline" size="sm" className="h-8 gap-1">
@@ -558,7 +595,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                             </Button>
                         </>
                     )}
-                    {(role === 'admin' || role === 'company') && (
+                    {role === 'admin' && (
                          <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" size="sm" className="h-8 gap-1">
