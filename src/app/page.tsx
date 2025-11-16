@@ -1,7 +1,7 @@
 
 "use client";
 import React, { Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
@@ -17,8 +17,9 @@ export default function DashboardRouterPage() {
   const [isLoadingRole, setIsLoadingRole] = React.useState(true);
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
 
   // State for handling shipment editing via URL
   const [editingShipmentFromUrl, setEditingShipmentFromUrl] = React.useState<Shipment | null>(null);
@@ -36,27 +37,27 @@ export default function DashboardRouterPage() {
           setIsEditSheetOpen(true); // Signal to open the sheet
         } else {
           console.warn("Shipment to edit not found");
-          router.replace('/', { scroll: false }); // Use replace to avoid breaking back button
+          navigate('/', { replace: true }); // Use replace to avoid breaking back button
         }
       };
       fetchShipment();
     }
-  }, [searchParams, firestore, router]);
+  }, [searchParams, firestore, navigate]);
 
   // Handler to close the sheet and clean up the URL
   const handleSheetOpenChange = (open: boolean) => {
     setIsEditSheetOpen(open);
     if (!open) {
       setEditingShipmentFromUrl(null);
-      router.replace('/', { scroll: false });
+      navigate('/', { replace: true });
     }
   };
   
   React.useEffect(() => {
     if (!isUserLoading && !user) {
-      router.push('/login');
+      navigate('/login');
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading, navigate]);
 
   React.useEffect(() => {
     if (user && firestore) {
@@ -150,7 +151,7 @@ export default function DashboardRouterPage() {
                 <p className="max-w-md">
                     ليس لديك الصلاحيات اللازمة لعرض هذه الصفحة. قد يكون السبب أن حسابك لا يمتلك الدور المناسب أو أنك تحاول الوصول إلى بيانات لا تخصك. يرجى التواصل مع مسؤول النظام إذا كنت تعتقد أن هذا خطأ.
                 </p>
-                <Button onClick={() => router.push('/login')}>العودة لصفحة تسجيل الدخول</Button>
+                <Button onClick={() => navigate('/login')}>العودة لصفحة تسجيل الدخول</Button>
             </div>
           );
       }

@@ -1,7 +1,7 @@
 
 'use client';
 import React, { useEffect, useState, Suspense } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { doc, getDoc, getDocs, collection, query, where, documentId, Firestore } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import type { Shipment, Governorate, Company } from '@/lib/types';
@@ -105,7 +105,7 @@ const BulkShipmentPrint = () => {
     const [data, setData] = useState<PrintableShipment[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [originUrl, setOriginUrl] = useState('');
-    const searchParams = useSearchParams();
+    const [searchParams] = useSearchParams();
     const firestore = useFirestore();
 
     useEffect(() => {

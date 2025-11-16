@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { Link, useNavigate } from 'react-router-dom';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { useAuth } from '@/firebase';
 import { Button } from "@/components/ui/button";
@@ -26,7 +25,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const auth = useAuth();
-  const router = useRouter();
+  const navigate = useNavigate();
   const { toast } = useToast();
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -38,7 +37,7 @@ export default function RegisterPage() {
         title: "تم إنشاء الحساب بنجاح",
         description: "سيتم تحويلك إلى لوحة التحكم.",
       });
-      router.push('/');
+      navigate('/');
     } catch (error: any) {
       console.error(error);
       let description = "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.";
@@ -98,7 +97,7 @@ export default function RegisterPage() {
                 </form>
                 <div className="mt-4 text-center text-sm">
                 لديك حساب بالفعل؟{" "}
-                <Link href="/login" className="underline">
+                <Link to="/login" className="underline">
                     تسجيل الدخول
                 </Link>
                 </div>
