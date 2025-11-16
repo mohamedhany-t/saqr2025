@@ -23,6 +23,7 @@ export default function AdminDashboard() {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
+  const [editingUser, setEditingUser] = React.useState<User | undefined>(undefined);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [searchTerm, setSearchTerm] = React.useState("");
   const { toast } = useToast();
@@ -78,6 +79,11 @@ export default function AdminDashboard() {
     setShipmentSheetOpen(true);
   };
   
+  const openUserForm = (user?: User) => {
+    setEditingUser(user);
+    setIsUserSheetOpen(true);
+  };
+
   const handleSeedData = () => {
     toast({ 
         title: "هذه الميزة للـ Node.js فقط", 
@@ -265,125 +271,144 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleSaveUser = async (data: any) => {
+  const handleSaveUser = async (data: any, userId?: string) => {
     if (!firestore || !auth) {
-        toast({ variant: "destructive", title: "خطأ", description: "خدمات Firebase غير متاحة" });
-        return;
+      toast({ variant: "destructive", title: "خطأ", description: "خدمات Firebase غير متاحة" });
+      return;
     }
-    
+
     setIsUserSheetOpen(false);
-    toast({ title: "جاري إنشاء المستخدم...", description: "قد تستغرق هذه العملية بضع لحظات." });
-
-    let tempAuth: any;
-    try {
-        // Use a temporary, separate auth instance for creating the user
-        // This prevents the admin from being logged out
-        tempAuth = initializeAuth(auth.app, {
-            persistence: indexedDBLocalPersistence,
-            // popupRedirectResolver: undefined
-        });
-
-        const userCredential = await createUserWithEmailAndPassword(tempAuth, data.email, data.password);
-        const newUser = userCredential.user;
-
+    
+    if (userId) { // --- UPDATE LOGIC ---
+        toast({ title: "جاري تحديث المستخدم...", description: "قد تستغرق هذه العملية بضع لحظات." });
         const batch = writeBatch(firestore);
+        const userDocRef = doc(firestore, 'users', userId);
 
-        // 1. Create Company/Courier document if needed
-        let companyId = null;
-        let companyName = null;
-        if (data.role === 'company') {
-            const companyRef = doc(firestore, 'companies', newUser.uid);
-            companyId = newUser.uid;
-            companyName = data.companyName;
-            batch.set(companyRef, {
-                id: companyId,
-                name: companyName,
-            });
+        const userUpdatePayload: any = { name: data.name };
+        if (data.role === 'courier' && data.commissionRate !== undefined) {
+            userUpdatePayload.commissionRate = data.commissionRate;
+        }
+        batch.update(userDocRef, userUpdatePayload);
+
+        if (data.role === 'company' && data.companyName) {
+            const companyDocRef = doc(firestore, 'companies', userId);
+            batch.update(companyDocRef, { name: data.companyName });
         } else if (data.role === 'courier') {
-            const courierRef = doc(firestore, 'couriers', newUser.uid);
-            batch.set(courierRef, {
-                id: newUser.uid,
-                name: data.name,
-                deliveryCompanyId: data.deliveryCompanyId || null,
-                commissionRate: data.commissionRate || 0,
-            });
+            const courierDocRef = doc(firestore, 'couriers', userId);
+            const courierUpdatePayload: any = { name: data.name };
+            if (data.commissionRate !== undefined) {
+                 courierUpdatePayload.commissionRate = data.commissionRate;
+            }
+            batch.update(courierDocRef, courierUpdatePayload);
         }
 
-        // 2. Create User document
-        const userDocRef = doc(firestore, 'users', newUser.uid);
-        const userPayload: any = {
-            id: newUser.uid,
-            email: data.email,
-            name: data.name,
-            role: data.role,
-            createdAt: serverTimestamp(),
-        };
-        if (companyId) {
-            userPayload.companyId = companyId;
-            userPayload.companyName = companyName;
-        }
-        if (data.role === 'courier') {
-             if (data.deliveryCompanyId) {
-                userPayload.deliveryCompanyId = data.deliveryCompanyId;
-            }
-             if (data.commissionRate) {
-                userPayload.commissionRate = data.commissionRate;
-            }
-        }
-        batch.set(userDocRef, userPayload);
-
-        // 3. Create Role document
-        const roleCollectionName = `roles_${data.role}`;
-        const roleDocRef = doc(firestore, roleCollectionName, newUser.uid);
-        batch.set(roleDocRef, { email: data.email, createdAt: serverTimestamp() });
-        
-        // The batch commit is executed with the ADMIN's permissions
         batch.commit()
           .then(() => {
-                toast({
-                    title: "تم إنشاء المستخدم بنجاح!",
-                    description: `تم إنشاء حساب لـ ${data.name} بدور "${data.role}".`,
-                });
+            toast({ title: "تم تحديث المستخدم بنجاح!", description: `تم تحديث بيانات ${data.name}.` });
           })
-          .catch((serverError: any) => {
-            // This is where Firestore permission errors for the BATCH will be caught.
+          .catch(serverError => {
             const permissionError = new FirestorePermissionError({
-                path: 'users', // The batch can affect multiple paths, so this is a general path.
-                operation: 'write',
-                requestResourceData: { note: 'Batch operation for creating user, company, and role failed.' }
+                path: 'users',
+                operation: 'update',
+                requestResourceData: { note: `Batch update for user ${userId} failed.` }
             });
             errorEmitter.emit('permission-error', permissionError);
           });
 
-    } catch (error: any) {
-        console.error("Error creating user:", error);
-        let description = "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.";
-        if (error.code === 'auth/email-already-in-use') {
-            description = "هذا البريد الإلكتروني مستخدم بالفعل.";
-        } else if (error.code === 'auth/weak-password') {
-            description = "كلمة المرور ضعيفة جدًا. يجب أن تتكون من 6 أحرف على الأقل.";
-        } else if (error.code?.includes('permission-denied')) {
-             description = "خطأ في الصلاحيات. تأكد من أن قواعد الأمان تسمح للمسؤول بإنشاء المستخدمين.";
-             const permissionError = new FirestorePermissionError({
-                path: 'users', // Best guess for path
-                operation: 'write',
-                requestResourceData: { note: 'Batch operation for creating user, company, and role failed.' }
-             });
-             errorEmitter.emit('permission-error', permissionError);
-        }
+    } else { // --- CREATE LOGIC ---
+        toast({ title: "جاري إنشاء المستخدم...", description: "قد تستغرق هذه العملية بضع لحظات." });
+        let tempAuth: any;
+        try {
+            tempAuth = initializeAuth(auth.app, { persistence: indexedDBLocalPersistence });
+            const userCredential = await createUserWithEmailAndPassword(tempAuth, data.email, data.password);
+            const newUser = userCredential.user;
 
-        toast({
-            variant: "destructive",
-            title: "فشل إنشاء المستخدم",
-            description: description,
-        });
-    } finally {
-        if (tempAuth) {
-            // Clean up the temporary auth instance
-            await tempAuth.signOut();
+            const batch = writeBatch(firestore);
+
+            let companyId = null;
+            let companyName = null;
+            if (data.role === 'company') {
+                const companyRef = doc(firestore, 'companies', newUser.uid);
+                companyId = newUser.uid;
+                companyName = data.companyName;
+                batch.set(companyRef, { id: companyId, name: companyName });
+            } else if (data.role === 'courier') {
+                const courierRef = doc(firestore, 'couriers', newUser.uid);
+                batch.set(courierRef, {
+                    id: newUser.uid,
+                    name: data.name,
+                    deliveryCompanyId: data.deliveryCompanyId || null,
+                    commissionRate: data.commissionRate || 0,
+                });
+            }
+
+            const userDocRef = doc(firestore, 'users', newUser.uid);
+            const userPayload: any = {
+                id: newUser.uid,
+                email: data.email,
+                name: data.name,
+                role: data.role,
+                createdAt: serverTimestamp(),
+            };
+            if (companyId) {
+                userPayload.companyId = companyId;
+                userPayload.companyName = companyName;
+            }
+            if (data.role === 'courier') {
+                 if (data.deliveryCompanyId) userPayload.deliveryCompanyId = data.deliveryCompanyId;
+                 if (data.commissionRate) userPayload.commissionRate = data.commissionRate;
+            }
+            batch.set(userDocRef, userPayload);
+
+            const roleCollectionName = `roles_${data.role}`;
+            const roleDocRef = doc(firestore, roleCollectionName, newUser.uid);
+            batch.set(roleDocRef, { email: data.email, createdAt: serverTimestamp() });
+            
+            batch.commit()
+              .then(() => {
+                    toast({
+                        title: "تم إنشاء المستخدم بنجاح!",
+                        description: `تم إنشاء حساب لـ ${data.name} بدور "${data.role}".`,
+                    });
+              })
+              .catch((serverError: any) => {
+                const permissionError = new FirestorePermissionError({
+                    path: 'users',
+                    operation: 'write',
+                    requestResourceData: { note: 'Batch operation for creating user, company, and role failed.' }
+                });
+                errorEmitter.emit('permission-error', permissionError);
+              });
+
+        } catch (error: any) {
+            console.error("Error creating user:", error);
+            let description = "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.";
+            if (error.code === 'auth/email-already-in-use') {
+                description = "هذا البريد الإلكتروني مستخدم بالفعل.";
+            } else if (error.code === 'auth/weak-password') {
+                description = "كلمة المرور ضعيفة جدًا. يجب أن تتكون من 6 أحرف على الأقل.";
+            } else if (error.code?.includes('permission-denied')) {
+                 description = "خطأ في الصلاحيات. تأكد من أن قواعد الأمان تسمح للمسؤول بإنشاء المستخدمين.";
+                 const permissionError = new FirestorePermissionError({
+                    path: 'users',
+                    operation: 'write',
+                    requestResourceData: { note: 'Batch operation for creating user, company, and role failed.' }
+                 });
+                 errorEmitter.emit('permission-error', permissionError);
+            }
+
+            toast({
+                variant: "destructive",
+                title: "فشل إنشاء المستخدم",
+                description: description,
+            });
+        } finally {
+            if (tempAuth) {
+                await tempAuth.signOut();
+            }
         }
     }
-};
+  };
 
   
   const filteredShipments = React.useMemo(() => {
@@ -556,9 +581,10 @@ export default function AdminDashboard() {
                           open={isUserSheetOpen}
                           onOpenChange={setIsUserSheetOpen}
                           onSave={handleSaveUser}
+                          user={editingUser}
                           deliveryCompanies={deliveryCompanies || []}
                        >
-                            <Button size="sm" className="h-8 gap-1" onClick={() => setIsUserSheetOpen(true)}>
+                            <Button size="sm" className="h-8 gap-1" onClick={() => openUserForm()}>
                                 <PlusCircle className="h-3.5 w-3.5" />
                                 <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
                                   إضافة مستخدم
@@ -567,7 +593,7 @@ export default function AdminDashboard() {
                        </UserFormSheet>
                     </div>
                   </div>
-                  <UsersTable users={users || []} isLoading={usersLoading || companiesLoading || deliveryCompaniesLoading} companies={companies ?? []} deliveryCompanies={deliveryCompanies ?? []}/>
+                  <UsersTable users={users || []} isLoading={usersLoading || companiesLoading || deliveryCompaniesLoading} companies={companies ?? []} deliveryCompanies={deliveryCompanies ?? []} onEdit={openUserForm}/>
               </div>
          </TabsContent>
         </Tabs>

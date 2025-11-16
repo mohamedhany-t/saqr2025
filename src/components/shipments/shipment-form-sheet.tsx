@@ -46,6 +46,14 @@ const shipmentSchema = z.object({
   assignedCourierId: z.string().optional(),
   collectedAmount: z.coerce.number().optional(),
   courierCommission: z.coerce.number().optional(),
+}).superRefine((data, ctx) => {
+    if (data.status === "Partially Delivered" && (data.collectedAmount === undefined || data.collectedAmount <= 0)) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "المبلغ المحصّل مطلوب في حالة التسليم الجزئي",
+            path: ["collectedAmount"],
+        });
+    }
 });
 
 
@@ -95,31 +103,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   }, [open, shipment, form, isEditing, role, companies]);
 
   const onSubmit = (values: z.infer<typeof shipmentSchema>) => {
-    const dataToSave = Object.fromEntries(
-        Object.entries(values).filter(([_, v]) => v !== undefined)
-    ) as Partial<Shipment>;
-
-    if (isCourier) {
-        const courier = couriers.find(c => c.id === shipment?.assignedCourierId);
-        const commissionRate = courier?.commissionRate || 0;
-        
-        if (values.status === 'Delivered') {
-            dataToSave.courierCommission = commissionRate;
-            dataToSave.paidAmount = shipment?.totalAmount;
-        } else if (values.status === 'Partially Delivered') {
-            dataToSave.courierCommission = commissionRate;
-            dataToSave.paidAmount = values.collectedAmount;
-        } else if (values.status === 'Evasion') {
-            dataToSave.courierCommission = commissionRate;
-            dataToSave.paidAmount = 0;
-        } else {
-             dataToSave.courierCommission = 0;
-             dataToSave.paidAmount = 0;
-        }
-    }
-
-
-    onSave(dataToSave as Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, shipment?.id);
+    onSave(values, shipment?.id);
   };
   
   const selectedCompanyId = form.watch("companyId");
@@ -137,11 +121,11 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                 <SheetHeader>
                 <SheetTitle>{isEditing ? "تعديل شحنة" : "إضافة شحنة جديدة"}</SheetTitle>
                 <SheetDescription>
-                    {isEditing ? "قم بتحديث تفاصيل الشحنة هنا." : "أدخل تفاصيل الشحنة الجديدة ليتم إنشاؤها."}
+                    {isCourier ? "قم بتحديث حالة الشحنة." : isEditing ? "قم بتحديث تفاصيل الشحنة هنا." : "أدخل تفاصيل الشحنة الجديدة ليتم إنشاؤها."}
                 </SheetDescription>
                 </SheetHeader>
                 <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6">
-                    <FormField
+                    {!isCourier && <FormField
                         control={form.control}
                         name="shipmentCode"
                         render={({ field }) => (
@@ -153,7 +137,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                 <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
-                    />
+                    />}
                     <FormField
                         control={form.control}
                         name="recipientName"
@@ -226,7 +210,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />
-                    {role !== 'company' && <FormField
+                    {role === 'admin' && <FormField
                         control={form.control}
                         name="companyId"
                         render={({ field }) => (
@@ -246,7 +230,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />}
-                    {filteredSubClients.length > 0 && (
+                    {!isCourier && filteredSubClients.length > 0 && (
                         <FormField
                             control={form.control}
                             name="subClientId"
@@ -322,7 +306,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />
-                     <FormField
+                     {!isCourier && <FormField
                         control={form.control}
                         name="orderNumber"
                         render={({ field }) => (
@@ -334,8 +318,8 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                 <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
-                    />
-                    <FormField
+                    />}
+                    {!isCourier && <FormField
                         control={form.control}
                         name="trackingNumber"
                         render={({ field }) => (
@@ -347,7 +331,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                 <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
-                    />
+                    />}
                 </div>
                 <SheetFooter>
                     <SheetClose asChild>

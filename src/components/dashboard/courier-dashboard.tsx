@@ -70,6 +70,14 @@ export default function CourierDashboard() {
  const handleSaveShipment = async (shipment: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
     if (!firestore || !id || !user) return;
 
+    const originalShipmentDocSnap = await getDoc(doc(firestore, 'shipments', id));
+    if (!originalShipmentDocSnap.exists()) {
+        toast({ title: "Shipment not found", variant: "destructive" });
+        return;
+    }
+    const originalShipmentData = originalShipmentDocSnap.data() as Shipment;
+
+
     const courierUserDoc = await getDoc(doc(firestore, 'users', user.uid));
     const commissionRate = courierUserDoc.data()?.commissionRate || 0;
 
@@ -77,20 +85,22 @@ export default function CourierDashboard() {
         updatedAt: serverTimestamp(),
     };
 
-    if (shipment.status) {
+    // This block handles status changes and their financial implications.
+    if (shipment.status && shipment.status !== originalShipmentData.status) {
         dataToUpdate.status = shipment.status;
         
         if (shipment.status === 'Delivered') {
-            const originalShipmentDoc = await getDoc(doc(firestore, 'shipments', id));
-            dataToUpdate.paidAmount = originalShipmentDoc.data()?.totalAmount || 0;
+            dataToUpdate.paidAmount = originalShipmentData.totalAmount;
             dataToUpdate.courierCommission = commissionRate;
         } else if (shipment.status === 'Partially Delivered') {
-            dataToUpdate.paidAmount = shipment.collectedAmount || 0;
+            // Ensure collectedAmount is a number before assigning it to paidAmount
+            const collectedAmount = Number(shipment.collectedAmount) || 0;
+            dataToUpdate.paidAmount = collectedAmount;
             dataToUpdate.courierCommission = commissionRate;
         } else if (shipment.status === 'Evasion') {
             dataToUpdate.paidAmount = 0;
             dataToUpdate.courierCommission = commissionRate;
-        } else {
+        } else { // For Returned, Cancelled, Pending, etc.
             dataToUpdate.paidAmount = 0;
             dataToUpdate.courierCommission = 0;
         }
@@ -98,12 +108,14 @@ export default function CourierDashboard() {
     if (shipment.reason) {
         dataToUpdate.reason = shipment.reason;
     }
-     if (shipment.collectedAmount !== undefined) {
-        dataToUpdate.collectedAmount = shipment.collectedAmount;
+    if (shipment.collectedAmount !== undefined) {
+        dataToUpdate.collectedAmount = Number(shipment.collectedAmount);
     }
+
 
     if (Object.keys(dataToUpdate).length === 1) { // Only updatedAt
         toast({ title: "لا توجد تغييرات للحفظ", variant: "destructive"});
+        setShipmentSheetOpen(false);
         return;
     }
 

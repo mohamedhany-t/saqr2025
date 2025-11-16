@@ -8,7 +8,7 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from "@tanstack/react-table"
-import { MoreHorizontal, User as UserIcon, Building, Truck } from "lucide-react"
+import { MoreHorizontal, User as UserIcon, Building, Truck, Pencil, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -49,7 +49,7 @@ const roleVariants: Record<Role, "default" | "secondary" | "destructive" | "outl
     courier: "outline",
 }
 
-export const getColumns = (companies: Company[], deliveryCompanies: Company[]): ColumnDef<User>[] => [
+export const getColumns = (companies: Company[], deliveryCompanies: Company[], onEdit: (user: User) => void): ColumnDef<User>[] => [
   {
     accessorKey: "name",
     header: "الاسم",
@@ -89,7 +89,7 @@ export const getColumns = (companies: Company[], deliveryCompanies: Company[]): 
             const rate = user.commissionRate || 0;
             return <div>{rate.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div>;
         }
-        return <div>N/A</div>;
+        return <div className="text-muted-foreground">N/A</div>;
     },
   },
   {
@@ -102,9 +102,9 @@ export const getColumns = (companies: Company[], deliveryCompanies: Company[]): 
         }
         if (user.role === 'courier') {
             const deliveryCompany = deliveryCompanies.find(dc => dc.id === user.deliveryCompanyId);
-            return <div>{deliveryCompany?.name || 'N/A'}</div>
+            return <div>{deliveryCompany?.name || <span className="text-muted-foreground">غير محدد</span>}</div>
         }
-        return <div>N/A</div>;
+        return <div className="text-muted-foreground">N/A</div>;
     },
   },
   {
@@ -119,7 +119,11 @@ export const getColumns = (companies: Company[], deliveryCompanies: Company[]): 
   },
   {
     id: "actions",
-    cell: () => {
+    cell: ({ row }) => {
+      const user = row.original;
+       if (user.role === 'admin' && user.email === 'mhanyt21@gmail.com') {
+        return null; // Cannot edit the main admin
+      }
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -130,8 +134,12 @@ export const getColumns = (companies: Company[], deliveryCompanies: Company[]): 
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>إجراءات</DropdownMenuLabel>
-            <DropdownMenuItem disabled>تعديل</DropdownMenuItem>
-            <DropdownMenuItem disabled>حذف</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onEdit(user)}>
+                <Pencil className="me-2 h-4 w-4" /> تعديل
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled>
+                <Trash2 className="me-2 h-4 w-4" /> حذف
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )
@@ -140,9 +148,9 @@ export const getColumns = (companies: Company[], deliveryCompanies: Company[]): 
 ]
 
 
-export function UsersTable({ users, isLoading, companies, deliveryCompanies }: { users: User[], isLoading: boolean, companies: Company[], deliveryCompanies: Company[] }) {
+export function UsersTable({ users, isLoading, companies, deliveryCompanies, onEdit }: { users: User[], isLoading: boolean, companies: Company[], deliveryCompanies: Company[], onEdit: (user: User) => void }) {
   
-  const columns = React.useMemo(() => getColumns(companies, deliveryCompanies), [companies, deliveryCompanies]);
+  const columns = React.useMemo(() => getColumns(companies, deliveryCompanies, onEdit), [companies, deliveryCompanies, onEdit]);
   
   const table = useReactTable({
     data: users,

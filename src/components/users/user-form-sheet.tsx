@@ -25,23 +25,37 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import type { Company } from '@/lib/types';
+import type { Company, User } from '@/lib/types';
 
-// Schema for user creation form
+// Schema for user creation/editing
 const userSchema = z.object({
   name: z.string().min(1, "الاسم مطلوب"),
   email: z.string().email("بريد إلكتروني غير صالح"),
-  password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
-  role: z.enum(["company", "courier"], { required_error: "الدور مطلوب" }),
+  password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل").optional(),
+  role: z.enum(["company", "courier", "admin"], { required_error: "الدور مطلوب" }),
   companyName: z.string().optional(),
   deliveryCompanyId: z.string().optional(),
   commissionRate: z.coerce.number().optional().default(0),
-}).refine(data => {
-    // If role is 'company', then companyName must be a non-empty string.
-    return data.role !== 'company' || (data.companyName && data.companyName.trim().length > 0);
-}, {
-    message: "اسم الشركة مطلوب عند اختيار دور 'شركة'",
-    path: ["companyName"],
+}).superRefine((data, ctx) => {
+    // If creating a new user (password is present), password must be valid.
+    if (data.password !== undefined && data.password.length < 6) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.too_small,
+            minimum: 6,
+            type: "string",
+            inclusive: true,
+            message: "كلمة المرور يجب أن تكون 6 أحرف على الأقل",
+            path: ["password"],
+        });
+    }
+    // If role is 'company', companyName must be a non-empty string.
+    if (data.role === 'company' && (!data.companyName || data.companyName.trim().length === 0)) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "اسم الشركة مطلوب عند اختيار دور 'شركة'",
+            path: ["companyName"],
+        });
+    }
 });
 
 
@@ -49,14 +63,20 @@ type UserFormSheetProps = {
     children?: React.ReactNode;
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onSave: (data: z.infer<typeof userSchema>) => void;
+    onSave: (data: z.infer<typeof userSchema>, userId?: string) => void;
+    user?: User; // Make user optional for creating vs. editing
     deliveryCompanies: Company[];
 }
 
-export function UserFormSheet({ children, open, onOpenChange, onSave, deliveryCompanies }: UserFormSheetProps) {
-  
-  const form = useForm<z.infer<typeof userSchema>>({
-    resolver: zodResolver(userSchema),
+export function UserFormSheet({ children, open, onOpenChange, onSave, user, deliveryCompanies }: UserFormSheetProps) {
+  const isEditing = !!user;
+
+  const formSchemaForMode = isEditing 
+    ? userSchema.omit({ password: true }) // Password is not editable
+    : userSchema;
+
+  const form = useForm({
+    resolver: zodResolver(formSchemaForMode),
     defaultValues: {
       name: "",
       email: "",
@@ -69,12 +89,30 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, deliveryCo
   
   React.useEffect(() => {
     if (open) {
-        form.reset();
+      if (isEditing) {
+        form.reset({
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          companyName: user.companyName,
+          commissionRate: user.commissionRate,
+          deliveryCompanyId: user.deliveryCompanyId,
+        });
+      } else {
+        form.reset({
+          name: "",
+          email: "",
+          password: "",
+          companyName: "",
+          deliveryCompanyId: "",
+          commissionRate: 0,
+        });
+      }
     }
-  }, [open, form]);
+  }, [open, user, isEditing, form]);
 
   const onSubmit = (values: z.infer<typeof userSchema>) => {
-    onSave(values);
+    onSave(values, user?.id);
   };
   
   const selectedRole = form.watch("role");
@@ -88,9 +126,9 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, deliveryCo
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
                 <SheetHeader>
-                    <SheetTitle>إضافة مستخدم جديد</SheetTitle>
+                    <SheetTitle>{isEditing ? "تعديل مستخدم" : "إضافة مستخدم جديد"}</SheetTitle>
                     <SheetDescription>
-                        أدخل تفاصيل المستخدم الجديد ودوره في النظام. سيتم إنشاء حساب له للدخول إلى لوحة التحكم الخاصة به.
+                        {isEditing ? "قم بتحديث بيانات المستخدم." : "أدخل تفاصيل المستخدم الجديد ودوره في النظام."}
                     </SheetDescription>
                 </SheetHeader>
                 <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6">
@@ -114,13 +152,13 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, deliveryCo
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">البريد الإلكتروني</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input type="email" {...field} />
+                                    <Input type="email" {...field} disabled={isEditing} />
                                 </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
                     />
-                     <FormField
+                     {!isEditing && <FormField
                         control={form.control}
                         name="password"
                         render={({ field }) => (
@@ -132,14 +170,14 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, deliveryCo
                                 <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
-                    />
+                    />}
                      <FormField
                         control={form.control}
                         name="role"
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">الدور</FormLabel>
-                                <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
+                                <Select dir="rtl" onValueChange={field.onChange} value={field.value} disabled={isEditing}>
                                     <FormControl className="col-span-3">
                                         <SelectTrigger>
                                             <SelectValue placeholder="اختر الدور" />
@@ -211,7 +249,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, deliveryCo
                     <SheetClose asChild>
                         <Button variant="outline">إلغاء</Button>
                     </SheetClose>
-                    <Button type="submit">إنشاء مستخدم</Button>
+                    <Button type="submit">{isEditing ? "حفظ التعديلات" : "إنشاء مستخدم"}</Button>
                 </SheetFooter>
             </form>
         </Form>
