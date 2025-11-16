@@ -1,30 +1,42 @@
 
+
 'use client';
 import React, { useEffect, useState, useMemo } from 'react';
-import { notFound, useParams } from 'next/navigation';
+import { notFound, useParams, useSearchParams } from 'next/navigation';
 import { useDoc, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc, collection } from 'firebase/firestore';
+import { doc, collection, getDocs, query, where, documentId } from 'firebase/firestore';
 import type { Shipment, Governorate } from '@/lib/types';
 import { ShipmentLabel } from '@/components/shipments/shipment-label';
 import { Loader2 } from 'lucide-react';
 
+const isBulkPrint = (shipmentId: string | string[] | undefined): shipmentId is 'bulk' => {
+    return shipmentId === 'bulk';
+};
+
 export default function PrintShipmentPage() {
     const params = useParams();
-    const shipmentId = params.shipmentId as string;
+    const searchParams = useSearchParams();
+    const shipmentId = params.shipmentId;
     const firestore = useFirestore();
 
     const [originUrl, setOriginUrl] = useState('');
     
     useEffect(() => {
-        // This ensures window.location.origin is only accessed on the client side
         setOriginUrl(window.location.origin);
     }, []);
 
-    const shipmentDocRef = useMemoFirebase(() => {
-        if (!firestore || !shipmentId) return null;
-        return doc(firestore, 'shipments', shipmentId);
-    }, [firestore, shipmentId]);
-    const { data: shipment, isLoading: isLoadingShipment } = useDoc<Shipment>(shipmentDocRef);
+    const shipmentIds = useMemo(() => {
+        if (isBulkPrint(shipmentId)) {
+            return searchParams.get('ids')?.split(',') || [];
+        }
+        return shipmentId ? [shipmentId as string] : [];
+    }, [shipmentId, searchParams]);
+
+    const shipmentsQuery = useMemoFirebase(() => {
+        if (!firestore || shipmentIds.length === 0) return null;
+        return query(collection(firestore, 'shipments'), where(documentId(), 'in', shipmentIds));
+    }, [firestore, shipmentIds]);
+    const { data: shipments, isLoading: isLoadingShipments } = useCollection<Shipment>(shipmentsQuery);
 
     const governoratesQuery = useMemoFirebase(() => {
         if (!firestore) return null;
@@ -32,22 +44,21 @@ export default function PrintShipmentPage() {
     }, [firestore]);
     const { data: governorates, isLoading: isLoadingGovernorates } = useCollection<Governorate>(governoratesQuery);
 
-    const governorateName = useMemo(() => {
-        if (!shipment || !governorates) return '';
-        return governorates.find(g => g.id === shipment.governorateId)?.name || '';
-    }, [shipment, governorates]);
+    const governorateNameMap = useMemo(() => {
+        if (!governorates) return new Map<string, string>();
+        return new Map(governorates.map(g => [g.id, g.name]));
+    }, [governorates]);
 
     useEffect(() => {
-        if (!isLoadingShipment && shipment && originUrl) {
-            // Delay print slightly to ensure QR code and content are rendered
+        if (!isLoadingShipments && shipments && shipments.length > 0 && originUrl) {
             setTimeout(() => {
                 window.print();
                 window.close();
             }, 500);
         }
-    }, [isLoadingShipment, shipment, originUrl]);
+    }, [isLoadingShipments, shipments, originUrl]);
 
-    if (isLoadingShipment || isLoadingGovernorates || !originUrl) {
+    if (isLoadingShipments || isLoadingGovernorates || !originUrl || !shipments) {
         return (
             <div className="flex h-screen items-center justify-center">
                 <Loader2 className="h-12 w-12 animate-spin" />
@@ -55,15 +66,21 @@ export default function PrintShipmentPage() {
         );
     }
     
-    if (!shipment) {
+    if (shipments.length === 0) {
         notFound();
     }
-    
-    const editUrl = `${originUrl}/?edit=${shipment.id}`;
 
     return (
-        <div className="p-4">
-            <ShipmentLabel shipment={shipment} governorateName={governorateName} editUrl={editUrl} />
+        <div className="p-4 flex flex-col gap-0">
+            {shipments.map((shipment, index) => (
+                 <div key={shipment.id} className="w-full h-screen page-break">
+                    <ShipmentLabel 
+                        shipment={shipment} 
+                        governorateName={governorateNameMap.get(shipment.governorateId) || ''} 
+                        editUrl={`${originUrl}/?edit=${shipment.id}`} 
+                    />
+                </div>
+            ))}
         </div>
     );
 }

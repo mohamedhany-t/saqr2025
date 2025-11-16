@@ -19,7 +19,8 @@ export type ShipmentStatus =
   | "Partially Delivered"
   | "Evasion"
   | "Cancelled"
-  | "Returned";
+  | "Returned"
+  | "Returned to Sender";
 
 export type Shipment = {
   id: string;

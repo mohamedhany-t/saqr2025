@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -91,7 +92,7 @@
         "status": {
           "type": "string",
           "description": "Current status of the shipment.",
-          "enum": ["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion", "Cancelled", "Returned"]
+          "enum": ["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion", "Cancelled", "Returned", "Returned to Sender"]
         },
         "reason": {
           "type": "string",

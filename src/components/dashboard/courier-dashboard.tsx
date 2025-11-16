@@ -1,4 +1,5 @@
 
+
 "use client";
 import React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -224,6 +225,7 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
               <TabsTrigger value="in-transit" className="hidden sm:flex">قيد التوصيل</TabsTrigger>
               <TabsTrigger value="delivered" className="hidden sm:flex">تم التوصيل</TabsTrigger>
               <TabsTrigger value="returned" className="hidden sm:flex">مرتجعات</TabsTrigger>
+              <TabsTrigger value="returned-to-sender" className="hidden sm:flex">مرتجع للراسل</TabsTrigger>
             </TabsList>
           </div>
           <StatsCards shipments={shipments || []} role={role} />
@@ -266,6 +268,18 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
            <TabsContent value="returned">
              <ShipmentsTable 
                 shipments={filteredShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled' || s.status === 'Evasion')}
+                isLoading={shipmentsLoading}
+                governorates={governorates || []}
+                companies={[]}
+                couriers={couriers || []}
+                onEdit={openShipmentForm}
+                onBulkUpdate={handleBulkUpdateShipments}
+                role={role}
+             />
+          </TabsContent>
+           <TabsContent value="returned-to-sender">
+             <ShipmentsTable 
+                shipments={filteredShipments.filter(s => s.status === 'Returned to Sender')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
                 companies={[]}

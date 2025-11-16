@@ -1,4 +1,5 @@
 
+
 "use client";
 import React from "react";
 import { PlusCircle, FileUp } from "lucide-react";
@@ -267,6 +268,7 @@ export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEd
               <TabsTrigger value="in-transit" className="hidden sm:flex">قيد التوصيل</TabsTrigger>
               <TabsTrigger value="delivered" className="hidden sm:flex">تم التوصيل</TabsTrigger>
               <TabsTrigger value="returned" className="hidden sm:flex">مرتجعات</TabsTrigger>
+              <TabsTrigger value="returned-to-sender" className="hidden sm:flex">مرتجع للراسل</TabsTrigger>
             </TabsList>
             <div className="ms-auto flex items-center gap-2">
                 <input
@@ -327,6 +329,17 @@ export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEd
            <TabsContent value="returned">
              <ShipmentsTable 
                 shipments={filteredShipments.filter(s => s.status === 'Returned')}
+                isLoading={shipmentsLoading}
+                governorates={governorates || []}
+                companies={[]}
+                couriers={courierUsers || []}
+                onEdit={openShipmentForm}
+                role={role}
+             />
+          </TabsContent>
+           <TabsContent value="returned-to-sender">
+             <ShipmentsTable 
+                shipments={filteredShipments.filter(s => s.status === 'Returned to Sender')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
                 companies={[]}

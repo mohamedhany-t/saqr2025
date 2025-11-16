@@ -38,6 +38,14 @@ export default function RootLayout({
                 top: 0;
                 width: 100%;
                 height: 100%;
+                box-sizing: border-box;
+              }
+               @page {
+                size: A4;
+                margin: 0;
+              }
+              .page-break {
+                 page-break-after: always;
               }
             }
           `}

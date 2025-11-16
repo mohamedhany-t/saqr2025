@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import * as React from 'react';
@@ -38,7 +39,7 @@ const shipmentSchema = z.object({
   address: z.string().min(1, "العنوان مطلوب"),
   totalAmount: z.coerce.number().min(0, "المبلغ يجب أن يكون إيجابي"),
   paidAmount: z.coerce.number().optional(),
-  status: z.enum(["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion", "Cancelled", "Returned"]),
+  status: z.enum(["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion", "Cancelled", "Returned", "Returned to Sender"]),
   reason: z.string().optional(),
   deliveryDate: z.date().optional(),
   assignedCourierId: z.string().optional(),
@@ -91,6 +92,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           paidAmount: shipment.paidAmount ?? 0,
           totalAmount: shipment.totalAmount ?? 0,
           reason: shipment.reason ?? '',
+          assignedCourierId: shipment.assignedCourierId ?? '',
         };
         form.reset(defaultValues as any);
       } else {
@@ -106,6 +108,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           status: "Pending" as ShipmentStatus,
           reason: "",
           collectedAmount: 0,
+          assignedCourierId: "",
           shipmentCode: `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
         };
         form.reset(defaultValues);
@@ -226,7 +229,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">الشركة</FormLabel>
-                                <Select dir="rtl" onValueChange={field.onChange} value={field.value} disabled={isCourier}>
+                                <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
                                     <FormControl className="col-span-3">
                                         <SelectTrigger>
                                             <SelectValue placeholder="اختر الشركة" />
@@ -240,6 +243,29 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />}
+                     {isCompanyOrAdmin && (
+                        <FormField
+                            control={form.control}
+                            name="assignedCourierId"
+                            render={({ field }) => (
+                                <FormItem className="grid grid-cols-4 items-center gap-4">
+                                    <FormLabel className="text-right">المندوب</FormLabel>
+                                    <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
+                                        <FormControl className="col-span-3">
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="اختر المندوب" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="">بلا مندوب</SelectItem>
+                                            {couriers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage className="col-span-4" />
+                                </FormItem>
+                            )}
+                        />
+                    )}
                     <FormField
                         control={form.control}
                         name="status"
@@ -257,6 +283,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                         <SelectItem value="In-Transit">قيد التوصيل</SelectItem>
                                         <SelectItem value="Delivered">تم التوصيل</SelectItem>
                                         <SelectItem value="Partially Delivered">تم التوصيل جزئياً</SelectItem>
+                                        <SelectItem value="Returned to Sender">تم الرجوع للراسل</SelectItem>
                                         <SelectItem value="Evasion">تهرب</SelectItem>
                                         <SelectItem value="Cancelled">تم الإلغاء</SelectItem>
                                         <SelectItem value="Returned">مرتجع</SelectItem>

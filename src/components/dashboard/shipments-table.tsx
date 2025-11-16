@@ -73,6 +73,7 @@ const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
     Evasion: <AlertTriangle className="h-4 w-4 text-purple-500" />,
     Cancelled: <XCircle className="h-4 w-4 text-red-500" />,
     Returned: <Archive className="h-4 w-4 text-orange-500" />,
+    "Returned to Sender": <Archive className="h-4 w-4 text-orange-700" />,
 }
 
 const statusVariants: Record<ShipmentStatus, "default" | "secondary" | "destructive" | "outline"> = {
@@ -83,6 +84,7 @@ const statusVariants: Record<ShipmentStatus, "default" | "secondary" | "destruct
     Evasion: "secondary",
     Cancelled: "destructive",
     Returned: "secondary",
+    "Returned to Sender": "secondary",
 }
 
 export const statusText: Record<string, string> = {
@@ -93,6 +95,7 @@ export const statusText: Record<string, string> = {
     Evasion: 'تهرب',
     Cancelled: 'تم الإلغاء',
     Returned: 'مرتجع',
+    'Returned to Sender': 'تم الرجوع للراسل'
 };
 
 const mapStatus = (status: string): ShipmentStatus => {
@@ -355,6 +358,16 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates, companies, couriersForExport);
   }
 
+  const handleBulkPrint = () => {
+    const selectedRows = table.getFilteredSelectedRowModel().rows.map(row => row.original);
+    if (selectedRows.length === 0) {
+        toast({ title: "لم يتم تحديد أي شحنات للطباعة", variant: "destructive" });
+        return;
+    }
+    const printUrl = `/print/bulk?ids=${selectedRows.map(s => s.id).join(',')}`;
+    window.open(printUrl, '_blank', 'width=800,height=600');
+  }
+
   const handleBulkDelete = () => {
     if (!firestore || role !== 'admin') return;
     const selectedRows = table.getFilteredSelectedRowModel().rows;
@@ -494,6 +507,12 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                     <span className="text-sm text-muted-foreground hidden lg:inline">
                         {table.getFilteredSelectedRowModel().rows.length} شحنات محددة
                     </span>
+                    {role === 'admin' && (
+                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleBulkPrint}>
+                            <Printer className="h-3.5 w-3.5" />
+                            <span className="sr-only sm:not-sr-only">طباعة المحدد</span>
+                        </Button>
+                    )}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                              <Button variant="outline" size="sm" className="h-8 gap-1">
