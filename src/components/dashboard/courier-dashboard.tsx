@@ -98,9 +98,9 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
             update.courierCommission = commissionRate;
             break;
         case 'Evasion':
-            update.paidAmount = totalAmount;
+            update.paidAmount = totalAmount; // As per new request
             update.courierCommission = commissionRate;
-            update.collectedAmount = totalAmount;
+            update.collectedAmount = totalAmount; // As per new request
             break;
         default: // Returned, Cancelled, etc.
             update.paidAmount = 0;
@@ -209,7 +209,7 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
   
   const { activeShipments, finishedShipments } = React.useMemo(() => {
     if (!shipments) return { activeShipments: [], finishedShipments: [] };
-    const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Evasion'];
+    const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Evasion', 'Returned to Sender'];
     const active = shipments.filter(s => !finishedStatuses.includes(s.status));
     const finished = shipments.filter(s => finishedStatuses.includes(s.status));
     return { activeShipments: active, finishedShipments: finished };
@@ -283,19 +283,20 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
       role={role}
     />
   );
-
+  
+  const inTransitCount = filteredActiveShipments.filter(s => s.status === 'In-Transit').length;
+  const returnedCount = filteredActiveShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled').length;
 
   return (
     <>
-      <Header onSearchChange={() => {}} />
       <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
         <Tabs defaultValue="all">
           <div className="flex items-center">
             <TabsList>
-               <TabsTrigger value="all">الكل</TabsTrigger>
-               <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
-               <TabsTrigger value="returned">مرتجعات</TabsTrigger>
-               <TabsTrigger value="finished">الطرود المنتهية</TabsTrigger>
+               <TabsTrigger value="all">الكل <Badge variant="secondary" className="ms-2">{filteredActiveShipments.length}</Badge></TabsTrigger>
+               <TabsTrigger value="in-transit">قيد التوصيل <Badge variant="secondary" className="ms-2">{inTransitCount}</Badge></TabsTrigger>
+               <TabsTrigger value="returned">مرتجعات <Badge variant="secondary" className="ms-2">{returnedCount}</Badge></TabsTrigger>
+               <TabsTrigger value="finished">الطرود المنتهية <Badge variant="secondary" className="ms-2">{filteredFinishedShipments.length}</Badge></TabsTrigger>
             </TabsList>
           </div>
           <StatsCards shipments={shipments || []} role={role} />
