@@ -306,7 +306,7 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
           })
           .catch(serverError => {
             const permissionError = new FirestorePermissionError({
-                path: 'users', 
+                path: 'users', // This is a batch, path is indicative
                 operation: 'update',
                 requestResourceData: { note: `Batch update for user ${userId} failed.` }
             });
@@ -315,33 +315,14 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
 
     } else { // --- CREATE LOGIC ---
         toast({ title: "جاري إنشاء المستخدم...", description: "قد تستغرق هذه العملية بضع لحظات." });
-        const originalUser = auth.currentUser;
+
         try {
-            // Create user with the main auth instance
+            // This is an auth operation, not a firestore one. It needs its own error handling.
             const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
             const newUser = userCredential.user;
 
-            // After creating the user, we should sign the admin back in if they were signed out
-            // This part is tricky and might require re-architecting the auth flow.
-            // For now, we proceed assuming the admin might need to log in again.
-            
             const batch = writeBatch(firestore);
 
-            // Create corresponding document in 'companies' or 'couriers'
-            if (data.role === 'company') {
-                const companyRef = doc(firestore, 'companies', newUser.uid);
-                batch.set(companyRef, { id: newUser.uid, name: data.name });
-            } else if (data.role === 'courier') {
-                const courierRef = doc(firestore, 'couriers', newUser.uid);
-                batch.set(courierRef, {
-                    id: newUser.uid,
-                    name: data.name,
-                    commissionRate: data.commissionRate || 0,
-                });
-            }
-
-            // Create the main user document in 'users'
-            const userDocRef = doc(firestore, 'users', newUser.uid);
             const userPayload: any = {
                 id: newUser.uid,
                 email: data.email,
@@ -349,53 +330,58 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
                 role: data.role,
                 createdAt: serverTimestamp(),
             };
-             if (data.role === 'company') {
+
+            // Create corresponding document in 'companies' or 'couriers'
+            if (data.role === 'company') {
+                const companyRef = doc(firestore, 'companies', newUser.uid);
+                batch.set(companyRef, { id: newUser.uid, name: data.name });
                 userPayload.companyId = newUser.uid;
+            } else if (data.role === 'courier') {
+                const courierRef = doc(firestore, 'couriers', newUser.uid);
+                const courierData = { id: newUser.uid, name: data.name, commissionRate: data.commissionRate || 0 };
+                batch.set(courierRef, courierData);
+                if (data.commissionRate) {
+                    userPayload.commissionRate = data.commissionRate;
+                }
             }
-            if (data.role === 'courier' && data.commissionRate) {
-                userPayload.commissionRate = data.commissionRate;
-            }
+
+            const userDocRef = doc(firestore, 'users', newUser.uid);
             batch.set(userDocRef, userPayload);
             
-            // Add user to the role-specific collection for security rules
             const roleCollectionName = `roles_${data.role}`;
             const roleDocRef = doc(firestore, roleCollectionName, newUser.uid);
             batch.set(roleDocRef, { email: data.email, createdAt: serverTimestamp() });
             
-            await batch.commit();
+            // The batch commit is the firestore operation to watch.
+            batch.commit()
+                .then(() => {
+                    toast({
+                        title: "تم إنشاء المستخدم بنجاح!",
+                        description: `تم إنشاء حساب لـ ${data.name} بدور "${data.role}".`,
+                    });
+                })
+                .catch(serverError => {
+                    // This is where Firestore permission errors for the batch write will be caught.
+                    const permissionError = new FirestorePermissionError({
+                        path: 'batch_write (users, roles, etc.)', // Indicative path
+                        operation: 'write',
+                        requestResourceData: { note: `Batch create for user ${data.email} failed.` }
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                });
 
-            toast({
-                title: "تم إنشاء المستخدم بنجاح!",
-                description: `تم إنشاء حساب لـ ${data.name} بدور "${data.role}". قد تحتاج إلى تسجيل الدخول مرة أخرى.`,
-            });
-        } catch (error: any) {
-            console.error("Error creating user:", error);
+        } catch (error: any) { // This catches AUTH errors (e.g., email-already-in-use)
             let description = "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.";
             if (error.code === 'auth/email-already-in-use') {
                 description = "هذا البريد الإلكتروني مستخدم بالفعل.";
             } else if (error.code === 'auth/weak-password') {
                 description = "كلمة المرور ضعيفة جدًا. يجب أن تتكون من 6 أحرف على الأقل.";
-            } else if (error.code?.includes('permission-denied')) {
-                 description = "خطأ في الصلاحيات. تأكد من أن قواعد الأمان تسمح للمسؤول بإنشاء المستخدمين.";
-                 const permissionError = new FirestorePermissionError({
-                    path: 'users',
-                    operation: 'write',
-                    requestResourceData: { note: 'Create user operation failed due to permissions.' }
-                 });
-                 errorEmitter.emit('permission-error', permissionError);
             }
-
             toast({
                 variant: "destructive",
-                title: "فشل إنشاء المستخدم",
+                title: "فشل إنشاء حساب المصادقة",
                 description: description,
             });
-        } finally {
-            // Attempt to re-sign-in the admin user silently if they were signed out.
-            // This is a complex flow and might not always succeed.
-            if (!auth.currentUser && originalUser && originalUser.email) {
-                 console.warn("Admin was signed out during user creation. Manual re-login may be required.");
-            }
         }
     }
   };
@@ -657,5 +643,7 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
     </div>
   );
 }
+
+    
 
     
