@@ -1,5 +1,3 @@
-
-
 'use client';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,7 +52,7 @@ export function ShipmentCard({ shipment, governorateName, onEdit }: ShipmentCard
                     </span>
                 </div>
             </CardContent>
-            <CardFooter className="p-4 pt-0 flex justify-end gap-2">
+            <CardFooter className="p-4 pt-0 flex flex-wrap justify-end gap-2">
                  <Button variant="outline" size="sm" onClick={handleCall}>
                     <Phone className="h-4 w-4 me-2"/>
                     اتصال
@@ -71,5 +69,3 @@ export function ShipmentCard({ shipment, governorateName, onEdit }: ShipmentCard
         </Card>
     );
 }
-
-    
