@@ -76,7 +76,7 @@ const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
     "Returned to Sender": <Archive className="h-4 w-4 text-orange-700" />,
 }
 
-const statusVariants: Record<ShipmentStatus, "default" | "secondary" | "destructive" | "outline"> = {
+export const statusVariants: Record<ShipmentStatus, "default" | "secondary" | "destructive" | "outline"> = {
     Pending: "outline",
     "In-Transit": "secondary",
     Delivered: "default",
@@ -113,24 +113,8 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role }) => {
   const { toast } = useToast();
 
   const handlePrint = () => {
-    // Pass all necessary data via sessionStorage
-    const dataToPass = {
-        ...shipment,
-        editUrl: `${window.location.origin}/?edit=${shipment.id}`,
-    };
-
-    try {
-        sessionStorage.setItem('printableShipmentData', JSON.stringify([dataToPass]));
-        const printUrl = `/print/bulk`;
-        window.open(printUrl, '_blank', 'width=800,height=600');
-    } catch (e) {
-        console.error("Error setting session storage", e);
-        toast({
-            title: "خطأ في الطباعة",
-            description: "لا يمكن تخزين بيانات الشحنة للطباعة. قد تكون مساحة التخزين ممتلئة.",
-            variant: "destructive"
-        });
-    }
+    const printUrl = `/print/${shipment.id}`;
+    window.open(printUrl, '_blank', 'width=800,height=600');
   };
 
 
@@ -388,27 +372,9 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
         return;
     }
     
-    // Map selected rows to include necessary data like governorate name
-    const dataToPass = selectedRows.map(row => {
-        const shipment = row.original;
-        return {
-            ...shipment,
-            editUrl: `${window.location.origin}/?edit=${shipment.id}`,
-        };
-    });
-
-    try {
-        sessionStorage.setItem('printableShipmentData', JSON.stringify(dataToPass));
-        const printUrl = `/print/bulk`;
-        window.open(printUrl, '_blank', 'width=800,height=600');
-    } catch (e) {
-        console.error("Error setting session storage", e);
-        toast({
-            title: "خطأ في الطباعة",
-            description: "لا يمكن تخزين بيانات الشحنات للطباعة. قد تكون مساحة التخزين ممتلئة.",
-            variant: "destructive"
-        });
-    }
+    const ids = selectedRows.map(row => row.original.id);
+    const printUrl = `/print/bulk?ids=${ids.join(',')}`;
+    window.open(printUrl, '_blank', 'width=800,height=600');
   }
 
 
@@ -699,4 +665,5 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
   )
 }
 
+    
     

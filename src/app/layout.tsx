@@ -7,6 +7,7 @@ import { FirebaseClientProvider } from "@/firebase/client-provider";
 export const metadata: Metadata = {
   title: "AlSaqr Logistics",
   description: "Efficient Shipment Management",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({

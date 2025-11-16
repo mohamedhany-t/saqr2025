@@ -11,6 +11,9 @@ import { Header } from "@/components/dashboard/header";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser, useDoc } from "@/firebase";
 import { collection, serverTimestamp, doc, query, where, updateDoc, getDoc, writeBatch } from "firebase/firestore";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { ShipmentCard } from "@/components/shipments/shipment-card";
+import { Loader2 } from "lucide-react";
 
 interface CourierDashboardProps {
   shipmentToEdit?: Shipment | null;
@@ -26,6 +29,7 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
   const firestore = useFirestore();
   const { user } = useUser();
   const role: Role = 'courier';
+  const isMobile = useIsMobile();
 
   React.useEffect(() => {
     if (shipmentToEdit && isEditSheetOpen !== undefined && onEditSheetOpenChange) {
@@ -214,6 +218,52 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
   }, [shipments, searchTerm]);
 
 
+  const renderShipmentList = (shipmentList: Shipment[]) => {
+    if (shipmentsLoading) {
+      return (
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="p-4 bg-card rounded-lg border">
+                <div className="flex justify-between items-center"><div className="w-2/3 h-5 bg-muted rounded animate-pulse"/><div className="w-1/4 h-5 bg-muted rounded animate-pulse"/></div>
+                <div className="w-full h-4 bg-muted rounded animate-pulse mt-3"/>
+                <div className="w-1/2 h-4 bg-muted rounded animate-pulse mt-2"/>
+                <div className="flex justify-end gap-2 mt-4"><div className="w-20 h-9 bg-muted rounded"/><div className="w-20 h-9 bg-muted rounded"/></div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (shipmentList.length === 0) {
+      return <div className="text-center py-10 text-muted-foreground">لا توجد شحنات في هذه الفئة.</div>;
+    }
+    return (
+      <div className="space-y-3">
+        {shipmentList.map(shipment => (
+          <ShipmentCard 
+            key={shipment.id}
+            shipment={shipment}
+            governorateName={governorates?.find(g => g.id === shipment.governorateId)?.name || ''}
+            onEdit={() => openShipmentForm(shipment)}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  const renderDesktopTable = (shipmentList: Shipment[]) => (
+    <ShipmentsTable 
+      shipments={shipmentList} 
+      isLoading={shipmentsLoading}
+      governorates={governorates || []}
+      companies={[]}
+      couriers={couriers || []}
+      onEdit={openShipmentForm}
+      onBulkUpdate={handleBulkUpdateShipments}
+      role={role}
+    />
+  );
+
+
   return (
     <div className="min-h-screen w-full bg-muted/30">
       <Header onSearchChange={setSearchTerm}/>
@@ -225,69 +275,20 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
               <TabsTrigger value="in-transit" className="hidden sm:flex">قيد التوصيل</TabsTrigger>
               <TabsTrigger value="delivered" className="hidden sm:flex">تم التوصيل</TabsTrigger>
               <TabsTrigger value="returned" className="hidden sm:flex">مرتجعات</TabsTrigger>
-              <TabsTrigger value="returned-to-sender" className="hidden sm:flex">مرتجع للراسل</TabsTrigger>
             </TabsList>
           </div>
           <StatsCards shipments={shipments || []} role={role} />
           <TabsContent value="all-shipments">
-            <ShipmentsTable 
-              shipments={filteredShipments} 
-              isLoading={shipmentsLoading}
-              governorates={governorates || []}
-              companies={[]}
-              couriers={couriers || []}
-              onEdit={openShipmentForm}
-              onBulkUpdate={handleBulkUpdateShipments}
-              role={role}
-            />
+             {isMobile ? renderShipmentList(filteredShipments) : renderDesktopTable(filteredShipments)}
           </TabsContent>
           <TabsContent value="in-transit">
-             <ShipmentsTable 
-                shipments={filteredShipments.filter(s => s.status === 'In-Transit')}
-                isLoading={shipmentsLoading}
-                governorates={governorates || []}
-                companies={[]}
-                couriers={couriers || []}
-                onEdit={openShipmentForm}
-                onBulkUpdate={handleBulkUpdateShipments}
-                role={role}
-             />
+             {isMobile ? renderShipmentList(filteredShipments.filter(s => s.status === 'In-Transit')) : renderDesktopTable(filteredShipments.filter(s => s.status === 'In-Transit'))}
           </TabsContent>
            <TabsContent value="delivered">
-             <ShipmentsTable 
-                shipments={filteredShipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered')}
-                isLoading={shipmentsLoading}
-                governorates={governorates || []}
-                companies={[]}
-                couriers={couriers || []}
-                onEdit={openShipmentForm}
-                onBulkUpdate={handleBulkUpdateShipments}
-                role={role}
-             />
+             {isMobile ? renderShipmentList(filteredShipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered')) : renderDesktopTable(filteredShipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered'))}
           </TabsContent>
            <TabsContent value="returned">
-             <ShipmentsTable 
-                shipments={filteredShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled' || s.status === 'Evasion')}
-                isLoading={shipmentsLoading}
-                governorates={governorates || []}
-                companies={[]}
-                couriers={couriers || []}
-                onEdit={openShipmentForm}
-                onBulkUpdate={handleBulkUpdateShipments}
-                role={role}
-             />
-          </TabsContent>
-           <TabsContent value="returned-to-sender">
-             <ShipmentsTable 
-                shipments={filteredShipments.filter(s => s.status === 'Returned to Sender')}
-                isLoading={shipmentsLoading}
-                governorates={governorates || []}
-                companies={[]}
-                couriers={couriers || []}
-                onEdit={openShipmentForm}
-                onBulkUpdate={handleBulkUpdateShipments}
-                role={role}
-             />
+            {isMobile ? renderShipmentList(filteredShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled' || s.status === 'Evasion')) : renderDesktopTable(filteredShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled' || s.status === 'Evasion'))}
           </TabsContent>
         </Tabs>
       </main>
@@ -305,3 +306,5 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
     </div>
   );
 }
+
+    
