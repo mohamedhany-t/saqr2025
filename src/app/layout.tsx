@@ -8,6 +8,10 @@ export const metadata: Metadata = {
   title: "AlSaqr Logistics",
   description: "Efficient Shipment Management",
   manifest: "/manifest.json",
+  icons: {
+    icon: '/icon.png',
+    apple: '/icon.png',
+  },
 };
 
 export default function RootLayout({

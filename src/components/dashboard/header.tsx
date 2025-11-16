@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Logo } from '../icons';
 import { useRouter } from 'next/navigation';
+import { InstallPwaButton } from '../install-pwa-button';
 
 export function Header({ onSearchChange }: { onSearchChange: (term: string) => void }) {
   const { user } = useUser();
@@ -56,6 +57,7 @@ export function Header({ onSearchChange }: { onSearchChange: (term: string) => v
           onChange={(e) => onSearchChange(e.target.value)}
         />
       </div>
+      <InstallPwaButton />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
