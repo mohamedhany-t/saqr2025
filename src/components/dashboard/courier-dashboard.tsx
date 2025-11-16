@@ -2,6 +2,7 @@
 
 "use client";
 import React from "react";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
 import type { Role, Shipment, Company, Governorate, Courier, ShipmentStatus, User } from "@/lib/types";
@@ -14,21 +15,22 @@ import { collection, serverTimestamp, doc, query, where, updateDoc, getDoc, writ
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
 import { Loader2 } from "lucide-react";
+import { AppLayout } from "../layout/app-layout";
 
 interface CourierDashboardProps {
   shipmentToEdit?: Shipment | null;
   isEditSheetOpen?: boolean;
   onEditSheetOpenChange?: (open: boolean) => void;
+  role: Role | null;
 }
 
-export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange }: CourierDashboardProps) {
+export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange, role }: CourierDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const [searchTerm, setSearchTerm] = React.useState("");
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
-  const role: Role = 'courier';
   const isMobile = useIsMobile();
 
   React.useEffect(() => {
@@ -97,9 +99,9 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
             update.courierCommission = commissionRate;
             break;
         case 'Evasion':
-            update.paidAmount = 0;
+            update.paidAmount = totalAmount;
             update.courierCommission = commissionRate;
-            update.collectedAmount = 0;
+            update.collectedAmount = totalAmount;
             break;
         default: // Returned, Cancelled, etc.
             update.paidAmount = 0;
@@ -206,12 +208,21 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
 };
 
   
-  const { activeShipments, finishedShipments } = React.useMemo(() => {
-    if (!shipments) return { activeShipments: [], finishedShipments: [] };
+  const { activeShipments, finishedShipments, inTransitShipments, returnedShipments } = React.useMemo(() => {
+    if (!shipments) return { activeShipments: [], finishedShipments: [], inTransitShipments: [], returnedShipments: [] };
     const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Evasion'];
+    
     const active = shipments.filter(s => !finishedStatuses.includes(s.status));
     const finished = shipments.filter(s => finishedStatuses.includes(s.status));
-    return { activeShipments: active, finishedShipments: finished };
+    const inTransit = active.filter(s => s.status === 'In-Transit');
+    const returned = active.filter(s => s.status === 'Returned' || s.status === 'Cancelled');
+
+    return { 
+        activeShipments: active, 
+        finishedShipments: finished,
+        inTransitShipments: inTransit,
+        returnedShipments: returned
+    };
   }, [shipments]);
 
 
@@ -283,18 +294,24 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
     />
   );
 
+  const renderTabTrigger = (value: string, label: string, count: number) => (
+    <TabsTrigger value={value} className="flex items-center gap-2">
+      {label}
+      <Badge variant="secondary" className="rounded-full">{count}</Badge>
+    </TabsTrigger>
+  );
+
 
   return (
-    <div className="min-h-screen w-full bg-muted/30">
-      <Header onSearchChange={setSearchTerm}/>
+    <AppLayout role={role}>
       <main className="p-4 sm:px-6 sm:py-0">
         <Tabs defaultValue="all-active">
           <div className="flex items-center">
             <TabsList>
-              <TabsTrigger value="all-active">الشحنات النشطة</TabsTrigger>
-              <TabsTrigger value="in-transit" className="hidden sm:flex">قيد التوصيل</TabsTrigger>
-              <TabsTrigger value="returned" className="hidden sm:flex">مرتجعات</TabsTrigger>
-              <TabsTrigger value="finished">الطرود المنتهية</TabsTrigger>
+               {renderTabTrigger("all-active", "الشحنات النشطة", activeShipments.length)}
+               {renderTabTrigger("in-transit", "قيد التوصيل", inTransitShipments.length)}
+               {renderTabTrigger("returned", "مرتجعات", returnedShipments.length)}
+               {renderTabTrigger("finished", "الطرود المنتهية", finishedShipments.length)}
             </TabsList>
           </div>
           <StatsCards shipments={shipments || []} role={role} />
@@ -323,6 +340,6 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
       >
         <div />
       </ShipmentFormSheet>
-    </div>
+    </AppLayout>
   );
 }

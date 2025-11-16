@@ -1,5 +1,4 @@
 
-
 "use client";
 import React from "react";
 import { PlusCircle, FileUp, Database, User as UserIcon, Wallet, DollarSign, BadgePercent, Building } from "lucide-react";
@@ -28,14 +27,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { AppLayout } from "../layout/app-layout";
 
 interface AdminDashboardProps {
   shipmentToEdit?: Shipment | null;
   isEditSheetOpen?: boolean;
   onEditSheetOpenChange?: (open: boolean) => void;
+  role: Role | null;
 }
 
-export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange }: AdminDashboardProps) {
+export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange, role }: AdminDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
@@ -47,7 +48,6 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
   const { user } = useUser();
   const firestore = useFirestore();
   const auth = useAuth();
-  const role: Role = 'admin';
 
   React.useEffect(() => {
     if (shipmentToEdit && isEditSheetOpen !== undefined && onEditSheetOpenChange) {
@@ -493,8 +493,7 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
 
 
   return (
-    <div className="min-h-screen w-full bg-muted/40">
-      <Header onSearchChange={setSearchTerm}/>
+    <AppLayout role={role}>
       <main className="p-4 sm:px-6 sm:py-0">
         <Tabs defaultValue="all-shipments">
           <div className="flex items-center flex-wrap gap-2">
@@ -716,6 +715,6 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </AppLayout>
   );
 }

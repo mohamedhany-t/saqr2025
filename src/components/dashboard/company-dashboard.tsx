@@ -14,14 +14,16 @@ import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, setDoc } from "firebase/firestore";
+import { AppLayout } from "../layout/app-layout";
 
 interface CompanyDashboardProps {
   shipmentToEdit?: Shipment | null;
   isEditSheetOpen?: boolean;
   onEditSheetOpenChange?: (open: boolean) => void;
+  role: Role | null;
 }
 
-export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange }: CompanyDashboardProps) {
+export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange, role }: CompanyDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -29,7 +31,6 @@ export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEd
   const { toast } = useToast();
   const { user } = useUser();
   const firestore = useFirestore();
-  const role: Role = 'company';
 
   React.useEffect(() => {
     if (shipmentToEdit && isEditSheetOpen !== undefined && onEditSheetOpenChange) {
@@ -258,8 +259,7 @@ export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEd
 
 
   return (
-    <div className="min-h-screen w-full bg-background">
-      <Header onSearchChange={setSearchTerm}/>
+    <AppLayout role={role}>
       <main className="p-4 sm:px-6 sm:py-0">
         <Tabs defaultValue="all-shipments">
           <div className="flex items-center flex-wrap gap-2">
@@ -362,6 +362,6 @@ export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEd
       >
         <div />
       </ShipmentFormSheet>
-    </div>
+    </AppLayout>
   );
 }

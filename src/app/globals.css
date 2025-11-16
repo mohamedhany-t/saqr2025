@@ -81,3 +81,7 @@
     @apply bg-background text-foreground;
   }
 }
+
+.page-break {
+    page-break-after: always;
+}

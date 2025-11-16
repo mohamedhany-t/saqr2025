@@ -4,7 +4,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Search, Package, Home, Users2, LineChart } from "lucide-react";
+import { Search, Menu } from "lucide-react";
 import { useAuth, useUser } from '@/firebase';
 import { signOut } from 'firebase/auth';
 
@@ -21,6 +21,9 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Logo } from '../icons';
 import { InstallPwaButton } from '../install-pwa-button';
+import { Sheet, SheetContent, SheetTrigger } from '../ui/sheet';
+import { Sidebar, useSidebar } from '../ui/sidebar';
+import { SidebarContent } from '../layout/sidebar';
 
 export function Header({ onSearchChange }: { onSearchChange: (term: string) => void }) {
   const { user } = useUser();
@@ -37,23 +40,25 @@ export function Header({ onSearchChange }: { onSearchChange: (term: string) => v
   const displayInitial = displayName?.charAt(0).toUpperCase() || "U";
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4 sm:px-6">
-       <Link href="/" className="flex items-center gap-2 font-semibold">
-          <Logo className="size-7 text-primary" />
-          <h1 className="font-headline text-lg text-foreground">AlSaqr Logistics</h1>
-        </Link>
-        <nav className="hidden flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6 me-auto">
-          <Link href="/" className="flex items-center gap-2 text-foreground transition-colors hover:text-foreground">
-            <Home className="h-4 w-4" />
-            <span>الرئيسية</span>
-          </Link>
-        </nav>
-      <div className="relative flex-1 md:grow-0">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
+       <Sheet>
+          <SheetTrigger asChild>
+            <Button size="icon" variant="outline" className="sm:hidden">
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Toggle Menu</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="right" className="sm:max-w-xs bg-sidebar text-sidebar-foreground p-0">
+              <SidebarContent />
+          </SheetContent>
+        </Sheet>
+        
+      <div className="relative ms-auto flex-1 md:grow-0">
         <Search className="absolute start-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
           type="search"
           placeholder="بحث في الشحنات..."
-          className="w-full rounded-lg bg-background ps-8 md:w-[180px] lg:w-[320px]"
+          className="w-full rounded-lg bg-background ps-8 md:w-[200px] lg:w-[336px]"
           onChange={(e) => onSearchChange(e.target.value)}
         />
       </div>

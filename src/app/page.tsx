@@ -11,6 +11,7 @@ import AdminDashboard from "@/components/dashboard/admin-dashboard";
 import CourierDashboard from "@/components/dashboard/courier-dashboard";
 import CompanyDashboard from "@/components/dashboard/company-dashboard";
 import { Button } from "@/components/ui/button";
+import { SidebarProvider } from "@/components/ui/sidebar";
 
 export default function DashboardRouterPage() {
   const [role, setRole] = React.useState<Role | null>(null);
@@ -139,16 +140,22 @@ export default function DashboardRouterPage() {
       const dashboardProps = {
         shipmentToEdit: editingShipmentFromUrl,
         isEditSheetOpen: isEditSheetOpen,
-        onEditSheetOpenChange: handleSheetOpenChange
+        onEditSheetOpenChange: handleSheetOpenChange,
+        role: role
       };
+
+      let dashboardComponent;
 
       switch (role) {
         case "admin":
-          return <AdminDashboard {...dashboardProps} />;
+          dashboardComponent = <AdminDashboard {...dashboardProps} />;
+          break;
         case "company":
-            return <CompanyDashboard {...dashboardProps} />;
+          dashboardComponent = <CompanyDashboard {...dashboardProps} />;
+          break;
         case "courier":
-          return <CourierDashboard {...dashboardProps} />;
+          dashboardComponent = <CourierDashboard {...dashboardProps} />;
+          break;
         default:
           return (
             <div className="flex min-h-screen w-full items-center justify-center bg-muted/30 flex-col gap-4 text-center p-4">
@@ -160,6 +167,12 @@ export default function DashboardRouterPage() {
             </div>
           );
       }
+
+      return (
+        <SidebarProvider>
+            {dashboardComponent}
+        </SidebarProvider>
+      )
   }
 
   return (
