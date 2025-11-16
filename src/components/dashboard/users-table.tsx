@@ -17,6 +17,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -50,7 +51,7 @@ const roleVariants: Record<Role, "default" | "secondary" | "destructive" | "outl
     courier: "outline",
 }
 
-export const getColumns = (onEdit: (user: User) => void): ColumnDef<User>[] => [
+export const getColumns = (onEdit: (user: User) => void, onDelete: (user: User) => void): ColumnDef<User>[] => [
   {
     accessorKey: "name",
     header: "الاسم",
@@ -111,7 +112,7 @@ export const getColumns = (onEdit: (user: User) => void): ColumnDef<User>[] => [
     cell: ({ row }) => {
       const user = row.original;
        if (user.role === 'admin' && user.email === 'mhanyt21@gmail.com') {
-        return null; // Cannot edit the main admin
+        return null; // Cannot edit or delete the main admin
       }
       return (
         <DropdownMenu>
@@ -126,7 +127,8 @@ export const getColumns = (onEdit: (user: User) => void): ColumnDef<User>[] => [
             <DropdownMenuItem onClick={() => onEdit(user)}>
                 <Pencil className="me-2 h-4 w-4" /> تعديل
             </DropdownMenuItem>
-            <DropdownMenuItem disabled>
+             <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-red-100" onClick={() => onDelete(user)}>
                 <Trash2 className="me-2 h-4 w-4" /> حذف
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -137,9 +139,9 @@ export const getColumns = (onEdit: (user: User) => void): ColumnDef<User>[] => [
 ]
 
 
-export function UsersTable({ users, isLoading, onEdit }: { users: User[], isLoading: boolean, onEdit: (user: User) => void }) {
+export function UsersTable({ users, isLoading, onEdit, onDelete }: { users: User[], isLoading: boolean, onEdit: (user: User) => void, onDelete: (user: User) => void }) {
   
-  const columns = React.useMemo(() => getColumns(onEdit), [onEdit]);
+  const columns = React.useMemo(() => getColumns(onEdit, onDelete), [onEdit, onDelete]);
   
   const table = useReactTable({
     data: users,

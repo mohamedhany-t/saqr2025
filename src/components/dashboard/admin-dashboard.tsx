@@ -17,8 +17,17 @@ import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser, useAuth } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc } from "firebase/firestore";
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { createAuthUser, updateAuthUserPassword } from '@/lib/actions';
+import { createAuthUser, updateAuthUserPassword, deleteAuthUser } from '@/lib/actions';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface AdminDashboardProps {
   shipmentToEdit?: Shipment | null;
@@ -31,6 +40,7 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
   const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const [editingUser, setEditingUser] = React.useState<User | undefined>(undefined);
+  const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [searchTerm, setSearchTerm] = React.useState("");
   const { toast } = useToast();
@@ -390,6 +400,53 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
             });
     }
   };
+
+  const handleDeleteUser = async () => {
+    if (!firestore || !userToDelete) return;
+    toast({ title: `جاري حذف ${userToDelete.name}...`});
+
+    // 1. Delete from Auth
+    const authResult = await deleteAuthUser({ uid: userToDelete.id });
+    if (!authResult.success) {
+      toast({ variant: "destructive", title: "فشل حذف المستخدم من نظام المصادقة", description: `حدث خطأ: ${authResult.error}` });
+      setUserToDelete(null);
+      return;
+    }
+
+    // 2. Delete from Firestore (users, roles_*, and couriers/companies)
+    const batch = writeBatch(firestore);
+    
+    // Delete user doc
+    const userDocRef = doc(firestore, 'users', userToDelete.id);
+    batch.delete(userDocRef);
+
+    // Delete role doc
+    const roleDocRef = doc(firestore, `roles_${userToDelete.role}`, userToDelete.id);
+    batch.delete(roleDocRef);
+
+    // Delete company/courier doc
+    if (userToDelete.role === 'company') {
+      const companyDocRef = doc(firestore, 'companies', userToDelete.id);
+      batch.delete(companyDocRef);
+    } else if (userToDelete.role === 'courier') {
+      const courierDocRef = doc(firestore, 'couriers', userToDelete.id);
+      batch.delete(courierDocRef);
+    }
+    
+    batch.commit().then(() => {
+      toast({ title: "تم حذف المستخدم بنجاح", description: `تم حذف ${userToDelete.name} من النظام.`});
+      setUserToDelete(null);
+    }).catch(serverError => {
+      toast({ variant: "destructive", title: "فشل حذف بيانات المستخدم", description: "تم حذف الحساب ولكن فشلت إزالة بياناته من قاعدة البيانات."});
+      const permissionError = new FirestorePermissionError({
+        path: `batch_delete`,
+        operation: 'delete',
+        requestResourceData: { note: `Batch delete for user ${userToDelete.id} failed.` }
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      setUserToDelete(null);
+    });
+  };
   
   const filteredShipments = React.useMemo(() => {
     if (!shipments) return [];
@@ -627,7 +684,7 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
                        </UserFormSheet>
                     </div>
                   </div>
-                  <UsersTable users={users || []} isLoading={usersLoading || companiesLoading} onEdit={openUserForm}/>
+                  <UsersTable users={users || []} isLoading={usersLoading || companiesLoading} onEdit={openUserForm} onDelete={setUserToDelete}/>
               </div>
          </TabsContent>
         </Tabs>
@@ -645,11 +702,20 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
         {/* This component is now controlled programmatically, so no trigger child is needed here. */}
         <div />
       </ShipmentFormSheet>
+       <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>هل أنت متأكد من الحذف؟</AlertDialogTitle>
+            <AlertDialogDescription>
+              سيتم حذف حساب المستخدم ({userToDelete?.name}) وجميع بياناته بشكل نهائي. لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setUserToDelete(null)}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteUser}>متابعة</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
-
-    
-
-    
-

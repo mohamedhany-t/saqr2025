@@ -29,6 +29,10 @@ const updateUserPasswordSchema = z.object({
     password: z.string().min(6),
 });
 
+const deleteUserSchema = z.object({
+    uid: z.string().min(1),
+});
+
 
 function getAdminApp(): App {
     if (getApps().length > 0) {
@@ -71,6 +75,18 @@ export async function updateAuthUserPassword(userData: z.infer<typeof updateUser
         return { success: true };
     } catch (error: any) {
         console.error("Error updating user password:", error);
+        return { success: false, error: error.code || 'unknown_error' };
+    }
+}
+
+export async function deleteAuthUser(userData: z.infer<typeof deleteUserSchema>) {
+    try {
+        const adminApp = getAdminApp();
+        const adminAuth = getAuth(adminApp);
+        await adminAuth.deleteUser(userData.uid);
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error deleting user:", error);
         return { success: false, error: error.code || 'unknown_error' };
     }
 }
