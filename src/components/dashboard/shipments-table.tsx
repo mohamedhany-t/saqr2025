@@ -85,7 +85,7 @@ const statusVariants: Record<ShipmentStatus, "default" | "secondary" | "destruct
     Returned: "secondary",
 }
 
-const statusText: Record<string, string> = {
+export const statusText: Record<string, string> = {
     Pending: 'قيد الانتظار',
     'In-Transit': 'قيد التوصيل',
     Delivered: 'تم التوصيل',
@@ -93,18 +93,10 @@ const statusText: Record<string, string> = {
     Evasion: 'تهرب',
     Cancelled: 'تم الإلغاء',
     Returned: 'مرتجع',
-    'مؤجل': 'Pending',
-    'مغلق او غير متاح': 'Cancelled',
-    'فشل التسليم': 'Returned',
-    'مرتجع ودفع الشحن': 'Returned',
-    'لاغي': 'Cancelled',
-    'المسلمة ودفع كامل': 'Delivered',
-    'فضل التسليم': 'Returned', // Assuming typo for فشل
-    'لم يتم الرد': 'Returned',
 };
 
 const mapStatus = (status: string): ShipmentStatus => {
-    return (statusText[status] as ShipmentStatus) || 'Pending';
+    return status as ShipmentStatus;
 }
 
 type ActionCellProps = {
@@ -252,12 +244,11 @@ export const getColumns = (
     accessorKey: "status",
     header: "حالة الأوردر",
     cell: ({ row }) => {
-        const statusKey = row.getValue("status") as keyof typeof statusText
-        const status = statusText[statusKey] ? mapStatus(statusKey) : (statusKey as ShipmentStatus);
+        const statusKey = row.getValue("status") as ShipmentStatus;
         return (
-            <Badge variant={statusVariants[status]} className="capitalize flex gap-2">
-                {statusIcons[status]}
-                <span>{statusText[status] || status}</span>
+            <Badge variant={statusVariants[statusKey]} className="capitalize flex gap-2">
+                {statusIcons[statusKey]}
+                <span>{statusText[statusKey] || statusKey}</span>
             </Badge>
         )
     },
@@ -514,7 +505,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                              </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                            {Object.entries(statusText).filter(([key]) => isNaN(parseInt(key))).map(([statusValue, statusLabel]) => (
+                            {Object.entries(statusText).map(([statusValue, statusLabel]) => (
                                  <DropdownMenuItem key={statusValue} onSelect={() => handleGenericBulkUpdate({ status: statusValue as ShipmentStatus })}>
                                      {statusLabel}
                                  </DropdownMenuItem>
