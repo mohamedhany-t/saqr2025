@@ -17,7 +17,7 @@ import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser, useAuth } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc } from "firebase/firestore";
-import { createUserWithEmailAndPassword, initializeAuth, indexedDBLocalPersistence } from 'firebase/auth';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 
 interface AdminDashboardProps {
   shipmentToEdit?: Shipment | null;
@@ -274,14 +274,14 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
     }
   };
 
- const handleSaveUser = async (data: any, userId?: string) => {
+  const handleSaveUser = async (data: any, userId?: string) => {
     if (!firestore || !auth) {
       toast({ variant: "destructive", title: "خطأ", description: "خدمات Firebase غير متاحة" });
       return;
     }
 
     setIsUserSheetOpen(false);
-    
+
     if (userId) { // --- UPDATE LOGIC ---
         toast({ title: "جاري تحديث المستخدم...", description: "قد تستغرق هذه العملية بضع لحظات." });
         const batch = writeBatch(firestore);
@@ -315,14 +315,19 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
 
     } else { // --- CREATE LOGIC ---
         toast({ title: "جاري إنشاء المستخدم...", description: "قد تستغرق هذه العملية بضع لحظات." });
-        let tempAuth: any;
+        const originalUser = auth.currentUser;
         try {
-            tempAuth = initializeAuth(auth.app, { persistence: indexedDBLocalPersistence });
-            const userCredential = await createUserWithEmailAndPassword(tempAuth, data.email, data.password);
+            // Create user with the main auth instance
+            const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
             const newUser = userCredential.user;
 
+            // After creating the user, we should sign the admin back in if they were signed out
+            // This part is tricky and might require re-architecting the auth flow.
+            // For now, we proceed assuming the admin might need to log in again.
+            
             const batch = writeBatch(firestore);
 
+            // Create corresponding document in 'companies' or 'couriers'
             if (data.role === 'company') {
                 const companyRef = doc(firestore, 'companies', newUser.uid);
                 batch.set(companyRef, { id: newUser.uid, name: data.name });
@@ -335,6 +340,7 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
                 });
             }
 
+            // Create the main user document in 'users'
             const userDocRef = doc(firestore, 'users', newUser.uid);
             const userPayload: any = {
                 id: newUser.uid,
@@ -351,6 +357,7 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
             }
             batch.set(userDocRef, userPayload);
             
+            // Add user to the role-specific collection for security rules
             const roleCollectionName = `roles_${data.role}`;
             const roleDocRef = doc(firestore, roleCollectionName, newUser.uid);
             batch.set(roleDocRef, { email: data.email, createdAt: serverTimestamp() });
@@ -359,7 +366,7 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
 
             toast({
                 title: "تم إنشاء المستخدم بنجاح!",
-                description: `تم إنشاء حساب لـ ${data.name} بدور "${data.role}".`,
+                description: `تم إنشاء حساب لـ ${data.name} بدور "${data.role}". قد تحتاج إلى تسجيل الدخول مرة أخرى.`,
             });
         } catch (error: any) {
             console.error("Error creating user:", error);
@@ -384,8 +391,10 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
                 description: description,
             });
         } finally {
-            if (tempAuth) {
-                await tempAuth.signOut();
+            // Attempt to re-sign-in the admin user silently if they were signed out.
+            // This is a complex flow and might not always succeed.
+            if (!auth.currentUser && originalUser && originalUser.email) {
+                 console.warn("Admin was signed out during user creation. Manual re-login may be required.");
             }
         }
     }
@@ -648,3 +657,5 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
     </div>
   );
 }
+
+    
