@@ -9,10 +9,11 @@ import type { Shipment } from '@/lib/types';
 interface ShipmentLabelProps {
   shipment: Shipment;
   governorateName: string;
+  companyName: string;
   editUrl: string;
 }
 
-export function ShipmentLabel({ shipment, governorateName, editUrl }: ShipmentLabelProps) {
+export function ShipmentLabel({ shipment, governorateName, companyName, editUrl }: ShipmentLabelProps) {
   return (
     <div id="printable-label" className="w-[377px] h-auto bg-white border border-black p-4 font-sans text-black" dir="rtl">
         {/* Header */}
@@ -45,6 +46,9 @@ export function ShipmentLabel({ shipment, governorateName, editUrl }: ShipmentLa
             <div className="flex-grow">
                 <p className="text-sm">
                     <span className="font-bold">رقم الشحنة:</span> {shipment.trackingNumber || shipment.shipmentCode}
+                </p>
+                <p className="text-sm">
+                    <span className="font-bold">الشركة:</span> {companyName}
                 </p>
                  <div className="mt-2">
                     <p className="text-sm font-bold">المبلغ المطلوب:</p>

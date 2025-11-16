@@ -1,117 +1,156 @@
 
-
 'use client';
 import React, { useEffect, useState, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { doc, getDoc, getDocs, collection, query, where, documentId, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, query, where, documentId, Firestore } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
-import type { Shipment, Governorate } from '@/lib/types';
+import type { Shipment, Governorate, Company } from '@/lib/types';
 import { ShipmentLabel } from '@/components/shipments/shipment-label';
 import { Loader2 } from 'lucide-react';
 
 interface PrintableShipment extends Shipment {
     governorateName: string;
+    companyName: string;
 }
 
-const fetchShipmentAndGovernorate = async (firestore: any, shipmentId: string): Promise<PrintableShipment | null> => {
+// --- Data Fetching Functions ---
+
+const fetchShipment = async (firestore: Firestore, shipmentId: string): Promise<Shipment | null> => {
     const shipmentDocRef = doc(firestore, 'shipments', shipmentId);
     const shipmentSnap = await getDoc(shipmentDocRef);
+    return shipmentSnap.exists() ? { ...shipmentSnap.data(), id: shipmentSnap.id } as Shipment : null;
+};
 
-    if (!shipmentSnap.exists()) {
-        return null;
-    }
+const fetchGovernorate = async (firestore: Firestore, governorateId: string): Promise<Governorate | null> => {
+    if (!governorateId) return null;
+    const govDocRef = doc(firestore, 'governorates', governorateId);
+    const govSnap = await getDoc(govDocRef);
+    return govSnap.exists() ? { ...govSnap.data(), id: govSnap.id } as Governorate : null;
+};
 
-    const shipmentData = shipmentSnap.data() as Shipment;
-    let governorateName = 'N/A';
-
-    if (shipmentData.governorateId) {
-        const govDocRef = doc(firestore, 'governorates', shipmentData.governorateId);
-        const govSnap = await getDoc(govDocRef);
-        if (govSnap.exists()) {
-            governorateName = (govSnap.data() as Governorate).name;
-        }
-    }
-
-    return { ...shipmentData, id: shipmentSnap.id, governorateName };
+const fetchCompany = async (firestore: Firestore, companyId: string): Promise<Company | null> => {
+    if (!companyId) return null;
+    const companyDocRef = doc(firestore, 'companies', companyId);
+    const companySnap = await getDoc(companyDocRef);
+    return companySnap.exists() ? { ...companySnap.data(), id: companySnap.id } as Company : null;
 };
 
 
-// --- Main Page Component ---
-export default function PrintShipmentPage() {
-    return (
-        // Suspense is required by Next.js for components that use searchParams
-        <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="h-12 w-12 animate-spin" /></div>}>
-            <PrintView />
-        </Suspense>
-    );
-}
+// --- Child Components ---
 
-
-function PrintView() {
-    const [data, setData] = useState<PrintableShipment[] | null>(null);
+const SingleShipmentPrint = () => {
+    const [data, setData] = useState<PrintableShipment | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [originUrl, setOriginUrl] = useState('');
     const params = useParams();
-    const searchParams = useSearchParams();
     const firestore = useFirestore();
 
     useEffect(() => {
         setOriginUrl(window.location.origin);
-
-        const isBulk = params.shipmentId === 'bulk';
-        const shipmentId = isBulk ? null : params.shipmentId as string;
-        const bulkIds = searchParams.get('ids');
+        const shipmentId = params.shipmentId as string;
 
         const fetchData = async () => {
-            if (!firestore) return;
-
+            if (!firestore || !shipmentId) return;
             try {
-                if (isBulk && bulkIds) {
-                    // Handle Bulk Printing
-                    const ids = bulkIds.split(',');
-                    const chunks: string[][] = [];
-                    for (let i = 0; i < ids.length; i += 30) {
-                        chunks.push(ids.slice(i, i + 30));
-                    }
-                    
-                    const shipmentsPromises = chunks.map(chunk => 
-                        getDocs(query(collection(firestore, 'shipments'), where(documentId(), 'in', chunk)))
-                    );
-
-                    const shipmentsSnaps = await Promise.all(shipmentsPromises);
-                    const shipments = shipmentsSnaps.flatMap(snap => snap.docs.map(d => ({ ...d.data(), id: d.id } as Shipment)));
-                    
-                    const govSnap = await getDocs(collection(firestore, 'governorates'));
-                    const govMap = new Map(govSnap.docs.map(doc => [doc.id, doc.data() as Governorate]));
-                    
-                    const printableData = shipments.map(shipment => ({
-                        ...shipment,
-                        governorateName: govMap.get(shipment.governorateId)?.name || 'N/A'
-                    }));
-
-                    setData(printableData);
-
-                } else if (shipmentId) {
-                    // Handle Single Shipment Printing
-                    const shipment = await fetchShipmentAndGovernorate(firestore, shipmentId);
-                    if (shipment) {
-                        setData([shipment]);
-                    } else {
-                        setError("لم يتم العثور على الشحنة المطلوبة.");
-                    }
-                } else {
-                    setError("لم يتم العثور على بيانات للطباعة. يرجى المحاولة مرة أخرى.");
+                const shipment = await fetchShipment(firestore, shipmentId);
+                if (!shipment) {
+                    setError("لم يتم العثور على الشحنة المطلوبة.");
+                    return;
                 }
+                const governorate = await fetchGovernorate(firestore, shipment.governorateId);
+                const company = await fetchCompany(firestore, shipment.companyId);
+
+                setData({
+                    ...shipment,
+                    governorateName: governorate?.name || 'N/A',
+                    companyName: company?.name || 'N/A'
+                });
             } catch (e) {
-                console.error("Error fetching print data:", e);
+                console.error("Error fetching single print data:", e);
                 setError("حدث خطأ أثناء تحميل بيانات الطباعة.");
             }
         };
 
         fetchData();
+    }, [firestore, params]);
 
-    }, [firestore, params, searchParams]);
+    useEffect(() => {
+        if (data || error) {
+            const timer = setTimeout(() => {
+                if (data) {
+                    window.print();
+                }
+                setTimeout(() => window.close(), 1000);
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [data, error]);
 
+    if (error) return <PrintableError error={error} />;
+    if (!data) return <PrintableLoader />;
+
+    return (
+        <div className="w-full h-screen">
+            <ShipmentLabel
+                shipment={data}
+                governorateName={data.governorateName}
+                companyName={data.companyName}
+                editUrl={`${originUrl}/?edit=${data.id}`}
+            />
+        </div>
+    );
+};
+
+const BulkShipmentPrint = () => {
+    const [data, setData] = useState<PrintableShipment[] | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [originUrl, setOriginUrl] = useState('');
+    const searchParams = useSearchParams();
+    const firestore = useFirestore();
+
+    useEffect(() => {
+        setOriginUrl(window.location.origin);
+        const bulkIds = searchParams.get('ids');
+
+        const fetchData = async () => {
+            if (!firestore || !bulkIds) return;
+            try {
+                const ids = bulkIds.split(',');
+                const chunks: string[][] = [];
+                for (let i = 0; i < ids.length; i += 30) {
+                    chunks.push(ids.slice(i, i + 30));
+                }
+
+                const shipmentsPromises = chunks.map(chunk =>
+                    getDocs(query(collection(firestore, 'shipments'), where(documentId(), 'in', chunk)))
+                );
+                const shipmentsSnaps = await Promise.all(shipmentsPromises);
+                const shipments = shipmentsSnaps.flatMap(snap => snap.docs.map(d => ({ ...d.data(), id: d.id } as Shipment)));
+
+                const allGovIds = [...new Set(shipments.map(s => s.governorateId).filter(Boolean))];
+                const allCompanyIds = [...new Set(shipments.map(s => s.companyId).filter(Boolean))];
+
+                const govSnap = await getDocs(collection(firestore, 'governorates'));
+                const companySnap = await getDocs(collection(firestore, 'companies'));
+
+                const govMap = new Map(govSnap.docs.map(doc => [doc.id, doc.data() as Governorate]));
+                const companyMap = new Map(companySnap.docs.map(doc => [doc.id, doc.data() as Company]));
+
+                const printableData = shipments.map(shipment => ({
+                    ...shipment,
+                    governorateName: govMap.get(shipment.governorateId)?.name || 'N/A',
+                    companyName: companyMap.get(shipment.companyId)?.name || 'N/A'
+                }));
+
+                setData(printableData);
+            } catch (e) {
+                console.error("Error fetching bulk print data:", e);
+                setError("حدث خطأ أثناء تحميل بيانات الطباعة.");
+            }
+        };
+
+        fetchData();
+    }, [firestore, searchParams]);
 
     useEffect(() => {
         if (data || error) {
@@ -119,39 +158,61 @@ function PrintView() {
                 if (data && data.length > 0) {
                     window.print();
                 }
-                // Optional: close window after printing
-                 setTimeout(() => window.close(), 1000); 
-            }, 500); // Small delay to ensure content is rendered
+                setTimeout(() => window.close(), 1000);
+            }, 500);
             return () => clearTimeout(timer);
         }
     }, [data, error]);
 
-    if (error) {
-        return (
-            <div className="flex h-screen items-center justify-center text-center p-4" dir="rtl">
-                <div>
-                    <h1 className="text-xl font-bold text-destructive">{error}</h1>
-                    <p className="text-muted-foreground">سيتم إغلاق هذه النافذة تلقائياً.</p>
-                </div>
-            </div>
-        );
-    }
-    
-    if (!data) {
-        return <div className="flex h-screen items-center justify-center"><Loader2 className="h-12 w-12 animate-spin" /></div>;
-    }
-    
+    if (error) return <PrintableError error={error} />;
+    if (!data) return <PrintableLoader />;
+
     return (
         <div className="p-0 m-0 flex flex-col gap-0">
             {data.map((shipment, index) => (
-                 <div key={shipment.id} className={`w-full h-screen ${index < data.length - 1 ? 'page-break' : ''}`}>
-                    <ShipmentLabel 
-                        shipment={shipment} 
+                <div key={shipment.id} className={`w-full h-screen ${index < data.length - 1 ? 'page-break' : ''}`}>
+                    <ShipmentLabel
+                        shipment={shipment}
                         governorateName={shipment.governorateName}
-                        editUrl={`${originUrl}/?edit=${shipment.id}`} 
+                        companyName={shipment.companyName}
+                        editUrl={`${originUrl}/?edit=${shipment.id}`}
                     />
                 </div>
             ))}
         </div>
+    );
+};
+
+// --- UI Components ---
+const PrintableError = ({ error }: { error: string }) => (
+    <div className="flex h-screen items-center justify-center text-center p-4" dir="rtl">
+        <div>
+            <h1 className="text-xl font-bold text-destructive">{error}</h1>
+            <p className="text-muted-foreground">سيتم إغلاق هذه النافذة تلقائياً.</p>
+        </div>
+    </div>
+);
+
+const PrintableLoader = () => (
+    <div className="flex h-screen items-center justify-center"><Loader2 className="h-12 w-12 animate-spin" /></div>
+);
+
+
+// --- Main Page Component ---
+function PrintView() {
+    const params = useParams();
+    const isBulk = params.shipmentId === 'bulk';
+
+    if (isBulk) {
+        return <BulkShipmentPrint />;
+    }
+    return <SingleShipmentPrint />;
+}
+
+export default function PrintShipmentPage() {
+    return (
+        <Suspense fallback={<PrintableLoader />}>
+            <PrintView />
+        </Suspense>
     );
 }
