@@ -9,12 +9,18 @@ import "dotenv/config";
 
 // This is a workaround to use service account credentials in a Vercel-like environment
 function getServiceAccount() {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (serviceAccountJson) {
+    try {
+        return JSON.parse(serviceAccountJson);
+    } catch(e) {
+        console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT JSON:", e);
+        return null;
+    }
   }
   // Fallback for local development if serviceAccountKey.json exists
   try {
-    return require('../../../serviceAccountKey.json');
+    return require('../../serviceAccountKey.json');
   } catch (e) {
     console.error("Service account key not found. Please set FIREBASE_SERVICE_ACCOUNT env var or place serviceAccountKey.json in the root.");
     return null;
