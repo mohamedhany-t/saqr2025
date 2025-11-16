@@ -206,16 +206,36 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
 };
 
   
-  const filteredShipments = React.useMemo(() => {
-    if (!shipments) return [];
-    if (!searchTerm) return shipments;
-    return shipments.filter(shipment => 
+  const { activeShipments, finishedShipments } = React.useMemo(() => {
+    if (!shipments) return { activeShipments: [], finishedShipments: [] };
+    const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Evasion'];
+    const active = shipments.filter(s => !finishedStatuses.includes(s.status));
+    const finished = shipments.filter(s => finishedStatuses.includes(s.status));
+    return { activeShipments: active, finishedShipments: finished };
+  }, [shipments]);
+
+
+  const filteredActiveShipments = React.useMemo(() => {
+    if (!activeShipments) return [];
+    if (!searchTerm) return activeShipments;
+    return activeShipments.filter(shipment => 
         shipment.shipmentCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         shipment.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         shipment.recipientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         shipment.trackingNumber?.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [shipments, searchTerm]);
+  }, [activeShipments, searchTerm]);
+  
+  const filteredFinishedShipments = React.useMemo(() => {
+    if (!finishedShipments) return [];
+    if (!searchTerm) return finishedShipments;
+    return finishedShipments.filter(shipment => 
+        shipment.shipmentCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        shipment.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        shipment.recipientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        shipment.trackingNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [finishedShipments, searchTerm]);
 
 
   const renderShipmentList = (shipmentList: Shipment[]) => {
@@ -268,27 +288,27 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
     <div className="min-h-screen w-full bg-muted/30">
       <Header onSearchChange={setSearchTerm}/>
       <main className="p-4 sm:px-6 sm:py-0">
-        <Tabs defaultValue="all-shipments">
+        <Tabs defaultValue="all-active">
           <div className="flex items-center">
             <TabsList>
-              <TabsTrigger value="all-shipments">الكل</TabsTrigger>
+              <TabsTrigger value="all-active">الشحنات النشطة</TabsTrigger>
               <TabsTrigger value="in-transit" className="hidden sm:flex">قيد التوصيل</TabsTrigger>
-              <TabsTrigger value="delivered" className="hidden sm:flex">تم التوصيل</TabsTrigger>
               <TabsTrigger value="returned" className="hidden sm:flex">مرتجعات</TabsTrigger>
+              <TabsTrigger value="finished">الطرود المنتهية</TabsTrigger>
             </TabsList>
           </div>
           <StatsCards shipments={shipments || []} role={role} />
-          <TabsContent value="all-shipments">
-             {isMobile ? renderShipmentList(filteredShipments) : renderDesktopTable(filteredShipments)}
+          <TabsContent value="all-active">
+             {isMobile ? renderShipmentList(filteredActiveShipments) : renderDesktopTable(filteredActiveShipments)}
           </TabsContent>
           <TabsContent value="in-transit">
-             {isMobile ? renderShipmentList(filteredShipments.filter(s => s.status === 'In-Transit')) : renderDesktopTable(filteredShipments.filter(s => s.status === 'In-Transit'))}
-          </TabsContent>
-           <TabsContent value="delivered">
-             {isMobile ? renderShipmentList(filteredShipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered')) : renderDesktopTable(filteredShipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered'))}
+             {isMobile ? renderShipmentList(filteredActiveShipments.filter(s => s.status === 'In-Transit')) : renderDesktopTable(filteredActiveShipments.filter(s => s.status === 'In-Transit'))}
           </TabsContent>
            <TabsContent value="returned">
-            {isMobile ? renderShipmentList(filteredShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled' || s.status === 'Evasion')) : renderDesktopTable(filteredShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled' || s.status === 'Evasion'))}
+            {isMobile ? renderShipmentList(filteredActiveShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled')) : renderDesktopTable(filteredActiveShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled'))}
+          </TabsContent>
+           <TabsContent value="finished">
+             {isMobile ? renderShipmentList(filteredFinishedShipments) : renderDesktopTable(filteredFinishedShipments)}
           </TabsContent>
         </Tabs>
       </main>
@@ -306,5 +326,3 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
     </div>
   );
 }
-
-    
