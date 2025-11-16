@@ -85,12 +85,12 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
     if (open) {
       if (isEditing) {
         form.reset({
-          name: user.name,
+          name: user.name || '',
           email: user.email,
           role: user.role,
-          companyName: user.companyName,
-          commissionRate: user.commissionRate,
-          deliveryCompanyId: user.deliveryCompanyId,
+          companyName: user.companyName || '',
+          commissionRate: user.commissionRate || 0,
+          deliveryCompanyId: user.deliveryCompanyId || '',
         });
       } else {
         form.reset({
