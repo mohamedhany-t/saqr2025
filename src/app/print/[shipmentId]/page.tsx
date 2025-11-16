@@ -27,10 +27,21 @@ export default function PrintShipmentPage() {
 
     const shipmentIds = useMemo(() => {
         if (isBulkPrint(shipmentId)) {
-            return searchParams.get('ids')?.split(',') || [];
+            const idsFromStorage = sessionStorage.getItem('bulkPrintShipmentIds');
+            if (idsFromStorage) {
+                try {
+                    const parsedIds = JSON.parse(idsFromStorage);
+                    sessionStorage.removeItem('bulkPrintShipmentIds'); // Clean up after reading
+                    return Array.isArray(parsedIds) ? parsedIds : [];
+                } catch (e) {
+                    console.error("Failed to parse shipment IDs from sessionStorage", e);
+                    return [];
+                }
+            }
+            return [];
         }
         return shipmentId ? [shipmentId as string] : [];
-    }, [shipmentId, searchParams]);
+    }, [shipmentId]);
 
     const shipmentsQuery = useMemoFirebase(() => {
         if (!firestore || shipmentIds.length === 0) return null;

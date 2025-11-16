@@ -359,12 +359,15 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
   }
 
   const handleBulkPrint = () => {
-    const selectedRows = table.getFilteredSelectedRowModel().rows.map(row => row.original);
+    const selectedRows = table.getFilteredSelectedRowModel().rows;
     if (selectedRows.length === 0) {
         toast({ title: "لم يتم تحديد أي شحنات للطباعة", variant: "destructive" });
         return;
     }
-    const printUrl = `/print/bulk?ids=${selectedRows.map(s => s.id).join(',')}`;
+    const idsToPrint = selectedRows.map(row => row.original.id);
+    sessionStorage.setItem('bulkPrintShipmentIds', JSON.stringify(idsToPrint));
+    
+    const printUrl = `/print/bulk`;
     window.open(printUrl, '_blank', 'width=800,height=600');
   }
 
