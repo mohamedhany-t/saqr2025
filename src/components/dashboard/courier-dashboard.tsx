@@ -77,7 +77,6 @@ export default function CourierDashboard() {
     }
     const originalShipmentData = originalShipmentDocSnap.data() as Shipment;
 
-
     const courierUserDoc = await getDoc(doc(firestore, 'users', user.uid));
     const commissionRate = courierUserDoc.data()?.commissionRate || 0;
 
@@ -85,7 +84,6 @@ export default function CourierDashboard() {
         updatedAt: serverTimestamp(),
     };
 
-    // This block handles status changes and their financial implications.
     if (shipment.status && shipment.status !== originalShipmentData.status) {
         dataToUpdate.status = shipment.status;
         
@@ -93,28 +91,32 @@ export default function CourierDashboard() {
             dataToUpdate.paidAmount = originalShipmentData.totalAmount;
             dataToUpdate.courierCommission = commissionRate;
         } else if (shipment.status === 'Partially Delivered') {
-            // Ensure collectedAmount is a number before assigning it to paidAmount
             const collectedAmount = Number(shipment.collectedAmount) || 0;
             dataToUpdate.paidAmount = collectedAmount;
             dataToUpdate.courierCommission = commissionRate;
         } else if (shipment.status === 'Evasion') {
             dataToUpdate.paidAmount = 0;
             dataToUpdate.courierCommission = commissionRate;
-        } else { // For Returned, Cancelled, Pending, etc.
+        } else {
             dataToUpdate.paidAmount = 0;
             dataToUpdate.courierCommission = 0;
         }
     }
-    if (shipment.reason) {
+    if (shipment.reason !== undefined) {
         dataToUpdate.reason = shipment.reason;
     }
     if (shipment.collectedAmount !== undefined) {
         dataToUpdate.collectedAmount = Number(shipment.collectedAmount);
     }
+    
+    // Specifically check for status change to 'Delivered' to update paidAmount
+    if(shipment.status === 'Delivered'){
+        dataToUpdate.paidAmount = originalShipmentData.totalAmount;
+    }
 
 
-    if (Object.keys(dataToUpdate).length === 1) { // Only updatedAt
-        toast({ title: "لا توجد تغييرات للحفظ", variant: "destructive"});
+    if (Object.keys(dataToUpdate).length <= 1) { // Only updatedAt
+        toast({ title: "لا توجد تغييرات للحفظ", variant: "default"});
         setShipmentSheetOpen(false);
         return;
     }
@@ -236,3 +238,5 @@ export default function CourierDashboard() {
     </div>
   );
 }
+
+    

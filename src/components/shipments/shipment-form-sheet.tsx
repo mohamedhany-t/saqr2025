@@ -96,6 +96,8 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
             status: "Pending",
             companyId: role === 'company' ? companies.find(c => c.id === '')?.id : '', // Pre-fill for company user
             subClientId: null,
+            reason: "",
+            collectedAmount: 0,
             shipmentCode: `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
         };
         form.reset(defaultValues as any);
@@ -345,3 +347,5 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
     </Sheet>
   )
 }
+
+    

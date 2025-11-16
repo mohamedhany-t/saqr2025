@@ -169,6 +169,7 @@ export default function AdminDashboard() {
                   const docRef = doc(shipmentsCollection);
                   batch.set(docRef, { 
                       ...cleanShipmentData, 
+                      id: docRef.id,
                       trackingNumber, 
                       shipmentCode: row['رقم الشحنة']?.toString() || `SH-${Date.now()}-${addedCount}`,
                       createdAt: creationDate || serverTimestamp()
@@ -250,9 +251,10 @@ export default function AdminDashboard() {
 
     } else {
       const shipmentsCollection = collection(firestore, 'shipments');
-      const dataToAdd = { ...cleanShipmentData, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+      const docRef = doc(shipmentsCollection);
+      const dataToAdd = { ...cleanShipmentData, id: docRef.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
       
-      addDoc(shipmentsCollection, dataToAdd)
+      setDoc(docRef, dataToAdd)
         .then(() => {
           toast({
             title: "تم حفظ الشحنة",
@@ -559,14 +561,14 @@ export default function AdminDashboard() {
                                         <UserIcon className="h-4 w-4 text-muted-foreground" />
                                         {courier.name}
                                     </CardTitle>
-                                    <Wallet className="h-4 w-4 text-muted-foreground" />
+                                    <Wallet className="h-4 w-4 text-primary" />
                                 </CardHeader>
                                 <CardContent>
                                     <div className="text-2xl font-bold">
                                         {courier.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
                                     </div>
                                     <p className="text-xs text-muted-foreground">
-                                        إجمالي التحصيل: {courier.totalCollected.toLocaleString('ar-EG')} - إجمالي العمولات: {courier.totalCommission.toLocaleString('ar-EG')}
+                                        إجمالي التحصيل: {courier.totalCollected.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})} - إجمالي العمولات: {courier.totalCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}
                                     </p>
                                 </CardContent>
                             </Card>
@@ -601,3 +603,5 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
+    

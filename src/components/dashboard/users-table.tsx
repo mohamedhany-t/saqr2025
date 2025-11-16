@@ -8,7 +8,7 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from "@tanstack/react-table"
-import { MoreHorizontal, User as UserIcon, Building, Truck, Pencil, Trash2 } from "lucide-react"
+import { MoreHorizontal, User as UserIcon, Building, Truck, Pencil, Trash2, BadgeDollarSign } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -87,9 +87,12 @@ export const getColumns = (companies: Company[], deliveryCompanies: Company[], o
         const user = row.original;
         if (user.role === 'courier') {
             const rate = user.commissionRate || 0;
-            return <div>{rate.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div>;
+            return <Badge variant="outline" className="flex items-center gap-1">
+                <BadgeDollarSign className="h-3.5 w-3.5 text-primary"/>
+                <span>{rate.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
+            </Badge>
         }
-        return <div className="text-muted-foreground">N/A</div>;
+        return <div className="text-muted-foreground text-center">N/A</div>;
     },
   },
   {
@@ -239,3 +242,5 @@ export function UsersTable({ users, isLoading, companies, deliveryCompanies, onE
     </div>
   )
 }
+
+    
