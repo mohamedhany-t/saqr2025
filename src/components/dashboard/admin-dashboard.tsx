@@ -515,194 +515,192 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
 
   return (
     <>
-      <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
-        <Tabs defaultValue="all-shipments">
-          <div className="flex items-center">
-            <TabsList>
-              <TabsTrigger value="all-shipments">الكل</TabsTrigger>
-              <TabsTrigger value="in-transit" className="hidden sm:flex">قيد التوصيل</TabsTrigger>
-              <TabsTrigger value="delivered" className="hidden sm:flex">تم التوصيل</TabsTrigger>
-              <TabsTrigger value="returned" className="hidden sm:flex">مرتجعات</TabsTrigger>
-              <TabsTrigger value="returned-to-sender" className="hidden sm:flex">مرتجع للراسل</TabsTrigger>
-              <TabsTrigger value="management">الإدارة</TabsTrigger>
-            </TabsList>
-            <div className="ms-auto flex items-center gap-2">
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    className="hidden"
-                    accept=".xlsx, .xls"
-                />
-              <Button variant="outline" size="sm" onClick={handleImportClick}>
-                <FileUp className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only">استيراد</span>
+      <Tabs defaultValue="all-shipments">
+        <div className="flex items-center">
+          <TabsList>
+            <TabsTrigger value="all-shipments">الكل</TabsTrigger>
+            <TabsTrigger value="in-transit" className="hidden sm:flex">قيد التوصيل</TabsTrigger>
+            <TabsTrigger value="delivered" className="hidden sm:flex">تم التوصيل</TabsTrigger>
+            <TabsTrigger value="returned" className="hidden sm:flex">مرتجعات</TabsTrigger>
+            <TabsTrigger value="returned-to-sender" className="hidden sm:flex">مرتجع للراسل</TabsTrigger>
+            <TabsTrigger value="management">الإدارة</TabsTrigger>
+          </TabsList>
+          <div className="ms-auto flex items-center gap-2">
+              <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  className="hidden"
+                  accept=".xlsx, .xls"
+              />
+            <Button variant="outline" size="sm" onClick={handleImportClick}>
+              <FileUp className="h-4 w-4" />
+              <span className="sr-only sm:not-sr-only">استيراد</span>
+            </Button>
+             <Button variant="outline" size="sm" onClick={handleSeedData}>
+              <Database className="h-4 w-4" />
+              <span className="sr-only sm:not-sr-only">بيانات وهمية</span>
+            </Button>
+             <Button size="sm" onClick={() => openShipmentForm()}>
+                <PlusCircle className="h-4 w-4" />
+                <span className="sr-only sm:not-sr-only">شحنة جديدة</span>
               </Button>
-               <Button variant="outline" size="sm" onClick={handleSeedData}>
-                <Database className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only">بيانات وهمية</span>
-              </Button>
-               <Button size="sm" onClick={() => openShipmentForm()}>
-                  <PlusCircle className="h-4 w-4" />
-                  <span className="sr-only sm:not-sr-only">شحنة جديدة</span>
-                </Button>
-            </div>
           </div>
-          <StatsCards shipments={shipments || []} role={role} />
-          <TabsContent value="all-shipments">
-            <ShipmentsTable 
-              shipments={filteredShipments} 
+        </div>
+        <StatsCards shipments={shipments || []} role={role} />
+        <TabsContent value="all-shipments">
+          <ShipmentsTable 
+            shipments={filteredShipments} 
+            isLoading={shipmentsLoading}
+            governorates={governorates || []}
+            companies={companies || []}
+            couriers={courierUsers}
+            onEdit={openShipmentForm}
+            role={role}
+          />
+        </TabsContent>
+        <TabsContent value="in-transit">
+           <ShipmentsTable 
+              shipments={filteredShipments.filter(s => s.status === 'In-Transit')}
               isLoading={shipmentsLoading}
               governorates={governorates || []}
               companies={companies || []}
               couriers={courierUsers}
               onEdit={openShipmentForm}
               role={role}
-            />
-          </TabsContent>
-          <TabsContent value="in-transit">
-             <ShipmentsTable 
-                shipments={filteredShipments.filter(s => s.status === 'In-Transit')}
-                isLoading={shipmentsLoading}
-                governorates={governorates || []}
-                companies={companies || []}
-                couriers={courierUsers}
-                onEdit={openShipmentForm}
-                role={role}
-             />
-          </TabsContent>
-           <TabsContent value="delivered">
-             <ShipmentsTable 
-                shipments={filteredShipments.filter(s => s.status === 'Delivered')}
-                isLoading={shipmentsLoading}
-                governorates={governorates || []}
-                companies={companies || []}
-                couriers={courierUsers}
-                onEdit={openShipmentForm}
-                role={role}
-             />
-          </TabsContent>
-           <TabsContent value="returned">
-             <ShipmentsTable 
-                shipments={filteredShipments.filter(s => s.status === 'Returned')}
-                isLoading={shipmentsLoading}
-                governorates={governorates || []}
-                companies={companies || []}
-                couriers={courierUsers}
-                onEdit={openShipmentForm}
-                role={role}
-             />
-          </TabsContent>
-          <TabsContent value="returned-to-sender">
-             <ShipmentsTable 
-                shipments={filteredShipments.filter(s => s.status === 'Returned to Sender')}
-                isLoading={shipmentsLoading}
-                governorates={governorates || []}
-                companies={companies || []}
-                couriers={courierUsers}
-                onEdit={openShipmentForm}
-                role={role}
-             />
-          </TabsContent>
-          <TabsContent value="management">
-                <div className="mt-8">
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-headline font-semibold">المبالغ المستحقة على المناديب</h2>
-                  </div>
-                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        {courierDues.map(courier => (
-                            <Card key={courier.id}>
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                                        <UserIcon className="h-4 w-4 text-muted-foreground" />
-                                        {courier.name}
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">
-                                        {courier.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">
-                                        المبلغ المستحق للدفع
-                                    </p>
-                                    <div className="mt-4 space-y-2 text-sm">
-                                        <div className="flex justify-between items-center">
-                                            <span className="flex items-center gap-2 text-muted-foreground">
-                                                <DollarSign className="h-4 w-4" />
-                                                إجمالي التحصيل:
-                                            </span>
-                                            <span className="font-medium">{courier.totalCollected.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="flex items-center gap-2 text-muted-foreground">
-                                                <BadgePercent className="h-4 w-4" />
-                                                إجمالي العمولات:
-                                            </span>
-                                            <span className="font-medium">{courier.totalCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
-                   </div>
-                </div>
-                <div className="mt-8">
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-headline font-semibold">إيرادات الشركات</h2>
-                  </div>
-                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        {companyRevenues.map(company => (
-                            <Card key={company.id}>
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                                        <Building className="h-4 w-4 text-muted-foreground" />
-                                        {company.name}
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-xl font-bold">
-                                        {company.totalRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">
-                                        إجمالي الإيرادات من {company.shipmentCount} شحنة
-                                    </p>
-                                    <div className="mt-2 pt-2 border-t">
-                                        <div className="text-lg font-bold text-primary">
-                                            {company.netRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-                                        </div>
-                                        <p className="text-xs text-muted-foreground">
-                                            المبلغ المستحق للدفع (بعد العمولات)
-                                        </p>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
-                   </div>
-                </div>
+           />
+        </TabsContent>
+         <TabsContent value="delivered">
+           <ShipmentsTable 
+              shipments={filteredShipments.filter(s => s.status === 'Delivered')}
+              isLoading={shipmentsLoading}
+              governorates={governorates || []}
+              companies={companies || []}
+              couriers={courierUsers}
+              onEdit={openShipmentForm}
+              role={role}
+           />
+        </TabsContent>
+         <TabsContent value="returned">
+           <ShipmentsTable 
+              shipments={filteredShipments.filter(s => s.status === 'Returned')}
+              isLoading={shipmentsLoading}
+              governorates={governorates || []}
+              companies={companies || []}
+              couriers={courierUsers}
+              onEdit={openShipmentForm}
+              role={role}
+           />
+        </TabsContent>
+        <TabsContent value="returned-to-sender">
+           <ShipmentsTable 
+              shipments={filteredShipments.filter(s => s.status === 'Returned to Sender')}
+              isLoading={shipmentsLoading}
+              governorates={governorates || []}
+              companies={companies || []}
+              couriers={courierUsers}
+              onEdit={openShipmentForm}
+              role={role}
+           />
+        </TabsContent>
+        <TabsContent value="management">
               <div className="mt-8">
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين والشركات</h2>
-                     <div className="flex items-center gap-2">
-                       <UserFormSheet 
-                          open={isUserSheetOpen}
-                          onOpenChange={setIsUserSheetOpen}
-                          onSave={handleSaveUser}
-                          user={editingUser}
-                       >
-                            <Button size="sm" onClick={() => openUserForm()}>
-                                <PlusCircle className="h-4 w-4" />
-                                <span className="sr-only sm:not-sr-only">
-                                  إضافة مستخدم
-                                </span>
-                            </Button>
-                       </UserFormSheet>
-                    </div>
-                  </div>
-                  <UsersTable users={users || []} isLoading={usersLoading || companiesLoading} onEdit={openUserForm} onDelete={setUserToDelete}/>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-2xl font-headline font-semibold">المبالغ المستحقة على المناديب</h2>
+                </div>
+                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      {courierDues.map(courier => (
+                          <Card key={courier.id}>
+                              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                      <UserIcon className="h-4 w-4 text-muted-foreground" />
+                                      {courier.name}
+                                  </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                  <div className="text-2xl font-bold">
+                                      {courier.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                      المبلغ المستحق للدفع
+                                  </p>
+                                  <div className="mt-4 space-y-2 text-sm">
+                                      <div className="flex justify-between items-center">
+                                          <span className="flex items-center gap-2 text-muted-foreground">
+                                              <DollarSign className="h-4 w-4" />
+                                              إجمالي التحصيل:
+                                          </span>
+                                          <span className="font-medium">{courier.totalCollected.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                      </div>
+                                      <div className="flex justify-between items-center">
+                                          <span className="flex items-center gap-2 text-muted-foreground">
+                                              <BadgePercent className="h-4 w-4" />
+                                              إجمالي العمولات:
+                                          </span>
+                                          <span className="font-medium">{courier.totalCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                      </div>
+                                  </div>
+                              </CardContent>
+                          </Card>
+                      ))}
+                 </div>
               </div>
-         </TabsContent>
-        </Tabs>
-      </main>
+              <div className="mt-8">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-2xl font-headline font-semibold">إيرادات الشركات</h2>
+                </div>
+                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      {companyRevenues.map(company => (
+                          <Card key={company.id}>
+                              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                      <Building className="h-4 w-4 text-muted-foreground" />
+                                      {company.name}
+                                  </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                  <div className="text-xl font-bold">
+                                      {company.totalRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                      إجمالي الإيرادات من {company.shipmentCount} شحنة
+                                  </p>
+                                  <div className="mt-2 pt-2 border-t">
+                                      <div className="text-lg font-bold text-primary">
+                                          {company.netRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                                      </div>
+                                      <p className="text-xs text-muted-foreground">
+                                          المبلغ المستحق للدفع (بعد العمولات)
+                                      </p>
+                                  </div>
+                              </CardContent>
+                          </Card>
+                      ))}
+                 </div>
+              </div>
+            <div className="mt-8">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين والشركات</h2>
+                   <div className="flex items-center gap-2">
+                     <UserFormSheet 
+                        open={isUserSheetOpen}
+                        onOpenChange={setIsUserSheetOpen}
+                        onSave={handleSaveUser}
+                        user={editingUser}
+                     >
+                          <Button size="sm" onClick={() => openUserForm()}>
+                              <PlusCircle className="h-4 w-4" />
+                              <span className="sr-only sm:not-sr-only">
+                                إضافة مستخدم
+                              </span>
+                          </Button>
+                     </UserFormSheet>
+                  </div>
+                </div>
+                <UsersTable users={users || []} isLoading={usersLoading || companiesLoading} onEdit={openUserForm} onDelete={setUserToDelete}/>
+            </div>
+       </TabsContent>
+      </Tabs>
       <ShipmentFormSheet
         open={isShipmentSheetOpen}
         onOpenChange={handleSheetOpenChange}

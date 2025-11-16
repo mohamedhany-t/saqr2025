@@ -11,7 +11,7 @@ import AdminDashboard from "@/components/dashboard/admin-dashboard";
 import CourierDashboard from "@/components/dashboard/courier-dashboard";
 import CompanyDashboard from "@/components/dashboard/company-dashboard";
 import { Button } from "@/components/ui/button";
-import { AppLayout }d from "@/components/layout/app-layout";
+import { AppLayout } from "@/components/layout/app-layout";
 
 function PageContent() {
   const [role, setRole] = React.useState<Role | null>(null);
@@ -38,8 +38,6 @@ function PageContent() {
           if (userDocSnap.exists() && userDocSnap.data().role) {
             setRole(userDocSnap.data().role);
           } else {
-            // This is a fallback/setup logic for the very first login or if the user doc is missing
-            // For the admin user specified
             if (user.email === "mhanyt21@gmail.com") {
               const adminData = {
                 id: user.uid,
@@ -48,14 +46,12 @@ function PageContent() {
                 name: user.displayName || 'Admin',
                 createdAt: serverTimestamp()
               };
-              // Create the user and role documents if they don't exist
               if (!userDocSnap.exists()) {
                 await setDoc(userDocRef, adminData);
                 await setDoc(doc(firestore, 'roles_admin', user.uid), { email: user.email });
               }
               setRole('admin');
             } else {
-              // Check role collections for other users
               let userRole: Role | null = null;
               const adminSnap = await getDoc(doc(firestore, `roles_admin/${user.uid}`));
               if (adminSnap.exists()) userRole = 'admin';
@@ -69,7 +65,6 @@ function PageContent() {
               }
 
               if (userRole) {
-                // Create user document if it doesn't exist
                 await setDoc(doc(firestore, `users/${user.uid}`), {
                   id: user.uid,
                   email: user.email,
@@ -79,7 +74,7 @@ function PageContent() {
                 }, { merge: true });
                 setRole(userRole);
               } else {
-                setRole(null); // No role found
+                setRole(null);
               }
             }
           }
@@ -102,7 +97,6 @@ function PageContent() {
       </div>
     );
   }
-
 
   const renderDashboard = () => {
     switch (role) {
@@ -135,4 +129,3 @@ export default function DashboardRouterPage() {
     </Suspense>
   );
 }
-

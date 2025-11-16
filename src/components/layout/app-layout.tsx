@@ -15,7 +15,8 @@ export function AppLayout({ children }: AppLayoutProps) {
     // The children are cloned and the searchTerm prop is added.
     const childrenWithProps = React.Children.map(children, child => {
         if (React.isValidElement(child)) {
-            return React.cloneElement(child, { searchTerm } as any);
+            // Asserting the type of child.props to include searchTerm
+            return React.cloneElement(child, { searchTerm } as { searchTerm: string } & React.HTMLAttributes<HTMLElement>);
         }
         return child;
     });
@@ -23,7 +24,9 @@ export function AppLayout({ children }: AppLayoutProps) {
     return (
         <div className="flex min-h-screen w-full flex-col bg-muted/40">
            <Header onSearchChange={setSearchTerm} />
-           {childrenWithProps}
+           <main className="flex-1 p-4 sm:px-6 sm:py-0 md:gap-8">
+             {childrenWithProps}
+           </main>
         </div>
     )
 }

@@ -315,31 +315,29 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
 
   return (
     <>
-      <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
-        <Tabs defaultValue="all">
-          <div className="flex items-center">
-            <TabsList>
-               <TabsTrigger value="all">الكل <Badge variant="secondary" className="ms-2">{filteredActiveShipments.length}</Badge></TabsTrigger>
-               <TabsTrigger value="in-transit">قيد التوصيل <Badge variant="secondary" className="ms-2">{inTransitCount}</Badge></TabsTrigger>
-               <TabsTrigger value="returned">مرتجعات <Badge variant="secondary" className="ms-2">{returnedCount}</Badge></TabsTrigger>
-               <TabsTrigger value="finished">الطرود المنتهية <Badge variant="secondary" className="ms-2">{filteredFinishedShipments.length}</Badge></TabsTrigger>
-            </TabsList>
-          </div>
-          <StatsCards shipments={shipments || []} role={role} />
-          <TabsContent value="all">
-             {isMobile ? renderShipmentList(filteredActiveShipments) : renderDesktopTable(filteredActiveShipments)}
-          </TabsContent>
-          <TabsContent value="in-transit">
-             {isMobile ? renderShipmentList(filteredActiveShipments.filter(s => s.status === 'In-Transit')) : renderDesktopTable(filteredActiveShipments.filter(s => s.status === 'In-Transit'))}
-          </TabsContent>
-           <TabsContent value="returned">
-            {isMobile ? renderShipmentList(filteredActiveShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled')) : renderDesktopTable(filteredActiveShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled'))}
-          </TabsContent>
-           <TabsContent value="finished">
-             {isMobile ? renderShipmentList(filteredFinishedShipments) : renderDesktopTable(filteredFinishedShipments)}
-          </TabsContent>
-        </Tabs>
-      </main>
+      <Tabs defaultValue="all">
+        <div className="flex items-center">
+          <TabsList>
+             <TabsTrigger value="all">الكل <Badge variant="secondary" className="ms-2">{filteredActiveShipments.length}</Badge></TabsTrigger>
+             <TabsTrigger value="in-transit">قيد التوصيل <Badge variant="secondary" className="ms-2">{inTransitCount}</Badge></TabsTrigger>
+             <TabsTrigger value="returned">مرتجعات <Badge variant="secondary" className="ms-2">{returnedCount}</Badge></TabsTrigger>
+             <TabsTrigger value="finished">الطرود المنتهية <Badge variant="secondary" className="ms-2">{filteredFinishedShipments.length}</Badge></TabsTrigger>
+          </TabsList>
+        </div>
+        <StatsCards shipments={shipments || []} role={role} />
+        <TabsContent value="all">
+           {isMobile ? renderShipmentList(filteredActiveShipments) : renderDesktopTable(filteredActiveShipments)}
+        </TabsContent>
+        <TabsContent value="in-transit">
+           {isMobile ? renderShipmentList(filteredActiveShipments.filter(s => s.status === 'In-Transit')) : renderDesktopTable(filteredActiveShipments.filter(s => s.status === 'In-Transit'))}
+        </TabsContent>
+         <TabsContent value="returned">
+          {isMobile ? renderShipmentList(filteredActiveShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled')) : renderDesktopTable(filteredActiveShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled'))}
+        </TabsContent>
+         <TabsContent value="finished">
+           {isMobile ? renderShipmentList(filteredFinishedShipments) : renderDesktopTable(filteredFinishedShipments)}
+        </TabsContent>
+      </Tabs>
        <ShipmentFormSheet
         open={isShipmentSheetOpen}
         onOpenChange={handleSheetOpenChange}
