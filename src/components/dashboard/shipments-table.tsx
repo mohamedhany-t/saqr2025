@@ -114,7 +114,7 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role }) => {
 
   const handlePrint = () => {
     if (role === 'courier') return; // Couriers can't print
-    const printUrl = `/print/bulk?ids=${shipment.id}`;
+    const printUrl = `/print/${shipment.id}`;
     window.open(printUrl, '_blank', 'width=800,height=600');
   };
 

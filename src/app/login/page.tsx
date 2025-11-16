@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useAuth } from '@/firebase';
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const auth = useAuth();
-  const navigate = useNavigate();
+  const router = useRouter();
   const { toast } = useToast();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -34,7 +35,7 @@ export default function LoginPage() {
         title: "تم تسجيل الدخول بنجاح",
         description: "أهلاً بك مرة أخرى! سيتم توجيهك إلى لوحة التحكم.",
       });
-      navigate('/');
+      router.push('/');
     } catch (error: any) {
       console.error(error);
       let description = "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.";
@@ -78,7 +79,7 @@ export default function LoginPage() {
                 <div className="grid gap-2">
                     <div className="flex items-center">
                     <Label htmlFor="password">كلمة المرور</Label>
-                    <Link to="#" className="ms-auto inline-block text-sm underline">
+                    <Link href="#" className="ms-auto inline-block text-sm underline">
                         نسيت كلمة المرور؟
                     </Link>
                     </div>

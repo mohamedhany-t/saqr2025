@@ -1,7 +1,7 @@
 
 'use client';
 import React, { useEffect, useState, Suspense } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'next/navigation';
 import { doc, getDoc, getDocs, collection, query, where, documentId, Firestore } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import type { Shipment, Governorate, Company } from '@/lib/types';
@@ -105,7 +105,7 @@ const BulkShipmentPrint = () => {
     const [data, setData] = useState<PrintableShipment[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [originUrl, setOriginUrl] = useState('');
-    const [searchParams] = useSearchParams();
+    const searchParams = useSearchParams();
     const firestore = useFirestore();
 
     useEffect(() => {
@@ -127,14 +127,26 @@ const BulkShipmentPrint = () => {
                 const shipmentsSnaps = await Promise.all(shipmentsPromises);
                 const shipments = shipmentsSnaps.flatMap(snap => snap.docs.map(d => ({ ...d.data(), id: d.id } as Shipment)));
 
+                if (shipments.length === 0) {
+                  setError("لم يتم العثور على أي من الشحنات المحددة.");
+                  return;
+                }
+
                 const allGovIds = [...new Set(shipments.map(s => s.governorateId).filter(Boolean))];
                 const allCompanyIds = [...new Set(shipments.map(s => s.companyId).filter(Boolean))];
+                
+                let govMap = new Map();
+                let companyMap = new Map();
 
-                const govSnap = await getDocs(collection(firestore, 'governorates'));
-                const companySnap = await getDocs(collection(firestore, 'companies'));
+                if (allGovIds.length > 0) {
+                    const govSnap = await getDocs(query(collection(firestore, 'governorates'), where(documentId(), 'in', allGovIds)));
+                    govMap = new Map(govSnap.docs.map(doc => [doc.id, doc.data() as Governorate]));
+                }
+                 if (allCompanyIds.length > 0) {
+                    const companySnap = await getDocs(query(collection(firestore, 'companies'), where(documentId(), 'in', allCompanyIds)));
+                    companyMap = new Map(companySnap.docs.map(doc => [doc.id, doc.data() as Company]));
+                 }
 
-                const govMap = new Map(govSnap.docs.map(doc => [doc.id, doc.data() as Governorate]));
-                const companyMap = new Map(companySnap.docs.map(doc => [doc.id, doc.data() as Company]));
 
                 const printableData = shipments.map(shipment => ({
                     ...shipment,

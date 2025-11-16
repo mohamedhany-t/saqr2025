@@ -1,7 +1,7 @@
 
 "use client";
 import React, { Suspense } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
@@ -17,9 +17,9 @@ export default function DashboardRouterPage() {
   const [isLoadingRole, setIsLoadingRole] = React.useState(true);
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const location = useLocation();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   // State for handling shipment editing via URL
   const [editingShipmentFromUrl, setEditingShipmentFromUrl] = React.useState<Shipment | null>(null);
@@ -37,27 +37,31 @@ export default function DashboardRouterPage() {
           setIsEditSheetOpen(true); // Signal to open the sheet
         } else {
           console.warn("Shipment to edit not found");
-          navigate('/', { replace: true }); // Use replace to avoid breaking back button
+           const newParams = new URLSearchParams(searchParams.toString());
+           newParams.delete('edit');
+           router.replace(`${pathname}?${newParams.toString()}`);
         }
       };
       fetchShipment();
     }
-  }, [searchParams, firestore, navigate]);
+  }, [searchParams, firestore, router, pathname]);
 
   // Handler to close the sheet and clean up the URL
   const handleSheetOpenChange = (open: boolean) => {
     setIsEditSheetOpen(open);
     if (!open) {
       setEditingShipmentFromUrl(null);
-      navigate('/', { replace: true });
+      const newParams = new URLSearchParams(searchParams.toString());
+      newParams.delete('edit');
+      router.replace(`${pathname}?${newParams.toString()}`);
     }
   };
   
   React.useEffect(() => {
     if (!isUserLoading && !user) {
-      navigate('/login');
+      router.push('/login');
     }
-  }, [user, isUserLoading, navigate]);
+  }, [user, isUserLoading, router]);
 
   React.useEffect(() => {
     if (user && firestore) {
@@ -76,7 +80,7 @@ export default function DashboardRouterPage() {
                 id: user.uid,
                 email: user.email,
                 role: 'admin',
-                name: 'Admin',
+                name: user.displayName || 'Admin',
                 createdAt: serverTimestamp()
               };
               if (!userDocSnap.exists()) {
@@ -101,6 +105,7 @@ export default function DashboardRouterPage() {
                 await setDoc(doc(firestore, `users/${user.uid}`), {
                   id: user.uid,
                   email: user.email,
+                  name: user.displayName,
                   role: userRole,
                   createdAt: serverTimestamp()
                 }, { merge: true });
@@ -151,7 +156,7 @@ export default function DashboardRouterPage() {
                 <p className="max-w-md">
                     ليس لديك الصلاحيات اللازمة لعرض هذه الصفحة. قد يكون السبب أن حسابك لا يمتلك الدور المناسب أو أنك تحاول الوصول إلى بيانات لا تخصك. يرجى التواصل مع مسؤول النظام إذا كنت تعتقد أن هذا خطأ.
                 </p>
-                <Button onClick={() => navigate('/login')}>العودة لصفحة تسجيل الدخول</Button>
+                <Button onClick={() => router.push('/login')}>العودة لصفحة تسجيل الدخول</Button>
             </div>
           );
       }
@@ -163,3 +168,4 @@ export default function DashboardRouterPage() {
     </Suspense>
   );
 }
+
