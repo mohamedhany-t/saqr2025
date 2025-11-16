@@ -2,7 +2,7 @@
 
 "use client";
 import React from "react";
-import { PlusCircle, FileUp, Database, User as UserIcon, Wallet, DollarSign, BadgePercent } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Wallet, DollarSign, BadgePercent, Building } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -417,6 +417,19 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
         }
     })
   }, [users, shipments, courierUsers]);
+  
+  const companyRevenues = React.useMemo(() => {
+    if (!companies || !shipments) return [];
+    return companies.map(company => {
+        const companyShipments = shipments.filter(s => s.companyId === company.id);
+        const totalRevenue = companyShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
+        return {
+            ...company,
+            totalRevenue,
+            shipmentCount: companyShipments.length
+        }
+    })
+  }, [companies, shipments]);
 
 
   return (
@@ -558,7 +571,32 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
                             </Card>
                         ))}
                    </div>
-              </div>
+                </div>
+                <div className="mt-8">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-headline font-semibold">إيرادات الشركات</h2>
+                  </div>
+                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {companyRevenues.map(company => (
+                            <Card key={company.id}>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                        <Building className="h-4 w-4 text-muted-foreground" />
+                                        {company.name}
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-bold">
+                                        {company.totalRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        من إجمالي {company.shipmentCount} شحنة
+                                    </p>
+                                </CardContent>
+                            </Card>
+                        ))}
+                   </div>
+                </div>
               <div className="mt-8">
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين والشركات</h2>
