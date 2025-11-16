@@ -2,16 +2,30 @@
 
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
-import { initializeApp, getApps, App } from 'firebase-admin/app';
+import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
 import { z } from 'zod';
+import "dotenv/config";
+
+
+// This is a workaround to use service account credentials in a Vercel-like environment
+function getServiceAccount() {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  }
+  // Fallback for local development if serviceAccountKey.json exists
+  try {
+    return require('../../../serviceAccountKey.json');
+  } catch (e) {
+    console.error("Service account key not found. Please set FIREBASE_SERVICE_ACCOUNT env var or place serviceAccountKey.json in the root.");
+    return null;
+  }
+}
 
 // Zod schema for input validation
 const createUserSchema = z.object({
-  name: z.string().min(1),
   email: z.string().email(),
   password: z.string().min(6),
-  role: z.enum(['company', 'courier']),
-  companyName: z.string().optional(),
+  displayName: z.string().min(1),
 });
 
 
@@ -19,16 +33,28 @@ function getAdminApp(): App {
     if (getApps().length > 0) {
         return getApps()[0];
     }
-    // This initialization is simplified to avoid credential issues in the environment.
-    // The actual user creation logic is moved to the client-side, authenticated as the admin user.
-    return initializeApp();
+    const serviceAccount = getServiceAccount();
+    if (!serviceAccount) {
+      throw new Error("Firebase Admin SDK credentials not found.");
+    }
+    return initializeApp({
+      credential: cert(serviceAccount)
+    });
 }
 
 
-export async function createUser(userData: z.infer<typeof createUserSchema>) {
-  // This function is being deprecated in favor of a client-side implementation
-  // to resolve credential issues in the execution environment.
-  // The logic is now in the AdminDashboard component.
-  console.warn("createUser server action is deprecated and should not be called.");
-  return { success: false, error: 'This function is deprecated.' };
+export async function createAuthUser(userData: z.infer<typeof createUserSchema>) {
+    try {
+        const adminApp = getAdminApp();
+        const adminAuth = getAuth(adminApp);
+        const userRecord = await adminAuth.createUser({
+            email: userData.email,
+            password: userData.password,
+            displayName: userData.displayName,
+        });
+        return { success: true, uid: userRecord.uid };
+    } catch (error: any) {
+        console.error("Error creating auth user:", error);
+        return { success: false, error: error.code || 'unknown_error' };
+    }
 }

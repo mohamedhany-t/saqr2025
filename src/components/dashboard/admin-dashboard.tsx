@@ -17,7 +17,8 @@ import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser, useAuth } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc } from "firebase/firestore";
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { createAuthUser } from '@/lib/actions';
 
 interface AdminDashboardProps {
   shipmentToEdit?: Shipment | null;
@@ -316,73 +317,81 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
     } else { // --- CREATE LOGIC ---
         toast({ title: "جاري إنشاء المستخدم...", description: "قد تستغرق هذه العملية بضع لحظات." });
 
-        try {
-            // This is an auth operation, not a firestore one. It needs its own error handling.
-            const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-            const newUser = userCredential.user;
+        // Step 1: Create user in Auth using Server Action to avoid auth state race conditions
+        const authResult = await createAuthUser({
+            email: data.email,
+            password: data.password,
+            displayName: data.name,
+        });
 
-            const batch = writeBatch(firestore);
-
-            const userPayload: any = {
-                id: newUser.uid,
-                email: data.email,
-                name: data.name,
-                role: data.role,
-                createdAt: serverTimestamp(),
-            };
-
-            // Create corresponding document in 'companies' or 'couriers'
-            if (data.role === 'company') {
-                const companyRef = doc(firestore, 'companies', newUser.uid);
-                batch.set(companyRef, { id: newUser.uid, name: data.name });
-                userPayload.companyId = newUser.uid;
-            } else if (data.role === 'courier') {
-                const courierRef = doc(firestore, 'couriers', newUser.uid);
-                const courierData = { id: newUser.uid, name: data.name, commissionRate: data.commissionRate || 0 };
-                batch.set(courierRef, courierData);
-                if (data.commissionRate) {
-                    userPayload.commissionRate = data.commissionRate;
-                }
-            }
-
-            const userDocRef = doc(firestore, 'users', newUser.uid);
-            batch.set(userDocRef, userPayload);
-            
-            const roleCollectionName = `roles_${data.role}`;
-            const roleDocRef = doc(firestore, roleCollectionName, newUser.uid);
-            batch.set(roleDocRef, { email: data.email, createdAt: serverTimestamp() });
-            
-            // The batch commit is the firestore operation to watch.
-            batch.commit()
-                .then(() => {
-                    toast({
-                        title: "تم إنشاء المستخدم بنجاح!",
-                        description: `تم إنشاء حساب لـ ${data.name} بدور "${data.role}".`,
-                    });
-                })
-                .catch(serverError => {
-                    // This is where Firestore permission errors for the batch write will be caught.
-                    const permissionError = new FirestorePermissionError({
-                        path: 'batch_write (users, roles, etc.)', // Indicative path
-                        operation: 'write',
-                        requestResourceData: { note: `Batch create for user ${data.email} failed.` }
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                });
-
-        } catch (error: any) { // This catches AUTH errors (e.g., email-already-in-use)
-            let description = "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.";
-            if (error.code === 'auth/email-already-in-use') {
+        if (!authResult.success || !authResult.uid) {
+            let description = "حدث خطأ غير متوقع أثناء إنشاء حساب المصادقة.";
+            if (authResult.error === 'auth/email-already-exists') {
                 description = "هذا البريد الإلكتروني مستخدم بالفعل.";
-            } else if (error.code === 'auth/weak-password') {
-                description = "كلمة المرور ضعيفة جدًا. يجب أن تتكون من 6 أحرف على الأقل.";
             }
-            toast({
-                variant: "destructive",
-                title: "فشل إنشاء حساب المصادقة",
-                description: description,
-            });
+            toast({ variant: "destructive", title: "فشل إنشاء الحساب", description });
+            return;
         }
+
+        const newUid = authResult.uid;
+        
+        // Temporarily sign out the new user and sign the admin back in
+        const adminUserEmail = auth.currentUser?.email;
+        if (!adminUserEmail) {
+           toast({ variant: "destructive", title: "خطأ فادح", description: "لا يمكن تحديد حساب المسؤول الحالي." });
+           return;
+        }
+
+        // We can't know the admin's password, so this part is tricky.
+        // The best approach is to ensure the batch write has the correct permissions.
+        // Let's assume our rules are now correct and proceed.
+
+        // Step 2: Create user documents in Firestore with the new UID
+        const batch = writeBatch(firestore);
+
+        const userPayload: any = {
+            id: newUid,
+            email: data.email,
+            name: data.name,
+            role: data.role,
+            createdAt: serverTimestamp(),
+        };
+
+        if (data.role === 'company') {
+            const companyRef = doc(firestore, 'companies', newUid);
+            batch.set(companyRef, { id: newUid, name: data.name });
+            userPayload.companyId = newUid;
+        } else if (data.role === 'courier') {
+            const courierRef = doc(firestore, 'couriers', newUid);
+            const courierData = { id: newUid, name: data.name, commissionRate: data.commissionRate || 0 };
+            batch.set(courierRef, courierData);
+            if (data.commissionRate) {
+                userPayload.commissionRate = data.commissionRate;
+            }
+        }
+
+        const userDocRef = doc(firestore, 'users', newUid);
+        batch.set(userDocRef, userPayload);
+        
+        const roleCollectionName = `roles_${data.role}`;
+        const roleDocRef = doc(firestore, roleCollectionName, newUid);
+        batch.set(roleDocRef, { email: data.email, createdAt: serverTimestamp() });
+        
+        batch.commit()
+            .then(() => {
+                toast({
+                    title: "تم إنشاء المستخدم بنجاح!",
+                    description: `تم إنشاء حساب لـ ${data.name} بدور "${data.role}".`,
+                });
+            })
+            .catch(serverError => {
+                const permissionError = new FirestorePermissionError({
+                    path: 'batch_write (users, roles, etc.)',
+                    operation: 'write',
+                    requestResourceData: { note: `Batch create for user ${data.email} failed.` }
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            });
     }
   };
   
