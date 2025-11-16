@@ -1,6 +1,7 @@
 
 "use client";
 import React from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { PlusCircle, FileUp, Database, User as UserIcon, Wallet, DollarSign, BadgePercent, Building } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -11,7 +12,6 @@ import { StatsCards } from "@/components/dashboard/stats-cards";
 import { UsersTable } from "@/components/dashboard/users-table";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { UserFormSheet } from "@/components/users/user-form-sheet";
-import { Header } from "@/components/dashboard/header";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser, useAuth } from "@/firebase";
@@ -29,14 +29,11 @@ import {
 } from "@/components/ui/alert-dialog"
 
 interface AdminDashboardProps {
-  shipmentToEdit?: Shipment | null;
-  isEditSheetOpen?: boolean;
-  onEditSheetOpenChange?: (open: boolean) => void;
   role: Role | null;
   searchTerm: string;
 }
 
-export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange, role, searchTerm }: AdminDashboardProps) {
+export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
@@ -47,23 +44,48 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
   const { user } = useUser();
   const firestore = useFirestore();
   const auth = useAuth();
+  
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
+  // State for handling shipment editing via URL
+  const [editingShipmentFromUrl, setEditingShipmentFromUrl] = React.useState<Shipment | null>(null);
+
+  // Effect to fetch shipment data if 'edit' param is in the URL
   React.useEffect(() => {
-    if (shipmentToEdit && isEditSheetOpen !== undefined && onEditSheetOpenChange) {
-      setEditingShipment(shipmentToEdit);
-      setShipmentSheetOpen(true);
+    const editShipmentId = searchParams.get('edit');
+    if (editShipmentId && firestore) {
+      const fetchShipment = async () => {
+        const shipmentDocRef = doc(firestore, 'shipments', editShipmentId);
+        const shipmentSnap = await getDoc(shipmentDocRef);
+        if (shipmentSnap.exists()) {
+          setEditingShipment({ id: shipmentSnap.id, ...shipmentSnap.data() } as Shipment);
+          setShipmentSheetOpen(true);
+        } else {
+          console.warn("Shipment to edit not found");
+           const newParams = new URLSearchParams(searchParams.toString());
+           newParams.delete('edit');
+           router.replace(`${pathname}?${newParams.toString()}`);
+        }
+      };
+      fetchShipment();
     }
-  }, [shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange]);
+  }, [searchParams, firestore, router, pathname]);
 
-  const handleLocalSheetOpenChange = (open: boolean) => {
-    if (onEditSheetOpenChange && editingShipment?.id === shipmentToEdit?.id) {
-      onEditSheetOpenChange(open);
-    }
+  const handleSheetOpenChange = (open: boolean) => {
     setShipmentSheetOpen(open);
     if (!open) {
       setEditingShipment(undefined);
+      // Clean up the URL when the sheet is closed
+      const newParams = new URLSearchParams(searchParams.toString());
+      if (newParams.has('edit')) {
+        newParams.delete('edit');
+        router.replace(`${pathname}?${newParams.toString()}`);
+      }
     }
   };
+
 
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -249,7 +271,7 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
             title: "تم تحديث الشحنة",
             description: `تم تحديث الشحنة بنجاح`,
           });
-          handleLocalSheetOpenChange(false);
+          handleSheetOpenChange(false);
         })
         .catch(serverError => {
           const permissionError = new FirestorePermissionError({
@@ -271,7 +293,7 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
             title: "تم حفظ الشحنة",
             description: `تم إنشاء الشحنة بنجاح`,
           });
-          handleLocalSheetOpenChange(false);
+          handleSheetOpenChange(false);
         })
         .catch(serverError => {
           const permissionError = new FirestorePermissionError({
@@ -493,7 +515,6 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
 
   return (
     <>
-      <Header onSearchChange={() => {}} />
       <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
         <Tabs defaultValue="all-shipments">
           <div className="flex items-center">
@@ -684,7 +705,7 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
       </main>
       <ShipmentFormSheet
         open={isShipmentSheetOpen}
-        onOpenChange={handleLocalSheetOpenChange}
+        onOpenChange={handleSheetOpenChange}
         onSave={handleSaveShipment}
         shipment={editingShipment}
         governorates={governorates || []}
@@ -692,7 +713,6 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
         companies={companies || []}
         role={role}
       >
-        {/* This component is now controlled programmatically, so no trigger child is needed here. */}
         <div />
       </ShipmentFormSheet>
        <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>

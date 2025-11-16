@@ -1,7 +1,7 @@
 
-
 "use client";
 import React from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { PlusCircle, FileUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,21 +9,17 @@ import { ShipmentsTable } from "@/components/dashboard/shipments-table";
 import type { Role, Shipment, Company, Governorate, Courier, User } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
-import { Header } from "@/components/dashboard/header";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
-import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, setDoc } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, setDoc, getDoc } from "firebase/firestore";
 
 interface CompanyDashboardProps {
-  shipmentToEdit?: Shipment | null;
-  isEditSheetOpen?: boolean;
-  onEditSheetOpenChange?: (open: boolean) => void;
   role: Role | null;
   searchTerm: string;
 }
 
-export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange, role, searchTerm }: CompanyDashboardProps) {
+export default function CompanyDashboard({ role, searchTerm }: CompanyDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -31,22 +27,53 @@ export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEd
   const { user } = useUser();
   const firestore = useFirestore();
 
-  React.useEffect(() => {
-    if (shipmentToEdit && isEditSheetOpen !== undefined && onEditSheetOpenChange) {
-      setEditingShipment(shipmentToEdit);
-      setShipmentSheetOpen(true);
-    }
-  }, [shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange]);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  const handleLocalSheetOpenChange = (open: boolean) => {
-    if (onEditSheetOpenChange && editingShipment?.id === shipmentToEdit?.id) {
-      onEditSheetOpenChange(open);
+  // Effect to fetch shipment data if 'edit' param is in the URL
+  React.useEffect(() => {
+    const editShipmentId = searchParams.get('edit');
+    if (editShipmentId && firestore) {
+      const fetchShipment = async () => {
+        const shipmentDocRef = doc(firestore, 'shipments', editShipmentId);
+        const shipmentSnap = await getDoc(shipmentDocRef);
+        if (shipmentSnap.exists()) {
+           const shipmentData = { id: shipmentSnap.id, ...shipmentSnap.data() } as Shipment;
+           // Ensure company user can only edit their own shipments
+           if (shipmentData.companyId === user?.uid) {
+               setEditingShipment(shipmentData);
+               setShipmentSheetOpen(true);
+           } else {
+                toast({ title: "غير مصرح لك", description: "لا يمكنك تعديل هذه الشحنة.", variant: "destructive" });
+                const newParams = new URLSearchParams(searchParams.toString());
+                newParams.delete('edit');
+                router.replace(`${pathname}?${newParams.toString()}`);
+           }
+        } else {
+          console.warn("Shipment to edit not found");
+           const newParams = new URLSearchParams(searchParams.toString());
+           newParams.delete('edit');
+           router.replace(`${pathname}?${newParams.toString()}`);
+        }
+      };
+      fetchShipment();
     }
+  }, [searchParams, firestore, router, pathname, user?.uid, toast]);
+
+  const handleSheetOpenChange = (open: boolean) => {
     setShipmentSheetOpen(open);
     if (!open) {
       setEditingShipment(undefined);
+      // Clean up the URL when the sheet is closed
+      const newParams = new URLSearchParams(searchParams.toString());
+      if (newParams.has('edit')) {
+        newParams.delete('edit');
+        router.replace(`${pathname}?${newParams.toString()}`);
+      }
     }
   };
+
 
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -210,7 +237,7 @@ export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEd
             title: "تم تحديث الشحنة",
             description: `تم تحديث الشحنة بنجاح`,
           });
-          handleLocalSheetOpenChange(false);
+          handleSheetOpenChange(false);
         })
         .catch(serverError => {
           const permissionError = new FirestorePermissionError({
@@ -232,7 +259,7 @@ export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEd
             title: "تم حفظ الشحنة",
             description: `تم إنشاء الشحنة بنجاح`,
           });
-          handleLocalSheetOpenChange(false);
+          handleSheetOpenChange(false);
         })
         .catch(serverError => {
           const permissionError = new FirestorePermissionError({
@@ -259,7 +286,6 @@ export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEd
 
   return (
     <>
-      <Header onSearchChange={() => {}} />
       <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
         <Tabs defaultValue="all-shipments">
           <div className="flex items-center">
@@ -352,7 +378,7 @@ export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEd
       </main>
       <ShipmentFormSheet
         open={isShipmentSheetOpen}
-        onOpenChange={handleLocalSheetOpenChange}
+        onOpenChange={handleSheetOpenChange}
         onSave={handleSaveShipment}
         shipment={editingShipment}
         governorates={governorates || []}

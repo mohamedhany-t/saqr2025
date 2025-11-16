@@ -1,17 +1,17 @@
 
 "use client";
 import React, { Suspense } from "react";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
-import type { Role, Shipment } from "@/lib/types";
+import type { Role } from "@/lib/types";
 import { useUser, useFirestore } from "@/firebase";
 import AdminDashboard from "@/components/dashboard/admin-dashboard";
 import CourierDashboard from "@/components/dashboard/courier-dashboard";
 import CompanyDashboard from "@/components/dashboard/company-dashboard";
 import { Button } from "@/components/ui/button";
-import { AppLayout } from "@/components/layout/app-layout";
+import { AppLayout }d from "@/components/layout/app-layout";
 
 function PageContent() {
   const [role, setRole] = React.useState<Role | null>(null);
@@ -19,46 +19,7 @@ function PageContent() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [searchTerm, setSearchTerm] = React.useState("");
 
-  // State for handling shipment editing via URL
-  const [editingShipmentFromUrl, setEditingShipmentFromUrl] = React.useState<Shipment | null>(null);
-  const [isEditSheetOpen, setIsEditSheetOpen] = React.useState(false);
-
-  // Effect to fetch shipment data if 'edit' param is in the URL
-  React.useEffect(() => {
-    const editShipmentId = searchParams.get('edit');
-    if (editShipmentId && firestore) {
-      const fetchShipment = async () => {
-        const shipmentDocRef = doc(firestore, 'shipments', editShipmentId);
-        const shipmentSnap = await getDoc(shipmentDocRef);
-        if (shipmentSnap.exists()) {
-          setEditingShipmentFromUrl({ id: shipmentSnap.id, ...shipmentSnap.data() } as Shipment);
-          setIsEditSheetOpen(true); // Signal to open the sheet
-        } else {
-          console.warn("Shipment to edit not found");
-           const newParams = new URLSearchParams(searchParams.toString());
-           newParams.delete('edit');
-           router.replace(`${pathname}?${newParams.toString()}`);
-        }
-      };
-      fetchShipment();
-    }
-  }, [searchParams, firestore, router, pathname]);
-
-  // Handler to close the sheet and clean up the URL
-  const handleSheetOpenChange = (open: boolean) => {
-    setIsEditSheetOpen(open);
-    if (!open) {
-      setEditingShipmentFromUrl(null);
-      const newParams = new URLSearchParams(searchParams.toString());
-      newParams.delete('edit');
-      router.replace(`${pathname}?${newParams.toString()}`);
-    }
-  };
-  
   React.useEffect(() => {
     if (!isUserLoading && !user) {
       router.push('/login');
@@ -142,22 +103,15 @@ function PageContent() {
     );
   }
 
-  const dashboardProps = {
-    shipmentToEdit: editingShipmentFromUrl,
-    isEditSheetOpen: isEditSheetOpen,
-    onEditSheetOpenChange: handleSheetOpenChange,
-    role: role,
-    searchTerm: searchTerm
-  };
 
   const renderDashboard = () => {
     switch (role) {
       case "admin":
-        return <AdminDashboard {...dashboardProps} />;
+        return <AdminDashboard role={role} />;
       case "company":
-        return <CompanyDashboard {...dashboardProps} />;
+        return <CompanyDashboard role={role} />;
       case "courier":
-        return <CourierDashboard {...dashboardProps} />;
+        return <CourierDashboard role={role} />;
       default:
         return (
           <div className="flex min-h-screen w-full items-center justify-center bg-muted/30 flex-col gap-4 text-center p-4">
@@ -171,11 +125,7 @@ function PageContent() {
     }
   }
 
-  return (
-    <AppLayout onSearchChange={setSearchTerm}>
-      {renderDashboard()}
-    </AppLayout>
-  )
+  return <AppLayout>{renderDashboard()}</AppLayout>
 }
 
 export default function DashboardRouterPage() {
@@ -185,3 +135,4 @@ export default function DashboardRouterPage() {
     </Suspense>
   );
 }
+

@@ -1,14 +1,13 @@
 
-
 "use client";
 import React from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
 import type { Role, Shipment, Company, Governorate, Courier, ShipmentStatus, User } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
-import { Header } from "@/components/dashboard/header";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser, useDoc } from "@/firebase";
 import { collection, serverTimestamp, doc, query, where, updateDoc, getDoc, writeBatch } from "firebase/firestore";
@@ -17,37 +16,64 @@ import { ShipmentCard } from "@/components/shipments/shipment-card";
 import { Loader2 } from "lucide-react";
 
 interface CourierDashboardProps {
-  shipmentToEdit?: Shipment | null;
-  isEditSheetOpen?: boolean;
-  onEditSheetOpenChange?: (open: boolean) => void;
   role: Role | null;
   searchTerm: string;
 }
 
-export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange, role, searchTerm }: CourierDashboardProps) {
+export default function CourierDashboard({ role, searchTerm }: CourierDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
   const isMobile = useIsMobile();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
+  // Effect to fetch shipment data if 'edit' param is in the URL
   React.useEffect(() => {
-    if (shipmentToEdit && isEditSheetOpen !== undefined && onEditSheetOpenChange) {
-      setEditingShipment(shipmentToEdit);
-      setShipmentSheetOpen(true);
+    const editShipmentId = searchParams.get('edit');
+    if (editShipmentId && firestore) {
+      const fetchShipment = async () => {
+        const shipmentDocRef = doc(firestore, 'shipments', editShipmentId);
+        const shipmentSnap = await getDoc(shipmentDocRef);
+        if (shipmentSnap.exists()) {
+           const shipmentData = { id: shipmentSnap.id, ...shipmentSnap.data() } as Shipment;
+           // Ensure courier can only edit their own assigned shipments
+           if (shipmentData.assignedCourierId === user?.uid) {
+               setEditingShipment(shipmentData);
+               setShipmentSheetOpen(true);
+           } else {
+                toast({ title: "غير مصرح لك", description: "لا يمكنك تعديل هذه الشحنة.", variant: "destructive" });
+                const newParams = new URLSearchParams(searchParams.toString());
+                newParams.delete('edit');
+                router.replace(`${pathname}?${newParams.toString()}`);
+           }
+        } else {
+          console.warn("Shipment to edit not found");
+           const newParams = new URLSearchParams(searchParams.toString());
+           newParams.delete('edit');
+           router.replace(`${pathname}?${newParams.toString()}`);
+        }
+      };
+      fetchShipment();
     }
-  }, [shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange]);
+  }, [searchParams, firestore, router, pathname, user?.uid, toast]);
 
-  const handleLocalSheetOpenChange = (open: boolean) => {
-    if (onEditSheetOpenChange && editingShipment?.id === shipmentToEdit?.id) {
-      onEditSheetOpenChange(open);
-    }
+  const handleSheetOpenChange = (open: boolean) => {
     setShipmentSheetOpen(open);
     if (!open) {
       setEditingShipment(undefined);
+      // Clean up the URL when the sheet is closed
+      const newParams = new URLSearchParams(searchParams.toString());
+      if (newParams.has('edit')) {
+        newParams.delete('edit');
+        router.replace(`${pathname}?${newParams.toString()}`);
+      }
     }
   };
+
 
   const userQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -139,7 +165,7 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
 
     if (Object.keys(dataToUpdate).length <= 1) { // Only updatedAt
         toast({ title: "لا توجد تغييرات للحفظ", variant: "default"});
-        handleLocalSheetOpenChange(false);
+        handleSheetOpenChange(false);
         return;
     }
 
@@ -151,7 +177,7 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
           title: "تم تحديث الشحنة",
           description: `تم تحديث حالة الشحنة بنجاح`,
         });
-        handleLocalSheetOpenChange(false);
+        handleSheetOpenChange(false);
       })
       .catch(serverError => {
         const permissionError = new FirestorePermissionError({
@@ -316,7 +342,7 @@ export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEd
       </main>
        <ShipmentFormSheet
         open={isShipmentSheetOpen}
-        onOpenChange={handleLocalSheetOpenChange}
+        onOpenChange={handleSheetOpenChange}
         onSave={handleSaveShipment}
         shipment={editingShipment}
         governorates={governorates || []}
