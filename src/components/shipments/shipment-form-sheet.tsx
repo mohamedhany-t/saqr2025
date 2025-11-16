@@ -42,6 +42,7 @@ const shipmentSchema = z.object({
   reason: z.string().optional(),
   deliveryDate: z.date().optional(),
   assignedCourierId: z.string().optional(),
+  companyId: z.string().optional(),
   collectedAmount: z.coerce.number().optional(),
   courierCommission: z.coerce.number().optional(),
 }).superRefine((data, ctx) => {
@@ -56,20 +57,24 @@ const shipmentSchema = z.object({
 
 
 type ShipmentFormSheetProps = {
-    children: React.ReactNode;
+    children?: React.ReactNode;
     open: boolean;
     onOpenChange: (open: boolean) => void;
     shipment?: Shipment;
     onSave: (data: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => void;
     governorates: Governorate[];
-    couriers: User[]; // Use User type which includes commissionRate
+    couriers: User[];
+    companies?: Company[];
     role: Role | null;
 }
 
-export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave, governorates, couriers, role }: ShipmentFormSheetProps) {
+export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave, governorates, couriers, companies, role }: ShipmentFormSheetProps) {
   const isEditing = !!shipment;
   const isCourier = role === 'courier';
-  const isCompanyOrAdmin = role === 'admin' || role === 'company';
+  const isAdmin = role === 'admin';
+  const isCompany = role === 'company';
+  const isCompanyOrAdmin = isAdmin || isCompany;
+
 
   const form = useForm<z.infer<typeof shipmentSchema>>({
     resolver: zodResolver(shipmentSchema),
@@ -117,9 +122,9 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetTrigger asChild>
+      {children && <SheetTrigger asChild>
         {children}
-      </SheetTrigger>
+      </SheetTrigger>}
       <SheetContent className="sm:max-w-2xl" dir="rtl">
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
@@ -215,6 +220,26 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />
+                    {isAdmin && companies && companies.length > 0 && <FormField
+                        control={form.control}
+                        name="companyId"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">الشركة</FormLabel>
+                                <Select dir="rtl" onValueChange={field.onChange} value={field.value} disabled={isCourier}>
+                                    <FormControl className="col-span-3">
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="اختر الشركة" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage className="col-span-4" />
+                            </FormItem>
+                        )}
+                    />}
                     <FormField
                         control={form.control}
                         name="status"

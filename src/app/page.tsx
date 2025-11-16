@@ -5,61 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
-import type { Role } from "@/lib/types";
+import type { Role, Shipment } from "@/lib/types";
 import { useUser, useFirestore } from "@/firebase";
 import AdminDashboard from "@/components/dashboard/admin-dashboard";
 import CourierDashboard from "@/components/dashboard/courier-dashboard";
 import CompanyDashboard from "@/components/dashboard/company-dashboard";
 import { Button } from "@/components/ui/button";
-import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
-
-function EditShipmentHandler() {
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const editShipmentId = searchParams.get('edit');
-    const firestore = useFirestore();
-    
-    const [isOpen, setIsOpen] = React.useState(false);
-    const [editingShipment, setEditingShipment] = React.useState(null);
-    const [isLoading, setIsLoading] = React.useState(true);
-
-    React.useEffect(() => {
-        if (editShipmentId && firestore) {
-            const fetchShipment = async () => {
-                setIsLoading(true);
-                const shipmentDocRef = doc(firestore, 'shipments', editShipmentId);
-                const shipmentSnap = await getDoc(shipmentDocRef);
-                if (shipmentSnap.exists()) {
-                    setEditingShipment({ id: shipmentSnap.id, ...shipmentSnap.data() } as any);
-                    setIsOpen(true);
-                } else {
-                    console.warn("Shipment to edit not found");
-                    // Optionally clear the URL param
-                    router.replace('/', undefined);
-                }
-                setIsLoading(false);
-            };
-            fetchShipment();
-        } else {
-            setIsLoading(false);
-        }
-    }, [editShipmentId, firestore, router]);
-    
-    const handleOpenChange = (open: boolean) => {
-        setIsOpen(open);
-        if (!open) {
-            // When sheet is closed, remove the 'edit' query param
-             router.replace('/', undefined);
-        }
-    };
-    
-    // This component doesn't render anything itself, just manages the sheet state
-    // We could render a loader, but the main page already has one.
-    // The actual Sheet is rendered in the main DashboardRouterPage component.
-    // For now, this is a placeholder to show the logic.
-    return null;
-}
-
 
 export default function DashboardRouterPage() {
   const [role, setRole] = React.useState<Role | null>(null);
@@ -67,7 +18,40 @@ export default function DashboardRouterPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
+  // State for handling shipment editing via URL
+  const [editingShipmentFromUrl, setEditingShipmentFromUrl] = React.useState<Shipment | null>(null);
+  const [isEditSheetOpen, setIsEditSheetOpen] = React.useState(false);
+
+  // Effect to fetch shipment data if 'edit' param is in the URL
+  React.useEffect(() => {
+    const editShipmentId = searchParams.get('edit');
+    if (editShipmentId && firestore) {
+      const fetchShipment = async () => {
+        const shipmentDocRef = doc(firestore, 'shipments', editShipmentId);
+        const shipmentSnap = await getDoc(shipmentDocRef);
+        if (shipmentSnap.exists()) {
+          setEditingShipmentFromUrl({ id: shipmentSnap.id, ...shipmentSnap.data() } as Shipment);
+          setIsEditSheetOpen(true); // Signal to open the sheet
+        } else {
+          console.warn("Shipment to edit not found");
+          router.replace('/', { scroll: false }); // Use replace to avoid breaking back button
+        }
+      };
+      fetchShipment();
+    }
+  }, [searchParams, firestore, router]);
+
+  // Handler to close the sheet and clean up the URL
+  const handleSheetOpenChange = (open: boolean) => {
+    setIsEditSheetOpen(open);
+    if (!open) {
+      setEditingShipmentFromUrl(null);
+      router.replace('/', { scroll: false });
+    }
+  };
+  
   React.useEffect(() => {
     if (!isUserLoading && !user) {
       router.push('/login');
@@ -86,7 +70,6 @@ export default function DashboardRouterPage() {
           if (userDocSnap.exists() && userDocSnap.data().role) {
             setRole(userDocSnap.data().role);
           } else {
-            // This logic is primarily for the initial admin setup
             if (user.email === "mhanyt21@gmail.com") {
               const adminData = {
                 id: user.uid,
@@ -101,7 +84,6 @@ export default function DashboardRouterPage() {
               }
               setRole('admin');
             } else {
-              // For other users, check role collections if user doc is incomplete
               let userRole: Role | null = null;
               const adminSnap = await getDoc(doc(firestore, `roles_admin/${user.uid}`));
               if (adminSnap.exists()) userRole = 'admin';
@@ -148,13 +130,19 @@ export default function DashboardRouterPage() {
         );
       }
 
+      const dashboardProps = {
+        shipmentToEdit: editingShipmentFromUrl,
+        isEditSheetOpen: isEditSheetOpen,
+        onEditSheetOpenChange: handleSheetOpenChange
+      };
+
       switch (role) {
         case "admin":
-          return <AdminDashboard />;
+          return <AdminDashboard {...dashboardProps} />;
         case "company":
-            return <CompanyDashboard />;
+            return <CompanyDashboard {...dashboardProps} />;
         case "courier":
-          return <CourierDashboard />;
+          return <CourierDashboard {...dashboardProps} />;
         default:
           return (
             <div className="flex min-h-screen w-full items-center justify-center bg-muted/30 flex-col gap-4 text-center p-4">
@@ -170,7 +158,6 @@ export default function DashboardRouterPage() {
 
   return (
     <Suspense fallback={<div className="flex min-h-screen w-full items-center justify-center bg-muted/30"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
-        <EditShipmentHandler />
         <PageContent />
     </Suspense>
   );

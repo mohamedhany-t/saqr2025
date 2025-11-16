@@ -11,7 +11,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser, useDoc } from "@/firebase";
 import { collection, serverTimestamp, doc, query, where, updateDoc, getDoc, writeBatch } from "firebase/firestore";
 
-export default function CourierDashboard() {
+interface CourierDashboardProps {
+  shipmentToEdit?: Shipment | null;
+  isEditSheetOpen?: boolean;
+  onEditSheetOpenChange?: (open: boolean) => void;
+}
+
+export default function CourierDashboard({ shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange }: CourierDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -19,6 +25,23 @@ export default function CourierDashboard() {
   const firestore = useFirestore();
   const { user } = useUser();
   const role: Role = 'courier';
+
+  React.useEffect(() => {
+    if (shipmentToEdit && isEditSheetOpen !== undefined && onEditSheetOpenChange) {
+      setEditingShipment(shipmentToEdit);
+      setShipmentSheetOpen(true);
+    }
+  }, [shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange]);
+
+  const handleLocalSheetOpenChange = (open: boolean) => {
+    if (onEditSheetOpenChange && editingShipment?.id === shipmentToEdit?.id) {
+      onEditSheetOpenChange(open);
+    }
+    setShipmentSheetOpen(open);
+    if (!open) {
+      setEditingShipment(undefined);
+    }
+  };
 
   const userQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -98,7 +121,6 @@ export default function CourierDashboard() {
         updatedAt: serverTimestamp(),
     };
 
-    // Always include status, reason, and collectedAmount if they are in the form data
     if (shipment.status !== undefined) dataToUpdate.status = shipment.status;
     if (shipment.reason !== undefined) dataToUpdate.reason = shipment.reason;
     const collectedAmount = shipment.collectedAmount !== undefined ? Number(shipment.collectedAmount) : originalShipmentData.collectedAmount || 0;
@@ -106,13 +128,12 @@ export default function CourierDashboard() {
 
     const newStatus = shipment.status || originalShipmentData.status;
 
-    // Recalculate paid amount and commission based on the new status
     const calculatedFields = calculateCommissionAndPaidAmount(newStatus, originalShipmentData.totalAmount, collectedAmount, commissionRate);
     Object.assign(dataToUpdate, calculatedFields);
 
     if (Object.keys(dataToUpdate).length <= 1) { // Only updatedAt
         toast({ title: "لا توجد تغييرات للحفظ", variant: "default"});
-        setShipmentSheetOpen(false);
+        handleLocalSheetOpenChange(false);
         return;
     }
 
@@ -124,7 +145,7 @@ export default function CourierDashboard() {
           title: "تم تحديث الشحنة",
           description: `تم تحديث حالة الشحنة بنجاح`,
         });
-        setShipmentSheetOpen(false);
+        handleLocalSheetOpenChange(false);
       })
       .catch(serverError => {
         const permissionError = new FirestorePermissionError({
@@ -151,13 +172,12 @@ export default function CourierDashboard() {
         
         let finalUpdate: { [key: string]: any } = { updatedAt: serverTimestamp() };
         
-        // Only allow status and reason from the bulk update dropdown
         const allowedUpdates: Partial<Shipment> = {};
         if (update.status) allowedUpdates.status = update.status;
         if (update.reason) allowedUpdates.reason = update.reason;
 
         if (Object.keys(allowedUpdates).length === 0) {
-            return; // Skip if no valid fields to update
+            return;
         }
 
         const newStatus = allowedUpdates.status || row.status;
@@ -259,14 +279,13 @@ export default function CourierDashboard() {
       </main>
        <ShipmentFormSheet
         open={isShipmentSheetOpen}
-        onOpenChange={setShipmentSheetOpen}
+        onOpenChange={handleLocalSheetOpenChange}
         onSave={handleSaveShipment}
         shipment={editingShipment}
         governorates={governorates || []}
         couriers={users?.filter(u => u.role === 'courier') || []}
         role={role}
       >
-        {/* This component is now controlled programmatically, so no trigger child is needed here. */}
         <div />
       </ShipmentFormSheet>
     </div>

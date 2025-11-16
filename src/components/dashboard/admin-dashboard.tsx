@@ -18,8 +18,13 @@ import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePe
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc } from "firebase/firestore";
 import { createUserWithEmailAndPassword, initializeAuth, indexedDBLocalPersistence } from 'firebase/auth';
 
+interface AdminDashboardProps {
+  shipmentToEdit?: Shipment | null;
+  isEditSheetOpen?: boolean;
+  onEditSheetOpenChange?: (open: boolean) => void;
+}
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange }: AdminDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
@@ -31,6 +36,23 @@ export default function AdminDashboard() {
   const firestore = useFirestore();
   const auth = useAuth();
   const role: Role = 'admin';
+
+  React.useEffect(() => {
+    if (shipmentToEdit && isEditSheetOpen !== undefined && onEditSheetOpenChange) {
+      setEditingShipment(shipmentToEdit);
+      setShipmentSheetOpen(true);
+    }
+  }, [shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange]);
+
+  const handleLocalSheetOpenChange = (open: boolean) => {
+    if (onEditSheetOpenChange && editingShipment?.id === shipmentToEdit?.id) {
+      onEditSheetOpenChange(open);
+    }
+    setShipmentSheetOpen(open);
+    if (!open) {
+      setEditingShipment(undefined);
+    }
+  };
 
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -216,7 +238,7 @@ export default function AdminDashboard() {
             title: "تم تحديث الشحنة",
             description: `تم تحديث الشحنة بنجاح`,
           });
-          setShipmentSheetOpen(false);
+          handleLocalSheetOpenChange(false);
         })
         .catch(serverError => {
           const permissionError = new FirestorePermissionError({
@@ -238,7 +260,7 @@ export default function AdminDashboard() {
             title: "تم حفظ الشحنة",
             description: `تم إنشاء الشحنة بنجاح`,
           });
-          setShipmentSheetOpen(false);
+          handleLocalSheetOpenChange(false);
         })
         .catch(serverError => {
           const permissionError = new FirestorePermissionError({
@@ -266,7 +288,6 @@ export default function AdminDashboard() {
 
         const userUpdatePayload: any = { name: data.name };
         
-        // This is the crucial part: update the corresponding profile collection
         if (data.role === 'courier') {
             userUpdatePayload.commissionRate = data.commissionRate;
             const courierDocRef = doc(firestore, 'couriers', userId);
@@ -284,7 +305,7 @@ export default function AdminDashboard() {
           })
           .catch(serverError => {
             const permissionError = new FirestorePermissionError({
-                path: 'users', // Simplified path for batch operation error
+                path: 'users', 
                 operation: 'update',
                 requestResourceData: { note: `Batch update for user ${userId} failed.` }
             });
@@ -295,14 +316,12 @@ export default function AdminDashboard() {
         toast({ title: "جاري إنشاء المستخدم...", description: "قد تستغرق هذه العملية بضع لحظات." });
         let tempAuth: any;
         try {
-            // Using a temporary auth instance prevents the current admin from being signed out.
             tempAuth = initializeAuth(auth.app, { persistence: indexedDBLocalPersistence });
             const userCredential = await createUserWithEmailAndPassword(tempAuth, data.email, data.password);
             const newUser = userCredential.user;
 
             const batch = writeBatch(firestore);
 
-            // Create public profile in /companies or /couriers
             if (data.role === 'company') {
                 const companyRef = doc(firestore, 'companies', newUser.uid);
                 batch.set(companyRef, { id: newUser.uid, name: data.name });
@@ -315,7 +334,6 @@ export default function AdminDashboard() {
                 });
             }
 
-            // Create user document in /users
             const userDocRef = doc(firestore, 'users', newUser.uid);
             const userPayload: any = {
                 id: newUser.uid,
@@ -332,7 +350,6 @@ export default function AdminDashboard() {
             }
             batch.set(userDocRef, userPayload);
             
-            // Set role in roles collection for security rules
             const roleCollectionName = `roles_${data.role}`;
             const roleDocRef = doc(firestore, roleCollectionName, newUser.uid);
             batch.set(roleDocRef, { email: data.email, createdAt: serverTimestamp() });
@@ -367,7 +384,6 @@ export default function AdminDashboard() {
             });
         } finally {
             if (tempAuth) {
-                // The temporary auth instance is not needed anymore
                 await tempAuth.signOut();
             }
         }
@@ -435,23 +451,12 @@ export default function AdminDashboard() {
                   إضافة بيانات وهمية
                 </span>
               </Button>
-              <ShipmentFormSheet
-                open={isShipmentSheetOpen}
-                onOpenChange={setShipmentSheetOpen}
-                onSave={handleSaveShipment}
-                shipment={editingShipment}
-                governorates={governorates || []}
-                couriers={courierUsers}
-                companies={companies || []}
-                role={role}
-              >
-                 <Button size="sm" className="h-8 gap-1" onClick={() => openShipmentForm()}>
-                    <PlusCircle className="h-3.5 w-3.5" />
-                    <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                      شحنة جديدة
-                    </span>
-                  </Button>
-              </ShipmentFormSheet>
+               <Button size="sm" className="h-8 gap-1" onClick={() => openShipmentForm()}>
+                  <PlusCircle className="h-3.5 w-3.5" />
+                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                    شحنة جديدة
+                  </span>
+                </Button>
             </div>
           </div>
           <StatsCards shipments={shipments || []} role={role} />
@@ -565,11 +570,19 @@ export default function AdminDashboard() {
          </TabsContent>
         </Tabs>
       </main>
+      <ShipmentFormSheet
+        open={isShipmentSheetOpen}
+        onOpenChange={handleLocalSheetOpenChange}
+        onSave={handleSaveShipment}
+        shipment={editingShipment}
+        governorates={governorates || []}
+        couriers={courierUsers}
+        companies={companies || []}
+        role={role}
+      >
+        {/* This component is now controlled programmatically, so no trigger child is needed here. */}
+        <div />
+      </ShipmentFormSheet>
     </div>
   );
 }
-
-    
-
-    
-

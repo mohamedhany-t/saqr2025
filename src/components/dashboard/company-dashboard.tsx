@@ -14,7 +14,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, setDoc } from "firebase/firestore";
 
-export default function CompanyDashboard() {
+interface CompanyDashboardProps {
+  shipmentToEdit?: Shipment | null;
+  isEditSheetOpen?: boolean;
+  onEditSheetOpenChange?: (open: boolean) => void;
+}
+
+export default function CompanyDashboard({ shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange }: CompanyDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -23,6 +29,23 @@ export default function CompanyDashboard() {
   const { user } = useUser();
   const firestore = useFirestore();
   const role: Role = 'company';
+
+  React.useEffect(() => {
+    if (shipmentToEdit && isEditSheetOpen !== undefined && onEditSheetOpenChange) {
+      setEditingShipment(shipmentToEdit);
+      setShipmentSheetOpen(true);
+    }
+  }, [shipmentToEdit, isEditSheetOpen, onEditSheetOpenChange]);
+
+  const handleLocalSheetOpenChange = (open: boolean) => {
+    if (onEditSheetOpenChange && editingShipment?.id === shipmentToEdit?.id) {
+      onEditSheetOpenChange(open);
+    }
+    setShipmentSheetOpen(open);
+    if (!open) {
+      setEditingShipment(undefined);
+    }
+  };
 
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -186,7 +209,7 @@ export default function CompanyDashboard() {
             title: "تم تحديث الشحنة",
             description: `تم تحديث الشحنة بنجاح`,
           });
-          setShipmentSheetOpen(false);
+          handleLocalSheetOpenChange(false);
         })
         .catch(serverError => {
           const permissionError = new FirestorePermissionError({
@@ -208,7 +231,7 @@ export default function CompanyDashboard() {
             title: "تم حفظ الشحنة",
             description: `تم إنشاء الشحنة بنجاح`,
           });
-          setShipmentSheetOpen(false);
+          handleLocalSheetOpenChange(false);
         })
         .catch(serverError => {
           const permissionError = new FirestorePermissionError({
@@ -259,23 +282,12 @@ export default function CompanyDashboard() {
                   استيراد
                 </span>
               </Button>
-              <ShipmentFormSheet
-                open={isShipmentSheetOpen}
-                onOpenChange={setShipmentSheetOpen}
-                onSave={handleSaveShipment}
-                shipment={editingShipment}
-                governorates={governorates || []}
-                couriers={courierUsers || []}
-                companies={[]}
-                role={role}
-              >
-                 <Button size="sm" className="h-8 gap-1" onClick={() => openShipmentForm()}>
-                    <PlusCircle className="h-3.5 w-3.5" />
-                    <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                      شحنة جديدة
-                    </span>
-                  </Button>
-              </ShipmentFormSheet>
+              <Button size="sm" className="h-8 gap-1" onClick={() => openShipmentForm()}>
+                <PlusCircle className="h-3.5 w-3.5" />
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                  شحنة جديدة
+                </span>
+              </Button>
             </div>
           </div>
           <StatsCards shipments={shipments || []} role={role} />
@@ -325,9 +337,18 @@ export default function CompanyDashboard() {
           </TabsContent>
         </Tabs>
       </main>
+      <ShipmentFormSheet
+        open={isShipmentSheetOpen}
+        onOpenChange={handleLocalSheetOpenChange}
+        onSave={handleSaveShipment}
+        shipment={editingShipment}
+        governorates={governorates || []}
+        couriers={courierUsers || []}
+        companies={[]}
+        role={role}
+      >
+        <div />
+      </ShipmentFormSheet>
     </div>
   );
 }
-
-
-    
