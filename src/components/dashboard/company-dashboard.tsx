@@ -1,40 +1,32 @@
 
 "use client";
 import React from "react";
-import { PlusCircle, FileUp, Database, User as UserIcon, Wallet } from "lucide-react";
+import { PlusCircle, FileUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
 import type { Role, Shipment, Company, Governorate, Courier, User } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
-import { UsersTable } from "@/components/dashboard/users-table";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
-import { UserFormSheet } from "@/components/users/user-form-sheet";
 import { Header } from "@/components/dashboard/header";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
-import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser, useAuth } from "@/firebase";
-import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc } from "firebase/firestore";
-import { createUserWithEmailAndPassword, initializeAuth, indexedDBLocalPersistence } from 'firebase/auth';
+import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
+import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, setDoc } from "firebase/firestore";
 
-
-export default function AdminDashboard() {
+export default function CompanyDashboard() {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
-  const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
-  const [editingUser, setEditingUser] = React.useState<User | undefined>(undefined);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [searchTerm, setSearchTerm] = React.useState("");
   const { toast } = useToast();
   const { user } = useUser();
   const firestore = useFirestore();
-  const auth = useAuth();
-  const role: Role = 'admin';
+  const role: Role = 'company';
 
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'shipments'));
+    return query(collection(firestore, 'shipments'), where("companyId", "==", user.uid));
   }, [firestore, user]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
@@ -44,42 +36,24 @@ export default function AdminDashboard() {
   }, [firestore, user]);
   const { data: governorates } = useCollection<Governorate>(governoratesQuery);
 
-  const companiesQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'companies'));
-  }, [firestore, user]);
-  const { data: companies, isLoading: companiesLoading } = useCollection<Company>(companiesQuery);
-
   const couriersQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
+    // Fetch all couriers for assignment dropdown
     return query(collection(firestore, 'couriers'));
   }, [firestore, user]);
   const { data: couriers } = useCollection<Courier>(couriersQuery);
   
   const usersQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'users'));
+    // Fetch all users to filter for couriers
+    return query(collection(firestore, 'users'), where("role", "==", "courier"));
   }, [firestore, user]);
-  const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
-  
+  const { data: courierUsers } = useCollection<User>(usersQuery);
+
   const openShipmentForm = (shipment?: Shipment) => {
     setEditingShipment(shipment);
     setShipmentSheetOpen(true);
   };
-  
-  const openUserForm = (user?: User) => {
-    setEditingUser(user);
-    setIsUserSheetOpen(true);
-  };
-
-  const handleSeedData = () => {
-    toast({ 
-        title: "هذه الميزة للـ Node.js فقط", 
-        description: "يرجى تشغيل السكربت `admin-seed.js` من الـ terminal باستخدام `npm run seed`.",
-        variant: "destructive"
-    });
-  }
-
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
@@ -141,12 +115,12 @@ export default function AdminDashboard() {
                   reason: row['السبب'] || '',
                   deliveryDate: deliveryDate || new Date(),
                   updatedAt: serverTimestamp(),
-                  companyId: user.uid, // Assume admin imports for themselves
+                  companyId: user.uid, // Shipment belongs to the current company user
               };
 
               const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
               
-              const q = query(shipmentsCollection, where("trackingNumber", "==", trackingNumber));
+              const q = query(shipmentsCollection, where("trackingNumber", "==", trackingNumber), where("companyId", "==", user.uid));
               const querySnapshot = await getDocs(q);
 
               if (querySnapshot.empty) {
@@ -233,7 +207,6 @@ export default function AdminDashboard() {
     } else {
       const shipmentsCollection = collection(firestore, 'shipments');
       const docRef = doc(shipmentsCollection);
-      // Admin creating a shipment means it's for their "own" company, which is the admin account itself.
       const dataToAdd = { ...cleanShipmentData, id: docRef.id, companyId: user.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
       
       setDoc(docRef, dataToAdd)
@@ -254,133 +227,6 @@ export default function AdminDashboard() {
         });
     }
   };
-
- const handleSaveUser = async (data: any, userId?: string) => {
-    if (!firestore || !auth) {
-      toast({ variant: "destructive", title: "خطأ", description: "خدمات Firebase غير متاحة" });
-      return;
-    }
-
-    setIsUserSheetOpen(false);
-    
-    if (userId) { // --- UPDATE LOGIC ---
-        toast({ title: "جاري تحديث المستخدم...", description: "قد تستغرق هذه العملية بضع لحظات." });
-        const batch = writeBatch(firestore);
-        const userDocRef = doc(firestore, 'users', userId);
-
-        const userUpdatePayload: any = { name: data.name };
-        if (data.role === 'courier' && data.commissionRate !== undefined) {
-            userUpdatePayload.commissionRate = data.commissionRate;
-        }
-        if(data.role === 'company'){
-            const companyDocRef = doc(firestore, 'companies', userId);
-            batch.update(companyDocRef, { name: data.name });
-        }
-        batch.update(userDocRef, userUpdatePayload);
-
-        batch.commit()
-          .then(() => {
-            toast({ title: "تم تحديث المستخدم بنجاح!", description: `تم تحديث بيانات ${data.name}.` });
-          })
-          .catch(serverError => {
-            const permissionError = new FirestorePermissionError({
-                path: 'users', // Simplified path for batch operation error
-                operation: 'update',
-                requestResourceData: { note: `Batch update for user ${userId} failed.` }
-            });
-            errorEmitter.emit('permission-error', permissionError);
-          });
-
-    } else { // --- CREATE LOGIC ---
-        toast({ title: "جاري إنشاء المستخدم...", description: "قد تستغرق هذه العملية بضع لحظات." });
-        let tempAuth: any;
-        try {
-            tempAuth = initializeAuth(auth.app, { persistence: indexedDBLocalPersistence });
-            const userCredential = await createUserWithEmailAndPassword(tempAuth, data.email, data.password);
-            const newUser = userCredential.user;
-
-            const batch = writeBatch(firestore);
-
-            // Create public profile in /companies or /couriers
-            if (data.role === 'company') {
-                const companyRef = doc(firestore, 'companies', newUser.uid);
-                batch.set(companyRef, { id: newUser.uid, name: data.name });
-            } else if (data.role === 'courier') {
-                const courierRef = doc(firestore, 'couriers', newUser.uid);
-                batch.set(courierRef, {
-                    id: newUser.uid,
-                    name: data.name,
-                    commissionRate: data.commissionRate || 0,
-                });
-            }
-
-            // Create user document in /users
-            const userDocRef = doc(firestore, 'users', newUser.uid);
-            const userPayload: any = {
-                id: newUser.uid,
-                email: data.email,
-                name: data.name,
-                role: data.role,
-                createdAt: serverTimestamp(),
-            };
-             if (data.role === 'company') {
-                userPayload.companyId = newUser.uid;
-            }
-            if (data.role === 'courier' && data.commissionRate) {
-                userPayload.commissionRate = data.commissionRate;
-            }
-            batch.set(userDocRef, userPayload);
-            
-            // Set role in roles collection for security rules
-            const roleCollectionName = `roles_${data.role}`;
-            const roleDocRef = doc(firestore, roleCollectionName, newUser.uid);
-            batch.set(roleDocRef, { email: data.email, createdAt: serverTimestamp() });
-            
-            batch.commit()
-              .then(() => {
-                    toast({
-                        title: "تم إنشاء المستخدم بنجاح!",
-                        description: `تم إنشاء حساب لـ ${data.name} بدور "${data.role}".`,
-                    });
-              })
-              .catch((serverError: any) => {
-                const permissionError = new FirestorePermissionError({
-                    path: 'users', // Simplified path for batch operation error
-                    operation: 'write',
-                    requestResourceData: { note: 'Batch operation for creating user and role failed.' }
-                });
-                errorEmitter.emit('permission-error', permissionError);
-              });
-
-        } catch (error: any) {
-            console.error("Error creating user:", error);
-            let description = "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.";
-            if (error.code === 'auth/email-already-in-use') {
-                description = "هذا البريد الإلكتروني مستخدم بالفعل.";
-            } else if (error.code === 'auth/weak-password') {
-                description = "كلمة المرور ضعيفة جدًا. يجب أن تتكون من 6 أحرف على الأقل.";
-            } else if (error.code?.includes('permission-denied')) {
-                 description = "خطأ في الصلاحيات. تأكد من أن قواعد الأمان تسمح للمسؤول بإنشاء المستخدمين.";
-                 const permissionError = new FirestorePermissionError({
-                    path: 'users',
-                    operation: 'write',
-                    requestResourceData: { note: 'Create user operation failed due to permissions.' }
-                 });
-                 errorEmitter.emit('permission-error', permissionError);
-            }
-
-            toast({
-                variant: "destructive",
-                title: "فشل إنشاء المستخدم",
-                description: description,
-            });
-        } finally {
-            if (tempAuth) {
-                await tempAuth.signOut();
-            }
-        }
-    }
-  };
   
   const filteredShipments = React.useMemo(() => {
     if (!shipments) return [];
@@ -392,23 +238,6 @@ export default function AdminDashboard() {
         shipment.trackingNumber?.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [shipments, searchTerm]);
-
-  const courierDues = React.useMemo(() => {
-    if (!users || !shipments) return [];
-    const courierUsers = users.filter(u => u.role === 'courier');
-    return courierUsers.map(courier => {
-        const courierShipments = shipments.filter(s => s.assignedCourierId === courier.id);
-        const totalCollected = courierShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
-        const totalCommission = courierShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
-        const netDue = totalCollected - totalCommission;
-        return {
-            ...courier,
-            totalCollected,
-            totalCommission,
-            netDue
-        }
-    })
-  }, [users, shipments]);
 
 
   return (
@@ -422,7 +251,6 @@ export default function AdminDashboard() {
               <TabsTrigger value="in-transit" className="hidden sm:flex">قيد التوصيل</TabsTrigger>
               <TabsTrigger value="delivered" className="hidden sm:flex">تم التوصيل</TabsTrigger>
               <TabsTrigger value="returned" className="hidden sm:flex">مرتجعات</TabsTrigger>
-              <TabsTrigger value="management">الإدارة</TabsTrigger>
             </TabsList>
             <div className="ms-auto flex items-center gap-2">
                 <input
@@ -438,19 +266,13 @@ export default function AdminDashboard() {
                   استيراد
                 </span>
               </Button>
-               <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleSeedData}>
-                <Database className="h-3.5 w-3.5" />
-                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                  إضافة بيانات وهمية
-                </span>
-              </Button>
               <ShipmentFormSheet
                 open={isShipmentSheetOpen}
                 onOpenChange={setShipmentSheetOpen}
                 onSave={handleSaveShipment}
                 shipment={editingShipment}
                 governorates={governorates || []}
-                couriers={users?.filter(u => u.role === 'courier') || []}
+                couriers={courierUsers || []}
                 role={role}
               >
                  <Button size="sm" className="h-8 gap-1" onClick={() => openShipmentForm()}>
@@ -468,7 +290,7 @@ export default function AdminDashboard() {
               shipments={filteredShipments} 
               isLoading={shipmentsLoading}
               governorates={governorates || []}
-              companies={companies || []}
+              companies={[]}
               couriers={couriers || []}
               onEdit={openShipmentForm}
               role={role}
@@ -479,7 +301,7 @@ export default function AdminDashboard() {
                 shipments={filteredShipments.filter(s => s.status === 'In-Transit')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                companies={companies || []}
+                companies={[]}
                 couriers={couriers || []}
                 onEdit={openShipmentForm}
                 role={role}
@@ -490,7 +312,7 @@ export default function AdminDashboard() {
                 shipments={filteredShipments.filter(s => s.status === 'Delivered')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                companies={companies || []}
+                companies={[]}
                 couriers={couriers || []}
                 onEdit={openShipmentForm}
                 role={role}
@@ -501,61 +323,12 @@ export default function AdminDashboard() {
                 shipments={filteredShipments.filter(s => s.status === 'Returned')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                companies={companies || []}
+                companies={[]}
                 couriers={couriers || []}
                 onEdit={openShipmentForm}
                 role={role}
              />
           </TabsContent>
-          <TabsContent value="management">
-                <div className="mt-8">
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-headline font-semibold">المبالغ المستحقة على المناديب</h2>
-                  </div>
-                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        {courierDues.map(courier => (
-                            <Card key={courier.id}>
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                                        <UserIcon className="h-4 w-4 text-muted-foreground" />
-                                        {courier.name}
-                                    </CardTitle>
-                                    <Wallet className="h-4 w-4 text-primary" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">
-                                        {courier.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">
-                                        إجمالي التحصيل: {courier.totalCollected.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})} - إجمالي العمولات: {courier.totalCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}
-                                    </p>
-                                </CardContent>
-                            </Card>
-                        ))}
-                   </div>
-              </div>
-              <div className="mt-8">
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين والشركات</h2>
-                     <div className="flex items-center gap-2">
-                       <UserFormSheet 
-                          open={isUserSheetOpen}
-                          onOpenChange={setIsUserSheetOpen}
-                          onSave={handleSaveUser}
-                          user={editingUser}
-                       >
-                            <Button size="sm" className="h-8 gap-1" onClick={() => openUserForm()}>
-                                <PlusCircle className="h-3.5 w-3.5" />
-                                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                                  إضافة مستخدم
-                                </span>
-                            </Button>
-                       </UserFormSheet>
-                    </div>
-                  </div>
-                  <UsersTable users={users || []} isLoading={usersLoading || companiesLoading} onEdit={openUserForm}/>
-              </div>
-         </TabsContent>
         </Tabs>
       </main>
     </div>

@@ -7,44 +7,58 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
     function isAdmin() {
-      return isSignedIn() && (
-        exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid)) ||
-        request.auth.token.email == "mhanyt21@gmail.com"
-      );
+      return isSignedIn() && getUserRole() == 'admin';
     }
     
+    function isCompany() {
+       return isSignedIn() && getUserRole() == 'company';
+    }
+
     function isCourier() {
-      return isSignedIn() && exists(/databases/$(database)/documents/roles_courier/$(request.auth.uid));
+      return isSignedIn() && getUserRole() == 'courier';
     }
 
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
     
+    // Admins can read/write everything
+    // Companies can only manage their own data
+    // Couriers can only manage their assigned shipments
+    
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-    
-    match /shipments/{shipmentId} {
-      allow read: if isAdmin() 
-                  || (isCourier() && resource.data.assignedCourierId == request.auth.uid);
       allow create: if isAdmin();
-      allow update: if isAdmin()
-                    || (isCourier() && request.resource.data.assignedCourierId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
+      allow update: if isAdmin() || isOwner(userId);
       allow delete: if isAdmin();
     }
-
+    
     match /companies/{companyId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow write: if isAdmin(); // Only admins can create/edit company profiles
     }
 
     match /couriers/{courierId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+       allow read: if isSignedIn();
+       allow write: if isAdmin(); // Only admins can create/edit courier profiles
     }
+
+    match /shipments/{shipmentId} {
+      allow read: if isAdmin() 
+                  || (isCompany() && resource.data.companyId == request.auth.uid)
+                  || (isCourier() && resource.data.assignedCourierId == request.auth.uid);
+      allow create: if isAdmin() || isCompany();
+      allow update: if isAdmin()
+                    || (isCompany() && resource.data.companyId == request.auth.uid) // Company can edit all fields of their shipment
+                    || (isCourier() && request.resource.data.assignedCourierId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
+      allow delete: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
+    }
+
 
     match /governorates/{governorateId} {
       allow read: if isSignedIn();
@@ -52,6 +66,10 @@ service cloud.firestore {
     }
 
     match /roles_admin/{userId} {
+      allow read, write: if isAdmin();
+    }
+    
+     match /roles_company/{userId} {
       allow read, write: if isAdmin();
     }
 

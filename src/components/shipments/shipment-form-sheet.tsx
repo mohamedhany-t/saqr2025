@@ -62,14 +62,14 @@ type ShipmentFormSheetProps = {
     shipment?: Shipment;
     onSave: (data: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => void;
     governorates: Governorate[];
-    companies: Company[];
     couriers: User[]; // Use User type which includes commissionRate
     role: Role | null;
 }
 
-export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave, governorates, companies, couriers, role }: ShipmentFormSheetProps) {
+export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave, governorates, couriers, role }: ShipmentFormSheetProps) {
   const isEditing = !!shipment;
   const isCourier = role === 'courier';
+  const isCompanyOrAdmin = role === 'admin' || role === 'company';
 
   const form = useForm<z.infer<typeof shipmentSchema>>({
     resolver: zodResolver(shipmentSchema),
@@ -106,7 +106,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
         form.reset(defaultValues);
       }
     }
-  }, [open, shipment, isEditing, form, role, companies]);
+  }, [open, shipment, isEditing, form, role]);
 
 
   const onSubmit = (values: z.infer<typeof shipmentSchema>) => {
@@ -130,7 +130,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                 </SheetDescription>
                 </SheetHeader>
                 <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6">
-                    {!isCourier && <FormField
+                    {isCompanyOrAdmin && <FormField
                         control={form.control}
                         name="shipmentCode"
                         render={({ field }) => (
@@ -249,7 +249,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                 <FormItem className="grid grid-cols-4 items-center gap-4">
                                     <FormLabel className="text-right">المبلغ المحصّل</FormLabel>
                                     <FormControl className="col-span-3">
-                                        <Input type="number" {...field} placeholder="أدخل المبلغ المحصل" />
+                                        <Input type="number" {...field} placeholder="أدخل المبلغ المحصل" value={field.value ?? 0} />
                                     </FormControl>
                                     <FormMessage className="col-span-4" />
                                 </FormItem>
@@ -269,7 +269,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />
-                     {!isCourier && <FormField
+                     {isCompanyOrAdmin && <FormField
                         control={form.control}
                         name="orderNumber"
                         render={({ field }) => (
@@ -282,7 +282,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />}
-                    {!isCourier && <FormField
+                    {isCompanyOrAdmin && <FormField
                         control={form.control}
                         name="trackingNumber"
                         render={({ field }) => (
@@ -308,5 +308,3 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
     </Sheet>
   )
 }
-
-    

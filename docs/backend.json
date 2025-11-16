@@ -12,7 +12,7 @@
         },
         "name": {
           "type": "string",
-          "description": "The user's display name."
+          "description": "The user's display name. For 'company' roles, this is the company name."
         },
         "email": {
           "type": "string",
@@ -22,11 +22,11 @@
         "role": {
           "type": "string",
           "description": "The role of the user within the system.",
-          "enum": ["admin", "courier"]
+          "enum": ["admin", "company", "courier"]
         },
-        "deliveryCompanyId": {
+        "companyId": {
           "type": "string",
-          "description": "Reference to the delivery company for 'courier' roles."
+          "description": "For 'company' roles, this is their own UID. For 'courier' roles, this is an optional reference to a company."
         },
         "avatarUrl": {
           "type": "string",
@@ -113,9 +113,9 @@
             "type": "number",
             "description": "The commission earned by the courier for this specific shipment."
         },
-        "assignedCompanyId": {
+        "companyId": {
           "type": "string",
-          "description": "Reference to Delivery Company. (Relationship: Company 1:N Shipment)"
+          "description": "Reference to the User (with 'company' role) that owns this shipment."
         },
         "assignedCourierId": {
           "type": "string",
@@ -133,18 +133,19 @@
         "deliveryDate",
         "status",
         "totalAmount",
-        "paidAmount"
+        "paidAmount",
+        "companyId"
       ]
     },
     "Company": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Company",
       "type": "object",
-      "description": "Represents a logistics/delivery company.",
+      "description": "Represents a logistics/delivery company. A user with role 'company' has a corresponding document here.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the delivery company entity."
+          "description": "Unique identifier for the company entity. This is the same as the User's UID."
         },
         "name": {
           "type": "string",
@@ -160,19 +161,15 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Courier",
       "type": "object",
-      "description": "Represents a courier responsible for delivering shipments.",
+      "description": "Represents a courier responsible for delivering shipments. A user with role 'courier' has a corresponding document here.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the courier entity."
+          "description": "Unique identifier for the courier entity. This is the same as the User's UID."
         },
         "name": {
           "type": "string",
           "description": "Name of the courier."
-        },
-        "deliveryCompanyId": {
-          "type": "string",
-          "description": "Reference to Company. (Relationship: Company 1:N Courier)"
         },
         "commissionRate": {
             "type": "number",
@@ -181,8 +178,7 @@
       },
       "required": [
         "id",
-        "name",
-        "deliveryCompanyId"
+        "name"
       ]
     },
     "Governorate": {
@@ -253,7 +249,7 @@
           "schema": {
             "$ref": "#/backend/entities/Company"
           },
-          "description": "Stores shipping company information.",
+          "description": "Stores company information. The document ID is the User UID of the company.",
           "params": [
             {
               "name": "companyId",
@@ -269,7 +265,7 @@
           "schema": {
             "$ref": "#/backend/entities/Courier"
           },
-          "description": "Stores courier information.",
+          "description": "Stores courier information. The document ID is the User UID of the courier.",
           "params": [
             {
               "name": "courierId",
@@ -310,6 +306,22 @@
           ]
         }
       },
+       {
+        "path": "/roles_company/{userId}",
+        "definition": {
+          "entityName": "user",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Documents in this collection grant company role to the user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "Firebase Auth UID of the company user."
+            }
+          ]
+        }
+      },
       {
         "path": "/roles_courier/{userId}",
         "definition": {
@@ -327,6 +339,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure is simplified to focus on Shipping Companies and Couriers. The 'Client Company' concept has been removed. The 'companies' collection now stores shipping companies. The user roles are simplified to 'admin' and 'courier'."
+    "reasoning": "The Firestore structure now includes a 'company' role. Companies are users that can manage their own shipments. Couriers are independent and are assigned to shipments directly. The 'companies' collection stores public profiles for these company users. The 'shipments' collection now uses 'companyId' to link to the user UID of the owning company."
   }
 }

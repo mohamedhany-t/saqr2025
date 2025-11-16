@@ -206,13 +206,13 @@ export default function CourierDashboard() {
               <TabsTrigger value="returned" className="hidden sm:flex">مرتجعات</TabsTrigger>
             </TabsList>
           </div>
-          <StatsCards shipments={shipments || []} role={role} companies={[]} />
+          <StatsCards shipments={shipments || []} role={role} />
           <TabsContent value="all-shipments">
             <ShipmentsTable 
               shipments={filteredShipments} 
               isLoading={shipmentsLoading}
               governorates={governorates || []}
-              deliveryCompanies={[]}
+              companies={[]}
               couriers={couriers || []}
               onEdit={openShipmentForm}
               onBulkUpdate={handleBulkUpdateShipments}
@@ -224,7 +224,7 @@ export default function CourierDashboard() {
                 shipments={filteredShipments.filter(s => s.status === 'In-Transit')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                deliveryCompanies={[]}
+                companies={[]}
                 couriers={couriers || []}
                 onEdit={openShipmentForm}
                 onBulkUpdate={handleBulkUpdateShipments}
@@ -236,7 +236,7 @@ export default function CourierDashboard() {
                 shipments={filteredShipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                deliveryCompanies={[]}
+                companies={[]}
                 couriers={couriers || []}
                 onEdit={openShipmentForm}
                 onBulkUpdate={handleBulkUpdateShipments}
@@ -248,7 +248,7 @@ export default function CourierDashboard() {
                 shipments={filteredShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled' || s.status === 'Evasion')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                deliveryCompanies={[]}
+                companies={[]}
                 couriers={couriers || []}
                 onEdit={openShipmentForm}
                 onBulkUpdate={handleBulkUpdateShipments}
@@ -263,7 +263,6 @@ export default function CourierDashboard() {
         onSave={handleSaveShipment}
         shipment={editingShipment}
         governorates={governorates || []}
-        companies={[]}
         couriers={users?.filter(u => u.role === 'courier') || []}
         role={role}
       >
@@ -272,7 +271,4 @@ export default function CourierDashboard() {
       </ShipmentFormSheet>
     </div>
   );
-
-    
-
-    
+}

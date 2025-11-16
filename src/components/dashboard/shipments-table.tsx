@@ -151,7 +151,7 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role }) => {
 
 export const getColumns = (
     governorates: Governorate[],
-    deliveryCompanies: Company[],
+    companies: Company[],
     onEdit: (shipment: Shipment) => void,
     role: Role | null,
     ): ColumnDef<Shipment>[] => [
@@ -305,7 +305,7 @@ export const getColumns = (
 ]
 
 
-export function ShipmentsTable({ shipments, isLoading, governorates, deliveryCompanies, couriers, onEdit, role, onBulkUpdate }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[], deliveryCompanies: Company[], couriers: Courier[], onEdit: (shipment: Shipment) => void, role: Role | null, onBulkUpdate?: (selectedRows: Shipment[], update: Partial<Shipment>) => void }) {
+export function ShipmentsTable({ shipments, isLoading, governorates, companies, couriers, onEdit, role, onBulkUpdate }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[], companies: Company[], couriers: Courier[], onEdit: (shipment: Shipment) => void, role: Role | null, onBulkUpdate?: (selectedRows: Shipment[], update: Partial<Shipment>) => void }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -316,7 +316,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, deliveryCom
   const { toast } = useToast()
   const firestore = useFirestore();
   
-  const columns = React.useMemo(() => getColumns(governorates, deliveryCompanies, onEdit, role), [governorates, deliveryCompanies, onEdit, role]);
+  const columns = React.useMemo(() => getColumns(governorates, companies, onEdit, role), [governorates, companies, onEdit, role]);
   
   const table = useReactTable({
     data: shipments,
@@ -349,7 +349,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, deliveryCom
       toast({ title: "لا توجد بيانات للتصدير", variant: "destructive" });
       return;
     }
-    exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates, deliveryCompanies, couriers);
+    exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates, companies, couriers);
   }
 
   const handleBulkDelete = () => {
@@ -421,7 +421,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, deliveryCom
     <div className="w-full">
         <div className="flex items-center justify-between py-4 gap-2 flex-wrap">
             <div className="flex items-center gap-2">
-                 {role !== 'courier' && <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleExport}>
+                 {(role === 'admin' || role === 'company') && <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleExport}>
                     <FileUp className="h-3.5 w-3.5" />
                     <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
                         تصدير
@@ -476,22 +476,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, deliveryCom
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
-                     {role === 'admin' && <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                             <Button variant="outline" size="sm" className="h-8 gap-1">
-                                <Building className="h-3.5 w-3.5" />
-                                <span className="sr-only sm:not-sr-only">تعيين شركة</span>
-                             </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                            {deliveryCompanies.map(company => (
-                                <DropdownMenuItem key={company.id} onSelect={() => handleGenericBulkUpdate({ assignedCompanyId: company.id })}>
-                                    {company.name}
-                                </DropdownMenuItem>
-                            ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>}
-                    {role === 'admin' && <DropdownMenu>
+                    {(role === 'admin' || role === 'company') && <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                              <Button variant="outline" size="sm" className="h-8 gap-1">
                                 <User className="h-3.5 w-3.5" />
@@ -598,5 +583,3 @@ export function ShipmentsTable({ shipments, isLoading, governorates, deliveryCom
     </div>
   )
 }
-
-    

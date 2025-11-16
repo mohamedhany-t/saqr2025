@@ -1,4 +1,5 @@
 
+
 "use client"
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
@@ -28,25 +29,28 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import type { User, Role, Company } from "@/lib/types"
+import type { User, Role } from "@/lib/types"
 import { Skeleton } from "../ui/skeleton"
 
 const roleIcons: Record<Role, React.ReactNode> = {
     admin: <UserIcon className="h-4 w-4 text-red-500" />,
+    company: <Building className="h-4 w-4 text-blue-500" />,
     courier: <Truck className="h-4 w-4 text-green-500" />,
 }
 
 const roleText: Record<Role, string> = {
     admin: "مسؤول",
+    company: "شركة شحن",
     courier: "مندوب",
 }
 
 const roleVariants: Record<Role, "default" | "secondary" | "destructive" | "outline"> = {
     admin: "destructive",
+    company: "secondary",
     courier: "outline",
 }
 
-export const getColumns = (companies: Company[], deliveryCompanies: Company[], onEdit: (user: User) => void): ColumnDef<User>[] => [
+export const getColumns = (onEdit: (user: User) => void): ColumnDef<User>[] => [
   {
     accessorKey: "name",
     header: "الاسم",
@@ -93,18 +97,6 @@ export const getColumns = (companies: Company[], deliveryCompanies: Company[], o
     },
   },
   {
-    accessorKey: "deliveryCompanyId",
-    header: "شركة الشحن",
-    cell: ({ row }) => {
-        const user = row.original;
-        if (user.role === 'courier') {
-            const deliveryCompany = deliveryCompanies.find(dc => dc.id === user.deliveryCompanyId);
-            return <div>{deliveryCompany?.name || <span className="text-muted-foreground">غير محدد</span>}</div>
-        }
-        return <div className="text-muted-foreground">N/A</div>;
-    },
-  },
-  {
     accessorKey: "createdAt",
     header: "تاريخ الإنشاء",
     cell: ({ row }) => {
@@ -145,9 +137,9 @@ export const getColumns = (companies: Company[], deliveryCompanies: Company[], o
 ]
 
 
-export function UsersTable({ users, isLoading, companies, deliveryCompanies, onEdit }: { users: User[], isLoading: boolean, companies: Company[], deliveryCompanies: Company[], onEdit: (user: User) => void }) {
+export function UsersTable({ users, isLoading, onEdit }: { users: User[], isLoading: boolean, onEdit: (user: User) => void }) {
   
-  const columns = React.useMemo(() => getColumns(companies, deliveryCompanies, onEdit), [companies, deliveryCompanies, onEdit]);
+  const columns = React.useMemo(() => getColumns(onEdit), [onEdit]);
   
   const table = useReactTable({
     data: users,

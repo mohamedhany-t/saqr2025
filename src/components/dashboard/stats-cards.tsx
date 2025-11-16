@@ -1,14 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Truck, CheckCircle2, CircleDollarSign, Building, Wallet, BadgeDollarSign } from "lucide-react";
-import type { Shipment, Role, Company } from "@/lib/types";
+import type { Shipment, Role } from "@/lib/types";
 
 interface StatsCardsProps {
     shipments: Shipment[];
     role: Role | null;
-    companies: Company[];
 }
 
-export function StatsCards({ shipments, role, companies }: StatsCardsProps) {
+export function StatsCards({ shipments, role }: StatsCardsProps) {
     const totalRevenue = shipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
     const inTransit = shipments.filter(s => s.status === 'In-Transit').length;
     const delivered = shipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered').length;
@@ -26,14 +25,36 @@ export function StatsCards({ shipments, role, companies }: StatsCardsProps) {
         { title: "إجمالي الشحنات", value: `${totalShipments}`, icon: Package, description: "" },
     ];
     
+    const companyStats = [
+        { title: "إجمالي الإيرادات", value: `${totalRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: CircleDollarSign, description: "إجمالي الإيرادات من الشحنات المسلمة." },
+        { title: "قيد التوصيل", value: `+${inTransit}`, icon: Truck, description: "الشحنات التي هي مع المناديب حاليا." },
+        { title: "تم التوصيل", value: `+${delivered}`, icon: CheckCircle2, description: "الشحنات التي تم توصيلها بنجاح." },
+        { title: "إجمالي الشحنات", value: `${totalShipments}`, icon: Package, description: "إجمالي عدد الشحنات الخاصة بشركتك." },
+    ];
+    
     const courierStats = [
         { title: "إجمالي التحصيل", value: `${totalRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: CircleDollarSign, description: "المبلغ الإجمالي الذي قمت بتحصيله." },
         { title: "إجمالي عمولاتك", value: `${totalCourierCommission.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: BadgeDollarSign, description: "مجموع العمولات المستحقة لك." },
         { title: "المبلغ المستحق للدفع", value: `${netDueForCourier.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: Wallet, description: "الصافي المستحق عليك تسليمه للشركة." },
         { title: "إجمالي الشحنات", value: `${totalShipments}`, icon: Package, description: "إجمالي عدد الشحنات المسندة إليك." },
     ];
+    
+    let statsToDisplay;
+    switch(role) {
+        case 'admin':
+            statsToDisplay = adminStats;
+            break;
+        case 'company':
+            statsToDisplay = companyStats;
+            break;
+        case 'courier':
+            statsToDisplay = courierStats;
+            break;
+        default:
+            statsToDisplay = [];
+            break;
+    }
 
-    const statsToDisplay = role === 'courier' ? courierStats : adminStats;
 
     return (
         <div className="my-6">

@@ -29,13 +29,12 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import type { Company, User } from '@/lib/types';
 
 // Schema for user creation/editing
-const userSchema = z.object({
+const baseUserSchema = z.object({
   name: z.string().min(1, "الاسم مطلوب"),
   email: z.string().email("بريد إلكتروني غير صالح"),
   password: z.string().optional(),
-  role: z.enum(["courier", "admin"], { required_error: "الدور مطلوب" }),
-  companyName: z.string().optional(),
-  deliveryCompanyId: z.string().optional(),
+  role: z.enum(["courier", "admin", "company"], { required_error: "الدور مطلوب" }),
+  companyName: z.string().optional(), // Now used for company creation name
   commissionRate: z.coerce.number().optional(),
 });
 
@@ -44,20 +43,26 @@ type UserFormSheetProps = {
     children?: React.ReactNode;
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onSave: (data: z.infer<typeof userSchema>, userId?: string) => void;
+    onSave: (data: z.infer<typeof baseUserSchema>, userId?: string) => void;
     user?: User; // Make user optional for creating vs. editing
-    deliveryCompanies: Company[];
 }
 
-export function UserFormSheet({ children, open, onOpenChange, onSave, user, deliveryCompanies }: UserFormSheetProps) {
+export function UserFormSheet({ children, open, onOpenChange, onSave, user }: UserFormSheetProps) {
   const isEditing = !!user;
 
-    const formSchemaForMode = userSchema.superRefine((data, ctx) => {
+    const formSchemaForMode = baseUserSchema.superRefine((data, ctx) => {
         if (!isEditing && (!data.password || data.password.length < 6)) {
              ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 message: "كلمة المرور يجب أن تكون 6 أحرف على الأقل",
                 path: ["password"],
+            });
+        }
+        if (data.role === 'company' && !data.name) {
+             ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "اسم الشركة مطلوب",
+                path: ["name"],
             });
         }
     });
@@ -69,8 +74,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
       name: "",
       email: "",
       password: "",
-      companyName: "",
-      deliveryCompanyId: "",
+      role: 'courier',
       commissionRate: 0,
     },
   });
@@ -82,9 +86,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
           name: user.name || '',
           email: user.email,
           role: user.role,
-          companyName: '', // This role is removed
           commissionRate: user.commissionRate || 0,
-          deliveryCompanyId: user.deliveryCompanyId || '',
         });
       } else {
         form.reset({
@@ -92,15 +94,13 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
           email: "",
           password: "",
           role: 'courier',
-          companyName: "",
-          deliveryCompanyId: "",
           commissionRate: 0,
         });
       }
     }
   }, [open, user, isEditing, form]);
 
-  const onSubmit = (values: z.infer<typeof userSchema>) => {
+  const onSubmit = (values: z.infer<typeof baseUserSchema>) => {
     onSave(values, user?.id);
   };
   
@@ -126,7 +126,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
                         name="name"
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
-                                <FormLabel className="text-right">الاسم</FormLabel>
+                                <FormLabel className="text-right">{selectedRole === 'company' ? 'اسم الشركة' : 'الاسم'}</FormLabel>
                                 <FormControl className="col-span-3">
                                     <Input {...field} value={field.value ?? ''} />
                                 </FormControl>
@@ -140,6 +140,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">البريد الإلكتروني</FormLabel>
+
                                 <FormControl className="col-span-3">
                                     <Input type="email" {...field} disabled={isEditing} value={field.value ?? ''}/>
                                 </FormControl>
@@ -174,6 +175,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
                                     </FormControl>
                                     <SelectContent>
                                         <SelectItem value="courier">مندوب</SelectItem>
+                                        <SelectItem value="company">شركة شحن</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage className="col-span-4" />
@@ -182,26 +184,6 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, deli
                     />
                      {selectedRole === 'courier' && (
                         <>
-                            <FormField
-                                control={form.control}
-                                name="deliveryCompanyId"
-                                render={({ field }) => (
-                                    <FormItem className="grid grid-cols-4 items-center gap-4">
-                                    <FormLabel className="text-right">شركة الشحن</FormLabel>
-                                    <Select dir="rtl" onValueChange={field.onChange} value={field.value ?? ''}>
-                                        <FormControl className="col-span-3">
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="اختر شركة الشحن (اختياري)" />
-                                            </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                            {deliveryCompanies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage className="col-span-4" />
-                                </FormItem>
-                                )}
-                            />
                              <FormField
                                 control={form.control}
                                 name="commissionRate"

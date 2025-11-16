@@ -8,6 +8,7 @@ import type { Role } from "@/lib/types";
 import { useUser, useFirestore } from "@/firebase";
 import AdminDashboard from "@/components/dashboard/admin-dashboard";
 import CourierDashboard from "@/components/dashboard/courier-dashboard";
+import CompanyDashboard from "@/components/dashboard/company-dashboard";
 import { Button } from "@/components/ui/button";
 
 export default function DashboardRouterPage() {
@@ -35,6 +36,7 @@ export default function DashboardRouterPage() {
           if (userDocSnap.exists() && userDocSnap.data().role) {
             setRole(userDocSnap.data().role);
           } else {
+            // This logic is primarily for the initial admin setup
             if (user.email === "mhanyt21@gmail.com") {
               const adminData = {
                 id: user.uid,
@@ -49,12 +51,17 @@ export default function DashboardRouterPage() {
               }
               setRole('admin');
             } else {
+              // For other users, check role collections if user doc is incomplete
               let userRole: Role | null = null;
               const adminSnap = await getDoc(doc(firestore, `roles_admin/${user.uid}`));
               if (adminSnap.exists()) userRole = 'admin';
               else {
-                const courierSnap = await getDoc(doc(firestore, `roles_courier/${user.uid}`));
-                if (courierSnap.exists()) userRole = 'courier';
+                const companySnap = await getDoc(doc(firestore, `roles_company/${user.uid}`));
+                if (companySnap.exists()) userRole = 'company';
+                else {
+                    const courierSnap = await getDoc(doc(firestore, `roles_courier/${user.uid}`));
+                    if (courierSnap.exists()) userRole = 'courier';
+                }
               }
 
               if (userRole) {
@@ -93,6 +100,8 @@ export default function DashboardRouterPage() {
   switch (role) {
     case "admin":
       return <AdminDashboard />;
+    case "company":
+        return <CompanyDashboard />;
     case "courier":
       return <CourierDashboard />;
     default:
