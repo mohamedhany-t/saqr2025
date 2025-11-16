@@ -28,6 +28,11 @@ const createUserSchema = z.object({
   displayName: z.string().min(1),
 });
 
+const updateUserPasswordSchema = z.object({
+    uid: z.string().min(1),
+    password: z.string().min(6),
+});
+
 
 function getAdminApp(): App {
     if (getApps().length > 0) {
@@ -55,6 +60,21 @@ export async function createAuthUser(userData: z.infer<typeof createUserSchema>)
         return { success: true, uid: userRecord.uid };
     } catch (error: any) {
         console.error("Error creating auth user:", error);
+        return { success: false, error: error.code || 'unknown_error' };
+    }
+}
+
+
+export async function updateAuthUserPassword(userData: z.infer<typeof updateUserPasswordSchema>) {
+    try {
+        const adminApp = getAdminApp();
+        const adminAuth = getAuth(adminApp);
+        await adminAuth.updateUser(userData.uid, {
+            password: userData.password,
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error updating user password:", error);
         return { success: false, error: error.code || 'unknown_error' };
     }
 }

@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser, useAuth } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc } from "firebase/firestore";
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { createAuthUser } from '@/lib/actions';
+import { createAuthUser, updateAuthUserPassword } from '@/lib/actions';
 
 interface AdminDashboardProps {
   shipmentToEdit?: Shipment | null;
@@ -277,47 +277,56 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
 
   const handleSaveUser = async (data: any, userId?: string) => {
     if (!firestore || !auth) {
-      toast({ variant: "destructive", title: "خطأ", description: "خدمات Firebase غير متاحة" });
-      return;
+        toast({ variant: "destructive", title: "خطأ", description: "خدمات Firebase غير متاحة" });
+        return;
     }
-
     setIsUserSheetOpen(false);
 
     if (userId) { // --- UPDATE LOGIC ---
         toast({ title: "جاري تحديث المستخدم...", description: "قد تستغرق هذه العملية بضع لحظات." });
+        
+        // Step 1: Update password if provided
+        if (data.password) {
+            const passResult = await updateAuthUserPassword({ uid: userId, password: data.password });
+            if (!passResult.success) {
+                toast({ variant: "destructive", title: "فشل تحديث كلمة المرور", description: `حدث خطأ: ${passResult.error}` });
+                // Decide if you want to stop or continue with Firestore updates
+                return;
+            }
+        }
+        
+        // Step 2: Update Firestore documents
         const batch = writeBatch(firestore);
         const userDocRef = doc(firestore, 'users', userId);
+        const userUpdatePayload: any = { name: data.name, updatedAt: serverTimestamp() };
 
-        const userUpdatePayload: any = { name: data.name };
-        
         if (data.role === 'courier') {
             userUpdatePayload.commissionRate = data.commissionRate;
             const courierDocRef = doc(firestore, 'couriers', userId);
             batch.update(courierDocRef, { name: data.name, commissionRate: data.commissionRate });
-        } else if(data.role === 'company'){
+        } else if (data.role === 'company') {
             const companyDocRef = doc(firestore, 'companies', userId);
             batch.update(companyDocRef, { name: data.name });
         }
-        
+
         batch.update(userDocRef, userUpdatePayload);
 
         batch.commit()
-          .then(() => {
-            toast({ title: "تم تحديث المستخدم بنجاح!", description: `تم تحديث بيانات ${data.name}.` });
-          })
-          .catch(serverError => {
-            const permissionError = new FirestorePermissionError({
-                path: 'users', // This is a batch, path is indicative
-                operation: 'update',
-                requestResourceData: { note: `Batch update for user ${userId} failed.` }
+            .then(() => {
+                toast({ title: "تم تحديث المستخدم بنجاح!", description: `تم تحديث بيانات ${data.name}.` });
+            })
+            .catch(serverError => {
+                const permissionError = new FirestorePermissionError({
+                    path: 'batch_write (users, etc.)',
+                    operation: 'update',
+                    requestResourceData: { note: `Batch update for user ${userId} failed.` }
+                });
+                errorEmitter.emit('permission-error', permissionError);
             });
-            errorEmitter.emit('permission-error', permissionError);
-          });
 
     } else { // --- CREATE LOGIC ---
         toast({ title: "جاري إنشاء المستخدم...", description: "قد تستغرق هذه العملية بضع لحظات." });
 
-        // Step 1: Create user in Auth using Server Action to avoid auth state race conditions
         const authResult = await createAuthUser({
             email: data.email,
             password: data.password,
@@ -334,19 +343,6 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
         }
 
         const newUid = authResult.uid;
-        
-        // Temporarily sign out the new user and sign the admin back in
-        const adminUserEmail = auth.currentUser?.email;
-        if (!adminUserEmail) {
-           toast({ variant: "destructive", title: "خطأ فادح", description: "لا يمكن تحديد حساب المسؤول الحالي." });
-           return;
-        }
-
-        // We can't know the admin's password, so this part is tricky.
-        // The best approach is to ensure the batch write has the correct permissions.
-        // Let's assume our rules are now correct and proceed.
-
-        // Step 2: Create user documents in Firestore with the new UID
         const batch = writeBatch(firestore);
 
         const userPayload: any = {
@@ -656,3 +652,4 @@ export default function AdminDashboard({ shipmentToEdit, isEditSheetOpen, onEdit
     
 
     
+

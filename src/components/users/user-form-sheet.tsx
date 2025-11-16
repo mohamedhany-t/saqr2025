@@ -1,5 +1,3 @@
-
-
 "use client"
 
 import * as React from 'react';
@@ -58,6 +56,14 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user }: Us
                 path: ["password"],
             });
         }
+        // When editing, password is optional, but if provided, it must be valid
+        if (isEditing && data.password && data.password.length > 0 && data.password.length < 6) {
+             ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل",
+                path: ["password"],
+            });
+        }
         if (data.role === 'company' && !data.name) {
              ctx.addIssue({
                 code: z.ZodIssueCode.custom,
@@ -87,6 +93,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user }: Us
           email: user.email,
           role: user.role,
           commissionRate: user.commissionRate || 0,
+          password: "", // Always reset password field
         });
       } else {
         form.reset({
@@ -117,7 +124,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user }: Us
                 <SheetHeader>
                     <SheetTitle>{isEditing ? "تعديل مستخدم" : "إضافة مستخدم جديد"}</SheetTitle>
                     <SheetDescription>
-                        {isEditing ? "قم بتحديث بيانات المستخدم." : "أدخل تفاصيل المستخدم الجديد ودوره في النظام."}
+                        {isEditing ? "قم بتحديث بيانات المستخدم. اترك كلمة المرور فارغة لعدم تغييرها." : "أدخل تفاصيل المستخدم الجديد ودوره في النظام."}
                     </SheetDescription>
                 </SheetHeader>
                 <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6">
@@ -148,19 +155,19 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user }: Us
                             </FormItem>
                         )}
                     />
-                     {!isEditing && <FormField
+                    <FormField
                         control={form.control}
                         name="password"
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
-                                <FormLabel className="text-right">كلمة المرور</FormLabel>
+                                <FormLabel className="text-right">{isEditing ? "كلمة المرور الجديدة" : "كلمة المرور"}</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input type="password" {...field} value={field.value ?? ''} />
+                                    <Input type="password" {...field} value={field.value ?? ''} placeholder={isEditing ? 'اتركه فارغاً لعدم التغيير' : ''} />
                                 </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
-                    />}
+                    />
                      <FormField
                         control={form.control}
                         name="role"
