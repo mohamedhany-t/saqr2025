@@ -24,7 +24,7 @@ import {
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import type { Shipment, ShipmentStatus, Governorate, Company, SubClient, Courier, Role, User } from '@/lib/types';
+import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Role, User } from '@/lib/types';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '../ui/textarea';
 
@@ -63,12 +63,11 @@ type ShipmentFormSheetProps = {
     onSave: (data: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => void;
     governorates: Governorate[];
     companies: Company[];
-    subClients: SubClient[];
     couriers: User[]; // Use User type which includes commissionRate
     role: Role | null;
 }
 
-export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave, governorates, companies, subClients, couriers, role }: ShipmentFormSheetProps) {
+export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave, governorates, companies, couriers, role }: ShipmentFormSheetProps) {
   const isEditing = !!shipment;
   const isCourier = role === 'courier';
 
@@ -309,3 +308,5 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
     </Sheet>
   )
 }
+
+    

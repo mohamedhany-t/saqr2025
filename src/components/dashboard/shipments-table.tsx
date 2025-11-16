@@ -58,7 +58,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import type { Shipment, ShipmentStatus, Governorate, Company, Courier, SubClient, Role } from "@/lib/types"
+import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Role } from "@/lib/types"
 import { exportToExcel, exportToPDF } from "@/lib/export"
 import { useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase"
 import { doc, writeBatch, serverTimestamp } from "firebase/firestore"
@@ -151,8 +151,7 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role }) => {
 
 export const getColumns = (
     governorates: Governorate[],
-    companies: Company[],
-    subClients: SubClient[],
+    deliveryCompanies: Company[],
     onEdit: (shipment: Shipment) => void,
     role: Role | null,
     ): ColumnDef<Shipment>[] => [
@@ -306,7 +305,7 @@ export const getColumns = (
 ]
 
 
-export function ShipmentsTable({ shipments, isLoading, governorates, companies, couriers, subClients, deliveryCompanies, onEdit, role, onBulkUpdate }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[], companies: Company[], couriers: Courier[], subClients: SubClient[], deliveryCompanies: Company[], onEdit: (shipment: Shipment) => void, role: Role | null, onBulkUpdate?: (selectedRows: Shipment[], update: Partial<Shipment>) => void }) {
+export function ShipmentsTable({ shipments, isLoading, governorates, deliveryCompanies, couriers, onEdit, role, onBulkUpdate }: { shipments: Shipment[], isLoading: boolean, governorates: Governorate[], deliveryCompanies: Company[], couriers: Courier[], onEdit: (shipment: Shipment) => void, role: Role | null, onBulkUpdate?: (selectedRows: Shipment[], update: Partial<Shipment>) => void }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -317,7 +316,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
   const { toast } = useToast()
   const firestore = useFirestore();
   
-  const columns = React.useMemo(() => getColumns(governorates, companies, subClients, onEdit, role), [governorates, companies, subClients, onEdit, role]);
+  const columns = React.useMemo(() => getColumns(governorates, deliveryCompanies, onEdit, role), [governorates, deliveryCompanies, onEdit, role]);
   
   const table = useReactTable({
     data: shipments,
@@ -350,7 +349,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
       toast({ title: "لا توجد بيانات للتصدير", variant: "destructive" });
       return;
     }
-    exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates, companies, subClients, couriers);
+    exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates, deliveryCompanies, couriers);
   }
 
   const handleBulkDelete = () => {
@@ -599,3 +598,5 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     </div>
   )
 }
+
+    

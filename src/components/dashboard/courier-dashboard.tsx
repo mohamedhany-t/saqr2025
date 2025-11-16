@@ -3,7 +3,7 @@
 import React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, SubClient, Governorate, Courier, ShipmentStatus, User } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, ShipmentStatus, User } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { Header } from "@/components/dashboard/header";
@@ -33,29 +33,11 @@ export default function CourierDashboard() {
   }, [firestore, user]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
-  const companiesQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, 'companies');
-  }, [firestore, user]);
-  const { data: companies } = useCollection<Company>(companiesQuery);
-
-  const subClientsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, 'subclients');
-  }, [firestore, user]);
-  const { data: subClients } = useCollection<SubClient>(subClientsQuery);
-
   const governoratesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return collection(firestore, 'governorates');
   }, [firestore, user]);
   const { data: governorates } = useCollection<Governorate>(governoratesQuery);
-
-  const deliveryCompaniesQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, 'deliveryCompanies');
-  }, [firestore, user]);
-  const { data: deliveryCompanies } = useCollection<Company>(deliveryCompaniesQuery);
 
   const couriersQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -224,16 +206,14 @@ export default function CourierDashboard() {
               <TabsTrigger value="returned" className="hidden sm:flex">مرتجعات</TabsTrigger>
             </TabsList>
           </div>
-          <StatsCards shipments={shipments || []} role={role} companies={companies || []} />
+          <StatsCards shipments={shipments || []} role={role} companies={[]} />
           <TabsContent value="all-shipments">
             <ShipmentsTable 
               shipments={filteredShipments} 
               isLoading={shipmentsLoading}
               governorates={governorates || []}
-              companies={companies || []}
-              deliveryCompanies={deliveryCompanies || []}
+              deliveryCompanies={[]}
               couriers={couriers || []}
-              subClients={subClients || []}
               onEdit={openShipmentForm}
               onBulkUpdate={handleBulkUpdateShipments}
               role={role}
@@ -244,10 +224,8 @@ export default function CourierDashboard() {
                 shipments={filteredShipments.filter(s => s.status === 'In-Transit')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                companies={companies || []}
-                deliveryCompanies={deliveryCompanies || []}
+                deliveryCompanies={[]}
                 couriers={couriers || []}
-                subClients={subClients || []}
                 onEdit={openShipmentForm}
                 onBulkUpdate={handleBulkUpdateShipments}
                 role={role}
@@ -258,10 +236,8 @@ export default function CourierDashboard() {
                 shipments={filteredShipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                companies={companies || []}
-                deliveryCompanies={deliveryCompanies || []}
+                deliveryCompanies={[]}
                 couriers={couriers || []}
-                subClients={subClients || []}
                 onEdit={openShipmentForm}
                 onBulkUpdate={handleBulkUpdateShipments}
                 role={role}
@@ -272,10 +248,8 @@ export default function CourierDashboard() {
                 shipments={filteredShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled' || s.status === 'Evasion')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                companies={companies || []}
-                deliveryCompanies={deliveryCompanies || []}
+                deliveryCompanies={[]}
                 couriers={couriers || []}
-                subClients={subClients || []}
                 onEdit={openShipmentForm}
                 onBulkUpdate={handleBulkUpdateShipments}
                 role={role}
@@ -289,8 +263,7 @@ export default function CourierDashboard() {
         onSave={handleSaveShipment}
         shipment={editingShipment}
         governorates={governorates || []}
-        companies={companies || []}
-        subClients={subClients || []}
+        companies={[]}
         couriers={users?.filter(u => u.role === 'courier') || []}
         role={role}
       >
@@ -299,5 +272,7 @@ export default function CourierDashboard() {
       </ShipmentFormSheet>
     </div>
   );
+
+    
 
     

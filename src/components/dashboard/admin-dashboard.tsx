@@ -283,9 +283,6 @@ export default function AdminDashboard() {
                  courierUpdatePayload.commissionRate = data.commissionRate;
             }
             batch.update(courierDocRef, courierUpdatePayload);
-        } else if (data.role === 'company' && data.companyName) {
-            const companyDocRef = doc(firestore, 'companies', userId);
-            batch.update(companyDocRef, { name: data.companyName });
         }
 
 
@@ -455,8 +452,7 @@ export default function AdminDashboard() {
                 onSave={handleSaveShipment}
                 shipment={editingShipment}
                 governorates={governorates || []}
-                companies={[]}
-                subClients={[]}
+                companies={companies || []}
                 couriers={users?.filter(u => u.role === 'courier') || []}
                 role={role}
               >
@@ -475,10 +471,8 @@ export default function AdminDashboard() {
               shipments={filteredShipments} 
               isLoading={shipmentsLoading}
               governorates={governorates || []}
-              companies={[]}
               deliveryCompanies={companies || []}
               couriers={couriers || []}
-              subClients={[]}
               onEdit={openShipmentForm}
               role={role}
             />
@@ -488,10 +482,8 @@ export default function AdminDashboard() {
                 shipments={filteredShipments.filter(s => s.status === 'In-Transit')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                companies={[]}
                 deliveryCompanies={companies || []}
                 couriers={couriers || []}
-                subClients={[]}
                 onEdit={openShipmentForm}
                 role={role}
              />
@@ -501,10 +493,8 @@ export default function AdminDashboard() {
                 shipments={filteredShipments.filter(s => s.status === 'Delivered')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                companies={[]}
                 deliveryCompanies={companies || []}
                 couriers={couriers || []}
-                subClients={[]}
                 onEdit={openShipmentForm}
                 role={role}
              />
@@ -514,10 +504,8 @@ export default function AdminDashboard() {
                 shipments={filteredShipments.filter(s => s.status === 'Returned')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
-                companies={[]}
                 deliveryCompanies={companies || []}
                 couriers={couriers || []}
-                subClients={[]}
                 onEdit={openShipmentForm}
                 role={role}
              />
@@ -577,3 +565,5 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
+    

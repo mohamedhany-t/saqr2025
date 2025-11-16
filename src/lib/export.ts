@@ -25,7 +25,7 @@ const getCellValue = (
     row: Shipment, 
     accessorKey: string | undefined, 
     governorates: Governorate[],
-    companies: Company[],
+    deliveryCompanies: Company[],
     couriers: Courier[],
     statusText: Record<string, string>
     ): any => {
@@ -68,8 +68,7 @@ export const exportToExcel = (
   columns: ColumnDef<Shipment, any>[],
   filename: string,
   governorates: Governorate[],
-  companies: Company[],
-  subClients: any[], // subClients removed
+  deliveryCompanies: Company[],
   couriers: Courier[],
 ) => {
   const workbook = new Workbook();
@@ -122,7 +121,7 @@ export const exportToExcel = (
     excelColumns.forEach(col => {
         const key = col.key;
         if (key) {
-             rowData[key] = getCellValue(row, key, governorates, companies, couriers, statusTextMap);
+             rowData[key] = getCellValue(row, key, governorates, deliveryCompanies, couriers, statusTextMap);
              if(key === 'address'){
                  rowData[key] = row.address; // Don't append governorate to address here
              }
@@ -149,7 +148,7 @@ export const exportToPDF = (
   data: Shipment[],
   columns: ColumnDef<Shipment, any>[],
   governorates: Governorate[],
-  companies: Company[],
+  deliveryCompanies: Company[],
   couriers: Courier[],
 ) => {
     const doc = new jsPDF() as jsPDFWithAutoTable;
@@ -168,7 +167,7 @@ export const exportToPDF = (
     const tableColumns = columns.map(col => getHeader(col));
     const tableRows = data.map(row => {
         return columns.map(col => {
-            return getCellValue(row, (col as any).accessorKey as string, governorates, companies, couriers, statusTextMap);
+            return getCellValue(row, (col as any).accessorKey as string, governorates, deliveryCompanies, couriers, statusTextMap);
         })
     });
 
@@ -192,3 +191,5 @@ export const exportToPDF = (
 
     doc.save('shipments_report.pdf');
 };
+
+    
