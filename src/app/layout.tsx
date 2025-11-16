@@ -23,6 +23,25 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=PT+Sans:wght@400;700&display=swap"
           rel="stylesheet"
         />
+         <style>
+          {`
+            @media print {
+              body * {
+                visibility: hidden;
+              }
+              #printable-label, #printable-label * {
+                visibility: visible;
+              }
+              #printable-label {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+              }
+            }
+          `}
+        </style>
       </head>
       <body className="font-body antialiased">
         <FirebaseClientProvider>

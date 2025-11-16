@@ -107,13 +107,10 @@ type ActionCellProps = {
 
 const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role }) => {
   const shipment = row.original;
-  const { toast } = useToast();
 
-  const handleAction = (action: string) => {
-    toast({
-      title: `"${action}" is not implemented yet.`,
-      description: "This feature will be available in a future update.",
-    });
+  const handlePrint = () => {
+    const printUrl = `/print/${shipment.id}`;
+    window.open(printUrl, '_blank', 'width=800,height=600');
   };
 
   return (
@@ -129,11 +126,11 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role }) => {
         <DropdownMenuItem onClick={() => onEdit(shipment)}>
           <Pencil className="me-2 h-4 w-4" /> تعديل
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handleAction("Details")} disabled>
-          <FileText className="me-2 h-4 w-4" /> تفاصيل
+        <DropdownMenuItem onClick={handlePrint}>
+          <Printer className="me-2 h-4 w-4" /> طباعة الملصق
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handleAction("Print")} disabled>
-          <Printer className="me-2 h-4 w-4" /> طباعة
+        <DropdownMenuItem disabled>
+          <FileText className="me-2 h-4 w-4" /> تفاصيل
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -512,40 +509,46 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    {role === 'admin' && <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                             <Button variant="outline" size="sm" className="h-8 gap-1">
-                                <User className="h-3.5 w-3.5" />
-                                <span className="sr-only sm:not-sr-only">تعيين مندوب</span>
-                             </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                           {couriers.map(courier => (
-                                <DropdownMenuItem key={courier.id} onSelect={() => handleGenericBulkUpdate({ assignedCourierId: courier.id })}>
-                                    {courier.name}
-                                </DropdownMenuItem>
-                            ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>}
-                    {role === 'admin' && <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                             <Button variant="outline" size="sm" className="h-8 gap-1">
-                                <Building className="h-3.5 w-3.5" />
-                                <span className="sr-only sm:not-sr-only">تعيين شركة</span>
-                             </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                           {companies.map(company => (
-                                <DropdownMenuItem key={company.id} onSelect={() => handleGenericBulkUpdate({ companyId: company.id })}>
-                                    {company.name}
-                                </DropdownMenuItem>
-                            ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>}
-                     {role === 'admin' && <Button variant="destructive" size="sm" className="h-8 gap-1" onClick={handleBulkDelete}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                        <span className="sr-only sm:not-sr-only">حذف</span>
-                    </Button>}
+                    {role === 'admin' && (
+                        <>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="sm" className="h-8 gap-1">
+                                        <Building className="h-3.5 w-3.5" />
+                                        <span className="sr-only sm:not-sr-only">تعيين شركة</span>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                {companies.map(company => (
+                                        <DropdownMenuItem key={company.id} onSelect={() => handleGenericBulkUpdate({ companyId: company.id })}>
+                                            {company.name}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            <Button variant="destructive" size="sm" className="h-8 gap-1" onClick={handleBulkDelete}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                                <span className="sr-only sm:not-sr-only">حذف</span>
+                            </Button>
+                        </>
+                    )}
+                    {(role === 'admin' || role === 'company') && (
+                         <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm" className="h-8 gap-1">
+                                    <User className="h-3.5 w-3.5" />
+                                    <span className="sr-only sm:not-sr-only">تعيين مندوب</span>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                            {couriers.map(courier => (
+                                    <DropdownMenuItem key={courier.id} onSelect={() => handleGenericBulkUpdate({ assignedCourierId: courier.id })}>
+                                        {courier.name}
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
                  </div>
             )}
         </div>
