@@ -217,7 +217,7 @@ export const getColumns = (
        const createdAt = row.getValue("createdAt") as any;
        if (!createdAt) return null;
        const date = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
-       return <div>{date.toLocaleDateString("ar-EG", { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+       return <div>{date.toLocaleDateString("ar-EG", { year: 'numeric', month: '2-digit', day: '2-digit' })}</div>
     },
   },
   {
@@ -246,17 +246,7 @@ export const getColumns = (
   {
     accessorKey: "address",
     header: "العنوان",
-    cell: ({ row }) => <div>{row.getValue("address")}</div>
-  },
-  {
-    accessorKey: "deliveryDate",
-    header: "تاريخ التسليم للمندوب",
-     cell: ({ row }) => {
-       const deliveryDate = row.getValue("deliveryDate") as any;
-       if (!deliveryDate) return null;
-       const date = deliveryDate.toDate ? deliveryDate.toDate() : new Date(deliveryDate);
-       return <div>{date.toLocaleDateString("ar-EG", { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
-    },
+    cell: ({ row }) => <div className="max-w-xs truncate">{row.getValue("address")}</div>
   },
   {
     accessorKey: "status",
@@ -355,7 +345,8 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
             pageSize: 100,
         },
         columnVisibility: {
-          companyId: role !== 'admin'
+          companyId: role !== 'admin',
+          deliveryDate: false,
         }
     }
   })
@@ -372,7 +363,6 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
       toast({ title: "لا توجد بيانات للتصدير", variant: "destructive" });
       return;
     }
-    // Casting couriers from User[] to Courier[] for export function
     const couriersForExport = couriers.map(c => ({ id: c.id, name: c.name || '', commissionRate: c.commissionRate }));
     exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates, companies, couriersForExport);
   }
@@ -447,7 +437,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
   return (
     <div className="w-full">
         <div className="flex items-center justify-between py-4 gap-2 flex-wrap">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
                  {(role === 'admin' || role === 'company') && <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleExport}>
                     <FileUp className="h-3.5 w-3.5" />
                     <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
@@ -512,7 +502,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                 </DropdownMenu>}
             </div>
             {table.getFilteredSelectedRowModel().rows.length > 0 && (
-                 <div className="flex items-center gap-2">
+                 <div className="flex items-center gap-2 flex-wrap justify-end">
                     <span className="text-sm text-muted-foreground hidden lg:inline">
                         {table.getFilteredSelectedRowModel().rows.length} شحنات محددة
                     </span>
@@ -531,7 +521,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    {(role === 'admin' || role === 'company') && <DropdownMenu>
+                    {role === 'admin' && <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                              <Button variant="outline" size="sm" className="h-8 gap-1">
                                 <User className="h-3.5 w-3.5" />
@@ -568,7 +558,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                  </div>
             )}
         </div>
-      <div className="rounded-md border bg-card">
+      <div className="rounded-md border bg-card overflow-x-auto">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -653,5 +643,3 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     </div>
   )
 }
-
-    

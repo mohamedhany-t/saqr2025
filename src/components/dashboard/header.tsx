@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -51,7 +52,7 @@ export function Header({ onSearchChange }: { onSearchChange: (term: string) => v
         <Input
           type="search"
           placeholder="بحث في الشحنات..."
-          className="w-full rounded-lg bg-background ps-8 md:w-[200px] lg:w-[320px]"
+          className="w-full rounded-lg bg-background ps-8 md:w-[180px] lg:w-[320px]"
           onChange={(e) => onSearchChange(e.target.value)}
         />
       </div>

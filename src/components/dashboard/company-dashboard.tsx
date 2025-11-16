@@ -38,7 +38,6 @@ export default function CompanyDashboard() {
   
   const usersQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    // Fetch all users to filter for couriers
     return query(collection(firestore, 'users'), where("role", "==", "courier"));
   }, [firestore, user]);
   const { data: courierUsers } = useCollection<User>(usersQuery);
@@ -327,5 +326,3 @@ export default function CompanyDashboard() {
     </div>
   );
 }
-
-    
