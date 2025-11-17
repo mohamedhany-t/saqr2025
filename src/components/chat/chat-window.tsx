@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { collection, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
-import { useFirestore, useCollection, useUser } from '@/firebase';
+import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import type { User, ChatMessage } from '@/lib/types';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -24,8 +24,11 @@ export function ChatWindow({ currentUser, chatPartner, chatId }: ChatWindowProps
     const fileInputRef = useRef<HTMLInputElement>(null);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-    const messagesCollectionRef = collection(firestore, 'chats', chatId, 'messages');
-    const messagesQuery = query(messagesCollectionRef, orderBy('createdAt', 'asc'));
+    const messagesQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        const messagesCollectionRef = collection(firestore, 'chats', chatId, 'messages');
+        return query(messagesCollectionRef, orderBy('createdAt', 'asc'));
+    }, [firestore, chatId]);
 
     const { data: messages, isLoading } = useCollection<ChatMessage>(messagesQuery);
     
@@ -44,8 +47,9 @@ export function ChatWindow({ currentUser, chatPartner, chatId }: ChatWindowProps
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         const trimmedMessage = newMessage.trim();
-        if (!trimmedMessage) return;
+        if (!trimmedMessage || !firestore) return;
 
+        const messagesCollectionRef = collection(firestore, 'chats', chatId, 'messages');
         await addDoc(messagesCollectionRef, {
             text: trimmedMessage,
             senderId: currentUser.id,
