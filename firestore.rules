@@ -29,7 +29,8 @@ service cloud.firestore {
     }
 
     // --- Admin Access ---
-    // Admins have full read/write access to everything.
+    // Admins have full read/write access to everything for simplicity and to avoid rule conflicts.
+    // Specific role rules below will still apply to non-admin users.
     match /{path=**} {
       allow read, write: if isAdmin();
     }
@@ -40,10 +41,10 @@ service cloud.firestore {
       allow read: if isSignedIn();
     }
 
-    // --- Company Access ---
+    // --- User/Company/Courier Profiles ---
     match /users/{userId} {
         allow read: if isSignedIn();
-        allow update: if isOwner(userId);
+        allow update: if isOwner(userId); // Users can update their own profile
     }
     
     match /companies/{companyId} {
@@ -56,26 +57,40 @@ service cloud.firestore {
         allow update: if isOwner(courierId) && isCourier();
     }
 
+    // --- Shipments ---
     match /shipments/{shipmentId} {
+      // Admins are covered by the global rule.
+      // Companies can read their own shipments.
+      // Couriers can read shipments assigned to them.
       allow read: if (isCompany() && resource.data.companyId == request.auth.uid)
                   || (isCourier() && resource.data.assignedCourierId == request.auth.uid);
 
+      // Companies can create shipments.
       allow create: if isCompany();
       
+      // Companies can update their own shipments fully.
+      // Couriers can ONLY update specific fields on their assigned shipments.
       allow update: if (isCompany() && resource.data.companyId == request.auth.uid)
                     || (isCourier() 
                         && resource.data.assignedCourierId == request.auth.uid
                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
 
+      // Companies can delete their own shipments.
       allow delete: if isCompany() && resource.data.companyId == request.auth.uid;
     }
 
-    // --- Courier Access ---
+    // --- Chat Rules ---
+    // This rule is now more explicit.
     match /chats/{courierId} {
-      allow read, write: if isOwner(courierId);
+      // An admin can read/write any chat.
+      // A courier can only read/write their own chat document.
+      allow read, write: if isAdmin() || isOwner(courierId);
       
+      // This explicit rule for the subcollection is crucial.
       match /messages/{messageId} {
-        allow read, write: if isOwner(courierId);
+        // An admin can read/write any message.
+        // A courier can only read/write messages in their own chat.
+        allow read, write: if isAdmin() || isOwner(courierId);
       }
     }
   }
