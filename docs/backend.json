@@ -204,6 +204,34 @@
         "id",
         "name"
       ]
+    },
+    "Chat": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "Chat",
+        "type": "object",
+        "description": "A chat thread between a courier and the admin. The document ID is the courier's UID.",
+        "properties": {
+            "id": { "type": "string", "description": "The courier's UID." },
+            "lastMessage": { "type": "string", "description": "The text of the last message sent." },
+            "lastMessageAt": { "type": "string", "format": "date-time", "description": "Timestamp of the last message." },
+            "courierName": { "type": "string", "description": "The name of the courier." }
+        },
+        "required": ["id", "lastMessage", "lastMessageAt", "courierName"]
+    },
+    "ChatMessage": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "Chat Message",
+        "type": "object",
+        "description": "A single message within a chat thread.",
+        "properties": {
+            "id": { "type": "string", "description": "Unique identifier for the message." },
+            "text": { "type": "string", "description": "The text content of the message." },
+            "imageUrl": { "type": "string", "format": "uri", "description": "Optional URL of an uploaded image." },
+            "senderId": { "type": "string", "description": "The UID of the user who sent the message." },
+            "senderName": { "type": "string", "description": "The display name of the sender." },
+            "createdAt": { "type": "string", "format": "date-time", "description": "The timestamp when the message was sent." }
+        },
+        "required": ["id", "senderId", "senderName", "createdAt"]
     }
   },
   "auth": {
@@ -295,6 +323,20 @@
         }
       },
       {
+        "path": "/chats/{chatId}/messages/{messageId}",
+        "definition": {
+            "entityName": "ChatMessage",
+            "schema": {
+                "$ref": "#/backend/entities/ChatMessage"
+            },
+            "description": "Stores individual messages for a chat.",
+            "params": [
+                { "name": "chatId", "description": "The UID of the courier." },
+                { "name": "messageId", "description": "Unique identifier for the message." }
+            ]
+        }
+       },
+      {
         "path": "/roles_admin/{userId}",
         "definition": {
           "entityName": "user",
@@ -343,6 +385,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure now includes a 'company' role. Companies are users that can manage their own shipments. Couriers are independent and are assigned to shipments directly. The 'companies' collection stores public profiles for these company users. The 'shipments' collection now uses 'companyId' to link to the user UID of the owning company."
+    "reasoning": "The Firestore structure now includes a 'company' role. Companies are users that can manage their own shipments. Couriers are independent and are assigned to shipments directly. The 'companies' collection stores public profiles for these company users. The 'shipments' collection now uses 'companyId' to link to the user UID of the owning company. A 'chats' collection has been added to support messaging between admins and couriers."
   }
 }

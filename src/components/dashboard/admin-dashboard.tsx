@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,6 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { AdminChat } from "../chat/admin-chat";
 
 interface AdminDashboardProps {
   role: Role | null;
@@ -523,6 +524,7 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
             <TabsTrigger value="courier-management">إدارة المناديب</TabsTrigger>
             <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
             <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
+            <TabsTrigger value="chat">المحادثات</TabsTrigger>
             </TabsList>
             <div className="ms-auto flex items-center gap-2">
                 <input
@@ -740,6 +742,9 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
                 </div>
                 <UsersTable users={users || []} isLoading={usersLoading || companiesLoading} onEdit={openUserForm} onDelete={setUserToDelete}/>
             </div>
+        </TabsContent>
+        <TabsContent value="chat">
+            <AdminChat couriers={courierUsers} adminUser={user} />
         </TabsContent>
         </Tabs>
       <ShipmentFormSheet

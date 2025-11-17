@@ -61,3 +61,12 @@ export interface Governorate {
   id: string;
   name: string;
 }
+
+export interface ChatMessage {
+    id: string;
+    text: string;
+    imageUrl?: string;
+    senderId: string;
+    senderName: string;
+    createdAt: any; // Firestore Timestamp
+}

@@ -60,6 +60,16 @@ service cloud.firestore {
       allow read: if isSignedIn();
     }
     
+    // Chat rules
+    match /chats/{chatId} {
+      allow read, write: if isAdmin() || (isCourier() && chatId == request.auth.uid);
+    }
+    match /chats/{chatId}/messages/{messageId} {
+      allow read, create: if isAdmin() || (isCourier() && chatId == request.auth.uid);
+      // Only allow admin or the sender to edit/delete (can be restricted further)
+      allow update, delete: if isAdmin() || (isCourier() && request.auth.uid == resource.data.senderId);
+    }
+    
     match /roles_admin/{userId} {
       allow read, write: if isAdmin();
     }
