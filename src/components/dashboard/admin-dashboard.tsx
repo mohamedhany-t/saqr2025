@@ -2,7 +2,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -481,11 +481,16 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
     if (!users || !shipments) return [];
     return courierUsers.map(courier => {
         const courierShipments = shipments.filter(s => s.assignedCourierId === courier.id);
+        const deliveredShipments = courierShipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered' || s.status === 'Evasion');
+        const returnedShipments = courierShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled');
         const totalCollected = courierShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
         const totalCommission = courierShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
         const netDue = totalCollected - totalCommission;
         return {
             ...courier,
+            totalShipments: courierShipments.length,
+            deliveredCount: deliveredShipments.length,
+            returnedCount: returnedShipments.length,
             totalCollected,
             totalCommission,
             netDue
@@ -516,11 +521,9 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
         <div className="flex items-center">
             <TabsList className="flex-nowrap overflow-x-auto justify-start">
             <TabsTrigger value="all-shipments">الشحنات</TabsTrigger>
-            <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
-            <TabsTrigger value="delivered">تم التوصيل</TabsTrigger>
-            <TabsTrigger value="returned">مرتجعات</TabsTrigger>
-            <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
-            <TabsTrigger value="management">الإدارة</TabsTrigger>
+            <TabsTrigger value="courier-management">إدارة المناديب</TabsTrigger>
+            <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
+            <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
             </TabsList>
             <div className="ms-auto flex items-center gap-2">
                 <input
@@ -552,56 +555,12 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
             role={role}
             />
         </TabsContent>
-         <TabsContent value="in-transit">
-            <ShipmentsTable 
-                shipments={filteredShipments.filter(s => s.status === 'In-Transit')}
-                isLoading={shipmentsLoading}
-                governorates={governorates || []}
-                companies={companies || []}
-                couriers={courierUsers || []}
-                onEdit={openShipmentForm}
-                role={role}
-            />
-        </TabsContent>
-        <TabsContent value="delivered">
-            <ShipmentsTable 
-                shipments={filteredShipments.filter(s => s.status === 'Delivered')}
-                isLoading={shipmentsLoading}
-                governorates={governorates || []}
-                companies={companies || []}
-                couriers={courierUsers || []}
-                onEdit={openShipmentForm}
-                role={role}
-            />
-        </TabsContent>
-        <TabsContent value="returned">
-            <ShipmentsTable 
-                shipments={filteredShipments.filter(s => s.status === 'Returned')}
-                isLoading={shipmentsLoading}
-                governorates={governorates || []}
-                companies={companies || []}
-                couriers={courierUsers || []}
-                onEdit={openShipmentForm}
-                role={role}
-            />
-        </TabsContent>
-        <TabsContent value="returned-to-sender">
-            <ShipmentsTable 
-                shipments={filteredShipments.filter(s => s.status === 'Returned to Sender')}
-                isLoading={shipmentsLoading}
-                governorates={governorates || []}
-                companies={companies || []}
-                couriers={courierUsers || []}
-                onEdit={openShipmentForm}
-                role={role}
-            />
-        </TabsContent>
-        <TabsContent value="management">
-                <div className="mt-8">
+        <TabsContent value="courier-management">
+             <div className="mt-8">
                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-headline font-semibold">المبالغ المستحقة على المناديب</h2>
+                    <h2 className="text-2xl font-headline font-semibold">إدارة أداء المناديب</h2>
                 </div>
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {courierDues.map(courier => (
                             <Card key={courier.id}>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -609,16 +568,35 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
                                         <UserIcon className="h-4 w-4 text-muted-foreground" />
                                         {courier.name}
                                     </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">
+                                    <div className="text-xl font-bold">
                                         {courier.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
                                     </div>
+                                </CardHeader>
+                                <CardContent>
                                     <p className="text-xs text-muted-foreground">
                                         المبلغ المستحق للدفع
                                     </p>
                                     <div className="mt-4 space-y-2 text-sm">
-                                        <div className="flex justify-between items-center">
+                                         <div className="flex justify-between items-center border-b pb-2">
+                                            <span className="flex items-center gap-2 text-muted-foreground">
+                                                <CourierIcon className="h-4 w-4" />
+                                                إجمالي الشحنات:
+                                            </span>
+                                            <span className="font-medium">{courier.totalShipments}</span>
+                                        </div>
+                                         <div className="flex justify-between items-center">
+                                            <span className="flex items-center gap-2 text-muted-foreground">
+                                                تم التوصيل:
+                                            </span>
+                                            <span className="font-medium text-green-600">{courier.deliveredCount}</span>
+                                        </div>
+                                         <div className="flex justify-between items-center">
+                                            <span className="flex items-center gap-2 text-muted-foreground">
+                                                مرتجعات:
+                                            </span>
+                                            <span className="font-medium text-red-600">{courier.returnedCount}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center pt-2 border-t">
                                             <span className="flex items-center gap-2 text-muted-foreground">
                                                 <DollarSign className="h-4 w-4" />
                                                 إجمالي التحصيل:
@@ -638,7 +616,9 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
                         ))}
                     </div>
                 </div>
-                <div className="mt-8">
+        </TabsContent>
+         <TabsContent value="company-management">
+               <div className="mt-8">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-2xl font-headline font-semibold">إيرادات الشركات</h2>
                 </div>
@@ -671,6 +651,8 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
                         ))}
                     </div>
                 </div>
+        </TabsContent>
+        <TabsContent value="user-management">
             <div className="mt-8">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين والشركات</h2>
@@ -723,6 +705,8 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
     </div>
   );
 }
+
+    
 
     
 
