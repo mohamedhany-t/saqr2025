@@ -288,12 +288,12 @@ export default function CompanyDashboard({ role, searchTerm }: CompanyDashboardP
     <div className="flex flex-col w-full">
         <Tabs defaultValue="all-shipments">
         <div className="flex items-center">
-            <TabsList>
+            <TabsList className="flex-nowrap overflow-x-auto justify-start">
             <TabsTrigger value="all-shipments">الكل</TabsTrigger>
-            <TabsTrigger value="in-transit" className="hidden sm:flex">قيد التوصيل</TabsTrigger>
-            <TabsTrigger value="delivered" className="hidden sm:flex">تم التوصيل</TabsTrigger>
-            <TabsTrigger value="returned" className="hidden sm:flex">مرتجعات</TabsTrigger>
-                <TabsTrigger value="returned-to-sender" className="hidden sm:flex">مرتجع للراسل</TabsTrigger>
+            <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
+            <TabsTrigger value="delivered">تم التوصيل</TabsTrigger>
+            <TabsTrigger value="returned">مرتجعات</TabsTrigger>
+                <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
             </TabsList>
             <div className="ms-auto flex items-center gap-2">
                 <input
@@ -389,3 +389,5 @@ export default function CompanyDashboard({ role, searchTerm }: CompanyDashboardP
     </div>
   );
 }
+
+    
