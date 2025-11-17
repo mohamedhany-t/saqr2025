@@ -7,7 +7,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Helper functions to check roles from dedicated collections
     function isRole(role) {
       return exists(/databases/$(database)/documents/roles_$(role)/$(request.auth.uid));
     }
@@ -28,12 +27,17 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Admins can read/write everything for simplicity and performance.
-    // Granular rules can be added back if needed, but this is a performance fix.
-    match /{path=**} {
-      allow read, write: if isAdmin();
+    // ---- CHAT ----
+    match /chats/{chatId}/messages/{messageId} {
+        allow read, create: if isAdmin() || (isCourier() && chatId == request.auth.uid);
+        allow update, delete: if isAdmin() || (isCourier() && request.auth.uid == resource.data.senderId);
+    }
+
+    match /chats/{chatId} {
+      allow read, write: if isAdmin() || (isCourier() && chatId == request.auth.uid);
     }
     
+    // ---- USERS & PROFILES ----
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create, update: if isAdmin() || isOwner(userId);
@@ -41,33 +45,29 @@ service cloud.firestore {
     
     match /companies/{companyId} {
       allow read: if isSignedIn();
+      allow create, update: if isAdmin() || (isCompany() && companyId == request.auth.uid);
     }
 
     match /couriers/{courierId} {
        allow read: if isSignedIn();
+       allow create, update: if isAdmin() || (isCourier() && courierId == request.auth.uid);
     }
 
+    // ---- SHIPMENTS ----
     match /shipments/{shipmentId} {
-      allow read: if (isCompany() && resource.data.companyId == request.auth.uid)
+      allow read: if isAdmin()
+                  || (isCompany() && resource.data.companyId == request.auth.uid)
                   || (isCourier() && resource.data.assignedCourierId == request.auth.uid);
-      allow create: if isCompany();
-      allow update: if (isCompany() && resource.data.companyId == request.auth.uid)
+      allow create: if isAdmin() || isCompany();
+      allow update: if isAdmin()
+                    || (isCompany() && resource.data.companyId == request.auth.uid)
                     || (isCourier() && request.resource.data.assignedCourierId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
-      allow delete: if isCompany() && resource.data.companyId == request.auth.uid;
+      allow delete: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
     }
 
+    // ---- STATIC & ROLES ----
     match /governorates/{governorateId} {
       allow read: if isSignedIn();
-    }
-    
-    // Chat rules
-    match /chats/{chatId} {
-      allow read, write: if isAdmin() || (isCourier() && chatId == request.auth.uid);
-    }
-    match /chats/{chatId}/messages/{messageId} {
-      allow read, create: if isAdmin() || (isCourier() && chatId == request.auth.uid);
-      // Only allow admin or the sender to edit/delete (can be restricted further)
-      allow update, delete: if isAdmin() || (isCourier() && request.auth.uid == resource.data.senderId);
     }
     
     match /roles_admin/{userId} {
