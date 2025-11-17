@@ -1,7 +1,7 @@
-
 'use client';
 import React from 'react';
 import { Header } from '../dashboard/header';
+import { Sidebar } from './sidebar';
 
 interface AppLayoutProps {
     children: React.ReactNode;
@@ -10,23 +10,22 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
     const [searchTerm, setSearchTerm] = React.useState('');
 
-    // This is a bit of a trick to pass the search term down to the children
-    // without having to pass it as a prop explicitly to each dashboard.
-    // The children are cloned and the searchTerm prop is added.
     const childrenWithProps = React.Children.map(children, child => {
         if (React.isValidElement(child)) {
-            // Asserting the type of child.props to include searchTerm
             return React.cloneElement(child, { searchTerm } as { searchTerm: string } & React.HTMLAttributes<HTMLElement>);
         }
         return child;
     });
 
     return (
-        <div className="flex min-h-screen w-full flex-col bg-muted/40">
-           <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
+        <div className="flex min-h-screen w-full bg-muted/40" dir="rtl">
+           <Sidebar />
+           <div className="flex flex-col flex-1 sm:gap-4 sm:py-4 sm:pl-14">
              <Header onSearchChange={setSearchTerm} />
-             {childrenWithProps}
-           </main>
+             <main className="flex-1">
+                {childrenWithProps}
+             </main>
+           </div>
         </div>
     )
 }

@@ -1,7 +1,7 @@
 
 "use client";
 import React, { Suspense } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
@@ -11,6 +11,7 @@ import AdminDashboard from "@/components/dashboard/admin-dashboard";
 import CourierDashboard from "@/components/dashboard/courier-dashboard";
 import CompanyDashboard from "@/components/dashboard/company-dashboard";
 import { AppLayout } from "@/components/layout/app-layout";
+import { CourierAccountsPage } from "@/components/dashboard/courier-accounts";
 
 function PageContent() {
   const [role, setRole] = React.useState<Role | null>(null);
@@ -18,6 +19,7 @@ function PageContent() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
+  const pathname = usePathname();
 
   React.useEffect(() => {
     if (!isUserLoading && !user) {
@@ -37,7 +39,7 @@ function PageContent() {
           if (userDocSnap.exists() && userDocSnap.data().role) {
             setRole(userDocSnap.data().role);
           } else {
-            // Fallback role check for existing users without a user document
+            // This part might be legacy, but we keep it for safety for now
             if (user.email === "mhanyt21@gmail.com") {
                const adminData = {
                 id: user.uid,
@@ -52,30 +54,7 @@ function PageContent() {
               }
               setRole('admin');
             } else {
-              let userRole: Role | null = null;
-              const adminSnap = await getDoc(doc(firestore, `roles_admin/${user.uid}`));
-              if (adminSnap.exists()) userRole = 'admin';
-              else {
-                const companySnap = await getDoc(doc(firestore, `roles_company/${user.uid}`));
-                if (companySnap.exists()) userRole = 'company';
-                else {
-                    const courierSnap = await getDoc(doc(firestore, `roles_courier/${user.uid}`));
-                    if (courierSnap.exists()) userRole = 'courier';
-                }
-              }
-
-              if (userRole) {
-                await setDoc(doc(firestore, `users/${user.uid}`), {
-                  id: user.uid,
-                  email: user.email,
-                  name: user.displayName,
-                  role: userRole,
-                  createdAt: serverTimestamp()
-                }, { merge: true });
-                setRole(userRole);
-              } else {
-                setRole(null); // No role found
-              }
+              setRole(null); // No role found
             }
           }
         } catch (error) {
@@ -98,20 +77,27 @@ function PageContent() {
     );
   }
 
-  const renderDashboard = () => {
+  const renderContent = () => {
+    // Courier specific routing
+    if (role === "courier") {
+      if (pathname.startsWith('/accounts')) {
+        return <CourierAccountsPage role={role} />;
+      }
+      return <CourierDashboard role={role} />;
+    }
+
+    // Admin and Company dashboards
     switch (role) {
       case "admin":
         return <AdminDashboard role={role} />;
       case "company":
         return <CompanyDashboard role={role} />;
-      case "courier":
-        return <CourierDashboard role={role} />;
       default:
         return (
           <div className="flex min-h-screen w-full items-center justify-center bg-muted/30 flex-col gap-4 text-center p-4">
               <h1 className="text-2xl font-bold text-destructive">غير مصرح لك بالدخول</h1>
               <p className="max-w-md">
-                  ليس لديك الصلاحيات اللازمة لعرض هذه الصفحة. قد يكون السبب أن حسابك لا يمتلك الدور المناسب أو أنك تحاول الوصول إلى بيانات لا تخصك. يرجى التواصل مع مسؤول النظام إذا كنت تعتقد أن هذا خطأ.
+                  ليس لديك الصلاحيات اللازمة لعرض هذه الصفحة. يرجى التواصل مع مسؤول النظام.
               </p>
               <button className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md" onClick={() => router.push('/login')}>العودة لصفحة تسجيل الدخول</button>
           </div>
@@ -119,7 +105,7 @@ function PageContent() {
     }
   }
 
-  return <AppLayout>{renderDashboard()}</AppLayout>
+  return <AppLayout>{renderContent()}</AppLayout>
 }
 
 export default function DashboardRouterPage() {

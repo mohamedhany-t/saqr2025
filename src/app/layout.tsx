@@ -25,11 +25,9 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl">
       <body className={inter.className}>
-        <div id="printable-area">
-          <FirebaseClientProvider>
-            {children}
-          </FirebaseClientProvider>
-        </div>
+        <FirebaseClientProvider>
+          {children}
+        </FirebaseClientProvider>
         <Toaster />
       </body>
     </html>

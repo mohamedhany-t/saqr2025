@@ -10,7 +10,7 @@ interface StatsCardsProps {
 export function StatsCards({ shipments, role }: StatsCardsProps) {
     const totalRevenue = shipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
     const inTransit = shipments.filter(s => s.status === 'In-Transit').length;
-    const delivered = shipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered').length;
+    const delivered = shipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered' || s.status === 'Evasion').length;
     const totalShipments = shipments.length;
 
     // For Courier Dashboard
