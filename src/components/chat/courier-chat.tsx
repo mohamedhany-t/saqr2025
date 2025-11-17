@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import type { User } from '@/lib/types';
 import { Button } from '../ui/button';
-import { MessageSquare, X } from 'lucide-react';
+import { MessageSquare, X, Loader2 } from 'lucide-react';
 import { ChatWindow } from './chat-window';
 import {
   Drawer,
@@ -12,33 +12,42 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer"
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, query, where, limit } from 'firebase/firestore';
 
 
 interface CourierChatProps {
     courierUser: User | null;
 }
 
-// Mock admin user for now
-const adminUser: User = {
-    id: 'ADMIN_USER_ID', // A placeholder ID
-    name: 'الإدارة',
-    email: 'admin@alsaqr.com',
-    role: 'admin',
-    createdAt: new Date(),
-}
 
 export function CourierChat({ courierUser }: CourierChatProps) {
     const [isOpen, setIsOpen] = useState(false);
     const isMobile = useIsMobile();
+    const firestore = useFirestore();
+
+    const adminQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, 'users'), where('role', '==', 'admin'), limit(1));
+    }, [firestore]);
+
+    const { data: adminUsers, isLoading: isAdminLoading } = useCollection<User>(adminQuery);
+    const adminUser = adminUsers?.[0];
 
     if (!courierUser) return null;
 
     const chatContent = (
-        <ChatWindow 
-            currentUser={courierUser}
-            chatPartner={adminUser}
-            chatId={courierUser.id}
-        />
+        <>
+            {isAdminLoading && <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>}
+            {!isAdminLoading && !adminUser && <div className="flex items-center justify-center h-full text-muted-foreground">لم يتم العثور على حساب المسؤول.</div>}
+            {!isAdminLoading && adminUser && (
+                <ChatWindow 
+                    currentUser={courierUser}
+                    chatPartner={adminUser}
+                    chatId={courierUser.id}
+                />
+            )}
+        </>
     );
 
     if (isMobile) {

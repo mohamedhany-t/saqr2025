@@ -9,7 +9,8 @@ service cloud.firestore {
     }
 
     function isRole(role) {
-      return exists(/databases/$(database)/documents/roles_$(role)/$(request.auth.uid));
+      // Use get() instead of exists() for better performance and clarity.
+      return get(/databases/$(database)/documents/roles_$(role)/$(request.auth.uid)).data != null;
     }
     
     function isAdmin() {
@@ -45,11 +46,11 @@ service cloud.firestore {
     }
     
     // ---- CHAT ----
-    // Admin has full access to all chats and messages.
-    // Couriers can only access their own chat thread.
+    // An admin can read/write any chat.
+    // A courier can only read/write their own chat thread.
     match /chats/{courierId} {
       allow read, write: if isAdmin() || isOwner(courierId);
-
+      
       match /messages/{messageId} {
         allow read, write: if isAdmin() || isOwner(courierId);
       }
