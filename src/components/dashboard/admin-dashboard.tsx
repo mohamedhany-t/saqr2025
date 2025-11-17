@@ -123,15 +123,6 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
     setIsUserSheetOpen(true);
   };
 
-  const handleSeedData = () => {
-    toast({ 
-        title: "هذه الميزة للـ Node.js فقط", 
-        description: "يرجى تشغيل السكربت `admin-seed.js` من الـ terminal باستخدام `npm run seed`.",
-        variant: "destructive"
-    });
-  }
-
-
   const handleImportClick = () => {
     fileInputRef.current?.click();
   };
@@ -536,10 +527,6 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
             <Button variant="outline" size="sm" onClick={handleImportClick}>
                 <FileUp className="h-4 w-4" />
                 <span className="sr-only sm:not-sr-only">استيراد</span>
-            </Button>
-                <Button variant="outline" size="sm" onClick={handleSeedData}>
-                <Database className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only">بيانات وهمية</span>
             </Button>
                 <Button size="sm" onClick={() => openShipmentForm()}>
                 <PlusCircle className="h-4 w-4" />
