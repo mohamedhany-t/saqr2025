@@ -517,10 +517,10 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
 
   return (
     <div className="flex flex-col w-full">
-        <Tabs defaultValue="all-shipments">
+        <Tabs defaultValue="shipments">
         <div className="flex items-center">
             <TabsList className="flex-nowrap overflow-x-auto justify-start">
-            <TabsTrigger value="all-shipments">الشحنات</TabsTrigger>
+            <TabsTrigger value="shipments">الشحنات</TabsTrigger>
             <TabsTrigger value="courier-management">إدارة المناديب</TabsTrigger>
             <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
             <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
@@ -544,16 +544,71 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
             </div>
         </div>
         <StatsCards shipments={shipments || []} role={role} />
-        <TabsContent value="all-shipments">
-            <ShipmentsTable 
-            shipments={filteredShipments} 
-            isLoading={shipmentsLoading}
-            governorates={governorates || []}
-            companies={companies || []}
-            couriers={courierUsers}
-            onEdit={openShipmentForm}
-            role={role}
-            />
+        <TabsContent value="shipments">
+            <Tabs defaultValue="all-shipments">
+                <TabsList className="flex-nowrap overflow-x-auto justify-start mt-4">
+                    <TabsTrigger value="all-shipments">الكل</TabsTrigger>
+                    <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
+                    <TabsTrigger value="delivered">تم التوصيل</TabsTrigger>
+                    <TabsTrigger value="returned">مرتجعات</TabsTrigger>
+                    <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
+                </TabsList>
+                <TabsContent value="all-shipments">
+                     <ShipmentsTable 
+                        shipments={filteredShipments} 
+                        isLoading={shipmentsLoading}
+                        governorates={governorates || []}
+                        companies={companies || []}
+                        couriers={courierUsers}
+                        onEdit={openShipmentForm}
+                        role={role}
+                        />
+                </TabsContent>
+                 <TabsContent value="in-transit">
+                    <ShipmentsTable 
+                        shipments={filteredShipments.filter(s => s.status === 'In-Transit')}
+                        isLoading={shipmentsLoading}
+                        governorates={governorates || []}
+                        companies={companies || []}
+                        couriers={courierUsers}
+                        onEdit={openShipmentForm}
+                        role={role}
+                    />
+                </TabsContent>
+                <TabsContent value="delivered">
+                    <ShipmentsTable 
+                        shipments={filteredShipments.filter(s => s.status === 'Delivered')}
+                        isLoading={shipmentsLoading}
+                        governorates={governorates || []}
+                        companies={companies || []}
+                        couriers={courierUsers}
+                        onEdit={openShipmentForm}
+                        role={role}
+                    />
+                </TabsContent>
+                <TabsContent value="returned">
+                    <ShipmentsTable 
+                        shipments={filteredShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled')}
+                        isLoading={shipmentsLoading}
+                        governorates={governorates || []}
+                        companies={companies || []}
+                        couriers={courierUsers}
+                        onEdit={openShipmentForm}
+                        role={role}
+                    />
+                </TabsContent>
+                <TabsContent value="returned-to-sender">
+                    <ShipmentsTable 
+                        shipments={filteredShipments.filter(s => s.status === 'Returned to Sender')}
+                        isLoading={shipmentsLoading}
+                        governorates={governorates || []}
+                        companies={companies || []}
+                        couriers={courierUsers}
+                        onEdit={openShipmentForm}
+                        role={role}
+                    />
+                </TabsContent>
+            </Tabs>
         </TabsContent>
         <TabsContent value="courier-management">
              <div className="mt-8">
@@ -705,11 +760,5 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
     </div>
   );
 }
-
-    
-
-    
-
-    
 
     
