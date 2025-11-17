@@ -1,72 +1,104 @@
-
 'use client';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { statusText, statusVariants } from "@/components/dashboard/shipments-table";
+import { Card, CardContent } from "@/components/ui/card";
+import { statusText } from "@/components/dashboard/shipments-table";
 import type { Shipment } from "@/lib/types";
-import { CircleDollarSign, MapPin, Pencil, Phone, MessageSquare } from "lucide-react";
-import { Separator } from "../ui/separator";
+import { Pencil, MessageSquare, Package, CalendarDays } from "lucide-react";
+import { formatDistanceToNow } from 'date-fns';
+import { ar } from 'date-fns/locale';
 
 interface ShipmentCardProps {
     shipment: Shipment;
     governorateName: string;
+    companyName: string;
     onEdit: (shipment: Shipment) => void;
 }
 
-export function ShipmentCard({ shipment, governorateName, onEdit }: ShipmentCardProps) {
-    const { recipientName, recipientPhone, address, totalAmount, status } = shipment;
+export function ShipmentCard({ shipment, governorateName, companyName, onEdit }: ShipmentCardProps) {
+    const { 
+        recipientName, 
+        recipientPhone, 
+        address, 
+        totalAmount, 
+        status, 
+        trackingNumber, 
+        reason,
+        createdAt
+    } = shipment;
 
-    const handleCall = () => {
-        window.location.href = `tel:${recipientPhone}`;
-    };
-
-    const handleWhatsApp = () => {
-        // Remove any non-digit characters from the phone number
+    const handleWhatsApp = (e: React.MouseEvent) => {
+        e.stopPropagation();
         const cleanPhone = recipientPhone.replace(/\D/g, '');
-        // Assume Egyptian numbers, prepend with country code if not present
         const whatsappNumber = cleanPhone.startsWith('20') ? cleanPhone : `20${cleanPhone}`;
         window.open(`https://wa.me/${whatsappNumber}`, '_blank');
     };
+    
+    const handleEdit = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onEdit(shipment);
+    }
+
+    const timeAgo = createdAt?.toDate ? formatDistanceToNow(createdAt.toDate(), { addSuffix: true, locale: ar }) : '';
 
     return (
-        <Card className="shadow-md border">
-            <CardHeader className="p-4">
-                <div className="flex justify-between items-start gap-2">
-                    <CardTitle className="text-lg font-bold">{recipientName}</CardTitle>
-                    <Badge variant={statusVariants[status]} className="flex-shrink-0">{statusText[status] || status}</Badge>
-                </div>
-                <CardDescription className="text-base text-foreground font-semibold flex items-start gap-2 pt-2">
-                    <MapPin className="h-5 w-5 mt-1 text-muted-foreground flex-shrink-0" />
-                    <span>{address}, {governorateName}</span>
-                </CardDescription>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground pt-1">
-                    <span>{recipientPhone}</span>
-                </div>
-            </CardHeader>
-             <CardContent className="p-4 pt-0">
-                <Separator className="mb-4" />
-                <div className="flex items-center gap-2 font-semibold text-xl">
-                    <CircleDollarSign className="h-6 w-6 text-green-600"/>
-                    <span className="font-bold">
+        <Card className="shadow-md border w-full overflow-hidden" onClick={handleEdit}>
+            <CardContent className="p-0">
+                {/* Top Bar */}
+                <div className="bg-muted/50 px-3 py-2 flex justify-between items-center text-sm text-muted-foreground border-b">
+                     <div className="flex items-center gap-2">
+                        <Package className="h-4 w-4"/>
+                        <span className="font-mono">{trackingNumber}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4"/>
+                        <span>{timeAgo}</span>
+                    </div>
+                    <div className="font-bold text-base text-foreground">
                         {totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-                    </span>
+                    </div>
+                </div>
+                
+                {/* Main Content */}
+                <div className="p-4 space-y-3">
+                     {/* Sender and Recipient */}
+                     <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <p className="text-xs text-muted-foreground">الراسل</p>
+                            <p className="font-semibold text-primary">{companyName}</p>
+                        </div>
+                        <div className="relative">
+                            <p className="text-xs text-muted-foreground">المرسل إليه</p>
+                            <p className="font-semibold">{recipientName}</p>
+                            <Button variant="ghost" size="icon" className="absolute top-1/2 -translate-y-1/2 start-[-10px] h-8 w-8 text-green-600" onClick={handleWhatsApp}>
+                                <MessageSquare className="h-5 w-5" />
+                            </Button>
+                        </div>
+                     </div>
+                     
+                     {/* Address */}
+                     <div>
+                        <p className="text-xs text-muted-foreground">العنوان</p>
+                        <p className="font-semibold">{address}, {governorateName}</p>
+                     </div>
+
+                     <div className="grid grid-cols-2 gap-4 items-start">
+                        {/* Notes */}
+                        <div>
+                            <p className="text-xs text-muted-foreground">ملاحظات الكابتن</p>
+                            <p className="font-semibold">{reason || 'لا يوجد'}</p>
+                        </div>
+                        {/* Status */}
+                        <div className="flex justify-end items-center gap-2">
+                            <Badge variant="outline">{statusText[status] || status}</Badge>
+                             <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={handleEdit}>
+                                <Pencil className="h-5 w-5" />
+                            </Button>
+                        </div>
+                     </div>
                 </div>
             </CardContent>
-            <CardFooter className="p-4 pt-0 flex flex-wrap justify-end gap-2">
-                 <Button variant="outline" size="sm" onClick={handleCall}>
-                    <Phone className="h-4 w-4 me-2"/>
-                    اتصال
-                </Button>
-                <Button variant="outline" size="sm" onClick={handleWhatsApp} className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200">
-                    <MessageSquare className="h-4 w-4 me-2"/>
-                    WhatsApp
-                </Button>
-                <Button variant="default" size="sm" onClick={() => onEdit(shipment)}>
-                    <Pencil className="h-4 w-4 me-2"/>
-                    تحديث الحالة
-                </Button>
-            </CardFooter>
         </Card>
     );
 }
+

@@ -1,4 +1,3 @@
-
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -94,11 +93,11 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
   }, [firestore, user]);
   const { data: governorates } = useCollection<Governorate>(governoratesQuery);
 
-  const couriersQuery = useMemoFirebase(() => {
+  const companiesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return collection(firestore, 'couriers');
+    return collection(firestore, 'companies');
   }, [firestore, user]);
-  const { data: couriers } = useCollection<Courier>(couriersQuery);
+  const { data: companies } = useCollection<Company>(companiesQuery);
   
   const usersQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -271,10 +270,9 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="p-4 bg-card rounded-lg border">
-                <div className="flex justify-between items-center"><div className="w-2/3 h-5 bg-muted rounded animate-pulse"/><div className="w-1/4 h-5 bg-muted rounded animate-pulse"/></div>
+                <div className="w-full h-8 bg-muted rounded animate-pulse"/>
                 <div className="w-full h-4 bg-muted rounded animate-pulse mt-3"/>
                 <div className="w-1/2 h-4 bg-muted rounded animate-pulse mt-2"/>
-                <div className="flex justify-end gap-2 mt-4"><div className="w-20 h-9 bg-muted rounded"/><div className="w-20 h-9 bg-muted rounded"/></div>
             </div>
           ))}
         </div>
@@ -290,6 +288,7 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
             key={shipment.id}
             shipment={shipment}
             governorateName={governorates?.find(g => g.id === shipment.governorateId)?.name || ''}
+            companyName={companies?.find(c => c.id === shipment.companyId)?.name || ''}
             onEdit={() => openShipmentForm(shipment)}
           />
         ))}
@@ -302,8 +301,8 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
       shipments={shipmentList} 
       isLoading={shipmentsLoading}
       governorates={governorates || []}
-      companies={[]}
-      couriers={couriers || []}
+      companies={companies || []}
+      couriers={users?.filter(u => u.role === 'courier') || []}
       onEdit={openShipmentForm}
       onBulkUpdate={handleBulkUpdateShipments}
       role={role}
@@ -372,4 +371,3 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
   );
 }
 
-    

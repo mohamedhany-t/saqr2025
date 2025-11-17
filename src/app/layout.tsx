@@ -1,4 +1,3 @@
-
 import type { Metadata } from "next";
 import { Inter, Cairo } from "next/font/google";
 import { Toaster } from "@/components/ui/toaster";
@@ -6,7 +5,7 @@ import "./globals.css";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const cairo = Cairo({ subsets: ["arabic"], variable: "--font-cairo" });
+const cairo = Cairo({ subsets: ["arabic"], variable: "--font-cairo", weight: ['400', '700'] });
 
 
 export const metadata: Metadata = {
