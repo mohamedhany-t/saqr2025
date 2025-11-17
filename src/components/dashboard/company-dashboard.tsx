@@ -139,7 +139,7 @@ export default function CompanyDashboard({ role, searchTerm }: CompanyDashboardP
           let updatedCount = 0;
           const shipmentsCollection = collection(firestore, 'shipments');
 
-          for (const row of json) {
+          for (const [index, row] of json.entries()) {
               const trackingNumber = row['رقم الشحنة']?.toString();
               if (!trackingNumber) continue;
 
@@ -147,10 +147,11 @@ export default function CompanyDashboard({ role, searchTerm }: CompanyDashboardP
               const creationDate = parseExcelDate(row['التاريخ']);
               const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
               const senderNameValue = row['الراسل'] || row['العميل الفرعي'];
+              const orderNumberValue = row['رقم الطلب']?.toString() || `ORD-${Date.now()}-${index}`;
 
               const shipmentData: Partial<Shipment> = {
                   senderName: senderNameValue,
-                  orderNumber: row['رقم الطلب']?.toString(),
+                  orderNumber: orderNumberValue,
                   recipientName: row['المرسل اليه'],
                   recipientPhone: row['التليفون']?.toString(),
                   governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
