@@ -8,7 +8,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Use exists() instead of checking .data which can be null for an empty document
     function isRole(role) {
       return exists(/databases/$(database)/documents/roles_$(role)/$(request.auth.uid));
     }
@@ -30,7 +29,7 @@ service cloud.firestore {
     }
 
     // --- Admin Access ---
-    // Admins have full read/write access to everything. This is checked first.
+    // Admins have full read/write access to everything. This rule is checked first and is definitive.
     match /{path=**} {
       allow read, write: if isAdmin();
     }
@@ -39,12 +38,15 @@ service cloud.firestore {
     // Any signed-in user can read governorates and public company/courier profiles.
     match /governorates/{governorateId} {
       allow read: if isSignedIn();
+      allow write: if isAdmin(); // Only admin can write
     }
     match /companies/{companyId} {
         allow read: if isSignedIn();
+        allow write: if isAdmin(); // Only admin can write
     }
     match /couriers/{courierId} {
         allow read: if isSignedIn();
+        allow write: if isAdmin(); // Only admin can write
     }
 
 
@@ -52,8 +54,9 @@ service cloud.firestore {
     match /users/{userId} {
         // Any signed in user can read any other user's profile (for names, etc.)
         allow read: if isSignedIn();
-        // Only the owner can update their own profile
+        // Only the owner can update their own profile. Admin is covered by the global rule.
         allow update: if isOwner(userId);
+        // Admin creates users, so no general create/delete rule needed here.
     }
     
 
@@ -61,7 +64,6 @@ service cloud.firestore {
     match /shipments/{shipmentId} {
       // Companies can read their own shipments.
       // Couriers can read shipments assigned to them.
-      // Admin is covered by the global rule.
       allow read: if (isCompany() && resource.data.companyId == request.auth.uid)
                   || (isCourier() && resource.data.assignedCourierId == request.auth.uid);
 
@@ -81,15 +83,28 @@ service cloud.firestore {
 
     // --- Chat Rules ---
     // Specific rules for chats to ensure couriers can only access their own.
+    // Admin access is handled by the global rule at the top.
     match /chats/{courierId} {
-      // A courier can only read/write their own chat document. Admin is covered by global rule.
+      // A courier can only read/write their own chat document.
       allow read, write: if isOwner(courierId);
       
       // Rule for the messages subcollection.
       match /messages/{messageId} {
-        // A courier can only read/write messages in their own chat. Admin is covered by global rule.
+        // A courier can only read/write messages in their own chat.
         allow read, write: if isOwner(courierId);
       }
+    }
+
+    // --- Roles Collections ---
+    // These are locked down. Only admin can write to them, and they are not read directly by clients.
+    match /roles_admin/{docId} {
+      allow read, write: if false; // Managed by admin backend processes or seeding scripts
+    }
+    match /roles_company/{docId} {
+      allow read, write: if false;
+    }
+    match /roles_courier/{docId} {
+      allow read, write: if false;
     }
   }
 }
