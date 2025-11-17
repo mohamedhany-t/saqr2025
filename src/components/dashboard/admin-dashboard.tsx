@@ -13,7 +13,7 @@ import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { UserFormSheet } from "@/components/users/user-form-sheet";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
-import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser, useAuth } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc } from "firebase/firestore";
 import { createAuthUser, updateAuthUserPassword, deleteAuthUser } from '@/lib/actions';
 import {
@@ -43,7 +43,6 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
   const { toast } = useToast();
   const { user } = useUser();
   const firestore = useFirestore();
-  const auth = useAuth();
   
   const router = useRouter();
   const pathname = usePathname();
@@ -302,7 +301,7 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
   };
 
   const handleSaveUser = async (data: any, userId?: string) => {
-    if (!firestore || !auth) {
+    if (!firestore) {
         toast({ variant: "destructive", title: "خطأ", description: "خدمات Firebase غير متاحة" });
         return;
     }

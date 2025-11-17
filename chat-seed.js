@@ -94,6 +94,7 @@ async function seedChats(couriers, adminUser) {
             lastMessage: lastMessageText,
             lastMessageAt: now,
             courierName: courier.name,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
 
         // Messages subcollection
