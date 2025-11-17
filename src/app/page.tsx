@@ -1,7 +1,7 @@
 
 "use client";
 import React, { Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
@@ -10,7 +10,6 @@ import { useUser, useFirestore } from "@/firebase";
 import AdminDashboard from "@/components/dashboard/admin-dashboard";
 import CourierDashboard from "@/components/dashboard/courier-dashboard";
 import CompanyDashboard from "@/components/dashboard/company-dashboard";
-import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/layout/app-layout";
 
 function PageContent() {
@@ -38,8 +37,9 @@ function PageContent() {
           if (userDocSnap.exists() && userDocSnap.data().role) {
             setRole(userDocSnap.data().role);
           } else {
+            // Fallback role check for existing users without a user document
             if (user.email === "mhanyt21@gmail.com") {
-              const adminData = {
+               const adminData = {
                 id: user.uid,
                 email: user.email,
                 role: 'admin',
@@ -74,7 +74,7 @@ function PageContent() {
                 }, { merge: true });
                 setRole(userRole);
               } else {
-                setRole(null);
+                setRole(null); // No role found
               }
             }
           }
@@ -113,7 +113,7 @@ function PageContent() {
               <p className="max-w-md">
                   ليس لديك الصلاحيات اللازمة لعرض هذه الصفحة. قد يكون السبب أن حسابك لا يمتلك الدور المناسب أو أنك تحاول الوصول إلى بيانات لا تخصك. يرجى التواصل مع مسؤول النظام إذا كنت تعتقد أن هذا خطأ.
               </p>
-              <Button onClick={() => router.push('/login')}>العودة لصفحة تسجيل الدخول</Button>
+              <button className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md" onClick={() => router.push('/login')}>العودة لصفحة تسجيل الدخول</button>
           </div>
         );
     }

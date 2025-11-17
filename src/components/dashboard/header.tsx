@@ -37,17 +37,17 @@ export function Header({ onSearchChange }: { onSearchChange: (term: string) => v
   const displayInitial = displayName?.charAt(0).toUpperCase() || "U";
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
-      <div className="flex items-center gap-2">
-        <Logo className="size-7 text-primary" />
-        <h1 className="text-xl font-semibold font-headline">AlSaqr Logistics</h1>
-      </div>
+    <header className="flex items-center gap-4 border-b bg-muted/40 px-6 h-16">
+        <div className="flex items-center gap-2 font-semibold">
+            <Logo className="h-6 w-6 text-primary" />
+            <span className="">AlSaqr Logistics</span>
+        </div>
       <div className="relative ms-auto flex-1 md:grow-0">
-        <Search className="absolute start-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
           type="search"
           placeholder="بحث..."
-          className="w-full rounded-lg bg-background ps-8 md:w-[200px] lg:w-[336px]"
+          className="w-full rounded-lg bg-background pl-8 md:w-[200px] lg:w-[336px]"
           onChange={(e) => onSearchChange(e.target.value)}
         />
       </div>
