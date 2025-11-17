@@ -9,7 +9,6 @@ service cloud.firestore {
     }
 
     function isRole(role) {
-      // Check if a document exists for the user in the specified role collection.
       return exists(/databases/$(database)/documents/roles_$(role)/$(request.auth.uid));
     }
     
