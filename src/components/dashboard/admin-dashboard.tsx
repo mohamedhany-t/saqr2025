@@ -467,11 +467,13 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
   const filteredShipments = React.useMemo(() => {
     if (!shipments) return [];
     if (!searchTerm) return shipments;
+    const lowercasedTerm = searchTerm.toLowerCase();
     return shipments.filter(shipment => 
-        shipment.shipmentCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        shipment.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        shipment.recipientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        shipment.trackingNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+        shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
+        shipment.orderNumber?.toLowerCase().includes(lowercasedTerm) ||
+        shipment.recipientName?.toLowerCase().includes(lowercasedTerm) ||
+        shipment.trackingNumber?.toLowerCase().includes(lowercasedTerm) ||
+        shipment.address?.toLowerCase().includes(lowercasedTerm)
     );
   }, [shipments, searchTerm]);
 
@@ -721,6 +723,8 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
     </div>
   );
 }
+
+    
 
     
 

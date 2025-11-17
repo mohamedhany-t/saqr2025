@@ -1,3 +1,4 @@
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -244,22 +245,26 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
   const filteredActiveShipments = React.useMemo(() => {
     if (!activeShipments) return [];
     if (!searchTerm) return activeShipments;
+    const lowercasedTerm = searchTerm.toLowerCase();
     return activeShipments.filter(shipment => 
-        shipment.shipmentCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        shipment.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        shipment.recipientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        shipment.trackingNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+        shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
+        shipment.orderNumber?.toLowerCase().includes(lowercasedTerm) ||
+        shipment.recipientName?.toLowerCase().includes(lowercasedTerm) ||
+        shipment.trackingNumber?.toLowerCase().includes(lowercasedTerm) ||
+        shipment.address?.toLowerCase().includes(lowercasedTerm)
     );
   }, [activeShipments, searchTerm]);
   
   const filteredFinishedShipments = React.useMemo(() => {
     if (!finishedShipments) return [];
     if (!searchTerm) return finishedShipments;
+    const lowercasedTerm = searchTerm.toLowerCase();
     return finishedShipments.filter(shipment => 
-        shipment.shipmentCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        shipment.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        shipment.recipientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        shipment.trackingNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+        shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
+        shipment.orderNumber?.toLowerCase().includes(lowercasedTerm) ||
+        shipment.recipientName?.toLowerCase().includes(lowercasedTerm) ||
+        shipment.trackingNumber?.toLowerCase().includes(lowercasedTerm) ||
+        shipment.address?.toLowerCase().includes(lowercasedTerm)
     );
   }, [finishedShipments, searchTerm]);
 
@@ -371,3 +376,4 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
   );
 }
 
+    
