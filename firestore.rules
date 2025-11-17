@@ -28,13 +28,16 @@ service cloud.firestore {
     }
 
     // ---- CHAT ----
-    match /chats/{chatId}/messages/{messageId} {
-        allow read, create: if isAdmin() || (isCourier() && chatId == request.auth.uid);
-        allow update, delete: if isAdmin() || (isCourier() && request.auth.uid == resource.data.senderId);
-    }
+    // The admin can read/write to any chat.
+    // A courier can only read/write to their own chat, identified by their UID.
+    match /chats/{courierId} {
+      allow read, write: if isAdmin() || isOwner(courierId);
 
-    match /chats/{chatId} {
-      allow read, write: if isAdmin() || (isCourier() && chatId == request.auth.uid);
+      // The admin can read/write any message.
+      // A courier can read/write messages in their own chat.
+      match /messages/{messageId} {
+        allow read, write: if isAdmin() || isOwner(courierId);
+      }
     }
     
     // ---- USERS & PROFILES ----
