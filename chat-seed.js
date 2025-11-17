@@ -40,10 +40,37 @@ async function getAdminUser() {
 async function getCouriers() {
     const snapshot = await db.collection('couriers').get();
     if (snapshot.empty) {
-        log('No couriers found in the database.');
+        log('No couriers found in the database. Run `npm run seed` first.');
         return [];
     }
     return snapshot.docs.map(doc => doc.data());
+}
+
+async function ensureAdminRole(adminUser) {
+    if (!adminUser) return;
+    
+    log(`Ensuring admin role for ${adminUser.email}...`);
+    const batch = db.batch();
+    const userRef = db.collection('users').doc(adminUser.uid);
+    const roleRef = db.collection('roles_admin').doc(adminUser.uid);
+    
+    // Set user document
+    batch.set(userRef, {
+        id: adminUser.uid,
+        email: adminUser.email,
+        name: adminUser.displayName || 'Admin',
+        role: 'admin',
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    // Set role document (this is the crucial part that was missing)
+    batch.set(roleRef, { 
+        email: adminUser.email,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    await batch.commit();
+    log(`Admin role document for ${adminUser.email} created/verified.`);
 }
 
 
@@ -103,6 +130,10 @@ async function main() {
         const adminUser = await getAdminUser();
         const couriers = await getCouriers();
         
+        if (adminUser) {
+            await ensureAdminRole(adminUser); // Ensure admin permissions are set correctly
+        }
+
         if (adminUser && couriers.length > 0) {
             await seedChats(couriers, adminUser);
             console.log("\n\x1b[32m%s\x1b[0m", "Chat seeding completed successfully!");
