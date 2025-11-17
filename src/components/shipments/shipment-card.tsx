@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { statusText } from "@/components/dashboard/shipments-table";
 import type { Shipment } from "@/lib/types";
-import { Pencil, MessageSquare, Package, CalendarDays } from "lucide-react";
+import { Pencil, MessageSquare, Package, CalendarDays, Phone } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import { useUser } from "@/firebase";
 
 interface ShipmentCardProps {
     shipment: Shipment;
@@ -16,6 +17,7 @@ interface ShipmentCardProps {
 }
 
 export function ShipmentCard({ shipment, governorateName, companyName, onEdit }: ShipmentCardProps) {
+    const { user: courierUser } = useUser();
     const { 
         recipientName, 
         recipientPhone, 
@@ -31,7 +33,21 @@ export function ShipmentCard({ shipment, governorateName, companyName, onEdit }:
         e.stopPropagation();
         const cleanPhone = recipientPhone.replace(/\D/g, '');
         const whatsappNumber = cleanPhone.startsWith('20') ? cleanPhone : `20${cleanPhone}`;
-        window.open(`https://wa.me/${whatsappNumber}`, '_blank');
+        
+        const courierName = courierUser?.displayName || "مندوب الشحن";
+        const customerName = recipientName;
+        const orderAmount = totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
+        const fullAddress = `${address}, ${governorateName}`;
+
+        const message = `أهلاً ${customerName}، معاك ${courierName} من شركة الصقر. حضرتك ليك اوردر بمبلغ ${orderAmount} والعنوان: ${fullAddress}. شكرًا.`;
+        const encodedMessage = encodeURIComponent(message);
+        
+        window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');
+    };
+
+    const handlePhoneCall = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        window.open(`tel:${recipientPhone}`);
     };
     
     const handleEdit = (e: React.MouseEvent) => {
@@ -70,9 +86,6 @@ export function ShipmentCard({ shipment, governorateName, companyName, onEdit }:
                         <div className="relative">
                             <p className="text-xs text-muted-foreground">المرسل إليه</p>
                             <p className="font-semibold">{recipientName}</p>
-                            <Button variant="ghost" size="icon" className="absolute top-1/2 -translate-y-1/2 start-[-10px] h-8 w-8 text-green-600" onClick={handleWhatsApp}>
-                                <MessageSquare className="h-5 w-5" />
-                            </Button>
                         </div>
                      </div>
                      
@@ -91,14 +104,28 @@ export function ShipmentCard({ shipment, governorateName, companyName, onEdit }:
                         {/* Status */}
                         <div className="flex justify-end items-center gap-2">
                             <Badge variant="outline">{statusText[status] || status}</Badge>
-                             <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={handleEdit}>
-                                <Pencil className="h-5 w-5" />
-                            </Button>
                         </div>
                      </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="border-t bg-muted/20 px-4 py-2 flex justify-between items-center">
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-primary" onClick={handleEdit}>
+                        <Pencil className="h-5 w-5" />
+                         <span className="sr-only">تعديل</span>
+                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="icon" className="h-9 w-9 text-blue-600" onClick={handlePhoneCall}>
+                            <Phone className="h-5 w-5" />
+                            <span className="sr-only">اتصال</span>
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-9 w-9 text-green-600" onClick={handleWhatsApp}>
+                            <MessageSquare className="h-5 w-5" />
+                            <span className="sr-only">واتساب</span>
+                        </Button>
+                    </div>
                 </div>
             </CardContent>
         </Card>
     );
 }
-
