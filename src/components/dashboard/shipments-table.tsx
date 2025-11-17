@@ -248,6 +248,20 @@ export const getColumns = (
     cell: ({ row }) => <div className="max-w-xs truncate">{row.getValue("address")}</div>
   },
   {
+    accessorKey: "assignedCourierId",
+    header: "المندوب",
+    cell: ({ row }) => {
+        const courier = couriers.find(c => c.id === row.getValue("assignedCourierId"));
+        return <div className="flex items-center gap-2">
+            {courier && <Truck className="h-4 w-4 text-muted-foreground" />}
+            <span>{courier?.name || ''}</span>
+        </div>
+    },
+    filterFn: (row, id, value) => {
+      return value.includes(row.getValue(id))
+    },
+  },
+  {
     accessorKey: "status",
     header: "حالة الأوردر",
     cell: ({ row }) => {
@@ -345,12 +359,14 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
         columnVisibility: {
           companyId: role !== 'admin',
           deliveryDate: false,
+          assignedCourierId: role === 'courier', // Hide courier column for couriers
         }
     }
   })
   
   React.useEffect(() => {
     table.getColumn('companyId')?.toggleVisibility(role === 'admin');
+    table.getColumn('assignedCourierId')?.toggleVisibility(role !== 'courier');
   }, [role, table]);
 
 
@@ -443,6 +459,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
 
   const governorateFilterValue = columnFilters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
   const companyFilterValue = columnFilters.find(f => f.id === 'companyId')?.value as string[] | undefined;
+  const courierFilterValue = columnFilters.find(f => f.id === 'assignedCourierId')?.value as string[] | undefined;
 
 
   return (
@@ -507,6 +524,34 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                             }}
                         >
                             {company.name}
+                        </DropdownMenuCheckboxItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>}
+                {(role === 'admin' || role === 'company') && <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8 gap-1">
+                             <ChevronDown className="h-3.5 w-3.5 ms-1" />
+                            <span>
+                                المندوب
+                                {courierFilterValue && courierFilterValue.length > 0 && ` (${courierFilterValue.length})`}
+                            </span>
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                        {couriers.map((courier) => (
+                        <DropdownMenuCheckboxItem
+                            key={courier.id}
+                            checked={courierFilterValue?.includes(courier.id)}
+                            onCheckedChange={(checked) => {
+                                const current = courierFilterValue || [];
+                                const newFilter = checked
+                                    ? [...current, courier.id]
+                                    : current.filter((id) => id !== courier.id);
+                                table.getColumn("assignedCourierId")?.setFilterValue(newFilter.length ? newFilter : undefined);
+                            }}
+                        >
+                            {courier.name}
                         </DropdownMenuCheckboxItem>
                         ))}
                     </DropdownMenuContent>
@@ -662,3 +707,5 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     </div>
   )
 }
+
+    

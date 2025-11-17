@@ -133,6 +133,7 @@ export const exportToExcel = (
       { header: 'التليفون', key: 'recipientPhone', width: 20 },
       { header: 'المحافظة', key: 'governorateId', width: 20 },
       { header: 'العنوان', key: 'address', width: 40 },
+      { header: 'المندوب', key: 'assignedCourierId', width: 25},
       { header: 'تاريخ التسليم للمندوب', key: 'deliveryDate', width: 20 },
       { header: 'حالة الأوردر', key: 'status', width: 20 },
       { header: 'السبب', key: 'reason', width: 20 },
@@ -230,3 +231,5 @@ export const exportToPDF = (
 
     doc.save('shipments_report.pdf');
 };
+
+    
