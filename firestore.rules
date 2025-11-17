@@ -3,11 +3,13 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // --- Helper Functions ---
     function isSignedIn() {
       return request.auth != null;
     }
 
     function isRole(role) {
+      // Check if a document exists for the user in the specified role collection.
       return exists(/databases/$(database)/documents/roles_$(role)/$(request.auth.uid));
     }
     
@@ -27,19 +29,6 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // ---- CHAT ----
-    // The admin can read/write to any chat.
-    // A courier can only read/write to their own chat, identified by their UID.
-    match /chats/{courierId} {
-      allow read, write: if isAdmin() || isOwner(courierId);
-
-      // The admin can read/write any message.
-      // A courier can read/write messages in their own chat.
-      match /messages/{messageId} {
-        allow read, write: if isAdmin() || isOwner(courierId);
-      }
-    }
-    
     // ---- USERS & PROFILES ----
     match /users/{userId} {
       allow read: if isSignedIn();
@@ -55,24 +44,45 @@ service cloud.firestore {
        allow read: if isSignedIn();
        allow create, update: if isAdmin() || (isCourier() && courierId == request.auth.uid);
     }
+    
+    // ---- CHAT ----
+    // Admin has full access to all chats and messages.
+    // Couriers can only access their own chat thread.
+    match /chats/{courierId} {
+      allow read, write: if isAdmin() || isOwner(courierId);
 
+      match /messages/{messageId} {
+        allow read, write: if isAdmin() || isOwner(courierId);
+      }
+    }
+    
     // ---- SHIPMENTS ----
     match /shipments/{shipmentId} {
       allow read: if isAdmin()
                   || (isCompany() && resource.data.companyId == request.auth.uid)
                   || (isCourier() && resource.data.assignedCourierId == request.auth.uid);
+                  
       allow create: if isAdmin() || isCompany();
+      
+      // Admin: full update access.
+      // Company: can update their own shipments.
+      // Courier: can only update specific fields like status, reason, and financial amounts.
       allow update: if isAdmin()
-                    || (isCompany() && resource.data.companyId == request.auth.uid)
-                    || (isCourier() && request.resource.data.assignedCourierId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
+                    || (isCompany() && request.resource.data.companyId == request.auth.uid)
+                    || (isCourier() 
+                        && request.resource.data.assignedCourierId == request.auth.uid 
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
+
       allow delete: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
     }
 
-    // ---- STATIC & ROLES ----
+    // ---- STATIC DATA & ROLE MANAGEMENT ----
     match /governorates/{governorateId} {
+      // Allow any signed-in user to read the list of governorates.
       allow read: if isSignedIn();
     }
     
+    // Admins can manage all roles.
     match /roles_admin/{userId} {
       allow read, write: if isAdmin();
     }
