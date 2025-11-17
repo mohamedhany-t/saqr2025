@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import * as React from 'react';
@@ -263,10 +262,10 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">المندوب</FormLabel>
-                                <Select dir="rtl" onValueChange={field.onChange} defaultValue={field.value} disabled={!isAdmin}>
+                                <Select dir="rtl" onValueChange={field.onChange} defaultValue={field.value} disabled={!isAdmin && !isCompany}>
                                     <FormControl className="col-span-3">
                                         <SelectTrigger>
-                                            <SelectValue placeholder={isAdmin ? "اختر المندوب" : "لا يمكن التغيير"} />
+                                            <SelectValue placeholder={(isAdmin || isCompany) ? "اختر المندوب" : "لا يمكن التغيير"} />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
@@ -371,5 +370,3 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
     </Sheet>
   )
 }
-
-    

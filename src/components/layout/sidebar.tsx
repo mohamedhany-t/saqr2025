@@ -1,3 +1,4 @@
+
 'use client';
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -6,7 +7,6 @@ import {
   Package,
   Users,
   LogOut,
-  ChevronDown,
   ChevronLeft,
   Wallet,
 } from "lucide-react";
@@ -20,26 +20,28 @@ import {
   CollapsibleTrigger,
 } from "../ui/collapsible";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-import { useIsMobile } from "@/hooks/use-mobile";
+import type { Role } from "@/lib/types";
+import { Logo } from "../icons";
 
-const courierNavItems = [
-  {
-    href: "/",
-    icon: Home,
-    label: "الرئيسية",
-  },
-  {
-    href: "/accounts",
-    icon: Wallet,
-    label: "الحسابات",
-  },
-];
-
-const adminNavItems = [
-    { href: '/', icon: Home, label: 'الرئيسية' },
-    { href: '/shipments', icon: Package, label: 'الشحنات' },
-    { href: '/users', icon: Users, label: 'المستخدمين' },
-]
+const getNavItems = (role?: Role | null) => {
+    switch(role) {
+        case "admin":
+            return [
+                { href: '/', icon: Home, label: 'الرئيسية' },
+            ];
+        case "company":
+             return [
+                { href: '/', icon: Home, label: 'الرئيسية' },
+            ];
+        case "courier":
+            return [
+                { href: "/", icon: Home, label: "الرئيسية" },
+                { href: "/accounts", icon: Wallet, label: "الحسابات" },
+            ];
+        default:
+            return [];
+    }
+}
 
 
 export function SidebarContent() {
@@ -47,7 +49,17 @@ export function SidebarContent() {
   const auth = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const isMobile = useIsMobile();
+  const [role, setRole] = React.useState<Role | null>(null);
+
+   React.useEffect(() => {
+    if (user) {
+      user.getIdTokenResult().then(idTokenResult => {
+        const userRole = (idTokenResult.claims.role as Role) || null;
+        setRole(userRole);
+      });
+    }
+  }, [user]);
+
   
   const handleLogout = async () => {
     await signOut(auth);
@@ -57,22 +69,17 @@ export function SidebarContent() {
   const displayName = user?.displayName || user?.email?.split("@")[0] || "User";
   const displayInitial = displayName?.charAt(0).toUpperCase() || "U";
   
-  const role = (user as any)?.role;
-
-  const navItems = role === 'courier' ? courierNavItems : adminNavItems;
+  const navItems = getNavItems(role);
 
   return (
-    <div className="flex h-full max-h-screen flex-col gap-2">
+    <nav className="flex h-full max-h-screen flex-col gap-2 bg-background">
       <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
         <Link href="/" className="flex items-center gap-2 font-semibold text-primary">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={user?.photoURL || undefined} alt={displayName} />
-            <AvatarFallback>{displayInitial}</AvatarFallback>
-          </Avatar>
-          <span className="">{displayName}</span>
+          <Logo className="h-6 w-6" />
+          <span className="">الصقر للشحن</span>
         </Link>
       </div>
-      <div className="flex-1">
+      <div className="flex-1 overflow-y-auto">
         <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
           {navItems.map((item) => (
             <Link
@@ -87,53 +94,32 @@ export function SidebarContent() {
               {item.label}
             </Link>
           ))}
-
-          {role === 'courier' && (
-            <Collapsible className="grid items-start">
-              <CollapsibleTrigger asChild>
-                <div className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary cursor-pointer">
-                    <div className="flex items-center gap-3">
-                        <Package className="h-4 w-4" />
-                        الطرود
-                    </div>
-                    <ChevronLeft className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-[-90deg]" />
-                </div>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="grid gap-1 pr-6">
-                  <Link
-                    href="/?tab=active"
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                  >
-                    طرود نشطة
-                  </Link>
-                  <Link
-                    href="/?tab=finished"
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                  >
-                    طرود منتهية
-                  </Link>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          )}
-
         </nav>
       </div>
-      <div className="mt-auto p-4">
-        <Button size="sm" className="w-full" onClick={handleLogout}>
-          <LogOut className="mr-2 h-4 w-4" />
-          تسجيل الخروج
-        </Button>
-      </div>
-    </div>
+       <div className="mt-auto border-t p-4">
+          <div className="flex items-center gap-3 mb-4">
+             <Avatar className="h-9 w-9">
+              <AvatarImage src={user?.photoURL || undefined} alt={displayName} />
+              <AvatarFallback>{displayInitial}</AvatarFallback>
+            </Avatar>
+            <div>
+                <p className="text-sm font-semibold">{displayName}</p>
+                <p className="text-xs text-muted-foreground">{user?.email}</p>
+            </div>
+          </div>
+          <Button size="sm" variant="outline" className="w-full" onClick={handleLogout}>
+            <LogOut className="mr-2 h-4 w-4" />
+            تسجيل الخروج
+          </Button>
+       </div>
+    </nav>
   );
 }
 
 
 export function Sidebar() {
     return (
-        <aside className="hidden border-r bg-background sm:block">
+        <aside className="hidden border-r bg-background md:block md:w-64">
             <SidebarContent />
         </aside>
     )

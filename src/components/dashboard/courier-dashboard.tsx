@@ -1,3 +1,4 @@
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -349,11 +350,11 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
        <ShipmentFormSheet
         open={isShipmentSheetOpen}
         onOpenChange={handleSheetOpenChange}
-        onSave={handleSaveShipment}
         shipment={editingShipment}
         governorates={governorates || []}
         couriers={users?.filter(u => u.role === 'courier') || []}
         role={role}
+        onSave={handleSaveShipment}
       >
         <div />
       </ShipmentFormSheet>
