@@ -181,7 +181,7 @@ async function seedCouriers(count) {
         batch.set(roleRef, { email: email });
         
         await batch.commit();
-        couriers.push({ id: userRecord.uid, name });
+        couriers.push({ id: userRecord.uid, name: name });
     }
     return couriers;
 }
@@ -227,6 +227,54 @@ async function seedShipments(count, companies, couriers, governorates) {
     log(`Seeded ${count} shipments.`);
 }
 
+async function seedChats(couriers, adminUsers) {
+    console.log(`\n--- Seeding Chats for ${couriers.length} Couriers ---`);
+    if (!adminUsers || adminUsers.length === 0) {
+        logError("Cannot seed chats without an admin user.");
+        return;
+    }
+    const adminUser = adminUsers[0];
+
+    for (const courier of couriers) {
+        const batch = db.batch();
+        const now = admin.firestore.Timestamp.now();
+        
+        // Chat document
+        const chatRef = db.collection('chats').doc(courier.id);
+        const lastMessageText = `مرحباً ${courier.name}, كيف يمكنني مساعدتك؟`;
+        batch.set(chatRef, {
+            id: courier.id,
+            lastMessage: lastMessageText,
+            lastMessageAt: now,
+            courierName: courier.name,
+        }, { merge: true });
+
+        // Messages subcollection
+        const messagesRef = chatRef.collection('messages');
+        const adminMessageRef = messagesRef.doc();
+        batch.set(adminMessageRef, {
+            id: adminMessageRef.id,
+            text: lastMessageText,
+            senderId: adminUser.uid,
+            senderName: adminUser.displayName || "الإدارة",
+            createdAt: now,
+        });
+
+        const courierMessageRef = messagesRef.doc();
+        const courierResponseTime = new admin.firestore.Timestamp(now.seconds - 60, now.nanoseconds);
+        batch.set(courierMessageRef, {
+            id: courierMessageRef.id,
+            text: `شكراً لك، كل شيء على ما يرام.`,
+            senderId: courier.id,
+            senderName: courier.name,
+            createdAt: courierResponseTime,
+        });
+        
+        await batch.commit();
+        log(`Seeded chat for courier: ${courier.name}`);
+    }
+}
+
 
 // --- تشغيل السكربت ---
 async function main() {
@@ -235,9 +283,10 @@ async function main() {
 
         const governorates = await seedGovernorates();
         const companies = await seedCompanyUsers(NUM_COMPANIES);
-        await seedAdminUsers();
+        const adminUsers = await seedAdminUsers();
         const couriers = await seedCouriers(NUM_COURIERS);
         await seedShipments(NUM_SHIPMENTS, companies, couriers, governorates);
+        await seedChats(couriers, adminUsers);
         
         console.log("\n\x1b[32m%s\x1b[0m", "Database seeding completed successfully!");
         console.log("You can now log in with the following dummy accounts (password for all is 'password'):");
@@ -250,3 +299,5 @@ async function main() {
 }
 
 main();
+
+    
