@@ -116,9 +116,9 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user }: Us
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetTrigger asChild>
+      {children && <SheetTrigger asChild>
         {children}
-      </SheetTrigger>
+      </SheetTrigger>}
       <SheetContent className="sm:max-w-md" dir="rtl">
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
@@ -128,7 +128,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user }: Us
                         {isEditing ? "قم بتحديث بيانات المستخدم. اترك كلمة المرور فارغة لعدم تغييرها." : "أدخل تفاصيل المستخدم الجديد ودوره في النظام."}
                     </SheetDescription>
                 </SheetHeader>
-                <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6">
+                <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6 mr-[-1.5rem] pl-6">
                      <FormField
                         control={form.control}
                         name="name"

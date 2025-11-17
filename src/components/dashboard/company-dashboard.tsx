@@ -286,96 +286,94 @@ export default function CompanyDashboard({ role, searchTerm }: CompanyDashboardP
 
   return (
     <div className="flex flex-col w-full">
-      <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
-          <Tabs defaultValue="all-shipments">
-            <div className="flex items-center">
-              <TabsList>
-                <TabsTrigger value="all-shipments">الكل</TabsTrigger>
-                <TabsTrigger value="in-transit" className="hidden sm:flex">قيد التوصيل</TabsTrigger>
-                <TabsTrigger value="delivered" className="hidden sm:flex">تم التوصيل</TabsTrigger>
-                <TabsTrigger value="returned" className="hidden sm:flex">مرتجعات</TabsTrigger>
-                 <TabsTrigger value="returned-to-sender" className="hidden sm:flex">مرتجع للراسل</TabsTrigger>
-              </TabsList>
-              <div className="ms-auto flex items-center gap-2">
-                  <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileChange}
-                      className="hidden"
-                      accept=".xlsx, .xls"
-                  />
-                <Button variant="outline" size="sm" onClick={handleImportClick}>
-                  <FileUp className="h-4 w-4" />
-                  <span className="sr-only sm:not-sr-only">
-                    استيراد
-                  </span>
-                </Button>
-                <Button size="sm" onClick={() => openShipmentForm()}>
-                  <PlusCircle className="h-4 w-4" />
-                  <span className="sr-only sm:not-sr-only">
-                    شحنة جديدة
-                  </span>
-                </Button>
-              </div>
+        <Tabs defaultValue="all-shipments">
+        <div className="flex items-center">
+            <TabsList>
+            <TabsTrigger value="all-shipments">الكل</TabsTrigger>
+            <TabsTrigger value="in-transit" className="hidden sm:flex">قيد التوصيل</TabsTrigger>
+            <TabsTrigger value="delivered" className="hidden sm:flex">تم التوصيل</TabsTrigger>
+            <TabsTrigger value="returned" className="hidden sm:flex">مرتجعات</TabsTrigger>
+                <TabsTrigger value="returned-to-sender" className="hidden sm:flex">مرتجع للراسل</TabsTrigger>
+            </TabsList>
+            <div className="ms-auto flex items-center gap-2">
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    accept=".xlsx, .xls"
+                />
+            <Button variant="outline" size="sm" onClick={handleImportClick}>
+                <FileUp className="h-4 w-4" />
+                <span className="sr-only sm:not-sr-only">
+                استيراد
+                </span>
+            </Button>
+            <Button size="sm" onClick={() => openShipmentForm()}>
+                <PlusCircle className="h-4 w-4" />
+                <span className="sr-only sm:not-sr-only">
+                شحنة جديدة
+                </span>
+            </Button>
             </div>
-            <StatsCards shipments={shipments || []} role={role} />
-            <TabsContent value="all-shipments">
-              <ShipmentsTable 
-                shipments={filteredShipments} 
+        </div>
+        <StatsCards shipments={shipments || []} role={role} />
+        <TabsContent value="all-shipments">
+            <ShipmentsTable 
+            shipments={filteredShipments} 
+            isLoading={shipmentsLoading}
+            governorates={governorates || []}
+            companies={[]}
+            couriers={courierUsers || []}
+            onEdit={openShipmentForm}
+            role={role}
+            />
+        </TabsContent>
+        <TabsContent value="in-transit">
+            <ShipmentsTable 
+                shipments={filteredShipments.filter(s => s.status === 'In-Transit')}
                 isLoading={shipmentsLoading}
                 governorates={governorates || []}
                 companies={[]}
                 couriers={courierUsers || []}
                 onEdit={openShipmentForm}
                 role={role}
-              />
-            </TabsContent>
-            <TabsContent value="in-transit">
-               <ShipmentsTable 
-                  shipments={filteredShipments.filter(s => s.status === 'In-Transit')}
-                  isLoading={shipmentsLoading}
-                  governorates={governorates || []}
-                  companies={[]}
-                  couriers={courierUsers || []}
-                  onEdit={openShipmentForm}
-                  role={role}
-               />
-            </TabsContent>
-             <TabsContent value="delivered">
-               <ShipmentsTable 
-                  shipments={filteredShipments.filter(s => s.status === 'Delivered')}
-                  isLoading={shipmentsLoading}
-                  governorates={governorates || []}
-                  companies={[]}
-                  couriers={courierUsers || []}
-                  onEdit={openShipmentForm}
-                  role={role}
-               />
-            </TabsContent>
-             <TabsContent value="returned">
-               <ShipmentsTable 
-                  shipments={filteredShipments.filter(s => s.status === 'Returned')}
-                  isLoading={shipmentsLoading}
-                  governorates={governorates || []}
-                  companies={[]}
-                  couriers={courierUsers || []}
-                  onEdit={openShipmentForm}
-                  role={role}
-               />
-            </TabsContent>
-             <TabsContent value="returned-to-sender">
-               <ShipmentsTable 
-                  shipments={filteredShipments.filter(s => s.status === 'Returned to Sender')}
-                  isLoading={shipmentsLoading}
-                  governorates={governorates || []}
-                  companies={[]}
-                  couriers={courierUsers || []}
-                  onEdit={openShipmentForm}
-                  role={role}
-               />
-            </TabsContent>
-          </Tabs>
-      </main>
+            />
+        </TabsContent>
+            <TabsContent value="delivered">
+            <ShipmentsTable 
+                shipments={filteredShipments.filter(s => s.status === 'Delivered')}
+                isLoading={shipmentsLoading}
+                governorates={governorates || []}
+                companies={[]}
+                couriers={courierUsers || []}
+                onEdit={openShipmentForm}
+                role={role}
+            />
+        </TabsContent>
+            <TabsContent value="returned">
+            <ShipmentsTable 
+                shipments={filteredShipments.filter(s => s.status === 'Returned')}
+                isLoading={shipmentsLoading}
+                governorates={governorates || []}
+                companies={[]}
+                couriers={courierUsers || []}
+                onEdit={openShipmentForm}
+                role={role}
+            />
+        </TabsContent>
+            <TabsContent value="returned-to-sender">
+            <ShipmentsTable 
+                shipments={filteredShipments.filter(s => s.status === 'Returned to Sender')}
+                isLoading={shipmentsLoading}
+                governorates={governorates || []}
+                companies={[]}
+                couriers={courierUsers || []}
+                onEdit={openShipmentForm}
+                role={role}
+            />
+        </TabsContent>
+        </Tabs>
       <ShipmentFormSheet
         open={isShipmentSheetOpen}
         onOpenChange={handleSheetOpenChange}

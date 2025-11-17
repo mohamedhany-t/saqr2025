@@ -1,7 +1,7 @@
 
 "use client";
 import React, { Suspense } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
@@ -11,7 +11,6 @@ import AdminDashboard from "@/components/dashboard/admin-dashboard";
 import CourierDashboard from "@/components/dashboard/courier-dashboard";
 import CompanyDashboard from "@/components/dashboard/company-dashboard";
 import { AppLayout } from "@/components/layout/app-layout";
-import { CourierAccountsPage } from "@/components/dashboard/courier-accounts";
 
 function PageContent() {
   const [role, setRole] = React.useState<Role | null>(null);
@@ -19,7 +18,6 @@ function PageContent() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
-  const pathname = usePathname();
 
   React.useEffect(() => {
     if (!isUserLoading && !user) {
@@ -78,20 +76,13 @@ function PageContent() {
   }
 
   const renderContent = () => {
-    // Courier specific routing
-    if (role === "courier") {
-      if (pathname.startsWith('/accounts')) {
-        return <CourierAccountsPage role={role} />;
-      }
-      return <CourierDashboard role={role} />;
-    }
-
-    // Admin and Company dashboards
     switch (role) {
       case "admin":
         return <AdminDashboard role={role} />;
       case "company":
         return <CompanyDashboard role={role} />;
+      case "courier":
+        return <CourierDashboard role={role} />;
       default:
         return (
           <div className="flex min-h-screen w-full items-center justify-center bg-muted/30 flex-col gap-4 text-center p-4">

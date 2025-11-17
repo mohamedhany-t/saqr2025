@@ -54,10 +54,16 @@ export function SidebarContent() {
 
    React.useEffect(() => {
     if (user) {
-      user.getIdTokenResult().then(idTokenResult => {
-        const userRole = (idTokenResult.claims.role as Role) || null;
-        setRole(userRole);
-      });
+      // This is a client-side workaround. For production, custom claims should be used.
+      // This is less secure as it relies on client-side checks.
+      const userEmail = user.email;
+      if (userEmail === 'mhanyt21@gmail.com') {
+          setRole('admin');
+      } else if (userEmail?.includes('company')) {
+          setRole('company');
+      } else if (userEmail?.includes('courier')) {
+          setRole('courier');
+      }
     }
   }, [user]);
 
@@ -120,7 +126,7 @@ export function SidebarContent() {
 
 export function Sidebar() {
     return (
-        <aside className="hidden border-r bg-background md:block md:w-64">
+        <aside className="hidden border-e bg-background md:block md:w-64">
             <SidebarContent />
         </aside>
     )

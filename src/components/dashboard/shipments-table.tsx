@@ -1,5 +1,4 @@
 
-
 "use client"
 import * as React from "react"
 import type {
@@ -65,7 +64,7 @@ import { doc, writeBatch, serverTimestamp } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 
-const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
+export const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
     Pending: <Hourglass className="h-4 w-4 text-yellow-500" />,
     "In-Transit": <Truck className="h-4 w-4 text-blue-500" />,
     Delivered: <CheckCircle2 className="h-4 w-4 text-green-500" />,
@@ -130,13 +129,13 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role }) => {
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>إجراءات</DropdownMenuLabel>
         <DropdownMenuItem onClick={() => onEdit(shipment)}>
-          <Pencil className="me-2 h-4 w-4" /> تعديل
+          <Pencil className="ms-2 h-4 w-4" /> تعديل
         </DropdownMenuItem>
         {role !== 'courier' && <DropdownMenuItem onClick={handlePrint}>
-          <Printer className="me-2 h-4 w-4" /> طباعة الملصق
+          <Printer className="ms-2 h-4 w-4" /> طباعة الملصق
         </DropdownMenuItem>}
         <DropdownMenuItem disabled>
-          <FileText className="me-2 h-4 w-4" /> تفاصيل
+          <FileText className="ms-2 h-4 w-4" /> تفاصيل
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -459,7 +458,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="sm" className="h-8 gap-1">
-                            <ChevronDown className="h-3.5 w-3.5" />
+                            <ChevronDown className="h-3.5 w-3.5 ms-1" />
                             <span>
                                 المحافظة
                                 {governorateFilterValue && governorateFilterValue.length > 0 && ` (${governorateFilterValue.length})`}
@@ -487,7 +486,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
                 {role === 'admin' && <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="sm" className="h-8 gap-1">
-                            <ChevronDown className="h-3.5 w-3.5" />
+                             <ChevronDown className="h-3.5 w-3.5 ms-1" />
                             <span>
                                 الشركة
                                 {companyFilterValue && companyFilterValue.length > 0 && ` (${companyFilterValue.length})`}
@@ -604,9 +603,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
             {isLoading ? (
                 Array.from({length: 10}).map((_, i) => (
                     <TableRow key={i}>
-                        <TableCell colSpan={columns.length}>
-                            <Skeleton className="h-6 w-full" />
-                        </TableCell>
+                         {columns.map(col => <TableCell key={(col as any).id || (col as any).accessorKey}><Skeleton className="h-6 w-full" /></TableCell>)}
                     </TableRow>
                 ))
             ) : table.getRowModel().rows?.length ? (
@@ -638,12 +635,12 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end space-x-2 py-4">
+      <div className="flex items-center justify-end space-x-2 py-4 gap-2">
         <div className="flex-1 text-sm text-muted-foreground">
           {table.getFilteredSelectedRowModel().rows.length} من{" "}
           {table.getFilteredRowModel().rows.length} صفوف محددة.
         </div>
-        <div className="space-x-2">
+        <div className="space-x-2 flex">
           <Button
             variant="outline"
             size="sm"
@@ -665,6 +662,3 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     </div>
   )
 }
-
-    
-    

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { statusText, statusVariants } from "@/components/dashboard/shipments-table";
 import type { Shipment } from "@/lib/types";
-import { CircleDollarSign, MapPin, Pencil, Phone, MessageCircle } from "lucide-react";
+import { CircleDollarSign, MapPin, Pencil, Phone, MessageSquare } from "lucide-react";
 import { Separator } from "../ui/separator";
 
 interface ShipmentCardProps {
@@ -30,7 +30,7 @@ export function ShipmentCard({ shipment, governorateName, onEdit }: ShipmentCard
     };
 
     return (
-        <Card className="shadow-md">
+        <Card className="shadow-md border">
             <CardHeader className="p-4">
                 <div className="flex justify-between items-start gap-2">
                     <CardTitle className="text-lg font-bold">{recipientName}</CardTitle>
@@ -58,8 +58,8 @@ export function ShipmentCard({ shipment, governorateName, onEdit }: ShipmentCard
                     <Phone className="h-4 w-4 me-2"/>
                     اتصال
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleWhatsApp}>
-                    <MessageCircle className="h-4 w-4 me-2"/>
+                <Button variant="outline" size="sm" onClick={handleWhatsApp} className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200">
+                    <MessageSquare className="h-4 w-4 me-2"/>
                     WhatsApp
                 </Button>
                 <Button variant="default" size="sm" onClick={() => onEdit(shipment)}>

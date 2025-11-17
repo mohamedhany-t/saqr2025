@@ -12,6 +12,7 @@ import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePe
 import { collection, serverTimestamp, doc, query, where, updateDoc, getDoc, writeBatch } from "firebase/firestore";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
+import { StatsCards } from "@/components/dashboard/stats-cards";
 import { Loader2 } from "lucide-react";
 
 interface CourierDashboardProps {
@@ -312,15 +313,15 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
   const inTransitCount = filteredActiveShipments.filter(s => s.status === 'In-Transit').length;
   const returnedCount = filteredActiveShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled').length;
 
-  const currentPath = usePathname();
-  const activeTab = currentPath.includes('/accounts') ? 'accounts' : 'shipments';
-
-
   return (
     <>
-      <Tabs defaultValue={activeTab} className="w-full">
+      <Tabs defaultValue="shipments" className="w-full">
+         <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="shipments">الشحنات</TabsTrigger>
+            <TabsTrigger value="accounts">الحسابات</TabsTrigger>
+        </TabsList>
          <TabsContent value="shipments">
-            <div className="p-4 sm:p-6 md:p-8">
+            <div className="p-4 sm:p-0">
               <Tabs defaultValue="all">
                 <div className="flex items-center">
                   <TabsList>
@@ -343,6 +344,15 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
                   {isMobile ? renderShipmentList(filteredFinishedShipments) : renderDesktopTable(filteredFinishedShipments)}
                 </TabsContent>
               </Tabs>
+            </div>
+         </TabsContent>
+         <TabsContent value="accounts">
+             <div className="p-4 sm:p-0">
+                <h1 className="text-2xl font-bold mb-4">ملخص الحسابات</h1>
+                <p className="text-muted-foreground mb-6">
+                    هنا يمكنك رؤية ملخص مالي لجميع شحناتك، بما في ذلك المبالغ المحصلة وعمولاتك.
+                </p>
+                <StatsCards shipments={shipments || []} role={role} />
             </div>
          </TabsContent>
        </Tabs>

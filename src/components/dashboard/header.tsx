@@ -4,7 +4,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Search, PanelLeft } from "lucide-react";
+import { Search } from "lucide-react";
 import { useAuth, useUser } from '@/firebase';
 import { signOut } from 'firebase/auth';
 
@@ -21,8 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Logo } from '../icons';
 import { InstallPwaButton } from '../install-pwa-button';
-import { Sheet, SheetContent, SheetTrigger } from '../ui/sheet';
-import { SidebarContent } from '../layout/sidebar';
+
 
 export function Header({ onSearchChange }: { onSearchChange: (term: string) => void }) {
   const { user } = useUser();
@@ -36,53 +35,70 @@ export function Header({ onSearchChange }: { onSearchChange: (term: string) => v
 
   // Fallback values for user while loading
   const displayName = user?.displayName || user?.email?.split('@')[0] || "User";
+  const userEmail = user?.email || "";
   const displayInitial = displayName?.charAt(0).toUpperCase() || "U";
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
-       <Sheet>
-            <SheetTrigger asChild>
-              <Button size="icon" variant="outline" className="sm:hidden">
-                <PanelLeft className="h-5 w-5" />
-                <span className="sr-only">Toggle Menu</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="sm:max-w-xs p-0">
-               <SidebarContent />
-            </SheetContent>
-        </Sheet>
-        <div className="relative ms-auto flex-1 md:grow-0">
-            <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-            type="search"
-            placeholder="بحث..."
-            className="w-full rounded-lg bg-background pr-8 md:w-[200px] lg:w-[336px]"
-            onChange={(e) => onSearchChange(e.target.value)}
-            />
-        </div>
-        <InstallPwaButton />
-        <DropdownMenu>
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
+       <nav className="hidden flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6">
+          <Link
+            href="#"
+            className="flex items-center gap-2 text-lg font-semibold md:text-base text-primary"
+          >
+            <Logo className="h-6 w-6" />
+            <span className="sr-only">AlSaqr Logistics</span>
+          </Link>
+          <Link
+            href="#"
+            className="text-foreground transition-colors hover:text-foreground"
+          >
+            لوحة التحكم
+          </Link>
+        </nav>
+        <div className="flex w-full items-center gap-4 md:ml-auto md:gap-2 lg:gap-4">
+          <form className="ml-auto flex-1 sm:flex-initial">
+            <div className="relative">
+              <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="بحث في الشحنات..."
+                className="pr-8 sm:w-[300px] md:w-[200px] lg:w-[300px]"
+                onChange={(e) => onSearchChange(e.target.value)}
+              />
+            </div>
+          </form>
+          <InstallPwaButton />
+          <DropdownMenu>
             <DropdownMenuTrigger asChild>
             <Button
-                variant="outline"
+                variant="secondary"
                 size="icon"
-                className="overflow-hidden rounded-full"
+                className="rounded-full"
             >
                 <Avatar>
-                <AvatarImage src={user?.photoURL || undefined} alt={displayName} />
-                <AvatarFallback>{displayInitial}</AvatarFallback>
+                    <AvatarImage src={user?.photoURL || undefined} alt={displayName} />
+                    <AvatarFallback>{displayInitial}</AvatarFallback>
                 </Avatar>
+                <span className="sr-only">Toggle user menu</span>
             </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-            <DropdownMenuLabel>حسابي</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem disabled>الإعدادات</DropdownMenuItem>
-            <DropdownMenuItem disabled>الدعم</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout}>تسجيل الخروج</DropdownMenuItem>
+            <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">{displayName}</p>
+                        <p className="text-xs leading-none text-muted-foreground">{userEmail}</p>
+                    </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem disabled>الإعدادات</DropdownMenuItem>
+                <DropdownMenuItem disabled>الدعم</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>
+                    تسجيل الخروج
+                </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
+       </div>
     </header>
   );
 }

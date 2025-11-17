@@ -137,7 +137,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                     {isCourier ? "قم بتحديث حالة الشحنة." : isEditing ? "قم بتحديث تفاصيل الشحنة هنا." : "أدخل تفاصيل الشحنة الجديدة ليتم إنشاؤها."}
                 </SheetDescription>
                 </SheetHeader>
-                <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6">
+                <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6 mr-[-1.5rem] pl-6">
                     {(isAdmin || isCompany) && <FormField
                         control={form.control}
                         name="shipmentCode"
@@ -256,16 +256,16 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />}
-                     <FormField
+                     {(isAdmin || isCompany) && <FormField
                         control={form.control}
                         name="assignedCourierId"
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">المندوب</FormLabel>
-                                <Select dir="rtl" onValueChange={field.onChange} defaultValue={field.value} disabled={!isAdmin && !isCompany}>
+                                <Select dir="rtl" onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl className="col-span-3">
                                         <SelectTrigger>
-                                            <SelectValue placeholder={(isAdmin || isCompany) ? "اختر المندوب" : "لا يمكن التغيير"} />
+                                            <SelectValue placeholder="اختر المندوب" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
@@ -275,7 +275,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                 <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
-                    />
+                    />}
                     <FormField
                         control={form.control}
                         name="status"
@@ -338,7 +338,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">رقم الطلب</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input {...field} disabled={isCourier} />
+                                    <Input {...field} />
                                 </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
@@ -351,7 +351,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">رقم الشحنة</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input {...field} disabled={isCourier} />
+                                    <Input {...field} />
                                 </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>

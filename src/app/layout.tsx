@@ -1,11 +1,13 @@
 
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Cairo } from "next/font/google";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const cairo = Cairo({ subsets: ["arabic"], variable: "--font-cairo" });
+
 
 export const metadata: Metadata = {
   title: "AlSaqr Logistics",
@@ -24,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl">
-      <body className={inter.className}>
+      <body className={`${inter.variable} ${cairo.variable} font-headline`}>
         <FirebaseClientProvider>
           {children}
         </FirebaseClientProvider>
