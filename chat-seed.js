@@ -63,7 +63,7 @@ async function ensureAdminRole(adminUser) {
         createdAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
-    // Set role document with some data
+    // CRITICAL: Set data in the role document so exists() check in security rules passes.
     batch.set(roleRef, { 
         email: adminUser.email,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -123,7 +123,8 @@ async function main() {
         const couriers = await getCouriers();
         
         if (adminUser) {
-            await ensureAdminRole(adminUser); // Ensure admin permissions are set correctly
+            // This is the critical step to fix permissions.
+            await ensureAdminRole(adminUser);
         }
 
         if (adminUser && couriers.length > 0) {
