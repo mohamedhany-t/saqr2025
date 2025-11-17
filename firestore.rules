@@ -8,31 +8,28 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // This is the most reliable way to check for a role.
-    // It only checks for the existence of the document, not its content.
     function isRole(role) {
       return exists(/databases/$(database)/documents/roles_$(role)/$(request.auth.uid));
     }
-    
+
     function isAdmin() {
       return isSignedIn() && isRole('admin');
     }
-    
+
     function isCompany() {
-       return isSignedIn() && isRole('company');
+      return isSignedIn() && isRole('company');
     }
 
     function isCourier() {
       return isSignedIn() && isRole('courier');
     }
-    
+
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
     // --- Global Admin Access ---
     // This is the most important rule. It grants admins full access to everything.
-    // By placing it at the top level, it overrides any more specific, restrictive rules.
     match /{path=**} {
       allow read, write: if isAdmin();
     }
@@ -41,71 +38,56 @@ service cloud.firestore {
     // Any signed-in user can read non-sensitive public data.
     match /governorates/{governorateId} {
       allow read: if isSignedIn();
-      // Write is covered by admin rule.
     }
     match /companies/{companyId} {
         allow read: if isSignedIn();
-        // Write is covered by admin rule.
     }
     match /couriers/{courierId} {
         allow read: if isSignedIn();
-        // Write is covered by admin rule.
     }
 
     // --- User Profiles ---
     match /users/{userId} {
-        // Any signed in user can read any other user's profile.
         allow read: if isSignedIn();
-        // Only the owner can update their own profile. Admin is covered by the global rule.
         allow update: if isOwner(userId);
     }
     
     // --- Shipments ---
     // These rules apply only if the user is NOT an admin.
     match /shipments/{shipmentId} {
-      // Companies can read their own shipments.
-      // Couriers can read shipments assigned to them.
       allow read: if (isCompany() && resource.data.companyId == request.auth.uid)
                   || (isCourier() && resource.data.assignedCourierId == request.auth.uid);
 
-      // Companies can create shipments for themselves.
       allow create: if isCompany() && request.resource.data.companyId == request.auth.uid;
       
-      // Companies can update their own shipments.
-      // Couriers can ONLY update specific fields on their assigned shipments.
       allow update: if (isCompany() && resource.data.companyId == request.auth.uid)
                     || (isCourier() 
                         && resource.data.assignedCourierId == request.auth.uid
                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
 
-      // Companies can delete their own shipments.
       allow delete: if isCompany() && resource.data.companyId == request.auth.uid;
     }
 
     // --- Chat Rules ---
     // These rules apply only if the user is NOT an admin.
-    // The global admin rule already grants full access to chats.
     match /chats/{courierId} {
-      // A courier can only read/write their own chat document and its messages.
-      allow read, write: if isOwner(courierId);
+      // A courier can only read their own chat document.
+      allow read: if isOwner(courierId);
+      // Only the courier can write to their chat document (e.g. for presence, etc)
+      // The admin can't write here directly, they write to the messages subcollection.
+      allow write: if isOwner(courierId);
       
+      // Messages subcollection
       match /messages/{messageId} {
-        // A courier can only read/write messages in their own chat.
+        // A courier can read/write messages in their own chat thread.
         allow read, write: if isOwner(courierId);
       }
     }
 
     // --- Role Collections ---
-    // These collections are locked down. They are only used for existence checks in rules.
-    // Writes should only happen via seeding scripts or trusted backend functions.
-    match /roles_admin/{docId} {
-      allow read, write: if false;
-    }
-    match /roles_company/{docId} {
-      allow read, write: if false;
-    }
-    match /roles_courier/{docId} {
-      allow read, write: if false;
-    }
+    // These are locked down. Writes should only happen via trusted server code/seeding.
+    match /roles_admin/{docId} { allow read, write: if false; }
+    match /roles_company/{docId} { allow read, write: if false; }
+    match /roles_courier/{docId} { allow read, write: if false; }
   }
 }
