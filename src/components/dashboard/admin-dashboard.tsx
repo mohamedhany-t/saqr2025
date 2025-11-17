@@ -171,8 +171,10 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
               const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
               const creationDate = parseExcelDate(row['التاريخ']);
               const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
+              const senderNameValue = row['الراسل'] || row['العميل الفرعي'];
 
               const shipmentData: Partial<Shipment> = {
+                  senderName: senderNameValue,
                   orderNumber: row['رقم الطلب']?.toString(),
                   recipientName: row['المرسل اليه'],
                   recipientPhone: row['التليفون']?.toString(),
@@ -717,5 +719,7 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
     </div>
   );
 }
+
+    
 
     
