@@ -8,9 +8,9 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // This is the most reliable way to check for a role.
+    // It only checks for the existence of the document, not its content.
     function isRole(role) {
-      // This is the most reliable way to check for a role.
-      // It only checks for the existence of the document, not its content.
       return exists(/databases/$(database)/documents/roles_$(role)/$(request.auth.uid));
     }
     
