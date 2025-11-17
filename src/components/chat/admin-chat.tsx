@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from 'react';
@@ -52,7 +53,7 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
 
             {/* Chat Window */}
             <div className="md:col-span-2 lg:col-span-3 h-full">
-                {selectedCourier ? (
+                {selectedCourier && adminUser && selectedCourier.id ? (
                     <ChatWindow
                         key={selectedCourier.id}
                         currentUser={adminUser}

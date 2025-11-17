@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from 'react';
@@ -34,13 +35,13 @@ export function CourierChat({ courierUser }: CourierChatProps) {
     const { data: adminUsers, isLoading: isAdminLoading } = useCollection<User>(adminQuery);
     const adminUser = adminUsers?.[0];
 
-    if (!courierUser) return null;
+    const canRenderChat = courierUser && adminUser && courierUser.id;
 
     const chatContent = (
         <>
             {isAdminLoading && <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>}
             {!isAdminLoading && !adminUser && <div className="flex items-center justify-center h-full text-muted-foreground">لم يتم العثور على حساب المسؤول.</div>}
-            {!isAdminLoading && adminUser && (
+            {canRenderChat && (
                 <ChatWindow 
                     currentUser={courierUser}
                     chatPartner={adminUser}
