@@ -81,13 +81,14 @@ async function seedChats(couriers, adminUser) {
         return;
     }
 
+    const now = admin.firestore.Timestamp.now();
+    const lastMessageText = `مرحباً، هذه رسالة تلقائية من الإدارة.`;
+
     for (const courier of couriers) {
         const batch = db.batch();
-        const now = admin.firestore.Timestamp.now();
         
         // Chat document
         const chatRef = db.collection('chats').doc(courier.id);
-        const lastMessageText = `مرحباً ${courier.name}, كيف يمكنني مساعدتك؟`;
         batch.set(chatRef, {
             id: courier.id,
             lastMessage: lastMessageText,
@@ -100,20 +101,10 @@ async function seedChats(couriers, adminUser) {
         const adminMessageRef = messagesRef.doc();
         batch.set(adminMessageRef, {
             id: adminMessageRef.id,
-            text: lastMessageText,
+            text: `مرحباً ${courier.name}, كيف يمكنني مساعدتك؟`,
             senderId: adminUser.uid,
             senderName: adminUser.displayName || "الإدارة",
             createdAt: now,
-        });
-
-        const courierMessageRef = messagesRef.doc();
-        const courierResponseTime = new admin.firestore.Timestamp(now.seconds - 60, now.nanoseconds);
-        batch.set(courierMessageRef, {
-            id: courierMessageRef.id,
-            text: `شكراً لك، كل شيء على ما يرام.`,
-            senderId: courier.id,
-            senderName: courier.name,
-            createdAt: courierResponseTime,
         });
         
         await batch.commit();

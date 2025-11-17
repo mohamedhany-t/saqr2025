@@ -41,7 +41,7 @@ service cloud.firestore {
     }
 
     match /couriers/{courierId} {
-       allow read: if isSignedIn();
+       allow read: if isSignedIn(); // Added read permission to prevent rule conflicts
        allow create, update: if isAdmin() || (isCourier() && courierId == request.auth.uid);
     }
     
