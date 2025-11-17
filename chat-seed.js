@@ -63,7 +63,7 @@ async function ensureAdminRole(adminUser) {
         createdAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
-    // Set role document (this is the crucial part that was missing)
+    // Set role document with some data
     batch.set(roleRef, { 
         email: adminUser.email,
         createdAt: admin.firestore.FieldValue.serverTimestamp()

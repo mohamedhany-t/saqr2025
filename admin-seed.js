@@ -137,6 +137,7 @@ async function seedAdminUsers() {
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
         
+        // CRITICAL: Set data in the role document so .data is not null in security rules
         batch.set(roleRef, { email: userRecord.email }, { merge: true });
         
         await batch.commit();
