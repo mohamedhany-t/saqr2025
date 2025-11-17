@@ -39,7 +39,8 @@ export function ShipmentCard({ shipment, governorateName, companyName, onEdit }:
         const orderAmount = totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
         const fullAddress = `${address}, ${governorateName}`;
 
-        const message = `أهلاً ${customerName}، معاك ${courierName} من شركة الصقر. حضرتك ليك اوردر بمبلغ ${orderAmount} والعنوان: ${fullAddress}. شكرًا.`;
+        const message = `أهلاً ${customerName}، معاك ${courierName} من شركة الصقر. حضرتك ليك اوردر بمبلغ ${orderAmount} والعنوان: ${fullAddress}. برجاء تأكيد إذا كنت ترغب في الاستلام – التأجيل – أو إلغاء الأوردر.
+شكرًا لك 🌸.`;
         const encodedMessage = encodeURIComponent(message);
         
         window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');

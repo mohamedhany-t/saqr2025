@@ -1,4 +1,3 @@
-
 "use client"
 import * as React from "react"
 import type {
@@ -34,7 +33,8 @@ import {
     Building,
     CheckSquare,
     AlertTriangle,
-    MinusCircle
+    MinusCircle,
+    CalendarClock
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -72,6 +72,7 @@ export const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
     Evasion: <AlertTriangle className="h-4 w-4 text-purple-500" />,
     Cancelled: <XCircle className="h-4 w-4 text-red-500" />,
     Returned: <Archive className="h-4 w-4 text-orange-500" />,
+    Postponed: <CalendarClock className="h-4 w-4 text-gray-500" />,
     "Returned to Sender": <Archive className="h-4 w-4 text-orange-700" />,
 }
 
@@ -83,6 +84,7 @@ export const statusVariants: Record<ShipmentStatus, "default" | "secondary" | "d
     Evasion: "secondary",
     Cancelled: "destructive",
     Returned: "secondary",
+    Postponed: "outline",
     "Returned to Sender": "secondary",
 }
 
@@ -94,6 +96,7 @@ export const statusText: Record<string, string> = {
     Evasion: 'تهرب',
     Cancelled: 'تم الإلغاء',
     Returned: 'مرتجع',
+    Postponed: 'مؤجل',
     'Returned to Sender': 'تم الرجوع للراسل'
 };
 
@@ -707,5 +710,3 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     </div>
   )
 }
-
-    

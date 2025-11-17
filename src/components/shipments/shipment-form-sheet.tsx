@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from 'react';
@@ -39,7 +38,7 @@ const shipmentSchema = z.object({
   address: z.string().min(1, "العنوان مطلوب"),
   totalAmount: z.coerce.number().min(0, "المبلغ يجب أن يكون إيجابي"),
   paidAmount: z.coerce.number().optional(),
-  status: z.enum(["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion", "Cancelled", "Returned", "Returned to Sender"]),
+  status: z.enum(["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion", "Cancelled", "Returned", "Postponed", "Returned to Sender"]),
   reason: z.string().optional(),
   deliveryDate: z.date().optional(),
   assignedCourierId: z.string().optional(),
@@ -293,6 +292,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                         <SelectItem value="In-Transit">قيد التوصيل</SelectItem>
                                         <SelectItem value="Delivered">تم التوصيل</SelectItem>
                                         <SelectItem value="Partially Delivered">تم التوصيل جزئياً</SelectItem>
+                                        <SelectItem value="Postponed">مؤجل</SelectItem>
                                         <SelectItem value="Returned to Sender">تم الرجوع للراسل</SelectItem>
                                         <SelectItem value="Evasion">تهرب</SelectItem>
                                         <SelectItem value="Cancelled">تم الإلغاء</SelectItem>

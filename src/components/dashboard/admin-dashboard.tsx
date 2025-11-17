@@ -1,8 +1,7 @@
-
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -550,6 +549,7 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
                     <TabsTrigger value="all-shipments">الكل</TabsTrigger>
                     <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
                     <TabsTrigger value="delivered">تم التوصيل</TabsTrigger>
+                    <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
                     <TabsTrigger value="returned">مرتجعات</TabsTrigger>
                     <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
                 </TabsList>
@@ -578,6 +578,17 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
                 <TabsContent value="delivered">
                     <ShipmentsTable 
                         shipments={filteredShipments.filter(s => s.status === 'Delivered')}
+                        isLoading={shipmentsLoading}
+                        governorates={governorates || []}
+                        companies={companies || []}
+                        couriers={courierUsers}
+                        onEdit={openShipmentForm}
+                        role={role}
+                    />
+                </TabsContent>
+                <TabsContent value="postponed">
+                    <ShipmentsTable 
+                        shipments={filteredShipments.filter(s => s.status === 'Postponed')}
                         isLoading={shipmentsLoading}
                         governorates={governorates || []}
                         companies={companies || []}
@@ -675,7 +686,7 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
          <TabsContent value="company-management">
                <div className="mt-8">
                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-headline font-semibold">إيرادات الشركات</h2>
+                    <h2 className="text-2xl fontheadline font-semibold">إيرادات الشركات</h2>
                 </div>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {companyRevenues.map(company => (
@@ -760,5 +771,3 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
     </div>
   );
 }
-
-    

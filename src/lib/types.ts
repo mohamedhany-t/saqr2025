@@ -20,6 +20,7 @@ export type ShipmentStatus =
   | "Evasion"
   | "Cancelled"
   | "Returned"
+  | "Postponed"
   | "Returned to Sender";
 
 export type Shipment = {
@@ -60,5 +61,3 @@ export interface Governorate {
   id: string;
   name: string;
 }
-
-    

@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "User": {
@@ -96,7 +95,7 @@
         "status": {
           "type": "string",
           "description": "Current status of the shipment.",
-          "enum": ["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion", "Cancelled", "Returned", "Returned to Sender"]
+          "enum": ["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion", "Cancelled", "Returned", "Postponed", "Returned to Sender"]
         },
         "reason": {
           "type": "string",
@@ -347,5 +346,3 @@
     "reasoning": "The Firestore structure now includes a 'company' role. Companies are users that can manage their own shipments. Couriers are independent and are assigned to shipments directly. The 'companies' collection stores public profiles for these company users. The 'shipments' collection now uses 'companyId' to link to the user UID of the owning company."
   }
 }
-
-    

@@ -1,4 +1,3 @@
-
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -316,6 +315,7 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
   
   const inTransitCount = filteredActiveShipments.filter(s => s.status === 'In-Transit').length;
   const returnedCount = filteredActiveShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled').length;
+  const postponedCount = filteredActiveShipments.filter(s => s.status === 'Postponed').length;
 
   return (
     <>
@@ -331,6 +331,7 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
                   <TabsList className="flex-nowrap overflow-x-auto justify-start">
                     <TabsTrigger value="all">النشطة <Badge variant="secondary" className="ms-2">{filteredActiveShipments.length}</Badge></TabsTrigger>
                     <TabsTrigger value="in-transit">قيد التوصيل <Badge variant="secondary" className="ms-2">{inTransitCount}</Badge></TabsTrigger>
+                    <TabsTrigger value="postponed">المؤجلة <Badge variant="secondary" className="ms-2">{postponedCount}</Badge></TabsTrigger>
                     <TabsTrigger value="returned">مرتجعات <Badge variant="secondary" className="ms-2">{returnedCount}</Badge></TabsTrigger>
                     <TabsTrigger value="finished">المنتهية <Badge variant="secondary" className="ms-2">{filteredFinishedShipments.length}</Badge></TabsTrigger>
                   </TabsList>
@@ -340,6 +341,9 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
                 </TabsContent>
                 <TabsContent value="in-transit" className="mt-4">
                   {isMobile ? renderShipmentList(filteredActiveShipments.filter(s => s.status === 'In-Transit')) : renderDesktopTable(filteredActiveShipments.filter(s => s.status === 'In-Transit'))}
+                </TabsContent>
+                <TabsContent value="postponed" className="mt-4">
+                  {isMobile ? renderShipmentList(filteredActiveShipments.filter(s => s.status === 'Postponed')) : renderDesktopTable(filteredActiveShipments.filter(s => s.status === 'Postponed'))}
                 </TabsContent>
                 <TabsContent value="returned" className="mt-4">
                   {isMobile ? renderShipmentList(filteredActiveShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled')) : renderDesktopTable(filteredActiveShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled'))}
@@ -375,5 +379,3 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
     </>
   );
 }
-
-    
