@@ -324,7 +324,7 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
             <div className="p-4 sm:p-0">
               <Tabs defaultValue="all">
                 <div className="flex items-center">
-                  <TabsList>
+                  <TabsList className="flex-nowrap overflow-x-auto justify-start">
                     <TabsTrigger value="all">النشطة <Badge variant="secondary" className="ms-2">{filteredActiveShipments.length}</Badge></TabsTrigger>
                     <TabsTrigger value="in-transit">قيد التوصيل <Badge variant="secondary" className="ms-2">{inTransitCount}</Badge></TabsTrigger>
                     <TabsTrigger value="returned">مرتجعات <Badge variant="secondary" className="ms-2">{returnedCount}</Badge></TabsTrigger>
@@ -371,3 +371,5 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
     </>
   );
 }
+
+    
