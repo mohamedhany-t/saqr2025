@@ -10,6 +10,7 @@ import MessageBubble from './message-bubble';
 import { uploadFile } from '@/firebase/storage';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '../ui/progress';
+import { sendPushNotification } from '@/lib/actions';
 
 interface ChatWindowProps {
   chatId: string;
@@ -130,6 +131,17 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
 
     // Reset input fields
     setNewMessage('');
+    
+    // 3. Send Push Notification (after message is saved)
+    if (otherParticipantId) {
+      await sendPushNotification({
+        recipientId: otherParticipantId,
+        title: currentUser.name || 'رسالة جديدة',
+        body: lastMessageText,
+        url: `/`, // You can make this URL more specific, e.g., `/chat/${chatId}`
+      });
+    }
+
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
