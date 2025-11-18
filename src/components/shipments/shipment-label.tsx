@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -42,18 +41,13 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
         </div>
 
         {/* Recipient Info */}
-        <div className="border-b-2 border-black pb-2 mb-2">
+        <div className="border-b-2 border-black pb-2 mb-2 flex-grow">
             <InfoLine label="إلى" value={shipment.recipientName} valueClass="text-lg font-bold" />
             <InfoLine label="الهاتف" value={shipment.recipientPhone} valueClass="text-lg font-bold" />
             <InfoLine label="المحافظة" value={governorateName} valueClass="font-semibold" />
             <p className="text-xl font-bold mt-1 leading-tight">
                 {shipment.address}
             </p>
-        </div>
-
-        {/* Notes section - takes up remaining space */}
-        <div className="flex-grow min-h-[4cm]">
-             <p className="text-base font-bold">ملاحظات:</p>
         </div>
 
         {/* Footer with Details & QR Code */}
