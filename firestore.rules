@@ -37,7 +37,6 @@ service cloud.firestore {
         return isCourier() && shipmentDoc.assignedCourierId == request.auth.uid;
     }
 
-
     // --- Admin Catch-All ---
     // A single, powerful rule to grant admins full access to everything.
     // This rule is evaluated first. If it passes, access is granted.
