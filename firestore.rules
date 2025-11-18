@@ -65,8 +65,7 @@ service cloud.firestore {
     }
     
     // --- Courier Payments ---
-    // Admins have full read/write access.
-    // Couriers can only read their own specific payment documents.
+    // Admins have full access. Couriers can only read their own payment records.
     match /courier_payments/{paymentId} {
       allow read, write: if isAdmin();
       allow get: if isCourier() && resource.data.courierId == request.auth.uid;
