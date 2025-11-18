@@ -8,8 +8,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Check if a user has a specific role by looking for a document in the roles collections.
-    // The document must exist, so we check that its data is not null.
     function isRole(role) {
       return exists(/databases/$(database)/documents/roles_$(role)/$(request.auth.uid));
     }
@@ -30,7 +28,7 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
     
-    // --- Global Admin Catch-All ---
+    // --- Global Admin Catch-All (HIGHEST PRIORITY) ---
     // This rule gives admins God-mode. It's evaluated alongside specific rules.
     // If ANY rule passes (this one or a specific one), access is granted.
     match /{path=**} {
@@ -41,6 +39,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSignedIn();
       allow update: if isOwner(userId);
+      // Admin can update via global rule
     }
 
     // --- Static/Public Data ---
@@ -63,14 +62,19 @@ service cloud.firestore {
                     (isCourier() && resource.data.assignedCourierId == request.auth.uid && 
                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
       allow delete: if isCompany() && resource.data.companyId == request.auth.uid;
+       // Admin access is covered by the global rule
     }
 
     // --- Chat ---
+    // These rules apply if the user is NOT an admin. The global admin rule will grant access anyway.
     match /chats/{courierId} {
-      allow read, write: if isOwner(courierId);
+      allow read, write: if isOwner(courierId); // Courier can read/write their own chat document
       
+      // Explicit rule for messages subcollection
       match /messages/{messageId} {
-        allow read, write: if isOwner(courierId);
+         // Allow if user is the owner of the chat, OR if the user is an admin.
+         // This is the most explicit way to solve the permission issue.
+        allow read, write: if isOwner(courierId) || isAdmin();
       }
     }
     
