@@ -1,9 +1,10 @@
+
 "use client";
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Paperclip, Send, X, File as FileIcon, Loader2 } from 'lucide-react';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from '@/firebase';
 import { collection, serverTimestamp, query, orderBy, writeBatch, doc, getDoc, increment } from 'firebase/firestore';
 import type { ChatMessage, User, Chat } from '@/lib/types';
 import MessageBubble from './message-bubble';
@@ -27,6 +28,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
   const [newMessage, setNewMessage] = useState('');
   const [fileUpload, setFileUpload] = useState<FileUpload | null>(null);
   const firestore = useFirestore();
+  const firebaseApp = useFirebaseApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -59,7 +61,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
   }, [firestore, chatId, currentUser, messages]); // Rerun when messages update to catch incoming ones
 
   const handleSendMessage = async () => {
-    if (!firestore || (!newMessage.trim() && !fileUpload)) return;
+    if (!firestore || !firebaseApp || (!newMessage.trim() && !fileUpload)) return;
 
     const chatDocRef = doc(firestore, 'chats', chatId);
     const messagesCollection = collection(firestore, 'chats', chatId, 'messages');
@@ -71,7 +73,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
     if (fileUpload && fileUpload.file) {
         try {
             const filePath = `chat_attachments/${chatId}/${Date.now()}_${fileUpload.file.name}`;
-            const downloadURL = await uploadFile(filePath, fileUpload.file, (progress) => {
+            const downloadURL = await uploadFile(firebaseApp, filePath, fileUpload.file, (progress) => {
                 setFileUpload(prev => prev ? { ...prev, progress } : null);
             });
             
