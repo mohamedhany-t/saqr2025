@@ -1,14 +1,12 @@
-
 "use client";
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Paperclip, Send, X, File as FileIcon, Loader2 } from 'lucide-react';
-import { useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, serverTimestamp, query, orderBy, writeBatch, doc, getDoc, increment } from 'firebase/firestore';
 import type { ChatMessage, User, Chat } from '@/lib/types';
 import MessageBubble from './message-bubble';
-import { uploadFile } from '@/firebase/storage';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '../ui/progress';
 import { sendPushNotification } from '@/lib/actions';
@@ -20,8 +18,7 @@ interface ChatWindowProps {
 
 interface FileUpload {
     file: File;
-    progress: number;
-    error?: string;
+    dataUrl: string; // Store the Base64 data URL
 }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
@@ -29,7 +26,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
   const [fileUpload, setFileUpload] = useState<FileUpload | null>(null);
   const [isSending, setIsSending] = useState(false);
   const firestore = useFirestore();
-  const firebaseApp = useFirebaseApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -49,7 +45,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
     scrollToBottom();
   }, [messages]);
 
-  // Effect to mark messages as read when the chat window is open
   useEffect(() => {
     if (firestore && chatId && currentUser) {
       const chatDocRef = doc(firestore, 'chats', chatId);
@@ -59,10 +54,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
       batch.update(chatDocRef, { [unreadCountKey]: 0 });
       batch.commit().catch(console.error);
     }
-  }, [firestore, chatId, currentUser, messages]); // Rerun when messages update to catch incoming ones
+  }, [firestore, chatId, currentUser, messages]);
 
   const handleSendMessage = async () => {
-    if (!firestore || !firebaseApp || (!newMessage.trim() && !fileUpload)) return;
+    if (!firestore || (!newMessage.trim() && !fileUpload)) return;
     setIsSending(true);
 
     const chatDocRef = doc(firestore, 'chats', chatId);
@@ -71,32 +66,19 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
 
     let lastMessageText = newMessage.trim();
 
-    // Handle File Upload First
-    if (fileUpload && fileUpload.file) {
-        try {
-            const filePath = `chat_attachments/${chatId}/${Date.now()}_${fileUpload.file.name}`;
-            const downloadURL = await uploadFile(firebaseApp, filePath, fileUpload.file, (progress) => {
-                setFileUpload(prev => prev ? { ...prev, progress } : null);
-            });
-            
-            if (fileUpload.file.type.startsWith('image/')) {
-                filePayload.imageUrl = downloadURL;
-                if (!lastMessageText) lastMessageText = "صورة";
-            } else {
-                filePayload.fileUrl = downloadURL;
-                filePayload.fileName = fileUpload.file.name;
-                if (!lastMessageText) lastMessageText = fileUpload.file.name;
-            }
-        } catch (error) {
-            console.error("File upload failed:", error);
-            toast({ title: "فشل رفع الملف", description: "حدث خطأ أثناء رفع الملف. يرجى المحاولة مرة أخرى.", variant: "destructive"});
-            setFileUpload(prev => prev ? { ...prev, error: "Upload failed" } : null);
-            setIsSending(false);
-            return;
-        }
+    if (fileUpload && fileUpload.dataUrl) {
+      if (fileUpload.file.type.startsWith('image/')) {
+        filePayload.imageUrl = fileUpload.dataUrl;
+        if (!lastMessageText) lastMessageText = "صورة";
+      } else {
+        // Storing non-image files as Base64 is highly inefficient and generally not recommended.
+        // We will primarily support images for this workaround.
+        toast({ title: "نوع الملف غير مدعوم", description: "هذا الحل البديل يدعم الصور فقط.", variant: "destructive"});
+        setIsSending(false);
+        return;
+      }
     }
     
-    // Prepare message payload
     const messagePayload: Omit<ChatMessage, 'id'> = {
         senderId: currentUser.id,
         timestamp: serverTimestamp(),
@@ -104,7 +86,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
         ...(newMessage.trim() && { text: newMessage.trim() }),
     };
 
-    // Get the other participant's ID to increment their unread count
     const chatSnap = await getDoc(chatDocRef);
     if (!chatSnap.exists()) {
         console.error("Chat does not exist!");
@@ -114,14 +95,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
     const chatData = chatSnap.data() as Chat;
     const otherParticipantId = chatData.participants.find(p => p !== currentUser.id);
 
-    // Create a batch to update everything atomically
     const batch = writeBatch(firestore);
     
-    // 1. Add the new message
     const newMessageRef = doc(messagesCollection);
     batch.set(newMessageRef, messagePayload);
 
-    // 2. Update the chat document with last message and increment unread count
     const chatUpdatePayload: any = {
         lastMessage: lastMessageText,
         lastMessageTimestamp: serverTimestamp(),
@@ -131,34 +109,43 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
     }
     batch.update(chatDocRef, chatUpdatePayload);
 
-    // Commit the batch
     await batch.commit();
 
-    // Reset input fields
     setNewMessage('');
     setFileUpload(null);
     setIsSending(false);
     
-    // 3. Send Push Notification (after message is saved)
     if (otherParticipantId) {
       await sendPushNotification({
         recipientId: otherParticipantId,
         title: currentUser.name || 'رسالة جديدة',
         body: lastMessageText,
-        url: `/`, // You can make this URL more specific, e.g., `/chat/${chatId}`
+        url: `/`, 
       });
     }
-
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        toast({ title: "الملف كبير جدًا", description: "حجم الملف يجب أن يكون أقل من 5 ميجابايت.", variant: "destructive" });
+      if (file.size > 1 * 1024 * 1024) { // 1MB limit for Base64
+        toast({ title: "الملف كبير جدًا", description: "حجم الملف يجب أن يكون أقل من 1 ميجابايت.", variant: "destructive" });
         return;
       }
-      setFileUpload({ file, progress: 0 });
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        if (dataUrl) {
+            setFileUpload({ file, dataUrl });
+        } else {
+            toast({ title: "فشل قراءة الملف", variant: "destructive" });
+        }
+      };
+      reader.onerror = () => {
+        toast({ title: "خطأ في قراءة الملف", variant: "destructive" });
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -175,17 +162,16 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
         {fileUpload && (
              <div className="mb-2 p-2 border rounded-lg bg-background relative">
                 <div className="flex items-center gap-2 text-sm">
-                    <FileIcon className="h-5 w-5 text-muted-foreground" />
+                    {fileUpload.file.type.startsWith('image/') ? (
+                        <img src={fileUpload.dataUrl} alt="preview" className="h-10 w-10 object-cover rounded-md" />
+                    ) : (
+                        <FileIcon className="h-5 w-5 text-muted-foreground" />
+                    )}
                     <span className="truncate flex-1">{fileUpload.file.name}</span>
                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setFileUpload(null)}>
                         <X className="h-4 w-4" />
                     </Button>
                 </div>
-                {fileUpload.error ? (
-                    <p className="text-destructive text-xs mt-1">{fileUpload.error}</p>
-                ) : (
-                    <Progress value={fileUpload.progress} className="h-1 mt-1" />
-                )}
             </div>
         )}
         <div className="flex items-center gap-2">
@@ -198,6 +184,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
               ref={fileInputRef} 
               className="hidden" 
               onChange={handleFileSelect}
+              accept="image/*"
               disabled={isSending}
             />
           <Input
@@ -209,7 +196,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
             dir="rtl"
             disabled={isSending}
           />
-          <Button onClick={handleSendMessage} disabled={isSending || (!newMessage.trim() && !fileUpload) || (!!fileUpload && fileUpload.progress < 100)}>
+          <Button onClick={handleSendMessage} disabled={isSending || (!newMessage.trim() && !fileUpload)}>
             {isSending ? <Loader2 className="h-5 w-5 animate-spin"/> : <Send className="h-5 w-5" />}
           </Button>
         </div>
