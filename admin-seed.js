@@ -119,8 +119,9 @@ async function main() {
         await seedAdminUsers();
         
         console.log("\n\x1b[32m%s\x1b[0m", "Database seeding completed successfully!");
-        console.log("Essential data has been seeded.");
-        console.log("You can now log in with the admin account:");
+        console.log("Essential data (Admin & Governorates) has been seeded.");
+        console.log("You can now add companies, couriers, and shipments through the dashboard.");
+        console.log("You can log in with the admin account:");
         console.log(`- Admin: ${ADMIN_EMAIL} (password: 'password')`);
 
 
