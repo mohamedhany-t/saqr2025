@@ -45,7 +45,11 @@ async function createFirebaseUser(email, password, displayName) {
     } catch (error) {
         if (error.code === 'auth/email-already-exists') {
             log('User already exists in Auth, fetching:', { email });
-            return auth.getUserByEmail(email);
+            // If user exists, update their password
+            const user = await auth.getUserByEmail(email);
+            await auth.updateUser(user.uid, { password: password });
+            log(`Password for ${email} has been updated.`);
+            return user;
         }
         logError(`Error creating user ${email}:`, error);
         throw error;
@@ -83,7 +87,7 @@ async function seedGovernorates() {
 async function seedAdminUsers() {
     console.log('\n--- Seeding Admin Users ---');
     try {
-        const userRecord = await createFirebaseUser(ADMIN_EMAIL, 'password', 'Admin');
+        const userRecord = await createFirebaseUser(ADMIN_EMAIL, '123456', 'Admin');
         log(`Found/created admin user: ${ADMIN_EMAIL}`);
         const batch = db.batch();
         const userRef = db.collection('users').doc(userRecord.uid);
@@ -156,7 +160,7 @@ async function main() {
         console.log("Essential data (Admin & Governorates) has been seeded.");
         console.log("You can now add companies, couriers, and shipments through the dashboard.");
         console.log("You can log in with the admin account:");
-        console.log(`- Admin: ${ADMIN_EMAIL} (password: 'password')`);
+        console.log(`- Admin: ${ADMIN_EMAIL} (password: '123456')`);
 
 
     } catch (error) {
