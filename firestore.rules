@@ -31,8 +31,8 @@ service cloud.firestore {
     }
     
     // --- Global Admin Catch-All (HIGHEST PRIORITY) ---
-    // This rule is powerful, but specific rules below can still override parts of it.
-    // It's generally better to be explicit.
+    // This rule provides broad access for admins. Specific rules below should be
+    // carefully crafted if they need to override this for certain paths.
     match /{path=**} {
       allow read, write: if isAdmin();
     }
@@ -40,8 +40,7 @@ service cloud.firestore {
     // --- User Profiles ---
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow update: if isOwner(userId);
-      // Admin can update via global rule
+      allow update: if isOwner(userId) || isAdmin();
     }
 
     // --- Static/Public Data ---
@@ -57,26 +56,27 @@ service cloud.firestore {
 
     // --- Shipments ---
     match /shipments/{shipmentId} {
-      allow read: if isCompany() && resource.data.companyId == request.auth.uid ||
-                     isCourier() && resource.data.assignedCourierId == request.auth.uid;
-      allow create: if isCompany() && request.resource.data.companyId == request.auth.uid;
-      allow update: if (isCompany() && resource.data.companyId == request.auth.uid) ||
-                    (isCourier() && resource.data.assignedCourierId == request.auth.uid && 
-                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
-      allow delete: if isCompany() && resource.data.companyId == request.auth.uid;
-       // Admin access is covered by the global rule
+      allow read: if isAdmin() ||
+                     (isCompany() && resource.data.companyId == request.auth.uid) ||
+                     (isCourier() && resource.data.assignedCourierId == request.auth.uid);
+      allow create: if isAdmin() || (isCompany() && request.resource.data.companyId == request.auth.uid);
+      allow update: if isAdmin() ||
+                     (isCompany() && resource.data.companyId == request.auth.uid) ||
+                     (isCourier() && resource.data.assignedCourierId == request.auth.uid && 
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
+      allow delete: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
     }
     
     // --- Courier Payments ---
-    // Allow Admin to perform all actions on the collection and documents.
-    // Allow Couriers to read only their own specific payment documents.
+    // Admins have full access. Couriers can only read their own payment records.
     match /courier_payments/{paymentId} {
       allow read, write: if isAdmin();
       allow get: if isCourier() && resource.data.courierId == request.auth.uid;
     }
 
     // --- Role Collections ---
-    // Deny all direct access by default. Admin access is granted by the global rule.
+    // Only Admins can manage roles (via the global rule).
+    // Deny all other direct client access by default.
     match /roles_admin/{docId} { allow read, write: if false; }
     match /roles_company/{docId} { allow read, write: if false; }
     match /roles_courier/{docId} { allow read, write: if false; }
