@@ -68,12 +68,14 @@ service cloud.firestore {
     // --- Chat ---
     // These rules apply if the user is NOT an admin. The global admin rule will grant access anyway.
     match /chats/{courierId} {
-      allow read, write: if isOwner(courierId); // Courier can read/write their own chat document
+      // Courier can read/write their own chat document (e.g., for lastMessage updates).
+      // Admin can read/write via the global rule.
+      allow read, write: if isOwner(courierId);
       
-      // Explicit rule for messages subcollection
+      // Explicit rule for messages subcollection to resolve ambiguity.
       match /messages/{messageId} {
-         // Allow if user is the owner of the chat, OR if the user is an admin.
-         // This is the most explicit way to solve the permission issue.
+         // Allow read/write access if the user is the owner of the parent chat (the courier)
+         // OR if the user is an admin. This is the most explicit and failsafe way to grant permission.
         allow read, write: if isOwner(courierId) || isAdmin();
       }
     }
