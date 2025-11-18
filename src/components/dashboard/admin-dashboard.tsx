@@ -30,6 +30,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ChatInterface from "@/components/chat/chat-interface";
 import { Badge } from "../ui/badge";
+import { useNotificationSound } from "@/hooks/use-notification-sound";
 
 
 interface AdminDashboardProps {
@@ -70,6 +71,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     if (!chats || !user?.id) return 0;
     return chats.reduce((sum, chat) => sum + (chat.unreadCounts?.[user.id] || 0), 0);
   }, [chats, user?.id]);
+
+  useNotificationSound(totalUnreadCount);
 
   // State for handling shipment editing via URL
   const [editingShipmentFromUrl, setEditingShipmentFromUrl] = React.useState<Shipment | null>(null);

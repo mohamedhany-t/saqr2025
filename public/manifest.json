@@ -1,11 +1,11 @@
 {
   "name": "AlSaqr Logistics",
   "short_name": "AlSaqr",
-  "description": "Efficient Shipment Management for AlSaqr Logistics",
+  "description": "Efficient Shipment Management for AlSaqr Logistics.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#4a6c65",
+  "theme_color": "#84A59D",
   "icons": [
     {
       "src": "/fav.png",
