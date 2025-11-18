@@ -2,7 +2,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, MessageCircle, WalletCards } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, MessageCircle, WalletCards, History, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,7 +16,7 @@ import { CourierPaymentFormSheet } from "@/components/users/courier-payment-form
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
-import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { createAuthUser, updateAuthUserPassword, deleteAuthUser } from '@/lib/actions';
 import {
   AlertDialog,
@@ -28,6 +28,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Separator } from "@/components/ui/separator";
 
 interface AdminDashboardProps {
   user: User;
@@ -41,8 +43,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const [isPaymentSheetOpen, setIsPaymentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const [editingUser, setEditingUser] = React.useState<User | undefined>(undefined);
+  const [editingPayment, setEditingPayment] = React.useState<CourierPayment | undefined>(undefined);
   const [payingCourier, setPayingCourier] = React.useState<User | undefined>(undefined);
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
+  const [paymentToDelete, setPaymentToDelete] = React.useState<CourierPayment | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -131,8 +135,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     setIsUserSheetOpen(true);
   };
 
-  const openPaymentForm = (courier?: User) => {
+  const openPaymentForm = (courier: User, payment?: CourierPayment) => {
     setPayingCourier(courier);
+    setEditingPayment(payment);
     setIsPaymentSheetOpen(true);
   }
   
@@ -477,40 +482,86 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     });
   };
 
-  const handleSavePayment = (paymentData: { amount: number; notes?: string }) => {
+  const handleSavePayment = (paymentData: { amount: number; notes?: string }, paymentId?: string) => {
     if (!firestore || !payingCourier || !user) return;
+    
+    if (paymentId) { // Update existing payment
+      const paymentDocRef = doc(firestore, 'courier_payments', paymentId);
+      const dataToUpdate = { ...paymentData, updatedAt: serverTimestamp() };
 
-    const paymentsCollection = collection(firestore, 'courier_payments');
-    const paymentDocRef = doc(paymentsCollection);
+      updateDoc(paymentDocRef, dataToUpdate)
+        .then(() => {
+          toast({
+            title: "تم تحديث الدفعة",
+            description: `تم تحديث دفعة من ${payingCourier.name}.`,
+          });
+        })
+        .catch(serverError => {
+          const permissionError = new FirestorePermissionError({
+              path: paymentDocRef.path,
+              operation: 'update',
+              requestResourceData: dataToUpdate,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        });
 
-    const newPayment: CourierPayment = {
-        id: paymentDocRef.id,
-        courierId: payingCourier.id,
-        amount: paymentData.amount,
-        paymentDate: serverTimestamp(),
-        recordedById: user.id,
-        notes: paymentData.notes || "",
-    };
+    } else { // Create new payment
+      const paymentsCollection = collection(firestore, 'courier_payments');
+      const paymentDocRef = doc(paymentsCollection);
+      const newPayment: CourierPayment = {
+          id: paymentDocRef.id,
+          courierId: payingCourier.id,
+          amount: paymentData.amount,
+          paymentDate: serverTimestamp(),
+          recordedById: user.id,
+          notes: paymentData.notes || "",
+      };
 
-    setDoc(paymentDocRef, newPayment)
+      setDoc(paymentDocRef, newPayment)
+        .then(() => {
+          toast({
+            title: "تم تسجيل الدفعة بنجاح",
+            description: `تم تسجيل دفعة من ${payingCourier.name} بقيمة ${paymentData.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}.`,
+          });
+        })
+        .catch(serverError => {
+          const permissionError = new FirestorePermissionError({
+              path: paymentDocRef.path,
+              operation: 'create',
+              requestResourceData: newPayment,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        });
+    }
+
+    setIsPaymentSheetOpen(false);
+    setPayingCourier(undefined);
+    setEditingPayment(undefined);
+  };
+  
+  const handleDeletePayment = () => {
+    if (!firestore || !paymentToDelete) return;
+    
+    const docRef = doc(firestore, 'courier_payments', paymentToDelete.id);
+    deleteDoc(docRef)
       .then(() => {
         toast({
-          title: "تم تسجيل الدفعة بنجاح",
-          description: `تم تسجيل دفعة من ${payingCourier.name} بقيمة ${paymentData.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}.`,
+          title: "تم حذف الدفعة",
+          description: "تم حذف سجل الدفعة بنجاح.",
         });
-        setIsPaymentSheetOpen(false);
-        setPayingCourier(undefined);
       })
       .catch(serverError => {
         const permissionError = new FirestorePermissionError({
-            path: paymentDocRef.path,
-            operation: 'create',
-            requestResourceData: newPayment,
+          path: docRef.path,
+          operation: 'delete',
         });
         errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
+        setPaymentToDelete(null);
       });
   };
-  
+
   const filteredShipments = React.useMemo(() => {
     if (!shipments) return [];
     if (!searchTerm) return shipments;
@@ -546,7 +597,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             totalCommission,
             totalPaidByCourier,
             netDue,
-            paymentHistory: courierPayments.sort((a, b) => (b.paymentDate?.toDate() || 0) - (a.paymentDate?.toDate() || 0)),
+            paymentHistory: courierPayments.sort((a, b) => (b.paymentDate?.toDate?.() || 0) - (a.paymentDate?.toDate?.() || 0)),
         }
     })
   }, [users, shipments, courierUsers, payments]);
@@ -567,6 +618,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     })
   }, [companies, shipments]);
 
+  const currentNetDue = courierDues.find(c => c.id === payingCourier?.id)?.netDue;
 
   return (
     <div className="flex flex-col w-full">
@@ -737,14 +789,35 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                                             </span>
                                             <span className="font-medium text-green-700">{courier.totalPaidByCourier.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
                                         </div>
+                                        
                                         {courier.paymentHistory && courier.paymentHistory.length > 0 && (
-                                            <div className="pt-2 text-xs">
-                                                <h4 className="font-semibold mb-1">آخر دفعة:</h4>
-                                                <div className="flex justify-between items-center text-muted-foreground">
-                                                    <span>{courier.paymentHistory[0].amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
-                                                    <span>{new Date(courier.paymentHistory[0].paymentDate?.toDate()).toLocaleDateString('ar-EG')}</span>
-                                                </div>
-                                            </div>
+                                            <Collapsible className="pt-2 text-xs">
+                                                <CollapsibleTrigger asChild>
+                                                    <Button variant="ghost" size="sm" className="flex items-center gap-2 w-full justify-start p-0 h-auto text-xs">
+                                                        <History className="h-3 w-3"/>
+                                                        <span>عرض سجل الدفعات ({courier.paymentHistory.length})</span>
+                                                    </Button>
+                                                </CollapsibleTrigger>
+                                                <CollapsibleContent className="space-y-2 mt-2">
+                                                  {courier.paymentHistory.map(payment => (
+                                                      <div key={payment.id} className="flex justify-between items-center text-muted-foreground p-2 rounded-md bg-muted/50">
+                                                          <div>
+                                                              <span className="font-semibold">{payment.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
+                                                              <span className="mx-2">-</span>
+                                                              <span>{new Date(payment.paymentDate?.toDate?.() || Date.now()).toLocaleDateString('ar-EG')}</span>
+                                                          </div>
+                                                          <div className="flex items-center">
+                                                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openPaymentForm(courier, payment)}>
+                                                                  <Pencil className="h-3 w-3" />
+                                                              </Button>
+                                                              <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setPaymentToDelete(payment)}>
+                                                                  <Trash2 className="h-3 w-3" />
+                                                              </Button>
+                                                          </div>
+                                                      </div>
+                                                  ))}
+                                                </CollapsibleContent>
+                                            </Collapsible>
                                         )}
                                     </div>
                                 </CardContent>
@@ -844,12 +917,35 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+       <AlertDialog open={!!paymentToDelete} onOpenChange={(open) => !open && setPaymentToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>هل أنت متأكد من حذف الدفعة؟</AlertDialogTitle>
+            <AlertDialogDescription>
+              سيتم حذف سجل هذه الدفعة بشكل نهائي. سيؤثر هذا على المبلغ المستحق على المندوب. لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPaymentToDelete(null)}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePayment} className="bg-destructive hover:bg-destructive/90">حذف</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <CourierPaymentFormSheet
         open={isPaymentSheetOpen}
-        onOpenChange={setIsPaymentSheetOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPayingCourier(undefined);
+            setEditingPayment(undefined);
+          }
+          setIsPaymentSheetOpen(open);
+        }}
         courier={payingCourier}
+        payment={editingPayment}
         onSave={handleSavePayment}
+        netDue={currentNetDue}
       />
     </div>
   );
 }
+

@@ -31,13 +31,26 @@ type CourierPaymentFormSheetProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     courier?: User;
-    onSave: (data: {amount: number; notes?: string}) => void;
+    payment?: CourierPayment;
+    onSave: (data: {amount: number; notes?: string}, paymentId?: string) => void;
+    netDue?: number;
 }
 
-export function CourierPaymentFormSheet({ children, open, onOpenChange, courier, onSave }: CourierPaymentFormSheetProps) {
-  
-  const form = useForm<z.infer<typeof paymentSchema>>({
-    resolver: zodResolver(paymentSchema),
+export function CourierPaymentFormSheet({ children, open, onOpenChange, courier, payment, onSave, netDue }: CourierPaymentFormSheetProps) {
+  const isEditing = !!payment;
+
+  const formSchemaForMode = paymentSchema.superRefine((data, ctx) => {
+    if (netDue !== undefined && !isEditing && data.amount > netDue) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `المبلغ المدفوع لا يمكن أن يكون أكبر من المبلغ المستحق (${netDue.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})})`,
+        path: ["amount"],
+      });
+    }
+  });
+
+  const form = useForm<z.infer<typeof formSchemaForMode>>({
+    resolver: zodResolver(formSchemaForMode),
     defaultValues: {
         amount: 0,
         notes: "",
@@ -46,16 +59,23 @@ export function CourierPaymentFormSheet({ children, open, onOpenChange, courier,
   
   React.useEffect(() => {
     if (open) {
-      form.reset({
-        amount: 0,
-        notes: "",
-      });
+      if(isEditing && payment) {
+        form.reset({
+          amount: payment.amount || 0,
+          notes: payment.notes || "",
+        });
+      } else {
+        form.reset({
+          amount: 0,
+          notes: "",
+        });
+      }
     }
-  }, [open, form]);
+  }, [open, form, isEditing, payment]);
 
 
   const onSubmit = (values: z.infer<typeof paymentSchema>) => {
-    onSave(values);
+    onSave(values, payment?.id);
   };
 
   return (
@@ -67,12 +87,20 @@ export function CourierPaymentFormSheet({ children, open, onOpenChange, courier,
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
                 <SheetHeader>
-                <SheetTitle>تسوية حساب المندوب: {courier?.name}</SheetTitle>
+                <SheetTitle>{isEditing ? `تعديل دفعة لـ: ${courier?.name}` : `تسوية حساب: ${courier?.name}`}</SheetTitle>
                 <SheetDescription>
-                    أدخل المبلغ الذي تم استلامه من المندوب لتسوية حسابه.
+                    {isEditing ? "قم بتعديل تفاصيل الدفعة." : "أدخل المبلغ الذي تم استلامه من المندوب لتسوية حسابه."}
                 </SheetDescription>
                 </SheetHeader>
                 <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6 mr-[-1.5rem] pl-6">
+                    {!isEditing && netDue !== undefined && (
+                        <div className="p-3 bg-muted/80 rounded-lg text-sm">
+                            <span className="text-muted-foreground">المبلغ المستحق حالياً: </span>
+                            <span className={`font-bold ${netDue > 0 ? 'text-destructive' : 'text-green-600'}`}>
+                                {netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                            </span>
+                        </div>
+                    )}
                     <FormField
                         control={form.control}
                         name="amount"
@@ -104,7 +132,7 @@ export function CourierPaymentFormSheet({ children, open, onOpenChange, courier,
                     <SheetClose asChild>
                         <Button variant="outline">إلغاء</Button>
                     </SheetClose>
-                    <Button type="submit">حفظ الدفعة</Button>
+                    <Button type="submit">{isEditing ? 'حفظ التعديلات' : 'حفظ الدفعة'}</Button>
                 </SheetFooter>
             </form>
         </Form>
