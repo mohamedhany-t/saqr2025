@@ -1,4 +1,5 @@
 
+
 import type { User as AuthUser } from 'firebase/auth';
 
 export type Role = "admin" | "company" | "courier";
@@ -65,4 +66,12 @@ export interface Governorate {
   name: string;
 }
 
+export interface CourierPayment {
+    id: string;
+    courierId: string;
+    amount: number;
+    paymentDate: any; // Can be Date or Firebase Timestamp
+    recordedById: string; // Admin UID
+    notes?: string;
+}
     

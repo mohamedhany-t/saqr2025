@@ -1,16 +1,18 @@
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, MessageCircle } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, MessageCircle, WalletCards } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, User } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, User, CourierPayment } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { UsersTable } from "@/components/dashboard/users-table";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { UserFormSheet } from "@/components/users/user-form-sheet";
+import { CourierPaymentFormSheet } from "@/components/users/courier-payment-form-sheet";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
@@ -36,8 +38,10 @@ interface AdminDashboardProps {
 export default function AdminDashboard({ user, role, searchTerm }: AdminDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
+  const [isPaymentSheetOpen, setIsPaymentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const [editingUser, setEditingUser] = React.useState<User | undefined>(undefined);
+  const [payingCourier, setPayingCourier] = React.useState<User | undefined>(undefined);
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -108,6 +112,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     return query(collection(firestore, 'users'));
   }, [firestore, user]);
   const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
+
+  const paymentsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'courier_payments'));
+  }, [firestore, user]);
+  const { data: payments } = useCollection<CourierPayment>(paymentsQuery);
   
   const courierUsers = React.useMemo(() => users?.filter(u => u.role === 'courier') || [], [users]);
   
@@ -120,6 +130,11 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     setEditingUser(user);
     setIsUserSheetOpen(true);
   };
+
+  const openPaymentForm = (courier?: User) => {
+    setPayingCourier(courier);
+    setIsPaymentSheetOpen(true);
+  }
   
   const handleImportClick = () => {
     fileInputRef.current?.click();
@@ -461,6 +476,40 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       setUserToDelete(null);
     });
   };
+
+  const handleSavePayment = (paymentData: { amount: number; notes?: string }) => {
+    if (!firestore || !payingCourier || !user) return;
+
+    const paymentsCollection = collection(firestore, 'courier_payments');
+    const paymentDocRef = doc(paymentsCollection);
+
+    const newPayment: CourierPayment = {
+        id: paymentDocRef.id,
+        courierId: payingCourier.id,
+        amount: paymentData.amount,
+        paymentDate: serverTimestamp(),
+        recordedById: user.id,
+        notes: paymentData.notes || "",
+    };
+
+    setDoc(paymentDocRef, newPayment)
+      .then(() => {
+        toast({
+          title: "تم تسجيل الدفعة بنجاح",
+          description: `تم تسجيل دفعة من ${payingCourier.name} بقيمة ${paymentData.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}.`,
+        });
+        setIsPaymentSheetOpen(false);
+        setPayingCourier(undefined);
+      })
+      .catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+            path: paymentsCollection.path,
+            operation: 'create',
+            requestResourceData: newPayment,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
+  };
   
   const filteredShipments = React.useMemo(() => {
     if (!shipments) return [];
@@ -477,12 +526,16 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
   const courierDues = React.useMemo(() => {
     if (!users || !shipments) return [];
+    
     return courierUsers.map(courier => {
         const courierShipments = shipments.filter(s => s.assignedCourierId === courier.id);
         const totalCollected = courierShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
         const totalCommission = courierShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
         
-        const netDue = totalCollected - totalCommission;
+        const courierPayments = payments?.filter(p => p.courierId === courier.id) || [];
+        const totalPaidByCourier = courierPayments.reduce((acc, p) => acc + p.amount, 0);
+
+        const netDue = (totalCollected - totalCommission) - totalPaidByCourier;
         
         return {
             ...courier,
@@ -491,10 +544,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             returnedCount: courierShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled').length,
             totalCollected,
             totalCommission,
-            netDue
+            totalPaidByCourier,
+            netDue,
+            paymentHistory: courierPayments.sort((a, b) => (b.paymentDate?.toDate() || 0) - (a.paymentDate?.toDate() || 0)),
         }
     })
-  }, [users, shipments, courierUsers]);
+  }, [users, shipments, courierUsers, payments]);
   
   const companyRevenues = React.useMemo(() => {
     if (!companies || !shipments) return [];
@@ -627,7 +682,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 </div>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {courierDues.map(courier => (
-                            <Card key={courier.id}>
+                            <Card key={courier.id} className="flex flex-col">
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                     <CardTitle className="text-sm font-medium flex items-center gap-2">
                                         <UserIcon className="h-4 w-4 text-muted-foreground" />
@@ -637,7 +692,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                                         {courier.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
                                     </div>
                                 </CardHeader>
-                                <CardContent>
+                                <CardContent className="flex-grow">
                                     <p className="text-xs text-muted-foreground">
                                         المبلغ المستحق على المندوب
                                     </p>
@@ -675,8 +730,30 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                                             </span>
                                             <span className="font-medium">{courier.totalCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
                                         </div>
+                                         <div className="flex justify-between items-center border-t pt-2 mt-2">
+                                            <span className="flex items-center gap-2 text-muted-foreground">
+                                                <WalletCards className="h-4 w-4" />
+                                                إجمالي المدفوعات:
+                                            </span>
+                                            <span className="font-medium text-green-700">{courier.totalPaidByCourier.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                        </div>
+                                        {courier.paymentHistory && courier.paymentHistory.length > 0 && (
+                                            <div className="pt-2 text-xs">
+                                                <h4 className="font-semibold mb-1">آخر دفعة:</h4>
+                                                <div className="flex justify-between items-center text-muted-foreground">
+                                                    <span>{courier.paymentHistory[0].amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
+                                                    <span>{courier.paymentHistory[0].paymentDate?.toDate().toLocaleDateString('ar-EG')}</span>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </CardContent>
+                                <CardFooter>
+                                    <Button variant="outline" className="w-full" onClick={() => openPaymentForm(courier)} disabled={courier.netDue <= 0}>
+                                        <HandCoins className="me-2 h-4 w-4" />
+                                        تسوية الحساب
+                                    </Button>
+                                </CardFooter>
                             </Card>
                         ))}
                     </div>
@@ -767,8 +844,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <CourierPaymentFormSheet
+        open={isPaymentSheetOpen}
+        onOpenChange={setIsPaymentSheetOpen}
+        courier={payingCourier}
+        onSave={handleSavePayment}
+      />
     </div>
   );
 }
-
-    

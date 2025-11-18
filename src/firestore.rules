@@ -62,6 +62,11 @@ service cloud.firestore {
                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
       allow delete: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
     }
+
+    // --- Courier Payments ---
+    match /courier_payments/{paymentId} {
+      allow read, write: if isAdmin();
+    }
     
     // --- Role Collections ---
     match /roles_admin/{docId} { allow read, write: if isAdmin(); }
@@ -69,5 +74,3 @@ service cloud.firestore {
     match /roles_courier/{docId} { allow read, write: if isAdmin(); }
   }
 }
-
-    

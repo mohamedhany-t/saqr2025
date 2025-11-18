@@ -205,6 +205,21 @@
         "id",
         "name"
       ]
+    },
+    "CourierPayment": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "CourierPayment",
+        "type": "object",
+        "description": "Represents a payment made by a courier to settle their account.",
+        "properties": {
+            "id": { "type": "string", "description": "Unique ID for the payment transaction." },
+            "courierId": { "type": "string", "description": "The UID of the courier making the payment." },
+            "amount": { "type": "number", "description": "The amount paid." },
+            "paymentDate": { "type": "string", "format": "date-time", "description": "Timestamp of when the payment was recorded." },
+            "recordedById": { "type": "string", "description": "The UID of the admin who recorded the payment." },
+            "notes": { "type": "string", "description": "Optional notes about the payment." }
+        },
+        "required": ["id", "courierId", "amount", "paymentDate", "recordedById"]
     }
   },
   "auth": {
@@ -293,6 +308,15 @@
               "description": "Unique identifier for the governorate document."
             }
           ]
+        }
+      },
+       {
+        "path": "/courier_payments/{paymentId}",
+        "definition": {
+          "entityName": "CourierPayment",
+          "schema": { "$ref": "#/backend/entities/CourierPayment" },
+          "description": "Stores records of payments made by couriers.",
+          "params": [{ "name": "paymentId", "description": "Unique ID for the payment." }]
         }
       },
       {

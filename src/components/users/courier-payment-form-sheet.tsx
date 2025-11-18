@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from 'react';
@@ -30,7 +31,7 @@ type CourierPaymentFormSheetProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     courier?: User;
-    onSave: (data: Omit<CourierPayment, 'id' | 'courierId' | 'paymentDate' | 'recordedById'>) => void;
+    onSave: (data: {amount: number; notes?: string}) => void;
 }
 
 export function CourierPaymentFormSheet({ children, open, onOpenChange, courier, onSave }: CourierPaymentFormSheetProps) {
