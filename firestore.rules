@@ -66,13 +66,14 @@ service cloud.firestore {
     
     // --- Chat (NEW & IMPROVED) ---
     match /chats/{chatId} {
-      // Allow access if the user's ID is in the 'participants' array.
-      allow read, write: if request.auth.uid in resource.data.participants;
+      // Allow 'list' if the query filters for chats where the user is a participant.
+      // Allow 'get', 'update', 'delete' if the user is a participant of that specific chat.
+      allow list: if isSignedIn() && request.query.where.get('participants', 'array-contains', request.auth.uid) != null;
+      allow get, write: if isSignedIn() && request.auth.uid in resource.data.participants;
       
       match /messages/{messageId} {
-        // Inherit the parent chat's security rule:
         // Allow access if the user is a participant of the parent chat document.
-        allow read, write: if get(/databases/$(database)/documents/chats/$(chatId)).data.participants.hasAny([request.auth.uid]);
+        allow read, write: if isSignedIn() && get(/databases/$(database)/documents/chats/$(chatId)).data.participants.hasAny([request.auth.uid]);
       }
     }
     
