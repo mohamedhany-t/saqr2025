@@ -2,13 +2,15 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
 import type { User, Chat } from '@/lib/types';
+import { useFirestore } from '@/firebase';
 import { ChatWindow } from './chat-window';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '../ui/scroll-area';
 import { MessageSquare, Loader2 } from 'lucide-react';
-import { useFirestore, useUser } from '@/firebase';
+import { useCollection } from '@/firebase/firestore/use-collection';
 
 interface AdminChatProps {
     couriers: User[];
@@ -16,10 +18,9 @@ interface AdminChatProps {
 }
 
 const createChatId = (uid1: string, uid2: string): string => {
-    // Ensure both uids are valid strings before sorting and joining
     if (!uid1 || !uid2) {
-        console.error("Attempted to create a chat ID with an undefined UID.", {uid1, uid2});
-        return ''; // Return an empty or invalid ID to prevent Firestore errors
+        console.error("Attempted to create a chat ID with a missing UID.", { uid1, uid2 });
+        return ''; 
     }
     return [uid1, uid2].sort().join('_');
 };
@@ -27,19 +28,55 @@ const createChatId = (uid1: string, uid2: string): string => {
 export function AdminChat({ couriers, adminUser }: AdminChatProps) {
     const firestore = useFirestore();
     const [selectedCourier, setSelectedCourier] = useState<User | null>(null);
-    const [activeChatId, setActiveChatId] = useState<string | null>(null);
+    const [activeChat, setActiveChat] = useState<Chat | null>(null);
+
+    const chatsQuery = query(
+        collection(firestore, 'chats'),
+        where('participants', 'array-contains', adminUser?.id || '')
+    );
+    const { data: chats } = useCollection<Chat>(chatsQuery, !!adminUser?.id);
 
     const handleCourierSelect = async (courier: User) => {
+        if (!adminUser || !adminUser.id || !courier.id) {
+            console.error("Cannot select courier, admin or courier ID is missing.");
+            return;
+        }
+
         setSelectedCourier(courier);
-        // Defer chat ID creation until we are sure both users exist
-        if (adminUser && courier) {
-            const chatId = createChatId(adminUser.id, courier.id);
-            setActiveChatId(chatId);
+
+        const chatId = createChatId(adminUser.id, courier.id);
+        const existingChat = chats?.find(c => c.id === chatId);
+
+        if (existingChat) {
+            setActiveChat(existingChat);
         } else {
-            setActiveChatId(null);
+            const chatDocRef = doc(firestore, 'chats', chatId);
+            
+            const newChatData: Omit<Chat, 'id'> = {
+                participants: [adminUser.id, courier.id],
+                participantInfo: {
+                    [adminUser.id]: { name: adminUser.name || adminUser.email || "Admin", role: "admin" },
+                    [courier.id]: { name: courier.name || courier.email || "Courier", role: "courier" }
+                },
+                lastMessage: "بدأت المحادثة",
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+                lastMessageAt: serverTimestamp(),
+            };
+
+            const docDataForState = {
+                ...newChatData,
+                id: chatId,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                lastMessageAt: new Date(),
+            }
+
+            await setDoc(chatDocRef, newChatData);
+            setActiveChat(docDataForState as Chat);
         }
     };
-
+    
     if (!adminUser) return null;
 
     return (
@@ -76,12 +113,12 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
 
             {/* Chat Window */}
             <div className="md:col-span-2 lg:col-span-3 h-full">
-                {activeChatId && selectedCourier && adminUser ? (
+                {activeChat && selectedCourier && adminUser ? (
                     <ChatWindow
-                        key={activeChatId}
+                        key={activeChat.id}
                         currentUser={adminUser}
                         chatPartner={selectedCourier}
-                        chatId={activeChatId}
+                        chatId={activeChat.id}
                     />
                 ) : (
                     <div className="flex flex-col h-full items-center justify-center bg-card rounded-lg border">

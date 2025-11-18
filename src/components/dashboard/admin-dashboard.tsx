@@ -1,3 +1,4 @@
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -111,6 +112,7 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
   const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
 
   const courierUsers = React.useMemo(() => users?.filter(u => u.role === 'courier') || [], [users]);
+  const adminUser = React.useMemo(() => users?.find(u => u.role === 'admin' && u.email === 'mhanyt21@gmail.com') || null, [users]);
   
   const openShipmentForm = (shipment?: Shipment) => {
     setEditingShipment(shipment);
@@ -743,7 +745,7 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
             </div>
         </TabsContent>
         <TabsContent value="chat">
-            <AdminChat couriers={courierUsers} adminUser={user} />
+            <AdminChat couriers={courierUsers} adminUser={adminUser} />
         </TabsContent>
         </Tabs>
       <ShipmentFormSheet
