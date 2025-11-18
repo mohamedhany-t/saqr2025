@@ -31,6 +31,8 @@ service cloud.firestore {
     }
     
     // --- Global Admin Catch-All (HIGHEST PRIORITY) ---
+    // This rule is powerful, but specific rules below can still override parts of it.
+    // It's generally better to be explicit.
     match /{path=**} {
       allow read, write: if isAdmin();
     }
@@ -66,11 +68,11 @@ service cloud.firestore {
     }
     
     // --- Courier Payments ---
-    // Admins have full access via global rule.
-    // Couriers can read their own payments.
+    // Explicitly grant Admin full access, and Couriers read access to their own payments.
     match /courier_payments/{paymentId} {
       allow read: if isCourier() && resource.data.courierId == request.auth.uid;
-      // create, update, delete only for admins (covered by global rule)
+      // Allow Admin to perform all actions.
+      allow read, write: if isAdmin();
     }
 
     // --- Role Collections ---
