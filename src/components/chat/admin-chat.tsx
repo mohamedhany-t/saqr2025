@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -47,7 +46,7 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
             const chatCollectionRef = collection(firestore, 'chats');
             const newChatDocRef = doc(chatCollectionRef); // Create a reference with an auto-generated ID
 
-            const newChatData: Chat = {
+            const newChatData: any = {
                 id: newChatDocRef.id, // Use the generated ID
                 participants: [adminUser.id, courier.id],
                 participantInfo: {
@@ -63,7 +62,8 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
             // Use setDoc with the explicit document reference
             await setDoc(newChatDocRef, newChatData);
             
-            // For local state, we can use a client-side date, which is fine for UI purposes
+            // Create a separate object for local state with JS Date objects
+            // This prevents Firestore's ServerTimestamp object from causing issues in the UI state
             const docDataForState = {
               ...newChatData,
               createdAt: new Date(), 
