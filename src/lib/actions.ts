@@ -42,30 +42,19 @@ const deleteUserSchema = z.object({
 });
 
 // --- Reliable Admin App Initializer ---
-let adminApp: App;
-
 function getAdminApp(): App {
-    if (adminApp) {
-        return adminApp;
-    }
-
     const serviceAccount = getServiceAccount();
     if (!serviceAccount) {
       throw new Error("Firebase Admin SDK credentials not found or are invalid.");
     }
     
-    // Use a unique app name to avoid conflicts
-    const appName = `firebase-admin-app-${Date.now()}`;
-
-    if (getApps().find(app => app.name === appName)) {
-      return getApps().find(app => app.name === appName)!;
+    if (getApps().length > 0) {
+        return getApps()[0];
     }
     
-    adminApp = initializeApp({
+    return initializeApp({
       credential: cert(serviceAccount)
-    }, appName);
-
-    return adminApp;
+    });
 }
 
 
