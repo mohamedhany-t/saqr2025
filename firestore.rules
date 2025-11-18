@@ -35,6 +35,7 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow update: if isOwner(userId) || isAdmin();
       allow create: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     // --- Static/Public Data ---
@@ -43,9 +44,11 @@ service cloud.firestore {
     }
     match /companies/{docId} {
       allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
     match /couriers/{docId} {
       allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     // --- Shipments ---
@@ -68,7 +71,6 @@ service cloud.firestore {
       allow read, write: if isAdmin();
       allow get: if isCourier() && resource.data.courierId == request.auth.uid;
     }
-
 
     // --- Role Collections ---
     // Only Admins can manage roles (via creating users with roles)

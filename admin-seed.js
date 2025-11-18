@@ -42,9 +42,9 @@ const logError = (message, error) => console.error(`\x1b[31m✖\x1b[0m ${message
 async function createOrUpdateFirebaseUser(email, password, displayName) {
     try {
         const userRecord = await auth.getUserByEmail(email);
-        log('User already exists in Auth, updating password:', { email });
+        log('User already exists in Auth, updating display name & password:', { email });
         await auth.updateUser(userRecord.uid, { password: password, displayName: displayName });
-        log(`Password for ${email} has been updated.`);
+        log(`Details for ${email} have been updated.`);
         return userRecord;
     } catch (error) {
         if (error.code === 'auth/user-not-found') {
@@ -57,6 +57,7 @@ async function createOrUpdateFirebaseUser(email, password, displayName) {
         throw error;
     }
 }
+
 
 async function clearCollection(collectionPath) {
     console.log(`\n--- Clearing collection: ${collectionPath} ---`);
@@ -108,7 +109,7 @@ async function seedGovernorates() {
     } else {
       log('Governorates are already up-to-date.');
     }
-     return await db.collection('governorates').get().then(snap => snap.docs.map(doc => doc.data()));
+     return await db.collection('governorates').get().then(snap => snap.docs.map(doc => ({...doc.data(), id: doc.id})));
 }
 
 async function seedUsersAndRoles() {
@@ -126,10 +127,9 @@ async function seedUsersAndRoles() {
     for (const userData of usersToSeed) {
         try {
             const userRecord = await createOrUpdateFirebaseUser(userData.email, userData.password, userData.displayName);
-            const batch = db.batch();
             
-            const userRef = db.collection('users').doc(userRecord.uid);
-            const roleRef = db.collection(`roles_${userData.role}`).doc(userRecord.uid);
+            const userDocRef = db.collection('users').doc(userRecord.uid);
+            const roleDocRef = db.collection(`roles_${userData.role}`).doc(userRecord.uid);
 
             const userDocData = {
                 id: userRecord.uid,
@@ -138,6 +138,8 @@ async function seedUsersAndRoles() {
                 role: userData.role,
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             };
+
+            const batch = db.batch();
 
             if (userData.role === 'courier') {
                 userDocData.commissionRate = userData.commissionRate;
@@ -151,8 +153,8 @@ async function seedUsersAndRoles() {
                 batch.set(companyRef, { id: userRecord.uid, name: userData.displayName }, { merge: true });
             }
             
-            batch.set(userRef, userDocData, { merge: true });
-            batch.set(roleRef, { email: userData.email, createdAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+            batch.set(userDocRef, userDocData, { merge: true });
+            batch.set(roleDocRef, { email: userData.email, createdAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
             
             await batch.commit();
             seededUsers.push({ ...userDocData, uid: userRecord.uid });
@@ -219,8 +221,8 @@ async function seedShipments(users, governorates) {
             paidAmount: paidAmount,
             collectedAmount: collectedAmount,
             courierCommission: courierCommission,
-            companyId: company.id,
-            assignedCourierId: courier.id,
+            companyId: company.uid,
+            assignedCourierId: courier.uid,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
@@ -244,10 +246,10 @@ async function seedPayments(users) {
     const docRef = db.collection('courier_payments').doc();
     const paymentData = {
         id: docRef.id,
-        courierId: courier.id,
+        courierId: courier.uid,
         amount: 50,
         paymentDate: admin.firestore.FieldValue.serverTimestamp(),
-        recordedById: adminUser.id,
+        recordedById: adminUser.uid,
         notes: "دفعة تحت الحساب"
     };
 
@@ -278,5 +280,3 @@ async function main() {
 }
 
 main();
-
-    
