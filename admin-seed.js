@@ -3,8 +3,8 @@ const admin = require('firebase-admin');
 const fs = require('fs');
 
 // --- إعدادات ---
-const ADMIN_EMAIL = 'mhanyt21@gmail.com'; // Admin user from the app
-const ADMIN_PASSWORD = '123456'; // The password you want for the admin
+const ADMIN_EMAIL = 'mhanyt21@gmail.com';
+const ADMIN_PASSWORD = '123456'; 
 
 // --- تحميل ملف الصلاحيات ---
 let serviceAccount;
@@ -33,6 +33,8 @@ const EGYPTIAN_GOVERNORATES = [
     "البحر الأحمر", "الوادي الجديد"
 ];
 
+const SHIPMENT_STATUSES = ["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion", "Cancelled", "Returned", "Postponed", "Returned to Sender"];
+
 // --- دوال مساعدة ---
 const log = (message, data) => console.log(`\x1b[32m✔\x1b[0m ${message}`, data || '');
 const logError = (message, error) => console.error(`\x1b[31m✖\x1b[0m ${message}`, error);
@@ -56,6 +58,31 @@ async function createOrUpdateFirebaseUser(email, password, displayName) {
     }
 }
 
+async function clearCollection(collectionPath) {
+    console.log(`\n--- Clearing collection: ${collectionPath} ---`);
+    const collectionRef = db.collection(collectionPath);
+    const snapshot = await collectionRef.limit(500).get();
+    
+    if (snapshot.empty) {
+        log(`Collection ${collectionPath} is already empty.`);
+        return;
+    }
+
+    const batch = db.batch();
+    snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+    });
+
+    await batch.commit();
+    log(`Cleared ${snapshot.size} documents from ${collectionPath}.`);
+
+    if (snapshot.size === 500) {
+        // Recurse if there are more documents to delete
+        return clearCollection(collectionPath);
+    }
+}
+
+
 // --- دوال إنشاء البيانات ---
 
 async function seedGovernorates() {
@@ -63,14 +90,13 @@ async function seedGovernorates() {
     const batch = db.batch();
     const collectionRef = db.collection('governorates');
     
-    // Fetch existing governorates to avoid duplicates
     const snapshot = await collectionRef.get();
     const existingNames = new Set(snapshot.docs.map(doc => doc.data().name));
 
     let count = 0;
     EGYPTIAN_GOVERNORATES.forEach(name => {
         if (!existingNames.has(name)) {
-            const docRef = collectionRef.doc(); // Auto-generate ID
+            const docRef = collectionRef.doc(); 
             batch.set(docRef, { id: docRef.id, name });
             count++;
         }
@@ -82,32 +108,151 @@ async function seedGovernorates() {
     } else {
       log('Governorates are already up-to-date.');
     }
+     return await db.collection('governorates').get().then(snap => snap.docs.map(doc => doc.data()));
 }
 
-async function seedAdminUser() {
-    console.log('\n--- Seeding Admin User ---');
-    try {
-        const userRecord = await createOrUpdateFirebaseUser(ADMIN_EMAIL, ADMIN_PASSWORD, 'Admin');
-        log(`Found/created admin user: ${ADMIN_EMAIL}`);
-        const batch = db.batch();
-        const userRef = db.collection('users').doc(userRecord.uid);
-        const roleRef = db.collection('roles_admin').doc(userRecord.uid);
+async function seedUsersAndRoles() {
+    console.log('\n--- Seeding Users and Roles ---');
+    const usersToSeed = [
+        { email: ADMIN_EMAIL, password: ADMIN_PASSWORD, displayName: 'Admin', role: 'admin' },
+        { email: 'company1@alsaqr.com', password: '123456', displayName: 'شركة النور', role: 'company' },
+        { email: 'company2@alsaqr.com', password: '123456', displayName: 'شركة الأمل', role: 'company' },
+        { email: 'courier1@alsaqr.com', password: '123456', displayName: 'أحمد محمود', role: 'courier', commissionRate: 15 },
+        { email: 'courier2@alsaqr.com', password: '123456', displayName: 'سارة حسين', role: 'courier', commissionRate: 20 },
+        { email: 'courier3@alsaqr.com', password: '123456', displayName: 'علي حسن', role: 'courier', commissionRate: 18 },
+    ];
 
-        batch.set(userRef, {
-            id: userRecord.uid,
-            email: userRecord.email,
-            name: userRecord.displayName || 'Admin',
-            role: 'admin',
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-        
-        batch.set(roleRef, { email: userRecord.email, createdAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-        
-        await batch.commit();
-        log('Admin user documents created/updated successfully.');
-    } catch (error) {
-        logError(`Could not find or create admin user ${ADMIN_EMAIL}.`, error.message);
+    const seededUsers = [];
+    for (const userData of usersToSeed) {
+        try {
+            const userRecord = await createOrUpdateFirebaseUser(userData.email, userData.password, userData.displayName);
+            const batch = db.batch();
+            
+            const userRef = db.collection('users').doc(userRecord.uid);
+            const roleRef = db.collection(`roles_${userData.role}`).doc(userRecord.uid);
+
+            const userDocData = {
+                id: userRecord.uid,
+                email: userData.email,
+                name: userData.displayName,
+                role: userData.role,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            };
+
+            if (userData.role === 'courier') {
+                userDocData.commissionRate = userData.commissionRate;
+                const courierRef = db.collection('couriers').doc(userRecord.uid);
+                batch.set(courierRef, { id: userRecord.uid, name: userData.displayName, commissionRate: userData.commissionRate }, { merge: true });
+            }
+
+            if (userData.role === 'company') {
+                userDocData.companyId = userRecord.uid;
+                const companyRef = db.collection('companies').doc(userRecord.uid);
+                batch.set(companyRef, { id: userRecord.uid, name: userData.displayName }, { merge: true });
+            }
+            
+            batch.set(userRef, userDocData, { merge: true });
+            batch.set(roleRef, { email: userData.email, createdAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+            
+            await batch.commit();
+            seededUsers.push({ ...userDocData, uid: userRecord.uid });
+            log(`Seeded user and roles for: ${userData.email}`);
+        } catch (error) {
+            logError(`Could not process user ${userData.email}.`, error.message);
+        }
     }
+    return seededUsers;
+}
+
+
+async function seedShipments(users, governorates) {
+    console.log('\n--- Seeding Shipments ---');
+    const companies = users.filter(u => u.role === 'company');
+    const couriers = users.filter(u => u.role === 'courier');
+
+    if (companies.length === 0 || couriers.length === 0) {
+        logError("Cannot seed shipments without companies and couriers.");
+        return;
+    }
+
+    const batch = db.batch();
+    const shipmentsCollection = db.collection('shipments');
+    let count = 0;
+
+    for (let i = 0; i < 25; i++) {
+        const company = companies[i % companies.length];
+        const courier = couriers[i % couriers.length];
+        const governorate = governorates[i % governorates.length];
+        const status = SHIPMENT_STATUSES[i % SHIPMENT_STATUSES.length];
+        
+        const docRef = shipmentsCollection.doc();
+        const totalAmount = 100 + (i * 15 % 500);
+        let paidAmount = 0;
+        let courierCommission = 0;
+        let collectedAmount = 0;
+
+        if (status === 'Delivered' || status === 'Evasion') {
+            paidAmount = totalAmount;
+            collectedAmount = totalAmount;
+            courierCommission = courier.commissionRate || 0;
+        } else if (status === 'Partially Delivered') {
+            paidAmount = totalAmount / 2;
+            collectedAmount = totalAmount / 2;
+            courierCommission = courier.commissionRate || 0;
+        } else if (status === 'Returned' || status === 'Cancelled') {
+            courierCommission = 0;
+        }
+
+        const shipmentData = {
+            id: docRef.id,
+            shipmentCode: `SH-20240729-${String(i).padStart(4, '0')}`,
+            orderNumber: `ORD-${10000 + i}`,
+            trackingNumber: `TRK-${100000 + i}`,
+            senderName: `عميل فرعي ${i + 1}`,
+            recipientName: `مستلم ${i + 1}`,
+            recipientPhone: `01${String(100000000 + i * 12345).slice(0, 9)}`,
+            governorateId: governorate.id,
+            address: `شارع ${i + 1}، مبنى ${i % 100}`,
+            deliveryDate: admin.firestore.Timestamp.fromDate(new Date()),
+            status: status,
+            totalAmount: totalAmount,
+            paidAmount: paidAmount,
+            collectedAmount: collectedAmount,
+            courierCommission: courierCommission,
+            companyId: company.id,
+            assignedCourierId: courier.id,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+        batch.set(docRef, shipmentData);
+        count++;
+    }
+    await batch.commit();
+    log(`Seeded ${count} shipments.`);
+}
+
+async function seedPayments(users) {
+    console.log('\n--- Seeding Courier Payments ---');
+    const adminUser = users.find(u => u.role === 'admin');
+    const courier = users.find(u => u.role === 'courier');
+
+    if (!adminUser || !courier) {
+        logError("Cannot seed payments without an admin and a courier.");
+        return;
+    }
+    
+    const docRef = db.collection('courier_payments').doc();
+    const paymentData = {
+        id: docRef.id,
+        courierId: courier.id,
+        amount: 50,
+        paymentDate: admin.firestore.FieldValue.serverTimestamp(),
+        recordedById: adminUser.id,
+        notes: "دفعة تحت الحساب"
+    };
+
+    await docRef.set(paymentData);
+    log('Seeded 1 sample courier payment.');
 }
 
 
@@ -115,17 +260,17 @@ async function seedAdminUser() {
 async function main() {
     try {
         console.log("\x1b[34m%s\x1b[0m", "Starting database seeding process...");
-
-        await seedGovernorates();
-        await seedAdminUser();
+        
+        await clearCollection('shipments');
+        await clearCollection('courier_payments');
+        
+        const governorates = await seedGovernorates();
+        const users = await seedUsersAndRoles();
+        await seedShipments(users, governorates);
+        await seedPayments(users);
         
         console.log("\n\x1b[32m%s\x1b[0m", "Database seeding completed successfully!");
-        console.log("Essential data (Admin & Governorates) has been seeded.");
-        console.log("You can now add companies, couriers, and shipments through the dashboard.");
-        console.log("You can log in with the admin account:");
-        console.log(`- Admin Email: ${ADMIN_EMAIL}`);
-        console.log(`- Admin Password: ${ADMIN_PASSWORD}`);
-
+        console.log("Mock data for users, companies, shipments, and payments has been created.");
 
     } catch (error) {
         logError("An error occurred during the seeding process:", error);
