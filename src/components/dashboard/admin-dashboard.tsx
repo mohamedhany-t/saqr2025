@@ -1,3 +1,4 @@
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -157,7 +158,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const openPaymentForm = (courier: User, payment?: CourierPayment) => {
     setPayingCourier(courier);
     setEditingPayment(payment);
-    setIsPaymentSheetOpen(open);
+    setIsPaymentSheetOpen(true);
   }
   
   const handleImportClick = () => {
@@ -976,3 +977,5 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
+
+    
