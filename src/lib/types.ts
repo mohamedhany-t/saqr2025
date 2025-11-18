@@ -62,7 +62,7 @@ export interface Courier {
 }
 
 export interface Governorate {
-  id: string;
+  id:string;
   name: string;
 }
 
@@ -73,5 +73,23 @@ export interface CourierPayment {
     paymentDate: any; // Can be Date or Firebase Timestamp
     recordedById: string; // Admin UID
     notes?: string;
+}
+
+export interface Chat {
+    id: string;
+    participants: string[];
+    participantNames: { [key: string]: string };
+    lastMessage?: string;
+    lastMessageTimestamp: any;
+}
+
+export interface ChatMessage {
+    id: string;
+    senderId: string;
+    text?: string;
+    imageUrl?: string;
+    fileUrl?: string;
+    fileName?: string;
+    timestamp: any;
 }
     

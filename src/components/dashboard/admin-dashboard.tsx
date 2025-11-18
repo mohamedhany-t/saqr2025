@@ -1,4 +1,3 @@
-
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -30,6 +29,9 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
+import ChatWindow from "../chat/chat-window";
+import StartNewConversation from "../chat/start-new-conversation";
+import ConversationList from "../chat/conversation-list";
 
 interface AdminDashboardProps {
   user: User;
@@ -47,6 +49,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const [payingCourier, setPayingCourier] = React.useState<User | undefined>(undefined);
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
   const [paymentToDelete, setPaymentToDelete] = React.useState<CourierPayment | null>(null);
+  const [activeChatId, setActiveChatId] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -626,6 +629,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         <div className="flex items-center">
             <TabsList className="flex-nowrap overflow-x-auto justify-start">
             <TabsTrigger value="shipments">الشحنات</TabsTrigger>
+            <TabsTrigger value="chat">الدردشة</TabsTrigger>
             <TabsTrigger value="courier-management">إدارة المناديب</TabsTrigger>
             <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
             <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
@@ -726,6 +730,42 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     />
                 </TabsContent>
             </Tabs>
+        </TabsContent>
+         <TabsContent value="chat">
+            <Card className="mt-4">
+                <CardContent className="p-0">
+                    <div className="flex h-[600px]">
+                        <aside className="w-1/3 border-e">
+                           <div className="p-4 border-b">
+                                <h2 className="text-xl font-semibold">المحادثات</h2>
+                            </div>
+                            <ConversationList 
+                                currentUser={user}
+                                onSelectChat={setActiveChatId}
+                                activeChatId={activeChatId}
+                            />
+                            <div className="p-4 border-t">
+                                <StartNewConversation 
+                                    currentUser={user} 
+                                    onNewChat={setActiveChatId} 
+                                />
+                            </div>
+                        </aside>
+                        <main className="flex-1 flex flex-col">
+                            {activeChatId ? (
+                                <ChatWindow 
+                                    chatId={activeChatId} 
+                                    currentUser={user} 
+                                />
+                            ) : (
+                                <div className="flex flex-1 items-center justify-center text-muted-foreground">
+                                    <p>اختر محادثة أو ابدأ واحدة جديدة.</p>
+                                </div>
+                            )}
+                        </main>
+                    </div>
+                </CardContent>
+            </Card>
         </TabsContent>
         <TabsContent value="courier-management">
              <div className="mt-8">
@@ -948,4 +988,3 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
-

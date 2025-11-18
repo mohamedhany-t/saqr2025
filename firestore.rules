@@ -57,6 +57,17 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // --- Chat ---
+    // A user can read/write a chat document if they are one of the participants.
+    match /chats/{chatId} {
+      allow read, write: if isSignedIn() && request.auth.uid in resource.data.participants;
+      
+      // A user can read/write messages if they are a participant of the parent chat.
+      match /messages/{messageId} {
+      	allow read, write: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+      }
+    }
+
     // Role collections are managed exclusively by admins for creating non-admin users.
     match /roles_company/{userId} {
       allow read, write: if isAdmin();

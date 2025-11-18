@@ -220,6 +220,36 @@
             "notes": { "type": "string", "description": "Optional notes about the payment." }
         },
         "required": ["id", "courierId", "amount", "paymentDate", "recordedById"]
+    },
+    "Chat": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Chat",
+      "type": "object",
+      "description": "Represents a chat conversation between users.",
+      "properties": {
+        "id": { "type": "string" },
+        "participants": { "type": "array", "items": { "type": "string" }, "description": "Array of user UIDs participating in the chat." },
+        "participantNames": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Map of user UIDs to their display names." },
+        "lastMessage": { "type": "string", "description": "The text of the last message sent." },
+        "lastMessageTimestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "participants", "lastMessageTimestamp"]
+    },
+    "ChatMessage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ChatMessage",
+      "type": "object",
+      "description": "Represents a single message within a chat.",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string", "description": "UID of the user who sent the message." },
+        "text": { "type": "string", "description": "Text content of the message." },
+        "imageUrl": { "type": "string", "format": "uri", "description": "URL of an uploaded image." },
+        "fileUrl": { "type": "string", "format": "uri", "description": "URL of an uploaded file." },
+        "fileName": { "type": "string", "description": "Original name of the uploaded file." },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "senderId", "timestamp"]
     }
   },
   "auth": {
@@ -317,6 +347,27 @@
           "schema": { "$ref": "#/backend/entities/CourierPayment" },
           "description": "Stores records of payments made by couriers.",
           "params": [{ "name": "paymentId", "description": "Unique ID for the payment." }]
+        }
+      },
+      {
+        "path": "/chats/{chatId}",
+        "definition": {
+          "entityName": "Chat",
+          "schema": { "$ref": "#/backend/entities/Chat" },
+          "description": "Stores metadata for a single chat conversation.",
+          "params": [{ "name": "chatId", "description": "Unique ID for the chat." }]
+        }
+      },
+      {
+        "path": "/chats/{chatId}/messages/{messageId}",
+        "definition": {
+          "entityName": "ChatMessage",
+          "schema": { "$ref": "#/backend/entities/ChatMessage" },
+          "description": "Stores all messages for a given chat.",
+          "params": [
+            { "name": "chatId", "description": "The ID of the parent chat." },
+            { "name": "messageId", "description": "Unique ID for the message." }
+          ]
         }
       },
       {
