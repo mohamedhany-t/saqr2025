@@ -9,7 +9,6 @@ service cloud.firestore {
     }
 
     function isRole(role) {
-      // Use exists() for a robust check that doesn't depend on document content.
       return exists(/databases/$(database)/documents/roles_$(role)/$(request.auth.uid));
     }
 
@@ -37,24 +36,14 @@ service cloud.firestore {
         return isCourier() && shipmentDoc.assignedCourierId == request.auth.uid;
     }
 
-    // --- Admin Catch-All ---
-    // A single, powerful rule to grant admins full access to everything.
-    // This rule is evaluated first. If it passes, access is granted.
-    match /{path=**} {
-      allow read, write: if isAdmin();
-    }
-
     // --- User Profiles ---
-    // Any signed-in user can read any profile.
-    // A user can only update their own profile.
     match /users/{userId} {
       allow read: if isSignedIn();
       allow update: if isOwner(userId);
+      // Admin can write/delete via global rule
     }
 
     // --- Static/Public Data ---
-    // Any signed-in user can read these collections.
-    // Writes are admin-only (covered by the catch-all).
     match /governorates/{docId} {
       allow read: if isSignedIn();
     }
@@ -66,49 +55,37 @@ service cloud.firestore {
     }
 
     // --- Shipments ---
-    // These rules are for non-admin users.
     match /shipments/{shipmentId} {
-      // Company can read its own shipments.
-      // Courier can read shipments assigned to them.
-      allow read: if isShipmentOwner(resource.data) || isShipmentCourier(resource.data);
-
-      // Company can create shipments for itself.
-      allow create: if isCompany() && request.resource.data.companyId == request.auth.uid;
-
-      // Company can update its own shipments.
-      // Courier can only update status, reason, and financial fields on assigned shipments.
-      allow update: if isShipmentOwner(resource.data) ||
-                    (isShipmentCourier(resource.data)
-                        && request.resource.data.diff(resource.data).affectedKeys()
-                           .hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
-
-      // Company can delete its own shipments.
-      allow delete: if isShipmentOwner(resource.data);
+      allow read: if isShipmentOwner(resource.data) || isShipmentCourier(resource.data) || isAdmin();
+      allow create: if isCompany() && request.resource.data.companyId == request.auth.uid || isAdmin();
+      allow update: if isAdmin() || isShipmentOwner(resource.data) ||
+                    (isShipmentCourier(resource.data) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
+      allow delete: if isShipmentOwner(resource.data) || isAdmin();
     }
 
     // --- Chat ---
-    // Explicit rules for chat collections for non-admin users.
-    // Admins are already covered by the global rule.
+    // Rules that explicitly check for admin OR owner. This prevents the more
+    // specific rule from overriding the admin's global access.
     match /chats/{courierId} {
-      // A courier can access their own chat document.
-      allow get: if isCourier() && isOwner(courierId);
-      // A courier can update their own chat document (e.g., lastMessage).
-      allow update: if isCourier() && isOwner(courierId);
-
-      // Explicit rules for the messages subcollection.
+      allow read, write: if isAdmin() || isOwner(courierId);
+      
       match /messages/{messageId} {
-        // A courier can list and read messages in their own chat.
-        allow list, get: if isCourier() && isOwner(courierId);
-        // A courier can create (send) messages in their own chat.
-        allow create: if isCourier() && isOwner(courierId);
+        allow read, write: if isAdmin() || isOwner(courierId);
       }
     }
-
-    // --- Role Documents ---
-    // Lock down role collections. Writes should only be done by admin (covered by catch-all).
-    // No one else should be able to read or write these.
+    
+    // --- Admin-only & Role Collections ---
+    // The most secure way: deny all direct access by default.
+    // Admin access is granted by the global rule below.
     match /roles_admin/{docId} { allow read, write: if false; }
     match /roles_company/{docId} { allow read, write: if false; }
     match /roles_courier/{docId} { allow read, write: if false; }
+
+    // --- Global Admin Catch-All ---
+    // This rule gives admins God-mode. It's evaluated alongside specific rules.
+    // If ANY rule passes (this one or a specific one), access is granted.
+    match /{path=**} {
+      allow read, write: if isAdmin();
+    }
   }
 }
