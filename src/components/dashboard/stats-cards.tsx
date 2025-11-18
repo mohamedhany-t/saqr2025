@@ -22,14 +22,14 @@ export function StatsCards({ shipments, role }: StatsCardsProps) {
     const adminStats = [
         { title: "إجمالي الإيرادات", value: `${totalRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: CircleDollarSign, description: "" },
         { title: "قيد التوصيل", value: `+${inTransit}`, icon: Truck, description: "" },
-        { title: "تم التوصيل", value: `+${delivered}`, icon: CheckCircle2, description: "" },
+        { title: "تم التسليم", value: `+${delivered}`, icon: CheckCircle2, description: "" },
         { title: "المرتجعات", value: `${returned}`, icon: Archive, description: "" },
     ];
     
     const companyStats = [
         { title: "إجمالي الإيرادات", value: `${totalRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: CircleDollarSign, description: "إجمالي الإيرادات من الشحنات المسلمة." },
         { title: "قيد التوصيل", value: `+${inTransit}`, icon: Truck, description: "الشحنات التي هي مع المناديب حاليا." },
-        { title: "تم التوصيل", value: `+${delivered}`, icon: CheckCircle2, description: "الشحنات التي تم توصيلها بنجاح." },
+        { title: "تم التسليم", value: `+${delivered}`, icon: CheckCircle2, description: "الشحنات التي تم توصيلها بنجاح." },
         { title: "إجمالي الشحنات", value: `${totalShipments}`, icon: Package, description: "إجمالي عدد الشحنات الخاصة بشركتك." },
     ];
     
@@ -76,3 +76,5 @@ export function StatsCards({ shipments, role }: StatsCardsProps) {
         </div>
     );
 }
+
+    

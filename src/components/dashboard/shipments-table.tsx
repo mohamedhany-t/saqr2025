@@ -91,8 +91,8 @@ export const statusVariants: Record<ShipmentStatus, "default" | "secondary" | "d
 export const statusText: Record<string, string> = {
     Pending: 'قيد الانتظار',
     'In-Transit': 'قيد التوصيل',
-    Delivered: 'تم التوصيل',
-    'Partially Delivered': 'تم التوصيل جزئياً',
+    Delivered: 'تم التسليم',
+    'Partially Delivered': 'تم التسليم جزئياً',
     Evasion: 'تهرب',
     Cancelled: 'تم الإلغاء',
     Returned: 'مرتجع',
@@ -710,3 +710,5 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     </div>
   )
 }
+
+    

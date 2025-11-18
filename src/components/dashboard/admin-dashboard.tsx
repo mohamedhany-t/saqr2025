@@ -1,4 +1,3 @@
-
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -548,7 +547,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 <TabsList className="flex-nowrap overflow-x-auto justify-start mt-4">
                     <TabsTrigger value="all-shipments">الكل</TabsTrigger>
                     <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
-                    <TabsTrigger value="delivered">تم التوصيل</TabsTrigger>
+                    <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
                     <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
                     <TabsTrigger value="returned">مرتجعات</TabsTrigger>
                     <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
@@ -652,7 +651,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                                         </div>
                                          <div className="flex justify-between items-center">
                                             <span className="flex items-center gap-2 text-muted-foreground">
-                                                تم التوصيل:
+                                                تم التسليم:
                                             </span>
                                             <span className="font-medium text-green-600">{courier.deliveredCount}</span>
                                         </div>

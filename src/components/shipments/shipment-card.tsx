@@ -130,3 +130,5 @@ export function ShipmentCard({ shipment, governorateName, companyName, onEdit }:
         </Card>
     );
 }
+
+    

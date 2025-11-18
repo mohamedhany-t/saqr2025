@@ -290,8 +290,8 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                     <SelectContent>
                                         <SelectItem value="Pending">قيد الانتظار</SelectItem>
                                         <SelectItem value="In-Transit">قيد التوصيل</SelectItem>
-                                        <SelectItem value="Delivered">تم التوصيل</SelectItem>
-                                        <SelectItem value="Partially Delivered">تم التوصيل جزئياً</SelectItem>
+                                        <SelectItem value="Delivered">تم التسليم</SelectItem>
+                                        <SelectItem value="Partially Delivered">تم التسليم جزئياً</SelectItem>
                                         <SelectItem value="Postponed">مؤجل</SelectItem>
                                         <SelectItem value="Returned to Sender">تم الرجوع للراسل</SelectItem>
                                         <SelectItem value="Evasion">تهرب</SelectItem>
@@ -370,3 +370,5 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
     </Sheet>
   )
 }
+
+    
