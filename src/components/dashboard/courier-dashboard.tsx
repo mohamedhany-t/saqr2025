@@ -13,9 +13,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { Loader2 } from "lucide-react";
-import ChatWindow from "../chat/chat-window";
-import StartNewConversation from "../chat/start-new-conversation";
-import ConversationList from "../chat/conversation-list";
 import { Card, CardContent } from "../ui/card";
 
 
@@ -28,7 +25,6 @@ interface CourierDashboardProps {
 export default function CourierDashboard({ user, role, searchTerm }: CourierDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
-  const [activeChatId, setActiveChatId] = React.useState<string | null>(null);
   const { toast } = useToast();
   const firestore = useFirestore();
   const isMobile = useIsMobile();
@@ -337,9 +333,8 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   return (
     <>
       <Tabs defaultValue="shipments" className="w-full">
-         <TabsList className="grid w-full grid-cols-3">
+         <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="shipments">الشحنات</TabsTrigger>
-            <TabsTrigger value="chat">الدردشة</TabsTrigger>
             <TabsTrigger value="accounts">الحسابات</TabsTrigger>
         </TabsList>
          <TabsContent value="shipments">
@@ -372,36 +367,6 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
               </Tabs>
             </div>
          </TabsContent>
-        <TabsContent value="chat">
-            <Card className="mt-4">
-                <CardContent className="p-0">
-                    <div className="flex h-[600px]">
-                         <aside className="w-1/3 border-e">
-                           <div className="p-4 border-b">
-                                <h2 className="text-xl font-semibold">المحادثات</h2>
-                            </div>
-                            <ConversationList 
-                                currentUser={user}
-                                onSelectChat={setActiveChatId}
-                                activeChatId={activeChatId}
-                            />
-                        </aside>
-                        <main className="flex-1 flex flex-col">
-                            {activeChatId ? (
-                                <ChatWindow 
-                                    chatId={activeChatId} 
-                                    currentUser={user} 
-                                />
-                            ) : (
-                                <div className="flex flex-1 items-center justify-center text-muted-foreground">
-                                    <p>اختر محادثة لعرض الرسائل.</p>
-                                </div>
-                            )}
-                        </main>
-                    </div>
-                </CardContent>
-            </Card>
-        </TabsContent>
          <TabsContent value="accounts">
              <div className="p-4 sm:p-0">
                 <h1 className="text-2xl font-bold mb-4">ملخص الحسابات</h1>

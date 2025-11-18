@@ -22,12 +22,23 @@ const ConversationList: React.FC<ConversationListProps> = ({ currentUser, onSele
         if (!firestore) return null;
         return query(
             collection(firestore, 'chats'),
-            where('participants', 'array-contains', currentUser.id),
-            orderBy('lastMessageTimestamp', 'desc')
+            where('participants', 'array-contains', currentUser.id)
+            // The orderBy was removed to prevent the composite index error.
+            // Sorting will now be handled client-side.
         );
     }, [firestore, currentUser.id]);
 
     const { data: chats, isLoading } = useCollection<Chat>(chatsQuery);
+
+    const sortedChats = React.useMemo(() => {
+        if (!chats) return [];
+        // Sort chats by lastMessageTimestamp on the client-side
+        return [...chats].sort((a, b) => {
+            const timeA = a.lastMessageTimestamp?.toDate?.()?.getTime() || 0;
+            const timeB = b.lastMessageTimestamp?.toDate?.()?.getTime() || 0;
+            return timeB - timeA;
+        });
+    }, [chats]);
 
     const getOtherParticipant = (chat: Chat) => {
         const otherId = chat.participants.find(p => p !== currentUser.id);
@@ -55,7 +66,7 @@ const ConversationList: React.FC<ConversationListProps> = ({ currentUser, onSele
 
     return (
         <div className="overflow-y-auto">
-            {chats?.map(chat => {
+            {sortedChats?.map(chat => {
                 const { name, avatarUrl, fallback } = getOtherParticipant(chat);
                 const timeAgo = chat.lastMessageTimestamp?.toDate ? 
                     formatDistanceToNow(chat.lastMessageTimestamp.toDate(), { addSuffix: true, locale: ar }) : '';
@@ -83,7 +94,7 @@ const ConversationList: React.FC<ConversationListProps> = ({ currentUser, onSele
                     </div>
                 );
             })}
-             {chats?.length === 0 && (
+             {sortedChats?.length === 0 && (
                 <div className="p-4 text-center text-muted-foreground text-sm">
                     لا توجد محادثات. ابدأ واحدة جديدة.
                 </div>
