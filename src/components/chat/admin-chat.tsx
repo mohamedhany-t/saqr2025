@@ -51,8 +51,8 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
                 id: newChatDocRef.id, // Use the generated ID
                 participants: [adminUser.id, courier.id],
                 participantInfo: {
-                    [adminUser.id]: { name: adminUser.name || "Admin", role: "admin" },
-                    [courier.id]: { name: courier.name, role: "courier" }
+                    [adminUser.id]: { name: adminUser.name || adminUser.email || "Admin", role: "admin" },
+                    [courier.id]: { name: courier.name || courier.email || "Courier", role: "courier" }
                 },
                 lastMessage: "بدأت المحادثة",
                 createdAt: serverTimestamp(),
