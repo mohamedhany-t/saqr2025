@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
 import type { User, Chat } from '@/lib/types';
-import { useFirestore } from '@/firebase';
+import { useFirestore, useMemoFirebase } from '@/firebase';
 import { ChatWindow } from './chat-window';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { cn } from '@/lib/utils';
@@ -30,11 +30,17 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
     const [selectedCourier, setSelectedCourier] = useState<User | null>(null);
     const [activeChat, setActiveChat] = useState<Chat | null>(null);
 
-    const chatsQuery = query(
-        collection(firestore, 'chats'),
-        where('participants', 'array-contains', adminUser?.id || '')
-    );
-    const { data: chats } = useCollection<Chat>(chatsQuery, !!adminUser?.id);
+    const chatsQuery = useMemoFirebase(() => {
+        if (!firestore || !adminUser?.id) return null;
+        // This is the crucial fix: The query MUST have a 'where' clause
+        // to match the security rule `allow list: if request.query.where...`
+        return query(
+            collection(firestore, 'chats'),
+            where('participants', 'array-contains', adminUser.id)
+        );
+    }, [firestore, adminUser?.id]);
+
+    const { data: chats } = useCollection<Chat>(chatsQuery);
 
     const handleCourierSelect = async (courier: User) => {
         if (!adminUser || !adminUser.id || !courier.id) {
@@ -64,16 +70,21 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
                 lastMessageAt: serverTimestamp(),
             };
 
-            const docDataForState = {
-                ...newChatData,
+            const docDataForState: Chat = {
                 id: chatId,
+                participants: [adminUser.id, courier.id],
+                participantInfo: {
+                    [adminUser.id]: { name: adminUser.name || adminUser.email || "Admin", role: "admin" },
+                    [courier.id]: { name: courier.name || courier.email || "Courier", role: "courier" }
+                },
+                lastMessage: "بدأت المحادثة",
                 createdAt: new Date(),
                 updatedAt: new Date(),
                 lastMessageAt: new Date(),
             }
 
             await setDoc(chatDocRef, newChatData);
-            setActiveChat(docDataForState as Chat);
+            setActiveChat(docDataForState);
         }
     };
     
