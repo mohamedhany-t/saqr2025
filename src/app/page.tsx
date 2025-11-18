@@ -1,4 +1,3 @@
-
 "use client";
 import React, { Suspense } from "react";
 import { useRouter } from "next/navigation";
@@ -8,12 +7,13 @@ import { useUser, useUserProfile } from "@/firebase";
 import AdminDashboard from "@/components/dashboard/admin-dashboard";
 import CourierDashboard from "@/components/dashboard/courier-dashboard";
 import CompanyDashboard from "@/components/dashboard/company-dashboard";
-import { AppLayout } from "@/components/layout/app-layout";
+import { Header } from "@/components/dashboard/header";
 
 function PageContent() {
   const { user: authUser, isUserLoading: isAuthLoading } = useUser();
   const { userProfile, isProfileLoading } = useUserProfile();
   const router = useRouter();
+  const [searchTerm, setSearchTerm] = React.useState('');
 
   const isLoading = isAuthLoading || isProfileLoading;
   
@@ -31,7 +31,7 @@ function PageContent() {
     );
   }
 
-  const renderContent = () => {
+  const renderDashboard = () => {
     if (!authUser || !userProfile || !userProfile.role) {
       // This case covers when the user is authenticated but has no role document or role field.
       return (
@@ -49,11 +49,11 @@ function PageContent() {
 
     switch (role) {
       case "admin":
-        return <AdminDashboard user={userProfile} role={role} />;
+        return <AdminDashboard user={userProfile} role={role} searchTerm={searchTerm} />;
       case "company":
-        return <CompanyDashboard user={userProfile} role={role} />;
+        return <CompanyDashboard user={userProfile} role={role} searchTerm={searchTerm} />;
       case "courier":
-        return <CourierDashboard user={userProfile} role={role} />;
+        return <CourierDashboard user={userProfile} role={role} searchTerm={searchTerm} />;
       default:
          return (
              <div className="flex min-h-screen w-full items-center justify-center bg-muted/30">
@@ -63,7 +63,14 @@ function PageContent() {
     }
   }
 
-  return <AppLayout>{renderContent()}</AppLayout>
+  return (
+    <div className="flex min-h-screen w-full flex-col">
+      <Header onSearchChange={setSearchTerm} />
+      <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
+        {renderDashboard()}
+      </main>
+    </div>
+  )
 }
 
 export default function DashboardRouterPage() {
@@ -73,5 +80,3 @@ export default function DashboardRouterPage() {
     </Suspense>
   );
 }
-
-    

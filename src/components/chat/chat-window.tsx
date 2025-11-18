@@ -3,8 +3,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Paperclip, Send, X, File as FileIcon, Loader2 } from 'lucide-react';
-import { useFirestore, useCollection, useUser } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
+import { collection, addDoc, serverTimestamp, query, orderBy, writeBatch, doc } from 'firebase/firestore';
 import type { ChatMessage, User } from '@/lib/types';
 import MessageBubble from './message-bubble';
 import { uploadFile } from '@/firebase/storage';
@@ -49,7 +49,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
     if (!firestore || (!newMessage.trim() && !fileUpload)) return;
 
     const messagesCollection = collection(firestore, 'chats', chatId, 'messages');
+    const chatDocRef = doc(firestore, 'chats', chatId);
     let filePayload: Partial<ChatMessage> = {};
+
+    let lastMessageText = newMessage.trim();
 
     if (fileUpload && fileUpload.file) {
         try {
@@ -61,9 +64,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
             
             if (fileUpload.file.type.startsWith('image/')) {
                 filePayload.imageUrl = downloadURL;
+                if (!lastMessageText) lastMessageText = "صورة";
             } else {
                 filePayload.fileUrl = downloadURL;
                 filePayload.fileName = fileUpload.file.name;
+                if (!lastMessageText) lastMessageText = fileUpload.file.name;
             }
             setFileUpload(null);
         } catch (error) {
@@ -81,7 +86,17 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
         ...(newMessage.trim() && { text: newMessage.trim() }),
     };
 
-    await addDoc(messagesCollection, messagePayload);
+    const batch = writeBatch(firestore);
+    const newMessageRef = doc(messagesCollection);
+
+    batch.set(newMessageRef, messagePayload);
+    batch.update(chatDocRef, {
+        lastMessage: lastMessageText,
+        lastMessageTimestamp: serverTimestamp(),
+    });
+
+    await batch.commit();
+
     setNewMessage('');
   };
 

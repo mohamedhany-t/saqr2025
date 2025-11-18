@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, MessageCircle, WalletCards, History, Pencil, Trash2 } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,7 +28,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Separator } from "@/components/ui/separator";
+import ChatInterface from "@/components/chat/chat-interface";
 
 
 interface AdminDashboardProps {
@@ -138,7 +138,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const openPaymentForm = (courier: User, payment?: CourierPayment) => {
     setPayingCourier(courier);
     setEditingPayment(payment);
-    setIsPaymentSheetOpen(true);
+    setIsPaymentSheetOpen(open);
   }
   
   const handleImportClick = () => {
@@ -629,6 +629,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             <TabsTrigger value="courier-management">إدارة المناديب</TabsTrigger>
             <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
             <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
+            <TabsTrigger value="chat">الدردشة</TabsTrigger>
             </TabsList>
             <div className="ms-auto flex items-center gap-2">
                 <input
@@ -889,6 +890,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 </div>
                 <UsersTable users={users || []} isLoading={usersLoading || companiesLoading} onEdit={openUserForm} onDelete={setUserToDelete}/>
             </div>
+        </TabsContent>
+        <TabsContent value="chat">
+            <ChatInterface />
         </TabsContent>
         </Tabs>
       <ShipmentFormSheet
