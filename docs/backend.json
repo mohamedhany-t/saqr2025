@@ -205,6 +205,21 @@
         "id",
         "name"
       ]
+    },
+    "CourierPayment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Courier Payment",
+      "type": "object",
+      "description": "Represents a payment transaction made by a courier to the company.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the payment." },
+        "courierId": { "type": "string", "description": "The UID of the courier making the payment." },
+        "amount": { "type": "number", "description": "The amount paid by the courier." },
+        "paymentDate": { "type": "string", "format": "date-time", "description": "The timestamp when the payment was recorded." },
+        "recordedById": { "type": "string", "description": "The UID of the admin who recorded the payment." },
+        "notes": { "type": "string", "description": "Optional notes about the payment." }
+      },
+      "required": ["id", "courierId", "amount", "paymentDate", "recordedById"]
     }
   },
   "auth": {
@@ -295,6 +310,22 @@
           ]
         }
       },
+       {
+        "path": "/courier_payments/{paymentId}",
+        "definition": {
+          "entityName": "CourierPayment",
+          "schema": {
+            "$ref": "#/backend/entities/CourierPayment"
+          },
+          "description": "Stores payment transactions from couriers.",
+          "params": [
+            {
+              "name": "paymentId",
+              "description": "Unique identifier for the payment document."
+            }
+          ]
+        }
+      },
       {
         "path": "/roles_admin/{userId}",
         "definition": {
@@ -347,5 +378,3 @@
     "reasoning": "The Firestore structure now includes a 'company' role. Companies are users that can manage their own shipments. Couriers are independent and are assigned to shipments directly. The 'companies' collection stores public profiles for these company users. The 'shipments' collection now uses 'companyId' to link to the user UID of the owning company."
   }
 }
-
-    
