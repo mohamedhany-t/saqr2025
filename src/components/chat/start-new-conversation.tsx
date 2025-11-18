@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from 'react';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, addDoc, getDocs, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { collection, query, where, addDoc, getDocs, serverTimestamp, writeBatch, doc } from 'firebase/firestore';
 import type { User } from '@/lib/types';
 import { Button } from '../ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
@@ -24,7 +24,8 @@ const StartNewConversation: React.FC<StartNewConversationProps> = ({ currentUser
     // Fetch potential chat partners based on role
     const usersQuery = useMemoFirebase(() => {
         if (!firestore) return null;
-        const rolesToChatWith = currentUser.role === 'admin' ? ['courier'] : ['admin'];
+        // Admins can chat with couriers. Couriers can only chat with admins.
+        const rolesToChatWith = currentUser.role === 'admin' ? ['courier', 'company'] : ['admin'];
         return query(collection(firestore, 'users'), where('role', 'in', rolesToChatWith));
     }, [firestore, currentUser.role]);
 
@@ -33,44 +34,56 @@ const StartNewConversation: React.FC<StartNewConversationProps> = ({ currentUser
     const handleStartChat = async () => {
         if (!selectedUserId || !firestore) return;
 
-        // Check if a chat already exists
-        const participants = [currentUser.id, selectedUserId].sort();
-        const q = query(
-            collection(firestore, 'chats'),
-            where('participants', '==', participants)
-        );
-        
-        const existingChats = await getDocs(q);
-        
-        if (!existingChats.empty) {
-            // Chat already exists, select it
-            onNewChat(existingChats.docs[0].id);
-        } else {
-            // Create a new chat
-            const selectedUser = users?.find(u => u.id === selectedUserId);
-            if (!selectedUser) return;
+        try {
+            // Check if a chat already exists
+            const participants = [currentUser.id, selectedUserId].sort();
+            const q = query(
+                collection(firestore, 'chats'),
+                where('participants', '==', participants)
+            );
+            
+            const existingChats = await getDocs(q);
+            
+            if (!existingChats.empty) {
+                // Chat already exists, select it
+                onNewChat(existingChats.docs[0].id);
+            } else {
+                // Create a new chat
+                const selectedUser = users?.find(u => u.id === selectedUserId);
+                if (!selectedUser) return;
 
-            const chatDocRef = collection(firestore, 'chats');
-            const newChat = {
-                participants,
-                participantNames: {
-                    [currentUser.id]: currentUser.name || currentUser.email,
-                    [selectedUserId]: selectedUser.name || selectedUser.email,
-                },
-                lastMessage: "بدأت المحادثة",
-                lastMessageTimestamp: serverTimestamp(),
-            };
-            const docRef = await addDoc(chatDocRef, newChat);
-            // also update the id field
-            const batch = writeBatch(firestore);
-            batch.update(docRef, { id: docRef.id });
-            await batch.commit();
+                const chatDocRefCollection = collection(firestore, 'chats');
+                const newChatData = {
+                    participants,
+                    participantNames: {
+                        [currentUser.id]: currentUser.name || currentUser.email,
+                        [selectedUserId]: selectedUser.name || selectedUser.email,
+                    },
+                    lastMessage: "بدأت المحادثة",
+                    lastMessageTimestamp: serverTimestamp(),
+                };
+                
+                const docRef = doc(chatDocRefCollection);
+                const batch = writeBatch(firestore);
 
-            onNewChat(docRef.id);
+                batch.set(docRef, { ...newChatData, id: docRef.id });
+
+                await batch.commit();
+
+                onNewChat(docRef.id);
+            }
+            
+            setSelectedUserId('');
+            setOpen(false);
+        } catch (error) {
+            console.error("Error starting chat:", error);
+            const permissionError = new FirestorePermissionError({
+                path: 'chats',
+                operation: 'write', // Could be read or write, 'write' is a safe guess
+                requestResourceData: { note: `Attempt to create/find chat between ${currentUser.id} and ${selectedUserId}` }
+            });
+            errorEmitter.emit('permission-error', permissionError);
         }
-        
-        setSelectedUserId('');
-        setOpen(false);
     };
 
     return (
@@ -111,7 +124,7 @@ const StartNewConversation: React.FC<StartNewConversationProps> = ({ currentUser
                                                 selectedUserId === user.id ? "opacity-100" : "opacity-0"
                                             )}
                                         />
-                                        {user.name}
+                                        {user.name} ({user.role === 'admin' ? 'مسؤول' : user.role === 'company' ? 'شركة' : 'مندوب'})
                                     </CommandItem>
                                 )))}
                             </CommandGroup>
