@@ -2,23 +2,30 @@
 'use server';
 
 import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
 import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
 import { z } from 'zod';
 
-
 // This is a workaround to use service account credentials in a Vercel-like environment
 function getServiceAccount() {
-  // Fallback for local development if serviceAccountKey.json exists
   try {
+    // This will work in local development
     return require('../../serviceAccountKey.json');
   } catch (e) {
-    console.error("Service account key not found. Please place serviceAccountKey.json in the root.");
+    // In a Vercel/production environment, parse the environment variable
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+      try {
+        return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+      } catch (parseError) {
+        console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:", parseError);
+        return null;
+      }
+    }
+    console.error("Service account key not found. Please set the FIREBASE_SERVICE_ACCOUNT_KEY environment variable or place serviceAccountKey.json in the root.");
     return null;
   }
 }
 
-// Zod schema for input validation
+// --- Zod Schemas for Input Validation ---
 const createUserSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
@@ -34,25 +41,38 @@ const deleteUserSchema = z.object({
     uid: z.string().min(1),
 });
 
+// --- Reliable Admin App Initializer ---
+let adminApp: App;
 
 function getAdminApp(): App {
-    if (getApps().length > 0) {
-        return getApps()[0];
+    if (adminApp) {
+        return adminApp;
     }
+
     const serviceAccount = getServiceAccount();
     if (!serviceAccount) {
-      throw new Error("Firebase Admin SDK credentials not found.");
+      throw new Error("Firebase Admin SDK credentials not found or are invalid.");
     }
-    return initializeApp({
+    
+    // Use a unique app name to avoid conflicts
+    const appName = `firebase-admin-app-${Date.now()}`;
+
+    if (getApps().find(app => app.name === appName)) {
+      return getApps().find(app => app.name === appName)!;
+    }
+    
+    adminApp = initializeApp({
       credential: cert(serviceAccount)
-    });
+    }, appName);
+
+    return adminApp;
 }
 
 
 export async function createAuthUser(userData: z.infer<typeof createUserSchema>) {
     try {
-        const adminApp = getAdminApp();
-        const adminAuth = getAuth(adminApp);
+        const app = getAdminApp();
+        const adminAuth = getAuth(app);
         const userRecord = await adminAuth.createUser({
             email: userData.email,
             password: userData.password,
@@ -68,8 +88,8 @@ export async function createAuthUser(userData: z.infer<typeof createUserSchema>)
 
 export async function updateAuthUserPassword(userData: z.infer<typeof updateUserPasswordSchema>) {
     try {
-        const adminApp = getAdminApp();
-        const adminAuth = getAuth(adminApp);
+        const app = getAdminApp();
+        const adminAuth = getAuth(app);
         await adminAuth.updateUser(userData.uid, {
             password: userData.password,
         });
@@ -82,8 +102,8 @@ export async function updateAuthUserPassword(userData: z.infer<typeof updateUser
 
 export async function deleteAuthUser(userData: z.infer<typeof deleteUserSchema>) {
     try {
-        const adminApp = getAdminApp();
-        const adminAuth = getAuth(adminApp);
+        const app = getAdminApp();
+        const adminAuth = getAuth(app);
         await adminAuth.deleteUser(userData.uid);
         return { success: true };
     } catch (error: any) {
