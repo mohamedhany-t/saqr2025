@@ -9,21 +9,17 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isRole(role) {
-      // Check for a document in the roles_<role_name> collection with the user's UID
-      return exists(/databases/$(database)/documents/roles_$(role)/$(request.auth.uid));
-    }
-
+    // Admin is defined by a specific email address for simplicity and reliability.
     function isAdmin() {
-      return isSignedIn() && isRole('admin');
+      return isSignedIn() && request.auth.token.email == 'mhanyt21@gmail.com';
     }
 
     function isCompany() {
-      return isSignedIn() && isRole('company');
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_company/$(request.auth.uid));
     }
 
     function isCourier() {
-      return isSignedIn() && isRole('courier');
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_courier/$(request.auth.uid));
     }
     
     // --- Collections ---
@@ -60,13 +56,15 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    // Role collections are managed exclusively by admins.
-    match /roles_{role}/{userId} {
+    // Role collections are managed exclusively by admins for creating non-admin users.
+    match /roles_company/{userId} {
+      allow read, write: if isAdmin();
+    }
+    match /roles_courier/{userId} {
       allow read, write: if isAdmin();
     }
 
-    // Static data collections (governorates, public company/courier profiles)
-    // are readable by any signed-in user, but only writable by admins.
+    // Static data collections are readable by any signed-in user, but only writable by admins.
     match /governorates/{docId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
