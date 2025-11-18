@@ -1,7 +1,8 @@
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -520,6 +521,7 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
         <div className="flex items-center">
             <TabsList className="flex-nowrap overflow-x-auto justify-start">
             <TabsTrigger value="shipments">الشحنات</TabsTrigger>
+            <TabsTrigger value="chat" onClick={() => router.push('/chat')}>الدردشة</TabsTrigger>
             <TabsTrigger value="courier-management">إدارة المناديب</TabsTrigger>
             <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
             <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
@@ -621,6 +623,7 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
                 </TabsContent>
             </Tabs>
         </TabsContent>
+         <TabsContent value="chat"></TabsContent>
         <TabsContent value="courier-management">
              <div className="mt-8">
                 <div className="flex justify-between items-center mb-4">

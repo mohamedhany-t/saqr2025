@@ -10,6 +10,7 @@ import {
   LogOut,
   ChevronLeft,
   Wallet,
+  MessageCircle,
 } from "lucide-react";
 import { useAuth, useUser } from "@/firebase";
 import { signOut } from "firebase/auth";
@@ -29,6 +30,7 @@ const getNavItems = (role?: Role | null) => {
         case "admin":
             return [
                 { href: '/', icon: Home, label: 'الرئيسية' },
+                { href: '/chat', icon: MessageCircle, label: 'الدردشة' },
             ];
         case "company":
              return [
@@ -37,6 +39,7 @@ const getNavItems = (role?: Role | null) => {
         case "courier":
             return [
                 { href: "/", icon: Home, label: "الرئيسية" },
+                { href: "/chat", icon: MessageCircle, label: "الدردشة" },
                 { href: "/accounts", icon: Wallet, label: "الحسابات" },
             ];
         default:
