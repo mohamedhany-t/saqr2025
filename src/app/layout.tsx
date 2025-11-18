@@ -57,21 +57,26 @@ function PwaAndNotificationHandler() {
 
   const subscribeUserToPush = async () => {
     try {
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      if (!vapidKey) {
+        console.error('VAPID public key is not defined. Push notifications cannot be enabled.');
+        return;
+      }
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BHF_m_P2-2kYnF22J2Kj2-Dm_gW7-B2qK9kF8Yvj1zc7kX_K5Zz3_zJ3jZ_X6c9Q4jC2hA2bZ_J3gY_k4V6nCgA'),
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
       });
       
       const subscriptionJson = subscription.toJSON();
 
       // Store the subscription in Firestore
-      const subRef = doc(firestore, `users/${user.uid}/pushSubscriptions`, subscriptionJson.endpoint!.substring(0, 100));
+      const subRef = doc(firestore, `users/${user.uid}/pushSubscriptions`, subscriptionJson.endpoint!.substring(subscriptionJson.endpoint.length - 100));
       await setDoc(subRef, {
         ...subscriptionJson,
         createdAt: new Date(),
         userId: user.uid,
-      });
+      }, { merge: true });
 
       console.log('User is subscribed.');
 
