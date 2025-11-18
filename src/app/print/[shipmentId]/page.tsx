@@ -90,7 +90,7 @@ const SingleShipmentPrint = () => {
     if (!data) return <PrintableLoader />;
 
     return (
-        <div className="w-full h-screen">
+        <div className="w-full h-screen p-4">
             <ShipmentLabel
                 shipment={data}
                 governorateName={data.governorateName}
@@ -182,7 +182,7 @@ const BulkShipmentPrint = () => {
     return (
         <div className="p-0 m-0 flex flex-col gap-0">
             {data.map((shipment, index) => (
-                <div key={shipment.id} className={`w-full h-screen ${index < data.length - 1 ? 'page-break' : ''}`}>
+                <div key={shipment.id} className={`w-full h-screen p-4 ${index < data.length - 1 ? 'page-break' : ''}`}>
                     <ShipmentLabel
                         shipment={shipment}
                         governorateName={shipment.governorateName}
