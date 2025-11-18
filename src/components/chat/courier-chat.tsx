@@ -36,7 +36,7 @@ export function CourierChat({ courierUser }: CourierChatProps) {
     const adminUser = adminUsers?.[0];
 
     const chatQuery = useMemoFirebase(() => {
-        if (!firestore || !courierUser) return null;
+        if (!firestore || !courierUser?.id) return null;
         return query(collection(firestore, 'chats'), where('participants', 'array-contains', courierUser.id), limit(1));
     }, [firestore, courierUser]);
     

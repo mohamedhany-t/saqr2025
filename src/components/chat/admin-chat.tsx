@@ -25,7 +25,7 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
 
     // This hook fetches all chats where the admin is a participant
     const chatsQuery = useMemoFirebase(() => {
-        if (!firestore || !adminUser) return null;
+        if (!firestore || !adminUser?.id) return null;
         return query(collection(firestore, 'chats'), where('participants', 'array-contains', adminUser.id));
     }, [firestore, adminUser]);
 
