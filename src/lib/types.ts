@@ -61,28 +61,3 @@ export interface Governorate {
   id: string;
   name: string;
 }
-
-export interface Chat {
-    id: string;
-    participants: string[];
-    participantInfo: {
-        [key: string]: {
-            name: string;
-            role: Role;
-        }
-    };
-    lastMessage?: string;
-    lastMessageAt?: any;
-    createdAt: any;
-    updatedAt: any;
-}
-
-
-export interface ChatMessage {
-    id: string;
-    text: string;
-    imageUrl?: string;
-    senderId: string;
-    senderName: string;
-    createdAt: any; // Firestore Timestamp
-}

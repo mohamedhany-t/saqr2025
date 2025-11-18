@@ -8,8 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed": "node admin-seed.js",
-    "seed:chat": "node chat-seed.js"
+    "seed": "node admin-seed.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^4.1.3",

@@ -1,3 +1,4 @@
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -13,7 +14,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { Loader2 } from "lucide-react";
-import { CourierChat } from "../chat/courier-chat";
 
 interface CourierDashboardProps {
   role: Role | null;
@@ -365,8 +365,6 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
             </div>
          </TabsContent>
        </Tabs>
-
-       <CourierChat courierUser={user} />
 
        <ShipmentFormSheet
         open={isShipmentSheetOpen}

@@ -64,19 +64,6 @@ service cloud.firestore {
        // Admin access is covered by the global rule
     }
     
-    // --- Chat (NEW & IMPROVED) ---
-    match /chats/{chatId} {
-      // Allow 'list' if the query filters for chats where the user is a participant.
-      // Allow 'get', 'update', 'delete' if the user is a participant of that specific chat.
-      allow list: if isSignedIn() && request.query.where.get('participants', 'array-contains', request.auth.uid) != null;
-      allow get, write: if isSignedIn() && request.auth.uid in resource.data.participants;
-      
-      match /messages/{messageId} {
-        // Allow access if the user is a participant of the parent chat document.
-        allow read, write: if isSignedIn() && get(/databases/$(database)/documents/chats/$(chatId)).data.participants.hasAny([request.auth.uid]);
-      }
-    }
-    
     // --- Role Collections ---
     // Deny all direct access by default. Admin access is granted by the global rule.
     match /roles_admin/{docId} { allow read, write: if false; }
