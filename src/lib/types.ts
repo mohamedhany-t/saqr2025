@@ -61,12 +61,3 @@ export interface Governorate {
   id: string;
   name: string;
 }
-
-export interface CourierPayment {
-    id: string;
-    courierId: string;
-    amount: number;
-    paymentDate: any; // Timestamp
-    recordedById: string; // Admin UID
-    notes?: string;
-}

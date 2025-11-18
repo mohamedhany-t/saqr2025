@@ -233,46 +233,19 @@ async function seedShipments(users, governorates) {
     log(`Seeded ${count} shipments.`);
 }
 
-async function seedPayments(users) {
-    console.log('\n--- Seeding Courier Payments ---');
-    const adminUser = users.find(u => u.role === 'admin');
-    const courier = users.find(u => u.role === 'courier');
-
-    if (!adminUser || !courier) {
-        logError("Cannot seed payments without an admin and a courier.");
-        return;
-    }
-    
-    const docRef = db.collection('courier_payments').doc();
-    const paymentData = {
-        id: docRef.id,
-        courierId: courier.uid,
-        amount: 50,
-        paymentDate: admin.firestore.FieldValue.serverTimestamp(),
-        recordedById: adminUser.uid,
-        notes: "دفعة تحت الحساب"
-    };
-
-    await docRef.set(paymentData);
-    log('Seeded 1 sample courier payment.');
-}
-
-
 // --- تشغيل السكربت ---
 async function main() {
     try {
         console.log("\x1b[34m%s\x1b[0m", "Starting database seeding process...");
         
         await clearCollection('shipments');
-        await clearCollection('courier_payments');
         
         const governorates = await seedGovernorates();
         const users = await seedUsersAndRoles();
         await seedShipments(users, governorates);
-        await seedPayments(users);
         
         console.log("\n\x1b[32m%s\x1b[0m", "Database seeding completed successfully!");
-        console.log("Mock data for users, companies, shipments, and payments has been created.");
+        console.log("Mock data for users, companies, and shipments has been created.");
 
     } catch (error) {
         logError("An error occurred during the seeding process:", error);

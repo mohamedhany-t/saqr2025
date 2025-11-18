@@ -10,7 +10,6 @@ service cloud.firestore {
     }
 
     function isRole(role) {
-      // Use this to check if a user has a specific role document.
       return exists(/databases/$(database)/documents/roles_$(role)/$(request.auth.uid));
     }
 
@@ -62,13 +61,6 @@ service cloud.firestore {
                      (isCourier() && resource.data.assignedCourierId == request.auth.uid && 
                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
       allow delete: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
-    }
-    
-    // --- Courier Payments ---
-    // Admins have full access. Couriers can only read their own payment records.
-    match /courier_payments/{paymentId} {
-      allow read, write: if isAdmin();
-      allow get: if isCourier() && resource.data.courierId == request.auth.uid;
     }
 
     // --- Role Collections ---
