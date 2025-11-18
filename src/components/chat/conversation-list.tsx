@@ -90,18 +90,20 @@ export function ConversationList({ conversations, isLoading, currentUserProfile,
         const batch = writeBatch(firestore);
         const convRef = doc(firestore, 'conversations', conversationId);
         
-        const currentUserDetails = {
-             name: currentUserProfile.name || currentUserProfile.email,
-             role: currentUserProfile.role,
-             avatarUrl: currentUserProfile.avatarUrl || '',
-        };
-
         const newConversation: Conversation = {
             id: conversationId,
             participantIds: [currentUserProfile.id, otherUserId],
             participantDetails: {
-                [currentUserProfile.id]: currentUserDetails,
-                [otherUser.id]: { name: otherUser.name || otherUser.email, role: otherUser.role, avatarUrl: otherUser.avatarUrl || '' }
+                [currentUserProfile.id]: { 
+                    name: currentUserProfile.name || currentUserProfile.email,
+                    role: currentUserProfile.role,
+                    avatarUrl: currentUserProfile.avatarUrl || '',
+                },
+                [otherUser.id]: { 
+                    name: otherUser.name || otherUser.email, 
+                    role: otherUser.role, 
+                    avatarUrl: otherUser.avatarUrl || '' 
+                }
             },
             lastMessageAt: serverTimestamp(),
             lastMessageText: "بدأت المحادثة",
@@ -113,7 +115,8 @@ export function ConversationList({ conversations, isLoading, currentUserProfile,
 
         try {
             await batch.commit();
-            onSelectConversation(newConversation);
+            // The new conversation will be picked up by the useCollection listener,
+            // so we don't need to manually select it here. It will appear in the list.
             toast({ title: "بدأت المحادثة", description: `يمكنك الآن الدردشة مع ${otherUser.name}.` });
         } catch (error) {
             console.error("Error creating conversation:", error);
@@ -177,5 +180,3 @@ export function ConversationList({ conversations, isLoading, currentUserProfile,
         </div>
     );
 }
-
-    
