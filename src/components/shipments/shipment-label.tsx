@@ -49,6 +49,8 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
                 {shipment.address}
             </p>
         </div>
+        
+        {/* This div is removed as it was creating the empty space */}
 
         {/* Footer with Details & QR Code */}
         <div className="flex justify-between items-end border-t-2 border-black pt-2 mt-auto">
