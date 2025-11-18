@@ -51,9 +51,10 @@ service cloud.firestore {
       allow delete: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
     }
     
-    // Courier payments can only be managed by admins.
+    // Admins can manage all payments. Couriers can only read their own payments.
     match /courier_payments/{paymentId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin() || (isCourier() && resource.data.courierId == request.auth.uid);
+      allow write: if isAdmin();
     }
 
     // Role collections are managed exclusively by admins for creating non-admin users.
