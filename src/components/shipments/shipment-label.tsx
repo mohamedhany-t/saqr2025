@@ -50,11 +50,8 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
             </p>
         </div>
 
-        {/* Spacer to push content to the bottom */}
-        <div className="flex-grow"></div>
-
         {/* Footer with Details & QR Code */}
-        <div className="flex justify-between items-end border-t-2 border-black pt-2">
+        <div className="flex justify-between items-end border-t-2 border-black pt-2 mt-auto">
             <div className="flex-grow space-y-1">
                 <InfoLine label="رقم الشحنة" value={shipment.trackingNumber || shipment.shipmentCode} valueClass="font-mono font-bold" />
                 <InfoLine label="الشركة" value={companyName} valueClass="font-semibold" />
