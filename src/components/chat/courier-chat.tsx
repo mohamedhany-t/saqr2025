@@ -20,8 +20,12 @@ interface CourierChatProps {
     courierUser: User | null;
 }
 
-// Function to create a consistent chat ID from two user IDs
 const createChatId = (uid1: string, uid2: string): string => {
+    // Ensure both uids are valid strings before sorting and joining
+    if (!uid1 || !uid2) {
+        console.error("Attempted to create a chat ID with an undefined UID.", {uid1, uid2});
+        return ''; // Return an empty or invalid ID to prevent Firestore errors
+    }
     return [uid1, uid2].sort().join('_');
 };
 
@@ -39,16 +43,18 @@ export function CourierChat({ courierUser }: CourierChatProps) {
     const { data: adminUsers, isLoading: isAdminLoading } = useCollection<User>(adminQuery);
     const adminUser = adminUsers?.[0];
 
-    // Effect to construct the chat ID once both users are available
     useEffect(() => {
-        if (courierUser && adminUser) {
+        // Only create the chat ID if both user objects and their IDs are present
+        if (courierUser?.id && adminUser?.id) {
             const chatId = createChatId(courierUser.id, adminUser.id);
             setActiveChatId(chatId);
+        } else {
+            setActiveChatId(null);
         }
     }, [courierUser, adminUser]);
 
     const canRenderChat = courierUser && adminUser && activeChatId;
-    const isLoading = isAdminLoading || !activeChatId;
+    const isLoading = isAdminLoading || !adminUser || !courierUser;
 
     const chatContent = (
         <>

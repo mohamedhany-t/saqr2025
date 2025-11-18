@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { User, Chat } from '@/lib/types';
 import { ChatWindow } from './chat-window';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
@@ -15,8 +15,12 @@ interface AdminChatProps {
     adminUser: User | null;
 }
 
-// Function to create a consistent chat ID from two user IDs
 const createChatId = (uid1: string, uid2: string): string => {
+    // Ensure both uids are valid strings before sorting and joining
+    if (!uid1 || !uid2) {
+        console.error("Attempted to create a chat ID with an undefined UID.", {uid1, uid2});
+        return ''; // Return an empty or invalid ID to prevent Firestore errors
+    }
     return [uid1, uid2].sort().join('_');
 };
 
@@ -26,11 +30,14 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
     const [activeChatId, setActiveChatId] = useState<string | null>(null);
 
     const handleCourierSelect = async (courier: User) => {
-        if (!adminUser) return;
         setSelectedCourier(courier);
-        // Directly construct the chat ID without querying
-        const chatId = createChatId(adminUser.id, courier.id);
-        setActiveChatId(chatId);
+        // Defer chat ID creation until we are sure both users exist
+        if (adminUser && courier) {
+            const chatId = createChatId(adminUser.id, courier.id);
+            setActiveChatId(chatId);
+        } else {
+            setActiveChatId(null);
+        }
     };
 
     if (!adminUser) return null;
@@ -69,7 +76,7 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
 
             {/* Chat Window */}
             <div className="md:col-span-2 lg:col-span-3 h-full">
-                {activeChatId && selectedCourier ? (
+                {activeChatId && selectedCourier && adminUser ? (
                     <ChatWindow
                         key={activeChatId}
                         currentUser={adminUser}
