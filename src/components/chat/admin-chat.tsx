@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '../ui/scroll-area';
 import { MessageSquare, Loader2 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, serverTimestamp, doc } from 'firebase/firestore';
 
 
 interface AdminChatProps {
@@ -44,28 +44,34 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
             setActiveChat(existingChat);
         } else {
             // Create a new chat if it doesn't exist
-            const newChatData = {
+            const chatCollectionRef = collection(firestore, 'chats');
+            const newChatDocRef = doc(chatCollectionRef); // Create a reference with an auto-generated ID
+
+            const newChatData: Omit<Chat, 'createdAt' | 'updatedAt' | 'lastMessageAt'> = {
+                id: newChatDocRef.id, // Use the generated ID
                 participants: [adminUser.id, courier.id],
                 participantInfo: {
                     [adminUser.id]: { name: adminUser.name || "Admin", role: "admin" },
                     [courier.id]: { name: courier.name, role: "courier" }
                 },
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
                 lastMessage: "بدأت المحادثة",
-                lastMessageAt: serverTimestamp(),
+            };
+
+            const dataWithTimestamps = {
+              ...newChatData,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+              lastMessageAt: serverTimestamp(),
             };
             
-            const chatCollectionRef = collection(firestore, 'chats');
-            const newChatDoc = await addDoc(chatCollectionRef, newChatData);
+            await addDoc(chatCollectionRef, dataWithTimestamps);
             
+            // For local state, we can use a client-side date, which is fine for UI purposes
             const docDataForState = {
-              ...newChatData,
-              id: newChatDoc.id,
-              // Timestamps will be null on the client initially, this is expected
-              createdAt: null, 
-              updatedAt: null,
-              lastMessageAt: null,
+              ...dataWithTimestamps,
+              createdAt: new Date(), 
+              updatedAt: new Date(),
+              lastMessageAt: new Date(),
             }
             setActiveChat(docDataForState as Chat);
         }
