@@ -1,13 +1,16 @@
 
 "use client";
 
-import React, { useState } from 'react';
-import type { User } from '@/lib/types';
+import React, { useState, useEffect } from 'react';
+import type { User, Chat } from '@/lib/types';
 import { ChatWindow } from './chat-window';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '../ui/scroll-area';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, Loader2 } from 'lucide-react';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+
 
 interface AdminChatProps {
     couriers: User[];
@@ -15,7 +18,50 @@ interface AdminChatProps {
 }
 
 export function AdminChat({ couriers, adminUser }: AdminChatProps) {
+    const firestore = useFirestore();
     const [selectedCourier, setSelectedCourier] = useState<User | null>(null);
+    const [activeChat, setActiveChat] = useState<Chat | null>(null);
+    const [isChatLoading, setIsChatLoading] = useState(false);
+
+    // This hook fetches all chats where the admin is a participant
+    const chatsQuery = useMemoFirebase(() => {
+        if (!firestore || !adminUser) return null;
+        return query(collection(firestore, 'chats'), where('participants', 'array-contains', adminUser.id));
+    }, [firestore, adminUser]);
+
+    const { data: chats } = useCollection<Chat>(chatsQuery);
+
+    const handleCourierSelect = async (courier: User) => {
+        setSelectedCourier(courier);
+        if (!firestore || !adminUser) return;
+
+        setIsChatLoading(true);
+
+        // Find existing chat
+        const existingChat = chats?.find(c => c.participants.includes(courier.id));
+
+        if (existingChat) {
+            setActiveChat(existingChat);
+        } else {
+            // Create a new chat if it doesn't exist
+            const newChatData = {
+                participants: [adminUser.id, courier.id],
+                participantInfo: {
+                    [adminUser.id]: { name: adminUser.name || "Admin", role: "admin" },
+                    [courier.id]: { name: courier.name, role: "courier" }
+                },
+                createdAt: serverTimestamp(),
+                lastMessage: "بدأت المحادثة",
+                lastMessageAt: serverTimestamp(),
+            };
+            
+            const chatCollectionRef = collection(firestore, 'chats');
+            const newChatDoc = await addDoc(chatCollectionRef, newChatData);
+            
+            setActiveChat({ ...newChatData, id: newChatDoc.id } as Chat);
+        }
+        setIsChatLoading(false);
+    };
 
     if (!adminUser) return null;
 
@@ -31,7 +77,7 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
                         {couriers.map(courier => (
                             <button
                                 key={courier.id}
-                                onClick={() => setSelectedCourier(courier)}
+                                onClick={() => handleCourierSelect(courier)}
                                 className={cn(
                                     'flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary w-full text-right',
                                     selectedCourier?.id === courier.id && 'bg-muted text-primary'
@@ -53,12 +99,17 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
 
             {/* Chat Window */}
             <div className="md:col-span-2 lg:col-span-3 h-full">
-                {selectedCourier && adminUser && selectedCourier.id ? (
+                {isChatLoading ? (
+                     <div className="flex flex-col h-full items-center justify-center bg-card rounded-lg border">
+                         <Loader2 className="h-16 w-16 text-muted-foreground/50 animate-spin" />
+                         <h2 className="mt-4 text-xl font-semibold text-muted-foreground">جاري تحميل المحادثة...</h2>
+                     </div>
+                ) : activeChat && selectedCourier ? (
                     <ChatWindow
-                        key={selectedCourier.id}
+                        key={activeChat.id}
                         currentUser={adminUser}
                         chatPartner={selectedCourier}
-                        chatId={selectedCourier.id}
+                        chatId={activeChat.id}
                     />
                 ) : (
                     <div className="flex flex-col h-full items-center justify-center bg-card rounded-lg border">

@@ -206,17 +206,34 @@
       ]
     },
     "Chat": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "Chat",
-        "type": "object",
-        "description": "A chat thread between a courier and the admin. The document ID is the courier's UID.",
-        "properties": {
-            "id": { "type": "string", "description": "The courier's UID." },
-            "lastMessage": { "type": "string", "description": "The text of the last message sent." },
-            "lastMessageAt": { "type": "string", "format": "date-time", "description": "Timestamp of the last message." },
-            "courierName": { "type": "string", "description": "The name of the courier." }
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Chat",
+      "type": "object",
+      "description": "A chat thread between two or more users.",
+      "properties": {
+        "id": { "type": "string", "description": "The unique ID of the chat document." },
+        "participants": {
+            "type": "array",
+            "description": "An array of user UIDs participating in the chat.",
+            "items": { "type": "string" }
         },
-        "required": ["id", "lastMessage", "lastMessageAt", "courierName"]
+        "participantInfo": {
+          "type": "object",
+          "description": "A map of participant UIDs to their names.",
+           "additionalProperties": {
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string" },
+                    "role": { "type": "string" }
+                },
+                "required": ["name"]
+            }
+        },
+        "lastMessage": { "type": "string", "description": "The text of the last message sent." },
+        "lastMessageAt": { "type": "string", "format": "date-time", "description": "Timestamp of the last message." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of chat creation." }
+      },
+      "required": ["id", "participants", "createdAt"]
     },
     "ChatMessage": {
         "$schema": "http://json-schema.org/draft-07/schema#",
@@ -331,7 +348,7 @@
             },
             "description": "Stores individual messages for a chat.",
             "params": [
-                { "name": "chatId", "description": "The UID of the courier." },
+                { "name": "chatId", "description": "The unique ID for the chat document." },
                 { "name": "messageId", "description": "Unique identifier for the message." }
             ]
         }

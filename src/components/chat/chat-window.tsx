@@ -1,7 +1,8 @@
+
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { collection, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, writeBatch, doc } from 'firebase/firestore';
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import type { User, ChatMessage } from '@/lib/types';
 import { Button } from '../ui/button';
@@ -25,7 +26,7 @@ export function ChatWindow({ currentUser, chatPartner, chatId }: ChatWindowProps
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
     const messagesQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
+        if (!firestore || !chatId) return null;
         const messagesCollectionRef = collection(firestore, 'chats', chatId, 'messages');
         return query(messagesCollectionRef, orderBy('createdAt', 'asc'));
     }, [firestore, chatId]);
@@ -47,10 +48,15 @@ export function ChatWindow({ currentUser, chatPartner, chatId }: ChatWindowProps
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         const trimmedMessage = newMessage.trim();
-        if (!trimmedMessage || !firestore) return;
+        if (!trimmedMessage || !firestore || !chatId) return;
+
+        const batch = writeBatch(firestore);
 
         const messagesCollectionRef = collection(firestore, 'chats', chatId, 'messages');
-        await addDoc(messagesCollectionRef, {
+        const newMessageRef = doc(messagesCollectionRef);
+
+        batch.set(newMessageRef, {
+            id: newMessageRef.id,
             text: trimmedMessage,
             senderId: currentUser.id,
             senderName: currentUser.name,
@@ -58,6 +64,14 @@ export function ChatWindow({ currentUser, chatPartner, chatId }: ChatWindowProps
             imageUrl: null,
         });
 
+        const chatDocRef = doc(firestore, 'chats', chatId);
+        batch.update(chatDocRef, {
+            lastMessage: trimmedMessage,
+            lastMessageAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+
+        await batch.commit();
         setNewMessage('');
     };
 

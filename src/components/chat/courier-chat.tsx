@@ -1,8 +1,8 @@
 
 "use client";
 
-import React, { useState } from 'react';
-import type { User } from '@/lib/types';
+import React, { useState, useEffect } from 'react';
+import type { User, Chat } from '@/lib/types';
 import { Button } from '../ui/button';
 import { MessageSquare, X, Loader2 } from 'lucide-react';
 import { ChatWindow } from './chat-window';
@@ -26,29 +26,36 @@ export function CourierChat({ courierUser }: CourierChatProps) {
     const [isOpen, setIsOpen] = useState(false);
     const isMobile = useIsMobile();
     const firestore = useFirestore();
-    const { user } = useUser(); // Get the current user state
 
     const adminQuery = useMemoFirebase(() => {
-        // Only run the query if firestore and a user are available
-        if (!firestore || !user) return null;
+        if (!firestore) return null;
         return query(collection(firestore, 'users'), where('role', '==', 'admin'), limit(1));
-    }, [firestore, user]);
+    }, [firestore]);
 
     const { data: adminUsers, isLoading: isAdminLoading } = useCollection<User>(adminQuery);
     const adminUser = adminUsers?.[0];
 
-    // Ensure we have a valid courierUser and adminUser before rendering the chat
-    const canRenderChat = courierUser && adminUser && courierUser.id;
+    const chatQuery = useMemoFirebase(() => {
+        if (!firestore || !courierUser) return null;
+        return query(collection(firestore, 'chats'), where('participants', 'array-contains', courierUser.id), limit(1));
+    }, [firestore, courierUser]);
+    
+    const { data: chats, isLoading: isChatLoading } = useCollection<Chat>(chatQuery);
+    const activeChat = chats?.[0];
+
+    const canRenderChat = courierUser && adminUser && activeChat;
+    const isLoading = isAdminLoading || isChatLoading;
 
     const chatContent = (
         <>
-            {isAdminLoading && <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>}
-            {!isAdminLoading && !adminUser && <div className="flex items-center justify-center h-full text-muted-foreground">لم يتم العثور على حساب المسؤول.</div>}
+            {isLoading && <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>}
+            {!isLoading && !adminUser && <div className="flex items-center justify-center h-full text-muted-foreground">لم يتم العثور على حساب المسؤول.</div>}
+            {!isLoading && adminUser && !activeChat && <div className="flex items-center justify-center h-full text-muted-foreground">لا توجد محادثة، يرجى التواصل مع الإدارة.</div>}
             {canRenderChat && (
                 <ChatWindow 
                     currentUser={courierUser}
                     chatPartner={adminUser}
-                    chatId={courierUser.id}
+                    chatId={activeChat.id}
                 />
             )}
         </>

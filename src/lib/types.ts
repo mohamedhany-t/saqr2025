@@ -62,6 +62,22 @@ export interface Governorate {
   name: string;
 }
 
+export interface Chat {
+    id: string;
+    participants: string[];
+    participantInfo: {
+        [key: string]: {
+            name: string;
+            role: Role;
+        }
+    };
+    lastMessage?: string;
+    lastMessageAt?: any;
+    createdAt: any;
+    updatedAt: any;
+}
+
+
 export interface ChatMessage {
     id: string;
     text: string;

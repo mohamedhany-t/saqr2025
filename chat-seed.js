@@ -43,7 +43,7 @@ async function getCouriers() {
         log('No couriers found in the database. Run `npm run seed` first.');
         return [];
     }
-    return snapshot.docs.map(doc => doc.data());
+    return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
 }
 
 async function ensureAdminRole(adminUser) {
@@ -80,6 +80,19 @@ async function seedChats(couriers, adminUser) {
         logError("Cannot seed chats without an admin user.");
         return;
     }
+    
+    // Delete all old chats before seeding
+    log("Clearing all existing chats...");
+    const oldChatsSnapshot = await db.collection('chats').get();
+    if (!oldChatsSnapshot.empty) {
+        const deleteBatch = db.batch();
+        oldChatsSnapshot.docs.forEach(doc => {
+            deleteBatch.delete(doc.ref);
+        });
+        await deleteBatch.commit();
+        log(`Deleted ${oldChatsSnapshot.size} old chats.`);
+    }
+
 
     const now = admin.firestore.Timestamp.now();
     const lastMessageText = `مرحباً، هذه رسالة تلقائية من الإدارة.`;
@@ -87,23 +100,27 @@ async function seedChats(couriers, adminUser) {
     for (const courier of couriers) {
         const batch = db.batch();
         
-        // Chat document
-        const chatRef = db.collection('chats').doc(courier.id);
+        // Chat document with new structure
+        const chatRef = db.collection('chats').doc(); // Auto-generate ID
+        
+        const participants = [adminUser.uid, courier.id];
+        const participantInfo = {
+            [adminUser.uid]: { name: adminUser.displayName || "Admin", role: "admin" },
+            [courier.id]: { name: courier.name, role: "courier" }
+        };
+
         batch.set(chatRef, {
-            id: courier.id,
+            id: chatRef.id,
+            participants: participants,
+            participantInfo: participantInfo,
             lastMessage: lastMessageText,
             lastMessageAt: now,
-            courierName: courier.name,
+            createdAt: now,
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
 
-        // Messages subcollection - delete old messages before seeding new ones
+        // Messages subcollection
         const messagesCollectionRef = chatRef.collection('messages');
-        const oldMessages = await messagesCollectionRef.limit(100).get();
-        if(!oldMessages.empty) {
-            oldMessages.docs.forEach(doc => batch.delete(doc.ref));
-        }
-
         const adminMessageRef = messagesCollectionRef.doc();
         batch.set(adminMessageRef, {
             id: adminMessageRef.id,
@@ -115,7 +132,7 @@ async function seedChats(couriers, adminUser) {
         });
         
         await batch.commit();
-        log(`Seeded chat for courier: ${courier.name}`);
+        log(`Seeded chat for courier: ${courier.name} with new chat ID: ${chatRef.id}`);
     }
 }
 
@@ -123,13 +140,12 @@ async function seedChats(couriers, adminUser) {
 // --- تشغيل السكربت ---
 async function main() {
     try {
-        console.log("\x1b[34m%s\x1b[0m", "Starting chat seeding process...");
+        console.log("\x1b[34m%s\x1b[0m", "Starting chat seeding process with new structure...");
 
         const adminUser = await getAdminUser();
         const couriers = await getCouriers();
         
         if (adminUser) {
-            // This is a critical step to ensure permissions are correct
             await ensureAdminRole(adminUser);
         }
 
@@ -146,5 +162,3 @@ async function main() {
 }
 
 main();
-
-    
