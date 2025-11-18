@@ -8,6 +8,8 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Check if a user has a specific role by looking for a document in the roles collections.
+    // The document must exist, so we check that its data is not null.
     function isRole(role) {
       return exists(/databases/$(database)/documents/roles_$(role)/$(request.auth.uid));
     }
@@ -28,19 +30,17 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
     
-    function isShipmentOwner(shipmentDoc) {
-        return isCompany() && shipmentDoc.companyId == request.auth.uid;
-    }
-    
-    function isShipmentCourier(shipmentDoc) {
-        return isCourier() && shipmentDoc.assignedCourierId == request.auth.uid;
+    // --- Global Admin Catch-All ---
+    // This rule gives admins God-mode. It's evaluated alongside specific rules.
+    // If ANY rule passes (this one or a specific one), access is granted.
+    match /{path=**} {
+      allow read, write: if isAdmin();
     }
 
     // --- User Profiles ---
     match /users/{userId} {
       allow read: if isSignedIn();
       allow update: if isOwner(userId);
-      // Admin can write/delete via global rule
     }
 
     // --- Static/Public Data ---
@@ -56,36 +56,28 @@ service cloud.firestore {
 
     // --- Shipments ---
     match /shipments/{shipmentId} {
-      allow read: if isShipmentOwner(resource.data) || isShipmentCourier(resource.data) || isAdmin();
-      allow create: if isCompany() && request.resource.data.companyId == request.auth.uid || isAdmin();
-      allow update: if isAdmin() || isShipmentOwner(resource.data) ||
-                    (isShipmentCourier(resource.data) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
-      allow delete: if isShipmentOwner(resource.data) || isAdmin();
+      allow read: if isCompany() && resource.data.companyId == request.auth.uid ||
+                     isCourier() && resource.data.assignedCourierId == request.auth.uid;
+      allow create: if isCompany() && request.resource.data.companyId == request.auth.uid;
+      allow update: if (isCompany() && resource.data.companyId == request.auth.uid) ||
+                    (isCourier() && resource.data.assignedCourierId == request.auth.uid && 
+                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
+      allow delete: if isCompany() && resource.data.companyId == request.auth.uid;
     }
 
     // --- Chat ---
-    // Rules that explicitly check for admin OR owner. This prevents the more
-    // specific rule from overriding the admin's global access.
     match /chats/{courierId} {
-      allow read, write: if isAdmin() || isOwner(courierId);
+      allow read, write: if isOwner(courierId);
       
       match /messages/{messageId} {
-        allow read, write: if isAdmin() || isOwner(courierId);
+        allow read, write: if isOwner(courierId);
       }
     }
     
-    // --- Admin-only & Role Collections ---
-    // The most secure way: deny all direct access by default.
-    // Admin access is granted by the global rule below.
+    // --- Role Collections ---
+    // Deny all direct access by default. Admin access is granted by the global rule.
     match /roles_admin/{docId} { allow read, write: if false; }
     match /roles_company/{docId} { allow read, write: if false; }
     match /roles_courier/{docId} { allow read, write: if false; }
-
-    // --- Global Admin Catch-All ---
-    // This rule gives admins God-mode. It's evaluated alongside specific rules.
-    // If ANY rule passes (this one or a specific one), access is granted.
-    match /{path=**} {
-      allow read, write: if isAdmin();
-    }
   }
 }
