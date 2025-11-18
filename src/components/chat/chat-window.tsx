@@ -27,6 +27,7 @@ interface FileUpload {
 const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
   const [newMessage, setNewMessage] = useState('');
   const [fileUpload, setFileUpload] = useState<FileUpload | null>(null);
+  const [isSending, setIsSending] = useState(false);
   const firestore = useFirestore();
   const firebaseApp = useFirebaseApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -62,6 +63,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
 
   const handleSendMessage = async () => {
     if (!firestore || !firebaseApp || (!newMessage.trim() && !fileUpload)) return;
+    setIsSending(true);
 
     const chatDocRef = doc(firestore, 'chats', chatId);
     const messagesCollection = collection(firestore, 'chats', chatId, 'messages');
@@ -85,11 +87,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
                 filePayload.fileName = fileUpload.file.name;
                 if (!lastMessageText) lastMessageText = fileUpload.file.name;
             }
-            setFileUpload(null);
         } catch (error) {
             console.error("File upload failed:", error);
             toast({ title: "فشل رفع الملف", description: "حدث خطأ أثناء رفع الملف. يرجى المحاولة مرة أخرى.", variant: "destructive"});
             setFileUpload(prev => prev ? { ...prev, error: "Upload failed" } : null);
+            setIsSending(false);
             return;
         }
     }
@@ -106,6 +108,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
     const chatSnap = await getDoc(chatDocRef);
     if (!chatSnap.exists()) {
         console.error("Chat does not exist!");
+        setIsSending(false);
         return;
     }
     const chatData = chatSnap.data() as Chat;
@@ -133,6 +136,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
 
     // Reset input fields
     setNewMessage('');
+    setFileUpload(null);
+    setIsSending(false);
     
     // 3. Send Push Notification (after message is saved)
     if (otherParticipantId) {
@@ -184,7 +189,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
             </div>
         )}
         <div className="flex items-center gap-2">
-           <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()}>
+           <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} disabled={isSending}>
               <Paperclip className="h-5 w-5" />
               <span className="sr-only">إرفاق ملف</span>
             </Button>
@@ -193,17 +198,19 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
               ref={fileInputRef} 
               className="hidden" 
               onChange={handleFileSelect}
+              disabled={isSending}
             />
           <Input
             value={newMessage}
             onChange={e => setNewMessage(e.target.value)}
-            onKeyPress={e => e.key === 'Enter' && handleSendMessage()}
+            onKeyPress={e => e.key === 'Enter' && !isSending && handleSendMessage()}
             placeholder="اكتب رسالتك هنا..."
             className="flex-1"
             dir="rtl"
+            disabled={isSending}
           />
-          <Button onClick={handleSendMessage} disabled={(!newMessage.trim() && !fileUpload) || (!!fileUpload && fileUpload.progress < 100)}>
-            <Send className="h-5 w-5" />
+          <Button onClick={handleSendMessage} disabled={isSending || (!newMessage.trim() && !fileUpload) || (!!fileUpload && fileUpload.progress < 100)}>
+            {isSending ? <Loader2 className="h-5 w-5 animate-spin"/> : <Send className="h-5 w-5" />}
           </Button>
         </div>
       </div>
