@@ -64,15 +64,15 @@ service cloud.firestore {
        // Admin access is covered by the global rule
     }
     
-    // --- Chat (NEW COMPOSITE KEY STRUCTURE) ---
-    // A chat document ID is a composite of two sorted user IDs (e.g., 'uid1_uid2')
+    // --- Chat (NEW & IMPROVED) ---
     match /chats/{chatId} {
-      // Allow read/write if the user's UID is part of the document's composite key ID.
-      allow read, write: if request.auth.uid in chatId.split('_');
+      // Allow access if the user's ID is in the 'participants' array.
+      allow read, write: if request.auth.uid in resource.data.participants;
       
       match /messages/{messageId} {
-         // Allow read/write if the user's UID is part of the parent chat's composite key ID.
-        allow read, write: if request.auth.uid in chatId.split('_');
+        // Inherit the parent chat's security rule:
+        // Allow access if the user is a participant of the parent chat document.
+        allow read, write: if get(/databases/$(database)/documents/chats/$(chatId)).data.participants.hasAny([request.auth.uid]);
       }
     }
     

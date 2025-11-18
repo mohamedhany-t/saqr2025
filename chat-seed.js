@@ -27,6 +27,11 @@ const db = admin.firestore();
 const log = (message, data) => console.log(`\x1b[32m✔\x1b[0m ${message}`, data || '');
 const logError = (message, error) => console.error(`\x1b[31m✖\x1b[0m ${message}`, error);
 
+const createChatId = (uid1, uid2) => {
+    if (!uid1 || !uid2) return null;
+    return [uid1, uid2].sort().join('_');
+};
+
 async function getAdminUser() {
     try {
         const userRecord = await auth.getUserByEmail(ADMIN_EMAIL);
@@ -83,14 +88,18 @@ async function seedChats(couriers, adminUser) {
     
     // Delete all old chats before seeding
     log("Clearing all existing chats...");
-    const oldChatsSnapshot = await db.collection('chats').get();
+    const oldChatsSnapshot = await db.collection('chats').limit(500).get();
     if (!oldChatsSnapshot.empty) {
         const deleteBatch = db.batch();
-        oldChatsSnapshot.docs.forEach(doc => {
-            deleteBatch.delete(doc.ref);
-        });
+        for (const doc of oldChatsSnapshot.docs) {
+             const messagesSnapshot = await doc.ref.collection('messages').get();
+             if (!messagesSnapshot.empty) {
+                messagesSnapshot.docs.forEach(msgDoc => deleteBatch.delete(msgDoc.ref));
+             }
+             deleteBatch.delete(doc.ref);
+        }
         await deleteBatch.commit();
-        log(`Deleted ${oldChatsSnapshot.size} old chats.`);
+        log(`Deleted ${oldChatsSnapshot.size} old chats and their messages.`);
     }
 
 
@@ -99,9 +108,14 @@ async function seedChats(couriers, adminUser) {
 
     for (const courier of couriers) {
         const batch = db.batch();
+        const chatId = createChatId(adminUser.uid, courier.id);
+
+        if (!chatId) {
+            logError(`Skipping chat for courier ${courier.name} due to missing user ID.`);
+            continue;
+        }
         
-        // Chat document with new structure
-        const chatRef = db.collection('chats').doc(); // Auto-generate ID
+        const chatRef = db.collection('chats').doc(chatId);
         
         const participants = [adminUser.uid, courier.id];
         const participantInfo = {
@@ -132,7 +146,7 @@ async function seedChats(couriers, adminUser) {
         });
         
         await batch.commit();
-        log(`Seeded chat for courier: ${courier.name} with new chat ID: ${chatRef.id}`);
+        log(`Seeded chat for courier: ${courier.name} with static chat ID: ${chatRef.id}`);
     }
 }
 
