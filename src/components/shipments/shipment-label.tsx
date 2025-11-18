@@ -50,10 +50,8 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
             </p>
         </div>
         
-        {/* This div is removed as it was creating the empty space */}
-
         {/* Footer with Details & QR Code */}
-        <div className="flex justify-between items-end border-t-2 border-black pt-2 mt-auto">
+        <div className="flex justify-between items-end border-t-2 border-black pt-2">
             <div className="flex-grow space-y-1">
                 <InfoLine label="رقم الشحنة" value={shipment.trackingNumber || shipment.shipmentCode} valueClass="font-mono font-bold" />
                 <InfoLine label="الشركة" value={companyName} valueClass="font-semibold" />
@@ -73,7 +71,7 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
         </div>
 
          {/* Final Footer */}
-        <div className="border-t-2 border-black pt-1 mt-2 text-center">
+        <div className="border-t-2 border-black pt-1 mt-auto text-center">
             <p className="text-xs">شكرًا لاختياركم الصقر للخدمات اللوجستية.</p>
         </div>
     </div>
