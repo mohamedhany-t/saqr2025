@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Truck, CheckCircle2, CircleDollarSign, Building, Wallet, BadgeDollarSign, Archive } from "lucide-react";
 import type { Shipment, Role } from "@/lib/types";
@@ -76,5 +77,3 @@ export function StatsCards({ shipments, role }: StatsCardsProps) {
         </div>
     );
 }
-
-    

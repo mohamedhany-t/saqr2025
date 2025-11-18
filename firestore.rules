@@ -62,25 +62,12 @@ service cloud.firestore {
                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
       allow delete: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
     }
+
+    // --- Courier Payments ---
+    match /courier_payments/{paymentId} {
+      allow read, write: if isAdmin();
+    }
     
-    // --- Chat ---
-    match /conversations/{conversationId} {
-      allow list: if isAdmin() || (isSignedIn() && request.query.where[0][2] == request.auth.uid);
-      allow get: if isSignedIn() && request.auth.uid in resource.data.participantIds;
-      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participantIds;
-      allow update: if isSignedIn() && request.auth.uid in resource.data.participantIds;
-    }
-
-    match /conversations/{conversationId}/messages/{messageId} {
-      allow read: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
-      allow create: if isSignedIn() 
-                      && request.auth.uid == request.resource.data.senderId
-                      && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
-      // Messages are immutable
-      allow update, delete: if false;
-    }
-
-
     // --- Role Collections ---
     match /roles_admin/{docId} { allow read, write: if isAdmin(); }
     match /roles_company/{docId} { allow read, write: if isAdmin(); }

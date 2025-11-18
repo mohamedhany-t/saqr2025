@@ -742,7 +742,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                                                 <h4 className="font-semibold mb-1">آخر دفعة:</h4>
                                                 <div className="flex justify-between items-center text-muted-foreground">
                                                     <span>{courier.paymentHistory[0].amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
-                                                    <span>{courier.paymentHistory[0].paymentDate?.toDate().toLocaleDateString('ar-EG')}</span>
+                                                    <span>{new Date(courier.paymentHistory[0].paymentDate?.toDate()).toLocaleDateString('ar-EG')}</span>
                                                 </div>
                                             </div>
                                         )}

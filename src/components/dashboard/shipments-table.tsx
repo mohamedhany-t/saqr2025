@@ -1,3 +1,4 @@
+
 "use client"
 import * as React from "react"
 import type {
@@ -710,5 +711,3 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     </div>
   )
 }
-
-    

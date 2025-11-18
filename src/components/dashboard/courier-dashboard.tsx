@@ -1,3 +1,4 @@
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -384,5 +385,3 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     </>
   );
 }
-
-    
