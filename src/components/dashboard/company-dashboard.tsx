@@ -11,20 +11,20 @@ import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
-import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, setDoc, getDoc } from "firebase/firestore";
 
 interface CompanyDashboardProps {
-  role: Role | null;
+  user: User;
+  role: Role;
   searchTerm: string;
 }
 
-export default function CompanyDashboard({ role, searchTerm }: CompanyDashboardProps) {
+export default function CompanyDashboard({ user, role, searchTerm }: CompanyDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const { user } = useUser();
   const firestore = useFirestore();
 
   const router = useRouter();
@@ -41,7 +41,7 @@ export default function CompanyDashboard({ role, searchTerm }: CompanyDashboardP
         if (shipmentSnap.exists()) {
            const shipmentData = { id: shipmentSnap.id, ...shipmentSnap.data() } as Shipment;
            // Ensure company user can only edit their own shipments
-           if (shipmentData.companyId === user?.uid) {
+           if (shipmentData.companyId === user?.id) {
                setEditingShipment(shipmentData);
                setShipmentSheetOpen(true);
            } else {
@@ -59,7 +59,7 @@ export default function CompanyDashboard({ role, searchTerm }: CompanyDashboardP
       };
       fetchShipment();
     }
-  }, [searchParams, firestore, router, pathname, user?.uid, toast]);
+  }, [searchParams, firestore, router, pathname, user?.id, toast]);
 
   const handleSheetOpenChange = (open: boolean) => {
     setShipmentSheetOpen(open);
@@ -77,7 +77,7 @@ export default function CompanyDashboard({ role, searchTerm }: CompanyDashboardP
 
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'shipments'), where("companyId", "==", user.uid));
+    return query(collection(firestore, 'shipments'), where("companyId", "==", user.id));
   }, [firestore, user]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
@@ -162,12 +162,12 @@ export default function CompanyDashboard({ role, searchTerm }: CompanyDashboardP
                   reason: row['السبب'] || '',
                   deliveryDate: deliveryDate || new Date(),
                   updatedAt: serverTimestamp(),
-                  companyId: user.uid, // Shipment belongs to the current company user
+                  companyId: user.id, // Shipment belongs to the current company user
               };
 
               const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
               
-              const q = query(shipmentsCollection, where("trackingNumber", "==", trackingNumber), where("companyId", "==", user.uid));
+              const q = query(shipmentsCollection, where("trackingNumber", "==", trackingNumber), where("companyId", "==", user.id));
               const querySnapshot = await getDocs(q);
 
               if (querySnapshot.empty) {
@@ -254,7 +254,7 @@ export default function CompanyDashboard({ role, searchTerm }: CompanyDashboardP
     } else {
       const shipmentsCollection = collection(firestore, 'shipments');
       const docRef = doc(shipmentsCollection);
-      const dataToAdd = { ...cleanShipmentData, id: docRef.id, companyId: user.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+      const dataToAdd = { ...cleanShipmentData, id: docRef.id, companyId: user.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
       
       setDoc(docRef, dataToAdd)
         .then(() => {
@@ -394,9 +394,5 @@ export default function CompanyDashboard({ role, searchTerm }: CompanyDashboardP
     </div>
   );
 }
-
-    
-
-    
 
     

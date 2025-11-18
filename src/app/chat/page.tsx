@@ -2,9 +2,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc } from 'firebase/firestore';
-import type { User, Conversation, Role } from '@/lib/types';
+import { useUserProfile, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
+import type { Conversation } from '@/lib/types';
 import { AppLayout } from '@/components/layout/app-layout';
 import { Loader2 } from 'lucide-react';
 import { ConversationList } from '@/components/chat/conversation-list';
@@ -12,33 +12,26 @@ import { ChatWindow } from '@/components/chat/chat-window';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
 function ChatPageContent({ searchTerm }: { searchTerm: string }) {
-    const { user: currentUser, isUserLoading } = useUser();
+    const { userProfile, isProfileLoading } = useUserProfile();
     const firestore = useFirestore();
     
     const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
 
-    const userDocRef = useMemoFirebase(() => {
-        if (!currentUser) return null;
-        return doc(firestore, `users/${currentUser.uid}`);
-    }, [currentUser, firestore]);
-    const { data: userProfile, isLoading: isRoleLoading } = useDoc<User>(userDocRef);
-    const role = userProfile?.role;
-    
     const conversationsQuery = useMemoFirebase(() => {
-        if (!currentUser || !firestore) return null;
+        if (!userProfile || !firestore) return null;
         return query(
             collection(firestore, 'conversations'),
-            where('participantIds', 'array-contains', currentUser.uid)
+            where('participantIds', 'array-contains', userProfile.id)
         );
-    }, [currentUser, firestore]);
+    }, [userProfile, firestore]);
 
     const { data: conversations, isLoading: conversationsLoading } = useCollection<Conversation>(conversationsQuery);
 
-    if (isUserLoading || isRoleLoading) {
+    if (isProfileLoading) {
         return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
 
-    if (!currentUser || !role) {
+    if (!userProfile) {
         return <div className="text-center">غير مصرح لك بالدخول.</div>;
     }
 
@@ -48,10 +41,9 @@ function ChatPageContent({ searchTerm }: { searchTerm: string }) {
                 <ConversationList
                     conversations={conversations || []}
                     isLoading={conversationsLoading}
-                    currentUser={currentUser}
+                    currentUserProfile={userProfile}
                     onSelectConversation={setSelectedConversation}
                     selectedConversationId={selectedConversation?.id}
-                    role={role}
                     searchTerm={searchTerm}
                 />
             </ResizablePanel>
@@ -60,7 +52,7 @@ function ChatPageContent({ searchTerm }: { searchTerm: string }) {
                 {selectedConversation ? (
                     <ChatWindow
                         conversation={selectedConversation}
-                        currentUser={currentUser}
+                        currentUserProfile={userProfile}
                     />
                 ) : (
                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground bg-card">
@@ -79,3 +71,5 @@ export default function ChatPage() {
         </AppLayout>
     );
 }
+
+    

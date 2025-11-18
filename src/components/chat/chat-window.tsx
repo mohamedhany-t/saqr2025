@@ -1,7 +1,7 @@
 
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
-import type { Conversation, Message, User as CurrentUser } from '@/lib/types';
+import type { Conversation, Message, User as UserProfile } from '@/lib/types';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, limit, doc, writeBatch, serverTimestamp, getDocs, where } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
@@ -15,10 +15,10 @@ import { Progress } from '../ui/progress';
 
 interface ChatWindowProps {
     conversation: Conversation;
-    currentUser: CurrentUser;
+    currentUserProfile: UserProfile;
 }
 
-export function ChatWindow({ conversation, currentUser }: ChatWindowProps) {
+export function ChatWindow({ conversation, currentUserProfile }: ChatWindowProps) {
     const firestore = useFirestore();
     const storage = getStorage();
     const { toast } = useToast();
@@ -30,7 +30,7 @@ export function ChatWindow({ conversation, currentUser }: ChatWindowProps) {
     const [uploadProgress, setUploadProgress] = useState<number | null>(null);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-    const otherParticipant = conversation.participantDetails[conversation.participantIds.find(id => id !== currentUser.uid)!];
+    const otherParticipant = conversation.participantDetails[conversation.participantIds.find(id => id !== currentUserProfile.id)!];
 
     const messagesQuery = useMemoFirebase(() => {
         if (!firestore || !conversation) return null;
@@ -55,15 +55,15 @@ export function ChatWindow({ conversation, currentUser }: ChatWindowProps) {
 
     // Mark messages as read effect
     useEffect(() => {
-        if (firestore && conversation.unreadCounts[currentUser.uid] > 0) {
+        if (firestore && conversation.unreadCounts[currentUserProfile.id] > 0) {
             const batch = writeBatch(firestore);
             const convRef = doc(firestore, 'conversations', conversation.id);
             batch.update(convRef, {
-                [`unreadCounts.${currentUser.uid}`]: 0
+                [`unreadCounts.${currentUserProfile.id}`]: 0
             });
             batch.commit().catch(console.error);
         }
-    }, [firestore, conversation.id, conversation.unreadCounts, currentUser.uid, messages]);
+    }, [firestore, conversation.id, conversation.unreadCounts, currentUserProfile.id, messages]);
 
     const handleSendMessage = async (attachment?: { path: string, filename: string, mime: string, size: number }) => {
         if ((!text.trim() && !attachment) || !firestore) return;
@@ -71,12 +71,12 @@ export function ChatWindow({ conversation, currentUser }: ChatWindowProps) {
         const batch = writeBatch(firestore);
         const convRef = doc(firestore, 'conversations', conversation.id);
         const msgRef = doc(collection(firestore, `conversations/${conversation.id}/messages`));
-        const otherUserId = conversation.participantIds.find(id => id !== currentUser.uid)!;
+        const otherUserId = conversation.participantIds.find(id => id !== currentUserProfile.id)!;
         
         const newMessage: Omit<Message, 'id'> = {
-            senderId: currentUser.uid,
+            senderId: currentUserProfile.id,
             createdAt: serverTimestamp(),
-            readBy: [currentUser.uid],
+            readBy: [currentUserProfile.id],
         };
         if(text.trim()) newMessage.text = text.trim();
         if(attachment) newMessage.attachments = [attachment];
@@ -96,7 +96,7 @@ export function ChatWindow({ conversation, currentUser }: ChatWindowProps) {
         batch.update(convRef, {
             lastMessageText: text.trim() || attachment?.filename || 'Attachment',
             lastMessageAt: serverTimestamp(),
-            lastMessageSenderId: currentUser.uid,
+            lastMessageSenderId: currentUserProfile.id,
             [`unreadCounts.${otherUserId}`]: (conversation.unreadCounts[otherUserId] || 0) + 1
         });
 
@@ -188,7 +188,7 @@ export function ChatWindow({ conversation, currentUser }: ChatWindowProps) {
                 ) : (
                     <>
                         {combinedMessages.map(msg => (
-                            <MessageBubble key={msg.id} message={msg} isOwnMessage={msg.senderId === currentUser.uid} />
+                            <MessageBubble key={msg.id} message={msg} isOwnMessage={msg.senderId === currentUserProfile.id} />
                         ))}
                         <div ref={messagesEndRef} />
                     </>
@@ -237,3 +237,4 @@ export function ChatWindow({ conversation, currentUser }: ChatWindowProps) {
     );
 }
 
+    

@@ -8,7 +8,7 @@ import { ShipmentsTable } from "@/components/dashboard/shipments-table";
 import type { Role, Shipment, Company, Governorate, Courier, ShipmentStatus, User } from "@/lib/types";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { useToast } from "@/hooks/use-toast";
-import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser, useDoc } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { collection, serverTimestamp, doc, query, where, updateDoc, getDoc, writeBatch } from "firebase/firestore";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
@@ -16,16 +16,16 @@ import { StatsCards } from "@/components/dashboard/stats-cards";
 import { Loader2 } from "lucide-react";
 
 interface CourierDashboardProps {
-  role: Role | null;
+  user: User;
+  role: Role;
   searchTerm: string;
 }
 
-export default function CourierDashboard({ role, searchTerm }: CourierDashboardProps) {
+export default function CourierDashboard({ user, role, searchTerm }: CourierDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const { toast } = useToast();
   const firestore = useFirestore();
-  const { user } = useUser();
   const isMobile = useIsMobile();
   const router = useRouter();
   const pathname = usePathname();
@@ -41,7 +41,7 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
         if (shipmentSnap.exists()) {
            const shipmentData = { id: shipmentSnap.id, ...shipmentSnap.data() } as Shipment;
            // Ensure courier can only edit their own assigned shipments
-           if (shipmentData.assignedCourierId === user?.uid) {
+           if (shipmentData.assignedCourierId === user?.id) {
                setEditingShipment(shipmentData);
                setShipmentSheetOpen(true);
            } else {
@@ -59,7 +59,7 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
       };
       fetchShipment();
     }
-  }, [searchParams, firestore, router, pathname, user?.uid, toast]);
+  }, [searchParams, firestore, router, pathname, user?.id, toast]);
 
   const handleSheetOpenChange = (open: boolean) => {
     setShipmentSheetOpen(open);
@@ -75,16 +75,9 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
   };
 
 
-  const userQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [firestore, user]);
-  const { data: courierUser } = useDoc<User>(userQuery);
-
-
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'shipments'), where("assignedCourierId", "==", user.uid));
+    return query(collection(firestore, 'shipments'), where("assignedCourierId", "==", user.id));
   }, [firestore, user]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
@@ -138,7 +131,13 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
   }
 
   const handleSaveShipment = async (shipment: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
-    if (!firestore || !id || !user || !courierUser) return;
+    if (!firestore || !id || !user) return;
+    
+    const courierUser = user;
+    if (!courierUser) {
+        toast({ title: "لم يتم العثور على بيانات المندوب", variant: "destructive" });
+        return;
+    }
 
     const originalShipmentDocSnap = await getDoc(doc(firestore, 'shipments', id));
     if (!originalShipmentDocSnap.exists()) {
@@ -190,9 +189,15 @@ export default function CourierDashboard({ role, searchTerm }: CourierDashboardP
   };
 
   const handleBulkUpdateShipments = (selectedRows: Shipment[], update: Partial<Shipment>) => {
-    if (!firestore || !courierUser) return;
+    if (!firestore || !user) return;
     if (selectedRows.length === 0) {
         toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
+        return;
+    }
+    
+    const courierUser = user;
+     if (!courierUser) {
+        toast({ title: "لم يتم العثور على بيانات المندوب", variant: "destructive" });
         return;
     }
 

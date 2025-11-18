@@ -29,11 +29,12 @@ import {
 } from "@/components/ui/alert-dialog"
 
 interface AdminDashboardProps {
-  role: Role | null;
+  user: User;
+  role: Role;
   searchTerm: string;
 }
 
-export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps) {
+export default function AdminDashboard({ user, role, searchTerm }: AdminDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
@@ -41,7 +42,6 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const { user } = useUser();
   const firestore = useFirestore();
   
   const router = useRouter();
@@ -111,7 +111,6 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
   const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
   
   const courierUsers = React.useMemo(() => users?.filter(u => u.role === 'courier') || [], [users]);
-  const adminUser = React.useMemo(() => users?.find(u => u.role === 'admin' && u.email === 'mhanyt21@gmail.com') || null, [users]);
   
   const openShipmentForm = (shipment?: Shipment) => {
     setEditingShipment(shipment);
@@ -774,3 +773,5 @@ export default function AdminDashboard({ role, searchTerm }: AdminDashboardProps
     </div>
   );
 }
+
+    

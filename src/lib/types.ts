@@ -1,4 +1,6 @@
 
+import type { User as AuthUser } from 'firebase/auth';
+
 export type Role = "admin" | "company" | "courier";
 
 export type User = {
@@ -99,3 +101,5 @@ export interface Conversation {
         [uid: string]: number;
     };
 }
+
+    

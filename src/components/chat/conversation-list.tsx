@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import type { Conversation, User as CurrentUser, Role, User } from '@/lib/types';
+import type { Conversation, User as UserProfile } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
@@ -11,18 +11,15 @@ import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { Skeleton } from '../ui/skeleton';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
-import { Button } from '../ui/button';
-import { PlusCircle } from 'lucide-react';
+import { collection, query, where, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 interface ConversationListProps {
     conversations: Conversation[];
     isLoading: boolean;
-    currentUser: CurrentUser;
+    currentUserProfile: UserProfile;
     onSelectConversation: (conversation: Conversation) => void;
     selectedConversationId?: string;
-    role: Role;
     searchTerm: string;
 }
 
@@ -31,9 +28,9 @@ const getOtherParticipant = (conversation: Conversation, currentUserId: string) 
     return otherId ? conversation.participantDetails[otherId] : null;
 };
 
-const ConversationItem = ({ conv, currentUser, isSelected, onSelect }: { conv: Conversation, currentUser: CurrentUser, isSelected: boolean, onSelect: () => void }) => {
-    const otherParticipant = getOtherParticipant(conv, currentUser.uid);
-    const unreadCount = conv.unreadCounts?.[currentUser.uid] || 0;
+const ConversationItem = ({ conv, currentUserProfile, isSelected, onSelect }: { conv: Conversation, currentUserProfile: UserProfile, isSelected: boolean, onSelect: () => void }) => {
+    const otherParticipant = getOtherParticipant(conv, currentUserProfile.id);
+    const unreadCount = conv.unreadCounts?.[currentUserProfile.id] || 0;
     
     const timeAgo = conv.lastMessageAt?.toDate ? formatDistanceToNow(conv.lastMessageAt.toDate(), { addSuffix: true, locale: ar }) : '';
 
@@ -65,7 +62,7 @@ const ConversationItem = ({ conv, currentUser, isSelected, onSelect }: { conv: C
     );
 };
 
-export function ConversationList({ conversations, isLoading, currentUser, onSelectConversation, selectedConversationId, role, searchTerm }: ConversationListProps) {
+export function ConversationList({ conversations, isLoading, currentUserProfile, onSelectConversation, selectedConversationId, searchTerm }: ConversationListProps) {
     const firestore = useFirestore();
     const { toast } = useToast();
 
@@ -74,10 +71,10 @@ export function ConversationList({ conversations, isLoading, currentUser, onSele
         if (!firestore) return null;
         return query(collection(firestore, 'users'), where('role', 'in', ['admin', 'courier']));
     }, [firestore]);
-    const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
+    const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
 
-    const handleCreateConversation = async (otherUser: User) => {
-        if (!firestore || !currentUser || !currentUser.email) return;
+    const handleCreateConversation = async (otherUser: UserProfile) => {
+        if (!firestore || !currentUserProfile) return;
 
         // Check if a conversation already exists
         const otherUserId = otherUser.id;
@@ -89,21 +86,27 @@ export function ConversationList({ conversations, isLoading, currentUser, onSele
         }
 
         // Create new conversation
-        const conversationId = [currentUser.uid, otherUserId].sort().join('_');
+        const conversationId = [currentUserProfile.id, otherUserId].sort().join('_');
         const batch = writeBatch(firestore);
         const convRef = doc(firestore, 'conversations', conversationId);
+        
+        const currentUserDetails = {
+             name: currentUserProfile.name || currentUserProfile.email,
+             role: currentUserProfile.role,
+             avatarUrl: currentUserProfile.avatarUrl || '',
+        };
 
         const newConversation: Conversation = {
             id: conversationId,
-            participantIds: [currentUser.uid, otherUserId],
+            participantIds: [currentUserProfile.id, otherUserId],
             participantDetails: {
-                [currentUser.uid]: { name: currentUser.displayName || currentUser.email, role: role, avatarUrl: currentUser.photoURL || '' },
+                [currentUserProfile.id]: currentUserDetails,
                 [otherUser.id]: { name: otherUser.name || otherUser.email, role: otherUser.role, avatarUrl: otherUser.avatarUrl || '' }
             },
             lastMessageAt: serverTimestamp(),
             lastMessageText: "بدأت المحادثة",
-            unreadCounts: { [currentUser.uid]: 0, [otherUser.id]: 1 },
-            lastMessageSenderId: currentUser.uid,
+            unreadCounts: { [currentUserProfile.id]: 0, [otherUser.id]: 1 },
+            lastMessageSenderId: currentUserProfile.id,
         };
 
         batch.set(convRef, newConversation);
@@ -118,11 +121,11 @@ export function ConversationList({ conversations, isLoading, currentUser, onSele
         }
     };
 
-    const targetRole = role === 'admin' ? 'courier' : 'admin';
-    const potentialContacts = users?.filter(u => u.role === targetRole) || [];
+    const targetRole = currentUserProfile.role === 'admin' ? 'courier' : 'admin';
+    const potentialContacts = users?.filter(u => u.role === targetRole && u.id !== currentUserProfile.id) || [];
     
     const filteredConversations = conversations.filter(conv => {
-        const other = getOtherParticipant(conv, currentUser.uid);
+        const other = getOtherParticipant(conv, currentUserProfile.id);
         if (!other) return false;
         return other.name.toLowerCase().includes(searchTerm.toLowerCase());
     });
@@ -149,7 +152,7 @@ export function ConversationList({ conversations, isLoading, currentUser, onSele
                             <ConversationItem
                                 key={conv.id}
                                 conv={conv}
-                                currentUser={currentUser}
+                                currentUserProfile={currentUserProfile}
                                 isSelected={conv.id === selectedConversationId}
                                 onSelect={() => onSelectConversation(conv)}
                             />
@@ -174,3 +177,5 @@ export function ConversationList({ conversations, isLoading, currentUser, onSele
         </div>
     );
 }
+
+    

@@ -65,11 +65,12 @@ service cloud.firestore {
     
     // --- Chat ---
     match /conversations/{conversationId} {
-        // Rule for LIST queries: Allow if the query filters by the user's UID.
-        allow list: if isSignedIn() && request.query.where.get('participantIds')[2][0] == request.auth.uid;
-        
-        // Rules for GET, CREATE, UPDATE on individual documents.
-        allow get, update, create: if isSignedIn() && request.auth.uid in resource.data.participantIds;
+      // Allow LIST queries only if they are filtered by the user's UID.
+      // This is crucial to prevent users from listing all conversations.
+      allow list: if isSignedIn() && request.query.where.participantIds.includes(request.auth.uid);
+      
+      // Allow GET, CREATE, UPDATE on individual documents only if the user is a participant.
+      allow get, update, create: if isSignedIn() && request.auth.uid in resource.data.participantIds;
     }
 
     match /conversations/{conversationId}/messages/{messageId} {
@@ -89,3 +90,5 @@ service cloud.firestore {
     match /roles_courier/{docId} { allow read, write: if isAdmin(); }
   }
 }
+
+    
