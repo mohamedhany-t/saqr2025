@@ -10,6 +10,7 @@ service cloud.firestore {
     }
 
     function isRole(role) {
+      // Check for a document in the roles_<role_name> collection with the user's UID
       return exists(/databases/$(database)/documents/roles_$(role)/$(request.auth.uid));
     }
 
@@ -24,53 +25,59 @@ service cloud.firestore {
     function isCourier() {
       return isSignedIn() && isRole('courier');
     }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
     
-    // --- User Profiles ---
+    // --- Collections ---
+
+    // Users can read their own profile, admins can manage all profiles.
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow update: if isOwner(userId) || isAdmin();
-      allow create: if isAdmin();
-      allow delete: if isAdmin();
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+      allow create, delete: if isAdmin();
     }
 
-    // --- Static/Public Data ---
+    // Shipments can be read by their owner (company), the assigned courier, or an admin.
+    // Creation is for companies and admins.
+    // Updates are restricted for couriers.
+    match /shipments/{shipmentId} {
+      allow read: if isAdmin() || 
+                     (isCompany() && resource.data.companyId == request.auth.uid) || 
+                     (isCourier() && resource.data.assignedCourierId == request.auth.uid);
+                     
+      allow create: if isAdmin() || 
+                       (isCompany() && request.resource.data.companyId == request.auth.uid);
+                       
+      // Admins and Companies have full update rights on their shipments.
+      // Couriers can ONLY update specific fields on their assigned shipments.
+      allow update: if (isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid)) ||
+                       (isCourier() && resource.data.assignedCourierId == request.auth.uid && 
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
+
+      allow delete: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
+    }
+    
+    // Courier payments can only be managed by admins.
+    match /courier_payments/{paymentId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Role collections are managed exclusively by admins.
+    match /roles_{role}/{userId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Static data collections (governorates, public company/courier profiles)
+    // are readable by any signed-in user, but only writable by admins.
     match /governorates/{docId} {
       allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
     match /companies/{docId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
-    match /couriers/{docId} {
+     match /couriers/{docId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
-
-    // --- Shipments ---
-    match /shipments/{shipmentId} {
-      allow read: if isAdmin() ||
-                     (isCompany() && resource.data.companyId == request.auth.uid) ||
-                     (isCourier() && resource.data.assignedCourierId == request.auth.uid);
-      allow create: if isAdmin() || (isCompany() && request.resource.data.companyId == request.auth.uid);
-      allow update: if isAdmin() ||
-                     (isCompany() && resource.data.companyId == request.auth.uid) ||
-                     (isCourier() && resource.data.assignedCourierId == request.auth.uid && 
-                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
-      allow delete: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
-    }
-
-    // --- Courier Payments ---
-    match /courier_payments/{paymentId} {
-      allow read, write: if isAdmin();
-    }
-    
-    // --- Role Collections ---
-    match /roles_admin/{docId} { allow read, write: if isAdmin(); }
-    match /roles_company/{docId} { allow read, write: if isAdmin(); }
-    match /roles_courier/{docId} { allow read, write: if isAdmin(); }
   }
 }
