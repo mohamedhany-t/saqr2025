@@ -8,7 +8,7 @@ import "./globals.css";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
 import React, { useEffect } from 'react';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const cairo = Cairo({ subsets: ["arabic"], variable: "--font-cairo", weight: ['400', '700'] });
@@ -69,12 +69,19 @@ function PwaAndNotificationHandler() {
       });
       
       const subscriptionJson = subscription.toJSON();
+      if (!subscriptionJson.endpoint) {
+          console.error("Subscription endpoint is null.");
+          return;
+      }
+
+      // Use a URL-safe version of the endpoint as the document ID
+      const subId = btoa(subscriptionJson.endpoint).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 
       // Store the subscription in Firestore
-      const subRef = doc(firestore, `users/${user.uid}/pushSubscriptions`, subscriptionJson.endpoint!.substring(subscriptionJson.endpoint.length - 100));
+      const subRef = doc(firestore, `users/${user.uid}/pushSubscriptions`, subId);
       await setDoc(subRef, {
         ...subscriptionJson,
-        createdAt: new Date(),
+        createdAt: serverTimestamp(),
         userId: user.uid,
       }, { merge: true });
 

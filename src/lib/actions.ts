@@ -3,8 +3,8 @@
 
 import { getAuth } from 'firebase-admin/auth';
 import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
-import { getMessaging } from 'firebase-admin/messaging';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import webpush from 'web-push';
 import { z } from 'zod';
 
 // This is a workaround to use service account credentials in a Vercel-like environment
@@ -123,7 +123,22 @@ export async function sendPushNotification(data: z.infer<typeof sendNotification
     try {
         const app = getAdminApp();
         const db = getFirestore(app);
-        const messaging = getMessaging(app);
+
+        // Configure web-push
+        const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+        const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+
+        if (!vapidPublicKey || !vapidPrivateKey) {
+            console.error('VAPID keys are not configured on the server.');
+            return { success: false, error: 'VAPID keys not configured.'};
+        }
+
+        webpush.setVapidDetails(
+            'mailto:mhanyt21@gmail.com',
+            vapidPublicKey,
+            vapidPrivateKey
+        );
+
 
         const subscriptionsSnap = await db.collection(`users/${recipientId}/pushSubscriptions`).get();
 
@@ -132,45 +147,29 @@ export async function sendPushNotification(data: z.infer<typeof sendNotification
             return { success: true, message: 'No subscriptions to send to.' };
         }
 
-        const subscriptions = subscriptionsSnap.docs.map(doc => doc.data());
-        const notificationPayload = {
-            notification: {
-                title,
-                body,
-                icon: '/fav.png',
-                click_action: url || process.env.NEXT_PUBLIC_BASE_URL || '/',
+        const notificationPayload = JSON.stringify({
+            title,
+            body,
+            icon: '/fav.png',
+            data: {
+                url: url || process.env.NEXT_PUBLIC_BASE_URL || '/',
             }
-        };
+        });
 
         const responses = [];
-        for (const subscription of subscriptions) {
+        for (const doc of subscriptionsSnap.docs) {
+            const subscription = doc.data();
             try {
-                // web-push library is needed to properly format and send the request
-                // but we'll try with what firebase-admin provides
-                const response = await messaging.send({
-                    webpush: {
-                        notification: {
-                            title,
-                            body,
-                            icon: '/fav.png',
-                        },
-                        fcmOptions: {
-                           link: url || process.env.NEXT_PUBLIC_BASE_URL || '/',
-                        }
-                    },
-                    token: subscription.endpoint, // This is not the device token, but for web push it's what we have
-                } as any); // Cast to any to bypass strict typing issues for webpush
-                responses.push({ success: true, subscription: subscription.endpoint, response });
+                const response = await webpush.sendNotification(subscription, notificationPayload);
+                responses.push({ success: true, subscriptionId: doc.id });
             } catch (e: any) {
-                console.error(`Error sending to ${subscription.endpoint}:`, e.code);
-                responses.push({ success: false, subscription: subscription.endpoint, error: e.code });
-                // If a token is no longer valid, remove it from Firestore
-                if (e.code === 'messaging/registration-token-not-registered') {
-                    const subDoc = subscriptionsSnap.docs.find(doc => doc.data().endpoint === subscription.endpoint);
-                    if(subDoc) {
-                        await subDoc.ref.delete();
-                        console.log(`Deleted invalid subscription: ${subscription.endpoint}`);
-                    }
+                console.error(`Error sending to ${subscription.endpoint}:`, e.statusCode, e.body);
+                responses.push({ success: false, subscriptionId: doc.id, error: e.statusCode });
+                
+                // If subscription is gone (410) or invalid (404), remove it from Firestore
+                if (e.statusCode === 410 || e.statusCode === 404) {
+                    await doc.ref.delete();
+                    console.log(`Deleted invalid subscription: ${doc.id}`);
                 }
             }
         }
