@@ -59,7 +59,7 @@ function PwaAndNotificationHandler() {
     try {
       const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
       if (!vapidKey) {
-        console.error('VAPID public key is not defined. Push notifications cannot be enabled.');
+        console.warn('VAPID public key is not defined. Push notifications will not work in local development.');
         return;
       }
       const registration = await navigator.serviceWorker.ready;
