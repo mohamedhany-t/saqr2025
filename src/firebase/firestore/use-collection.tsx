@@ -87,7 +87,7 @@ export function useCollection<T = any>(
 
         // Set the local error state for the component to use.
         setError(permissionError);
-        setData(null);
+setData(null);
         setIsLoading(false);
 
         // Emit the error globally so it can be caught by the app's error boundary.
