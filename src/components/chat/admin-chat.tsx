@@ -48,7 +48,7 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
             const newChatDocRef = doc(chatCollectionRef); // Create a reference with an auto-generated ID
 
             const newChatData: any = {
-                id: newChatDocRef.id, // Use the generated ID
+                id: newChatDocRef.id,
                 participants: [adminUser.id, courier.id],
                 participantInfo: {
                     [adminUser.id]: { name: adminUser.name || adminUser.email || "Admin", role: "admin" },
