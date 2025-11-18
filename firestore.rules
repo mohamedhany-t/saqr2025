@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -71,3 +72,5 @@ service cloud.firestore {
     match /roles_courier/{docId} { allow read, write: if false; }
   }
 }
+
+    
