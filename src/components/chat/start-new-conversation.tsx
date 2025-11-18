@@ -67,8 +67,12 @@ const StartNewConversation: React.FC<StartNewConversationProps> = ({ currentUser
                 const batch = writeBatch(firestore);
 
                 batch.set(docRef, { ...newChatData, id: docRef.id });
-
-                await batch.commit();
+                
+                await batch.commit()
+                  .catch(serverError => { // Catch commit-specific errors
+                    console.error("Error committing new chat:", serverError);
+                    throw serverError; // Re-throw to be caught by the outer try-catch
+                  });
 
                 onNewChat(docRef.id);
             }
@@ -79,7 +83,7 @@ const StartNewConversation: React.FC<StartNewConversationProps> = ({ currentUser
             console.error("Error starting chat:", error);
             const permissionError = new FirestorePermissionError({
                 path: 'chats',
-                operation: 'write', // Could be read or write, 'write' is a safe guess
+                operation: 'write',
                 requestResourceData: { note: `Attempt to create/find chat between ${currentUser.id} and ${selectedUserId}` }
             });
             errorEmitter.emit('permission-error', permissionError);
