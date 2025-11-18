@@ -42,11 +42,19 @@ const StartNewConversation: React.FC<StartNewConversationProps> = ({ currentUser
                 where('participants', '==', participants)
             );
             
-            const existingChats = await getDocs(q);
+            const existingChatsSnap = await getDocs(q).catch(serverError => {
+                const permissionError = new FirestorePermissionError({
+                    path: `chats`,
+                    operation: 'list',
+                    requestResourceData: { note: `Query for existing chat between ${currentUser.id} and ${selectedUserId}` }
+                });
+                errorEmitter.emit('permission-error', permissionError);
+                throw serverError; // Propagate error
+            });
             
-            if (!existingChats.empty) {
+            if (!existingChatsSnap.empty) {
                 // Chat already exists, select it
-                onNewChat(existingChats.docs[0].id);
+                onNewChat(existingChatsSnap.docs[0].id);
             } else {
                 // Create a new chat
                 const selectedUser = users?.find(u => u.id === selectedUserId);
@@ -61,6 +69,10 @@ const StartNewConversation: React.FC<StartNewConversationProps> = ({ currentUser
                     },
                     lastMessage: "بدأت المحادثة",
                     lastMessageTimestamp: serverTimestamp(),
+                    unreadCounts: {
+                        [currentUser.id]: 0,
+                        [selectedUserId]: 1,
+                    },
                 };
                 
                 const docRef = doc(chatDocRefCollection);
@@ -69,9 +81,14 @@ const StartNewConversation: React.FC<StartNewConversationProps> = ({ currentUser
                 batch.set(docRef, { ...newChatData, id: docRef.id });
                 
                 await batch.commit()
-                  .catch(serverError => { // Catch commit-specific errors
-                    console.error("Error committing new chat:", serverError);
-                    throw serverError; // Re-throw to be caught by the outer try-catch
+                  .catch(serverError => {
+                    const permissionError = new FirestorePermissionError({
+                        path: docRef.path,
+                        operation: 'create',
+                        requestResourceData: newChatData
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                    throw serverError;
                   });
 
                 onNewChat(docRef.id);
@@ -81,12 +98,11 @@ const StartNewConversation: React.FC<StartNewConversationProps> = ({ currentUser
             setOpen(false);
         } catch (error) {
             console.error("Error starting chat:", error);
-            const permissionError = new FirestorePermissionError({
-                path: 'chats',
-                operation: 'write',
-                requestResourceData: { note: `Attempt to create/find chat between ${currentUser.id} and ${selectedUserId}` }
+            toast({
+                title: "خطأ في بدء المحادثة",
+                description: "لم نتمكن من بدء المحادثة. قد يكون السبب مشكلة في الصلاحيات.",
+                variant: "destructive"
             });
-            errorEmitter.emit('permission-error', permissionError);
         }
     };
 

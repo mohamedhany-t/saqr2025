@@ -3,9 +3,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Paperclip, Send, X, File as FileIcon, Loader2 } from 'lucide-react';
-import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, orderBy, writeBatch, doc } from 'firebase/firestore';
-import type { ChatMessage, User } from '@/lib/types';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, serverTimestamp, query, orderBy, writeBatch, doc, getDoc, increment } from 'firebase/firestore';
+import type { ChatMessage, User, Chat } from '@/lib/types';
 import MessageBubble from './message-bubble';
 import { uploadFile } from '@/firebase/storage';
 import { useToast } from '@/hooks/use-toast';
@@ -45,15 +45,28 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
     scrollToBottom();
   }, [messages]);
 
+  // Effect to mark messages as read when the chat window is open
+  useEffect(() => {
+    if (firestore && chatId && currentUser) {
+      const chatDocRef = doc(firestore, 'chats', chatId);
+      const unreadCountKey = `unreadCounts.${currentUser.id}`;
+      
+      const batch = writeBatch(firestore);
+      batch.update(chatDocRef, { [unreadCountKey]: 0 });
+      batch.commit().catch(console.error);
+    }
+  }, [firestore, chatId, currentUser, messages]); // Rerun when messages update to catch incoming ones
+
   const handleSendMessage = async () => {
     if (!firestore || (!newMessage.trim() && !fileUpload)) return;
 
-    const messagesCollection = collection(firestore, 'chats', chatId, 'messages');
     const chatDocRef = doc(firestore, 'chats', chatId);
+    const messagesCollection = collection(firestore, 'chats', chatId, 'messages');
     let filePayload: Partial<ChatMessage> = {};
 
     let lastMessageText = newMessage.trim();
 
+    // Handle File Upload First
     if (fileUpload && fileUpload.file) {
         try {
             const filePath = `chat_attachments/${chatId}/${Date.now()}_${fileUpload.file.name}`;
@@ -79,6 +92,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
         }
     }
     
+    // Prepare message payload
     const messagePayload: Omit<ChatMessage, 'id'> = {
         senderId: currentUser.id,
         timestamp: serverTimestamp(),
@@ -86,17 +100,36 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
         ...(newMessage.trim() && { text: newMessage.trim() }),
     };
 
-    const batch = writeBatch(firestore);
-    const newMessageRef = doc(messagesCollection);
+    // Get the other participant's ID to increment their unread count
+    const chatSnap = await getDoc(chatDocRef);
+    if (!chatSnap.exists()) {
+        console.error("Chat does not exist!");
+        return;
+    }
+    const chatData = chatSnap.data() as Chat;
+    const otherParticipantId = chatData.participants.find(p => p !== currentUser.id);
 
+    // Create a batch to update everything atomically
+    const batch = writeBatch(firestore);
+    
+    // 1. Add the new message
+    const newMessageRef = doc(messagesCollection);
     batch.set(newMessageRef, messagePayload);
-    batch.update(chatDocRef, {
+
+    // 2. Update the chat document with last message and increment unread count
+    const chatUpdatePayload: any = {
         lastMessage: lastMessageText,
         lastMessageTimestamp: serverTimestamp(),
-    });
+    };
+    if (otherParticipantId) {
+        chatUpdatePayload[`unreadCounts.${otherParticipantId}`] = increment(1);
+    }
+    batch.update(chatDocRef, chatUpdatePayload);
 
+    // Commit the batch
     await batch.commit();
 
+    // Reset input fields
     setNewMessage('');
   };
 

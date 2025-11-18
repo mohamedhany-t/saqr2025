@@ -4,7 +4,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, ShipmentStatus, User, CourierPayment } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, ShipmentStatus, User, CourierPayment, Chat } from "@/lib/types";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
@@ -12,8 +12,10 @@ import { collection, serverTimestamp, doc, query, where, updateDoc, getDoc, writ
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
 import { StatsCards } from "@/components/dashboard/stats-cards";
-import { Loader2 } from "lucide-react";
+import { Loader2, MessageSquare } from "lucide-react";
 import { Card, CardContent } from "../ui/card";
+import ChatInterface from "../chat/chat-interface";
+import { useUnreadMessages } from "@/hooks/use-unread-messages";
 
 
 interface CourierDashboardProps {
@@ -31,6 +33,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { totalUnreadCount } = useUnreadMessages(user.id);
 
   // Effect to fetch shipment data if 'edit' param is in the URL
   React.useEffect(() => {
@@ -333,8 +336,15 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   return (
     <>
       <Tabs defaultValue="shipments" className="w-full">
-         <TabsList className="grid w-full grid-cols-2">
+         <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="shipments">الشحنات</TabsTrigger>
+            <TabsTrigger value="chat" className="relative">
+                <MessageSquare className="me-2 h-4 w-4" />
+                <span>الدردشة</span>
+                 {totalUnreadCount > 0 && (
+                    <Badge className="absolute -top-2 -right-2 h-5 w-5 justify-center p-0">{totalUnreadCount}</Badge>
+                )}
+            </TabsTrigger>
             <TabsTrigger value="accounts">الحسابات</TabsTrigger>
         </TabsList>
          <TabsContent value="shipments">
@@ -367,6 +377,9 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
               </Tabs>
             </div>
          </TabsContent>
+        <TabsContent value="chat">
+            <ChatInterface />
+        </TabsContent>
          <TabsContent value="accounts">
              <div className="p-4 sm:p-0">
                 <h1 className="text-2xl font-bold mb-4">ملخص الحسابات</h1>

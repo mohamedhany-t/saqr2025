@@ -892,7 +892,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             </div>
         </TabsContent>
         <TabsContent value="chat">
-            <ChatInterface />
+           <ChatInterface />
         </TabsContent>
         </Tabs>
       <ShipmentFormSheet

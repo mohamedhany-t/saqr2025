@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { Skeleton } from '../ui/skeleton';
+import { Badge } from '../ui/badge';
 
 interface ConversationListProps {
     currentUser: User;
@@ -70,13 +71,14 @@ const ConversationList: React.FC<ConversationListProps> = ({ currentUser, onSele
                 const { name, avatarUrl, fallback } = getOtherParticipant(chat);
                 const timeAgo = chat.lastMessageTimestamp?.toDate ? 
                     formatDistanceToNow(chat.lastMessageTimestamp.toDate(), { addSuffix: true, locale: ar }) : '';
+                const unreadCount = chat.unreadCounts?.[currentUser.id] || 0;
 
                 return (
                     <div
                         key={chat.id}
                         onClick={() => onSelectChat(chat.id)}
                         className={cn(
-                            "flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 border-b",
+                            "flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 border-b relative",
                             activeChatId === chat.id && "bg-muted"
                         )}
                     >
@@ -91,12 +93,15 @@ const ConversationList: React.FC<ConversationListProps> = ({ currentUser, onSele
                             </div>
                             <p className="text-sm text-muted-foreground truncate">{chat.lastMessage || '...'}</p>
                         </div>
+                         {unreadCount > 0 && (
+                            <Badge className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 justify-center p-0">{unreadCount}</Badge>
+                        )}
                     </div>
                 );
             })}
              {sortedChats?.length === 0 && (
                 <div className="p-4 text-center text-muted-foreground text-sm">
-                    لا توجد محادثات. ابدأ واحدة جديدة.
+                    {currentUser.role === 'courier' ? 'لا توجد محادثات. يمكنك فقط الرد على المسؤول.' : 'لا توجد محادثات. ابدأ واحدة جديدة.'}
                 </div>
             )}
         </div>

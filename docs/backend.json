@@ -231,7 +231,12 @@
         "participants": { "type": "array", "items": { "type": "string" }, "description": "Array of user UIDs participating in the chat." },
         "participantNames": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Map of user UIDs to their display names." },
         "lastMessage": { "type": "string", "description": "The text of the last message sent." },
-        "lastMessageTimestamp": { "type": "string", "format": "date-time" }
+        "lastMessageTimestamp": { "type": "string", "format": "date-time" },
+        "unreadCounts": {
+          "type": "object",
+          "description": "Map of user UIDs to their unread message count.",
+          "additionalProperties": { "type": "number" }
+        }
       },
       "required": ["id", "participants", "lastMessageTimestamp"]
     },

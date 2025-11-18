@@ -81,6 +81,7 @@ export interface Chat {
     participantNames: { [key: string]: string };
     lastMessage?: string;
     lastMessageTimestamp: any;
+    unreadCounts?: { [key: string]: number };
 }
 
 export interface ChatMessage {
