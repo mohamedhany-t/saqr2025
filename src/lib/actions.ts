@@ -125,8 +125,8 @@ export async function sendPushNotification(data: z.infer<typeof sendNotification
         const db = getFirestore(app);
 
         // Configure web-push
-        const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-        const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+        const vapidPublicKey = "BLG2BQxTEoSiIqvV-oIAuSkAXiVmiS7sHSERBiWiYz9rXIaEkT0sTDQj0MwjHq-oTQO3CneVA-KV8QMqenKmtiA";
+        const vapidPrivateKey = "MeO03gzQygzYTdFcbc1WuB_Lo30bjeyJwUNE61RcUio";
 
         if (!vapidPublicKey || !vapidPrivateKey) {
             console.error('VAPID keys are not configured on the server.');

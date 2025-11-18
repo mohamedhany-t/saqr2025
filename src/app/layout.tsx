@@ -57,7 +57,7 @@ function PwaAndNotificationHandler() {
 
   const subscribeUserToPush = async () => {
     try {
-      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      const vapidKey = "BLG2BQxTEoSiIqvV-oIAuSkAXiVmiS7sHSERBiWiYz9rXIaEkT0sTDQj0MwjHq-oTQO3CneVA-KV8QMqenKmtiA";
       if (!vapidKey) {
         console.warn('VAPID public key is not defined. Push notifications will not work in local development.');
         return;
