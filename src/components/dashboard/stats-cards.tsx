@@ -1,14 +1,14 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, Truck, CheckCircle2, CircleDollarSign, Building, Wallet, BadgeDollarSign, Archive } from "lucide-react";
-import type { Shipment, Role } from "@/lib/types";
+import { Package, Truck, CheckCircle2, CircleDollarSign, Building, Wallet, BadgeDollarSign, Archive, HandCoins } from "lucide-react";
+import type { Shipment, Role, CourierPayment } from "@/lib/types";
 
 interface StatsCardsProps {
     shipments: Shipment[];
+    payments?: CourierPayment[];
     role: Role | null;
 }
 
-export function StatsCards({ shipments, role }: StatsCardsProps) {
+export function StatsCards({ shipments, payments, role }: StatsCardsProps) {
     const totalRevenue = shipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
     const inTransit = shipments.filter(s => s.status === 'In-Transit').length;
     const delivered = shipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered' || s.status === 'Evasion').length;
@@ -17,7 +17,8 @@ export function StatsCards({ shipments, role }: StatsCardsProps) {
 
     // For Courier Dashboard
     const totalCourierCommission = shipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
-    const netDueForCourier = totalRevenue - totalCourierCommission;
+    const totalPaidByCourier = payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+    const netDueForCourier = (totalRevenue - totalCourierCommission) - totalPaidByCourier;
 
 
     const adminStats = [
@@ -37,8 +38,8 @@ export function StatsCards({ shipments, role }: StatsCardsProps) {
     const courierStats = [
         { title: "إجمالي التحصيل", value: `${totalRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: CircleDollarSign, description: "المبلغ الإجمالي الذي قمت بتحصيله." },
         { title: "إجمالي عمولاتك", value: `${totalCourierCommission.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: BadgeDollarSign, description: "مجموع العمولات المستحقة لك." },
-        { title: "المبلغ المستحق للدفع", value: `${netDueForCourier.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: Wallet, description: "الصافي المستحق عليك تسليمه للشركة." },
-        { title: "إجمالي الشحنات", value: `${totalShipments}`, icon: Package, description: "إجمالي عدد الشحنات المسندة إليك." },
+        { title: "إجمالي المدفوعات", value: `${totalPaidByCourier.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: HandCoins, description: "إجمالي المبالغ التي قمت بدفعها للشركة." },
+        { title: "صافي المبلغ المستحق", value: `${netDueForCourier.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: Wallet, description: "الصافي المستحق عليك تسليمه للشركة." },
     ];
     
     let statsToDisplay;
@@ -68,7 +69,7 @@ export function StatsCards({ shipments, role }: StatsCardsProps) {
                             <stat.icon className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold">{stat.value}</div>
+                            <div className={`text-2xl font-bold ${stat.title === 'صافي المبلغ المستحق' ? (netDueForCourier > 0 ? 'text-destructive' : 'text-green-600') : ''}`}>{stat.value}</div>
                             <p className="text-xs text-muted-foreground">{stat.description}</p>
                         </CardContent>
                     </Card>

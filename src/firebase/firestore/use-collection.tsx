@@ -29,11 +29,11 @@ export interface UseCollectionResult<T> {
 const getPathFromRefOrQuery = (refOrQuery: CollectionReference | Query): string => {
     if (refOrQuery.type === 'collection') {
         return (refOrQuery as CollectionReference).path;
-    } else {
-        // This is a simplified approach. A more robust one might be needed for complex queries.
-        // @ts-ignore - _query is an internal but useful property
-        return refOrQuery._query.path.segments.join('/');
     }
+    // This is a simplified approach. A more robust one might be needed for complex queries.
+    // @ts-ignore - _query is an internal but useful property
+    const pathSegments = refOrQuery?._query?.path?.segments;
+    return pathSegments ? pathSegments.join('/') : '';
 }
 
 /**
@@ -87,7 +87,7 @@ export function useCollection<T = any>(
 
         // Set the local error state for the component to use.
         setError(permissionError);
-setData(null);
+        setData(null);
         setIsLoading(false);
 
         // Emit the error globally so it can be caught by the app's error boundary.

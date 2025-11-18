@@ -1,11 +1,10 @@
-
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, ShipmentStatus, User } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, ShipmentStatus, User, CourierPayment } from "@/lib/types";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
@@ -80,6 +79,12 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     return query(collection(firestore, 'shipments'), where("assignedCourierId", "==", user.id));
   }, [firestore, user]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
+
+  const paymentsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'courier_payments'), where("courierId", "==", user.id));
+  }, [firestore, user]);
+  const { data: payments, isLoading: paymentsLoading } = useCollection<CourierPayment>(paymentsQuery);
 
   const governoratesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -364,9 +369,15 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
              <div className="p-4 sm:p-0">
                 <h1 className="text-2xl font-bold mb-4">ملخص الحسابات</h1>
                 <p className="text-muted-foreground mb-6">
-                    هنا يمكنك رؤية ملخص مالي لجميع شحناتك، بما في ذلك المبالغ المحصلة وعمولاتك.
+                    هنا يمكنك رؤية ملخص مالي لجميع شحناتك، بما في ذلك المبالغ المحصلة وعمولاتك والمدفوعات التي قمت بها.
                 </p>
-                <StatsCards shipments={shipments || []} role={role} />
+                {paymentsLoading ? (
+                    <div className="flex h-full w-full items-center justify-center">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                ) : (
+                    <StatsCards shipments={shipments || []} payments={payments || []} role={role} />
+                )}
             </div>
          </TabsContent>
        </Tabs>
