@@ -30,13 +30,6 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
     
-    // --- Global Admin Catch-All (HIGHEST PRIORITY) ---
-    // This rule provides broad access for admins. Specific rules below should be
-    // carefully crafted if they need to override this for certain paths.
-    match /{path=**} {
-      allow read, write: if isAdmin();
-    }
-
     // --- User Profiles ---
     match /users/{userId} {
       allow read: if isSignedIn();
@@ -77,8 +70,8 @@ service cloud.firestore {
     // --- Role Collections ---
     // Only Admins can manage roles (via the global rule).
     // Deny all other direct client access by default.
-    match /roles_admin/{docId} { allow read, write: if false; }
-    match /roles_company/{docId} { allow read, write: if false; }
-    match /roles_courier/{docId} { allow read, write: if false; }
+    match /roles_admin/{docId} { allow read, write: if isAdmin(); }
+    match /roles_company/{docId} { allow read, write: if isAdmin(); }
+    match /roles_courier/{docId} { allow read, write: if isAdmin(); }
   }
 }
