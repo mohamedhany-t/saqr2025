@@ -2,6 +2,7 @@
 'use client';
 import React from 'react';
 import { Header } from '../dashboard/header';
+import { Sidebar } from './sidebar';
 
 interface AppLayoutProps {
     children: React.ReactNode;
@@ -21,13 +22,14 @@ export function AppLayout({ children }: AppLayoutProps) {
     });
     
     return (
-        <div className="flex min-h-screen w-full flex-col bg-muted/40">
-           <Header onSearchChange={setSearchTerm} />
-           <main className="flex flex-col flex-1 gap-4 p-4 md:gap-8 md:p-8">
-              {childrenWithProps}
-           </main>
+        <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
+           <Sidebar />
+           <div className="flex flex-col">
+               <Header onSearchChange={setSearchTerm} />
+               <main className="flex flex-col flex-1 gap-4 p-4 md:gap-8 md:p-8">
+                  {childrenWithProps}
+               </main>
+            </div>
         </div>
     )
 }
-
-    
