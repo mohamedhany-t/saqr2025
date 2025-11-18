@@ -3,71 +3,37 @@
 import React, { Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 
-import type { Role } from "@/lib/types";
-import { useUser, useFirestore } from "@/firebase";
+import type { Role, User } from "@/lib/types";
+import { useUser, useFirestore, useDoc } from "@/firebase";
 import AdminDashboard from "@/components/dashboard/admin-dashboard";
 import CourierDashboard from "@/components/dashboard/courier-dashboard";
 import CompanyDashboard from "@/components/dashboard/company-dashboard";
 import { AppLayout } from "@/components/layout/app-layout";
 
 function PageContent() {
-  const [role, setRole] = React.useState<Role | null>(null);
-  const [isLoadingRole, setIsLoadingRole] = React.useState(true);
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
 
+  // Use the useDoc hook for a real-time, cleaner user profile fetching
+  const userDocRef = React.useMemo(() => {
+    if (!user || !firestore) return null;
+    return doc(firestore, `users/${user.uid}`);
+  }, [user, firestore]);
+
+  const { data: userProfile, isLoading: isRoleLoading } = useDoc<User>(userDocRef);
+
+  const role = userProfile?.role ?? null;
+  
   React.useEffect(() => {
     if (!isUserLoading && !user) {
       router.push('/login');
     }
   }, [user, isUserLoading, router]);
 
-  React.useEffect(() => {
-    if (user && firestore) {
-      const checkRole = async () => {
-        setIsLoadingRole(true);
-        const userDocRef = doc(firestore, `users/${user.uid}`);
-        
-        try {
-          const userDocSnap = await getDoc(userDocRef);
-
-          if (userDocSnap.exists() && userDocSnap.data().role) {
-            setRole(userDocSnap.data().role);
-          } else {
-            // This part might be legacy, but we keep it for safety for now
-            if (user.email === "mhanyt21@gmail.com") {
-               const adminData = {
-                id: user.uid,
-                email: user.email,
-                role: 'admin',
-                name: user.displayName || 'Admin',
-                createdAt: serverTimestamp()
-              };
-              if (!userDocSnap.exists()) {
-                await setDoc(userDocRef, adminData);
-                await setDoc(doc(firestore, 'roles_admin', user.uid), { email: user.email });
-              }
-              setRole('admin');
-            } else {
-              setRole(null); // No role found
-            }
-          }
-        } catch (error) {
-            console.error("Error fetching user role:", error);
-            setRole(null);
-        } finally {
-            setIsLoadingRole(false);
-        }
-      };
-
-      checkRole();
-    }
-  }, [user, firestore]);
-  
-  if (isUserLoading || isLoadingRole) {
+  if (isUserLoading || (user && isRoleLoading)) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-muted/30">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -76,6 +42,16 @@ function PageContent() {
   }
 
   const renderContent = () => {
+    if (!user) {
+        // This case is handled by the useEffect redirect, but it's good practice
+        // to have a fallback render.
+        return (
+             <div className="flex min-h-screen w-full items-center justify-center bg-muted/30">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+        )
+    }
+
     switch (role) {
       case "admin":
         return <AdminDashboard role={role} />;
@@ -84,6 +60,7 @@ function PageContent() {
       case "courier":
         return <CourierDashboard role={role} />;
       default:
+        // This case covers when the user is authenticated but has no role document or role field.
         return (
           <div className="flex min-h-screen w-full items-center justify-center bg-muted/30 flex-col gap-4 text-center p-4">
               <h1 className="text-2xl font-bold text-destructive">غير مصرح لك بالدخول</h1>
