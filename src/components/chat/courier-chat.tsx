@@ -16,14 +16,18 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, where, limit } from 'firebase/firestore';
 
-
 interface CourierChatProps {
     courierUser: User | null;
 }
 
+// Function to create a consistent chat ID from two user IDs
+const createChatId = (uid1: string, uid2: string): string => {
+    return [uid1, uid2].sort().join('_');
+};
 
 export function CourierChat({ courierUser }: CourierChatProps) {
     const [isOpen, setIsOpen] = useState(false);
+    const [activeChatId, setActiveChatId] = useState<string | null>(null);
     const isMobile = useIsMobile();
     const firestore = useFirestore();
 
@@ -35,27 +39,26 @@ export function CourierChat({ courierUser }: CourierChatProps) {
     const { data: adminUsers, isLoading: isAdminLoading } = useCollection<User>(adminQuery);
     const adminUser = adminUsers?.[0];
 
-    const chatQuery = useMemoFirebase(() => {
-        if (!firestore || !courierUser?.id) return null;
-        return query(collection(firestore, 'chats'), where('participants', 'array-contains', courierUser.id), limit(1));
-    }, [firestore, courierUser]);
-    
-    const { data: chats, isLoading: isChatLoading } = useCollection<Chat>(chatQuery);
-    const activeChat = chats?.[0];
+    // Effect to construct the chat ID once both users are available
+    useEffect(() => {
+        if (courierUser && adminUser) {
+            const chatId = createChatId(courierUser.id, adminUser.id);
+            setActiveChatId(chatId);
+        }
+    }, [courierUser, adminUser]);
 
-    const canRenderChat = courierUser && adminUser && activeChat;
-    const isLoading = isAdminLoading || isChatLoading;
+    const canRenderChat = courierUser && adminUser && activeChatId;
+    const isLoading = isAdminLoading || !activeChatId;
 
     const chatContent = (
         <>
             {isLoading && <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>}
             {!isLoading && !adminUser && <div className="flex items-center justify-center h-full text-muted-foreground">لم يتم العثور على حساب المسؤول.</div>}
-            {!isLoading && adminUser && !activeChat && <div className="flex items-center justify-center h-full text-muted-foreground">لا توجد محادثة، يرجى التواصل مع الإدارة.</div>}
             {canRenderChat && (
                 <ChatWindow 
                     currentUser={courierUser}
                     chatPartner={adminUser}
-                    chatId={activeChat.id}
+                    chatId={activeChatId}
                 />
             )}
         </>

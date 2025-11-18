@@ -1,79 +1,36 @@
 
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import type { User, Chat } from '@/lib/types';
 import { ChatWindow } from './chat-window';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '../ui/scroll-area';
 import { MessageSquare, Loader2 } from 'lucide-react';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, getDocs, serverTimestamp, doc, setDoc } from 'firebase/firestore';
-
+import { useFirestore, useUser } from '@/firebase';
 
 interface AdminChatProps {
     couriers: User[];
     adminUser: User | null;
 }
 
+// Function to create a consistent chat ID from two user IDs
+const createChatId = (uid1: string, uid2: string): string => {
+    return [uid1, uid2].sort().join('_');
+};
+
 export function AdminChat({ couriers, adminUser }: AdminChatProps) {
     const firestore = useFirestore();
     const [selectedCourier, setSelectedCourier] = useState<User | null>(null);
-    const [activeChat, setActiveChat] = useState<Chat | null>(null);
-    const [isChatLoading, setIsChatLoading] = useState(false);
-
-    // This hook fetches all chats where the admin is a participant
-    const chatsQuery = useMemoFirebase(() => {
-        if (!firestore || !adminUser?.id) return null;
-        return query(collection(firestore, 'chats'), where('participants', 'array-contains', adminUser.id));
-    }, [firestore, adminUser]);
-
-    const { data: chats } = useCollection<Chat>(chatsQuery);
+    const [activeChatId, setActiveChatId] = useState<string | null>(null);
 
     const handleCourierSelect = async (courier: User) => {
+        if (!adminUser) return;
         setSelectedCourier(courier);
-        if (!firestore || !adminUser) return;
-
-        setIsChatLoading(true);
-
-        // Find existing chat
-        const existingChat = chats?.find(c => c.participants.includes(courier.id));
-
-        if (existingChat) {
-            setActiveChat(existingChat);
-        } else {
-            // Create a new chat if it doesn't exist
-            const chatCollectionRef = collection(firestore, 'chats');
-            const newChatDocRef = doc(chatCollectionRef); // Create a reference with an auto-generated ID
-
-            const newChatData: any = {
-                id: newChatDocRef.id,
-                participants: [adminUser.id, courier.id],
-                participantInfo: {
-                    [adminUser.id]: { name: adminUser.name || adminUser.email || "Admin", role: "admin" },
-                    [courier.id]: { name: courier.name || courier.email || "Courier", role: "courier" }
-                },
-                lastMessage: "بدأت المحادثة",
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-                lastMessageAt: serverTimestamp(),
-            };
-            
-            // Use setDoc with the explicit document reference
-            await setDoc(newChatDocRef, newChatData);
-            
-            // Create a separate object for local state with JS Date objects
-            // This prevents Firestore's ServerTimestamp object from causing issues in the UI state
-            const docDataForState = {
-              ...newChatData,
-              createdAt: new Date(), 
-              updatedAt: new Date(),
-              lastMessageAt: new Date(),
-            }
-            setActiveChat(docDataForState as Chat);
-        }
-        setIsChatLoading(false);
+        // Directly construct the chat ID without querying
+        const chatId = createChatId(adminUser.id, courier.id);
+        setActiveChatId(chatId);
     };
 
     if (!adminUser) return null;
@@ -112,17 +69,12 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
 
             {/* Chat Window */}
             <div className="md:col-span-2 lg:col-span-3 h-full">
-                {isChatLoading ? (
-                     <div className="flex flex-col h-full items-center justify-center bg-card rounded-lg border">
-                         <Loader2 className="h-16 w-16 text-muted-foreground/50 animate-spin" />
-                         <h2 className="mt-4 text-xl font-semibold text-muted-foreground">جاري تحميل المحادثة...</h2>
-                     </div>
-                ) : activeChat && selectedCourier ? (
+                {activeChatId && selectedCourier ? (
                     <ChatWindow
-                        key={activeChat.id}
+                        key={activeChatId}
                         currentUser={adminUser}
                         chatPartner={selectedCourier}
-                        chatId={activeChat.id}
+                        chatId={activeChatId}
                     />
                 ) : (
                     <div className="flex flex-col h-full items-center justify-center bg-card rounded-lg border">
@@ -135,4 +87,3 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
         </div>
     );
 }
-

@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { collection, addDoc, serverTimestamp, query, orderBy, writeBatch, doc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, writeBatch, doc, getDoc, setDoc } from 'firebase/firestore';
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import type { User, ChatMessage } from '@/lib/types';
 import { Button } from '../ui/button';
@@ -11,7 +11,6 @@ import { Paperclip, Send, Loader2 } from 'lucide-react';
 import { Card, CardHeader, CardContent, CardFooter } from '../ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { cn } from '@/lib/utils';
-import { ScrollArea } from '../ui/scroll-area';
 
 interface ChatWindowProps {
     currentUser: User;
@@ -52,6 +51,24 @@ export function ChatWindow({ currentUser, chatPartner, chatId }: ChatWindowProps
 
         const batch = writeBatch(firestore);
 
+        // Reference to the chat document
+        const chatDocRef = doc(firestore, 'chats', chatId);
+
+        // Check if the chat document exists. If not, create it.
+        const chatDocSnap = await getDoc(chatDocRef);
+        if (!chatDocSnap.exists()) {
+             batch.set(chatDocRef, {
+                id: chatId,
+                participants: [currentUser.id, chatPartner.id],
+                participantInfo: {
+                    [currentUser.id]: { name: currentUser.name || currentUser.email, role: currentUser.role },
+                    [chatPartner.id]: { name: chatPartner.name || chatPartner.email, role: chatPartner.role }
+                },
+                createdAt: serverTimestamp(),
+            });
+        }
+        
+        // Add the new message to the messages subcollection
         const messagesCollectionRef = collection(firestore, 'chats', chatId, 'messages');
         const newMessageRef = doc(messagesCollectionRef);
 
@@ -64,7 +81,7 @@ export function ChatWindow({ currentUser, chatPartner, chatId }: ChatWindowProps
             imageUrl: null,
         });
 
-        const chatDocRef = doc(firestore, 'chats', chatId);
+        // Update the last message info on the main chat document
         batch.update(chatDocRef, {
             lastMessage: trimmedMessage,
             lastMessageAt: serverTimestamp(),
@@ -134,7 +151,7 @@ export function ChatWindow({ currentUser, chatPartner, chatId }: ChatWindowProps
                 ))}
                  {!isLoading && messages?.length === 0 && (
                     <div className="text-center text-muted-foreground py-10">
-                        لا توجد رسائل. ابدأ المحادثة.
+                        لا توجد رسائل. ابدأ المحادثة لإرسال أول رسالة.
                     </div>
                  )}
             </CardContent>
