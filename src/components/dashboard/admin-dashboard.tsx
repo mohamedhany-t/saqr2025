@@ -520,7 +520,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         <div className="flex items-center">
             <TabsList className="flex-nowrap overflow-x-auto justify-start">
             <TabsTrigger value="shipments">الشحنات</TabsTrigger>
-            <TabsTrigger value="chat" onClick={() => router.push('/chat')}>الدردشة</TabsTrigger>
             <TabsTrigger value="courier-management">إدارة المناديب</TabsTrigger>
             <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
             <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
@@ -622,7 +621,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 </TabsContent>
             </Tabs>
         </TabsContent>
-         <TabsContent value="chat"></TabsContent>
         <TabsContent value="courier-management">
              <div className="mt-8">
                 <div className="flex justify-between items-center mb-4">

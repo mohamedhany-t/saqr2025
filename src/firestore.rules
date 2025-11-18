@@ -1,0 +1,73 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Helper Functions ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isRole(role) {
+      return exists(/databases/$(database)/documents/roles_$(role)/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return isSignedIn() && isRole('admin');
+    }
+
+    function isCompany() {
+      return isSignedIn() && isRole('company');
+    }
+
+    function isCourier() {
+      return isSignedIn() && isRole('courier');
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // --- User Profiles ---
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow update: if isOwner(userId) || isAdmin();
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // --- Static/Public Data ---
+    match /governorates/{docId} {
+      allow read: if isSignedIn();
+    }
+    match /companies/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    match /couriers/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // --- Shipments ---
+    match /shipments/{shipmentId} {
+      allow read: if isAdmin() ||
+                     (isCompany() && resource.data.companyId == request.auth.uid) ||
+                     (isCourier() && resource.data.assignedCourierId == request.auth.uid);
+      allow create: if isAdmin() || (isCompany() && request.resource.data.companyId == request.auth.uid);
+      allow update: if isAdmin() ||
+                     (isCompany() && resource.data.companyId == request.auth.uid) ||
+                     (isCourier() && resource.data.assignedCourierId == request.auth.uid && 
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
+      allow delete: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
+    }
+    
+    // --- Role Collections ---
+    match /roles_admin/{docId} { allow read, write: if isAdmin(); }
+    match /roles_company/{docId} { allow read, write: if isAdmin(); }
+    match /roles_courier/{docId} { allow read, write: if isAdmin(); }
+  }
+}
+
+    

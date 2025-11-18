@@ -326,9 +326,8 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   return (
     <>
       <Tabs defaultValue="shipments" className="w-full">
-         <TabsList className="grid w-full grid-cols-3">
+         <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="shipments">الشحنات</TabsTrigger>
-            <TabsTrigger value="chat" onClick={() => router.push('/chat')}>الدردشة</TabsTrigger>
             <TabsTrigger value="accounts">الحسابات</TabsTrigger>
         </TabsList>
          <TabsContent value="shipments">
@@ -361,7 +360,6 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
               </Tabs>
             </div>
          </TabsContent>
-          <TabsContent value="chat"></TabsContent>
          <TabsContent value="accounts">
              <div className="p-4 sm:p-0">
                 <h1 className="text-2xl font-bold mb-4">ملخص الحسابات</h1>

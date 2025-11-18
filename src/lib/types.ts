@@ -65,41 +65,4 @@ export interface Governorate {
   name: string;
 }
 
-// --- Chat Types ---
-
-export interface Attachment {
-    path: string; // Full path in Firebase Storage
-    filename: string;
-    mime: string;
-    size: number;
-}
-
-export interface Message {
-    id: string;
-    senderId: string;
-    text?: string;
-    attachments?: Attachment[];
-    createdAt: any; // Firebase Server Timestamp
-    readBy: string[]; // List of user IDs who have read the message
-    isOptimistic?: boolean; // Client-side only
-}
-
-export interface Conversation {
-    id: string;
-    participantIds: string[];
-    participantDetails: {
-        [uid: string]: {
-            name: string;
-            role: Role;
-            avatarUrl?: string;
-        }
-    };
-    lastMessageText?: string;
-    lastMessageAt: any; // Firebase Server Timestamp
-    lastMessageSenderId?: string;
-    unreadCounts: {
-        [uid: string]: number;
-    };
-}
-
     
