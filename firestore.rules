@@ -68,11 +68,11 @@ service cloud.firestore {
     }
     
     // --- Courier Payments ---
-    // Explicitly grant Admin full access, and Couriers read access to their own payments.
+    // Allow Admin to perform all actions on the collection and documents.
+    // Allow Couriers to read only their own specific payment documents.
     match /courier_payments/{paymentId} {
-      allow read: if isCourier() && resource.data.courierId == request.auth.uid;
-      // Allow Admin to perform all actions.
       allow read, write: if isAdmin();
+      allow get: if isCourier() && resource.data.courierId == request.auth.uid;
     }
 
     // --- Role Collections ---
