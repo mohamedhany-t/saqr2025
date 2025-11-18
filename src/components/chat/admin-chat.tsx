@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '../ui/scroll-area';
 import { MessageSquare, Loader2 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, getDocs, addDoc, serverTimestamp, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, serverTimestamp, doc, setDoc } from 'firebase/firestore';
 
 
 interface AdminChatProps {
@@ -47,7 +47,7 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
             const chatCollectionRef = collection(firestore, 'chats');
             const newChatDocRef = doc(chatCollectionRef); // Create a reference with an auto-generated ID
 
-            const newChatData: Omit<Chat, 'createdAt' | 'updatedAt' | 'lastMessageAt'> = {
+            const newChatData: Chat = {
                 id: newChatDocRef.id, // Use the generated ID
                 participants: [adminUser.id, courier.id],
                 participantInfo: {
@@ -55,20 +55,17 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
                     [courier.id]: { name: courier.name, role: "courier" }
                 },
                 lastMessage: "بدأت المحادثة",
-            };
-
-            const dataWithTimestamps = {
-              ...newChatData,
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-              lastMessageAt: serverTimestamp(),
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+                lastMessageAt: serverTimestamp(),
             };
             
-            await addDoc(chatCollectionRef, dataWithTimestamps);
+            // Use setDoc with the explicit document reference
+            await setDoc(newChatDocRef, newChatData);
             
             // For local state, we can use a client-side date, which is fine for UI purposes
             const docDataForState = {
-              ...dataWithTimestamps,
+              ...newChatData,
               createdAt: new Date(), 
               updatedAt: new Date(),
               lastMessageAt: new Date(),
