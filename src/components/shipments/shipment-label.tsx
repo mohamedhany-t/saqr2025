@@ -41,7 +41,7 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
         </div>
 
         {/* Recipient Info */}
-        <div className="border-b-2 border-black pb-2 mb-2 flex-grow">
+        <div className="border-b-2 border-black pb-2 mb-2">
             <InfoLine label="إلى" value={shipment.recipientName} valueClass="text-lg font-bold" />
             <InfoLine label="الهاتف" value={shipment.recipientPhone} valueClass="text-lg font-bold" />
             <InfoLine label="المحافظة" value={governorateName} valueClass="font-semibold" />
@@ -49,6 +49,9 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
                 {shipment.address}
             </p>
         </div>
+
+        {/* Spacer to push content to the bottom */}
+        <div className="flex-grow"></div>
 
         {/* Footer with Details & QR Code */}
         <div className="flex justify-between items-end border-t-2 border-black pt-2">
