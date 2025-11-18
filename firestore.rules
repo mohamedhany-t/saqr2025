@@ -28,11 +28,19 @@ service cloud.firestore {
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
+    
+    function isShipmentOwner(shipmentDoc) {
+        return isCompany() && shipmentDoc.companyId == request.auth.uid;
+    }
+    
+    function isShipmentCourier(shipmentDoc) {
+        return isCourier() && shipmentDoc.assignedCourierId == request.auth.uid;
+    }
+
 
     // --- Admin Catch-All ---
     // A single, powerful rule to grant admins full access to everything.
-    // This rule is evaluated, and if it passes, access is granted without
-    // checking more specific, potentially conflicting rules below.
+    // This rule is evaluated first. If it passes, access is granted.
     match /{path=**} {
       allow read, write: if isAdmin();
     }
@@ -43,7 +51,6 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSignedIn();
       allow update: if isOwner(userId);
-      // Create/Delete is handled by admin rule.
     }
 
     // --- Static/Public Data ---
@@ -64,32 +71,37 @@ service cloud.firestore {
     match /shipments/{shipmentId} {
       // Company can read its own shipments.
       // Courier can read shipments assigned to them.
-      allow read: if (isCompany() && resource.data.companyId == request.auth.uid) ||
-                    (isCourier() && resource.data.assignedCourierId == request.auth.uid);
+      allow read: if isShipmentOwner(resource.data) || isShipmentCourier(resource.data);
 
       // Company can create shipments for itself.
       allow create: if isCompany() && request.resource.data.companyId == request.auth.uid;
 
       // Company can update its own shipments.
       // Courier can only update status, reason, and financial fields on assigned shipments.
-      allow update: if (isCompany() && resource.data.companyId == request.auth.uid) ||
-                    (isCourier()
-                        && resource.data.assignedCourierId == request.auth.uid
+      allow update: if isShipmentOwner(resource.data) ||
+                    (isShipmentCourier(resource.data)
                         && request.resource.data.diff(resource.data).affectedKeys()
                            .hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
 
       // Company can delete its own shipments.
-      allow delete: if isCompany() && resource.data.companyId == request.auth.uid;
+      allow delete: if isShipmentOwner(resource.data);
     }
 
     // --- Chat ---
-    // These rules are for non-admin users.
+    // Explicit rules for chat collections for non-admin users.
+    // Admins are already covered by the global rule.
     match /chats/{courierId} {
-      // A courier can access their own chat document and its messages subcollection.
-      allow read, write: if isCourier() && isOwner(courierId);
+      // A courier can access their own chat document.
+      allow get: if isCourier() && isOwner(courierId);
+      // A courier can update their own chat document (e.g., lastMessage).
+      allow update: if isCourier() && isOwner(courierId);
 
+      // Explicit rules for the messages subcollection.
       match /messages/{messageId} {
-        allow read, write: if isCourier() && isOwner(courierId);
+        // A courier can list and read messages in their own chat.
+        allow list, get: if isCourier() && isOwner(courierId);
+        // A courier can create (send) messages in their own chat.
+        allow create: if isCourier() && isOwner(courierId);
       }
     }
 
