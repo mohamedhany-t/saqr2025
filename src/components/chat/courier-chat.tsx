@@ -13,7 +13,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer"
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, where, limit } from 'firebase/firestore';
 
 
@@ -26,15 +26,18 @@ export function CourierChat({ courierUser }: CourierChatProps) {
     const [isOpen, setIsOpen] = useState(false);
     const isMobile = useIsMobile();
     const firestore = useFirestore();
+    const { user } = useUser(); // Get the current user state
 
     const adminQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
+        // Only run the query if firestore and a user are available
+        if (!firestore || !user) return null;
         return query(collection(firestore, 'users'), where('role', '==', 'admin'), limit(1));
-    }, [firestore]);
+    }, [firestore, user]);
 
     const { data: adminUsers, isLoading: isAdminLoading } = useCollection<User>(adminQuery);
     const adminUser = adminUsers?.[0];
 
+    // Ensure we have a valid courierUser and adminUser before rendering the chat
     const canRenderChat = courierUser && adminUser && courierUser.id;
 
     const chatContent = (
@@ -90,4 +93,3 @@ export function CourierChat({ courierUser }: CourierChatProps) {
         </div>
     );
 }
-
