@@ -32,7 +32,7 @@ async function getAdminUser() {
         const userRecord = await auth.getUserByEmail(ADMIN_EMAIL);
         return userRecord;
     } catch (error) {
-        logError(`Could not find admin user ${ADMIN_EMAIL}. Make sure this user exists in Firebase Auth.`, error.message);
+        logError(`Could not find admin user ${ADMIN_EMAIL}. Make sure this user exists in Firebase Auth. Run 'npm run seed' first.`, error.message);
         return null;
     }
 }
@@ -97,15 +97,21 @@ async function seedChats(couriers, adminUser) {
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
 
-        // Messages subcollection
-        const messagesRef = chatRef.collection('messages');
-        const adminMessageRef = messagesRef.doc();
+        // Messages subcollection - delete old messages before seeding new ones
+        const messagesCollectionRef = chatRef.collection('messages');
+        const oldMessages = await messagesCollectionRef.limit(100).get();
+        if(!oldMessages.empty) {
+            oldMessages.docs.forEach(doc => batch.delete(doc.ref));
+        }
+
+        const adminMessageRef = messagesCollectionRef.doc();
         batch.set(adminMessageRef, {
             id: adminMessageRef.id,
             text: `مرحباً ${courier.name}, كيف يمكنني مساعدتك؟`,
             senderId: adminUser.uid,
             senderName: adminUser.displayName || "الإدارة",
             createdAt: now,
+            updatedAt: now,
         });
         
         await batch.commit();
@@ -123,7 +129,7 @@ async function main() {
         const couriers = await getCouriers();
         
         if (adminUser) {
-            // This is the critical step to fix permissions.
+            // This is a critical step to ensure permissions are correct
             await ensureAdminRole(adminUser);
         }
 
@@ -140,3 +146,5 @@ async function main() {
 }
 
 main();
+
+    

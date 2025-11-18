@@ -68,15 +68,28 @@ async function seedGovernorates() {
     const batch = db.batch();
     const collectionRef = db.collection('governorates');
     
-    EGYPTIAN_GOVERNORATES.forEach(name => {
-        const docRef = collectionRef.doc(); // Auto-generate ID
-        batch.set(docRef, { id: docRef.id, name });
-    });
-
-    await batch.commit();
-    log(`Seeded ${EGYPTIAN_GOVERNORATES.length} governorates.`);
+    // Fetch existing governorates to avoid duplicates
     const snapshot = await collectionRef.get();
-    return snapshot.docs.map(doc => doc.data());
+    const existingNames = new Set(snapshot.docs.map(doc => doc.data().name));
+
+    let count = 0;
+    EGYPTIAN_GOVERNORATES.forEach(name => {
+        if (!existingNames.has(name)) {
+            const docRef = collectionRef.doc(); // Auto-generate ID
+            batch.set(docRef, { id: docRef.id, name });
+            count++;
+        }
+    });
+    
+    if (count > 0) {
+      await batch.commit();
+      log(`Seeded ${count} new governorates.`);
+    } else {
+      log('Governorates are already up-to-date.');
+    }
+    
+    const allGovsSnapshot = await collectionRef.get();
+    return allGovsSnapshot.docs.map(doc => doc.data());
 }
 
 async function seedCompanyUsers(count) {
@@ -91,14 +104,14 @@ async function seedCompanyUsers(count) {
         const userRecord = await createFirebaseUser(email, 'password', name);
         const batch = db.batch();
 
-        // Create public company profile
+        // Create/update public company profile
         const companyRef = db.collection('companies').doc(userRecord.uid);
         batch.set(companyRef, {
             id: userRecord.uid,
             name: name,
-        });
+        }, { merge: true });
 
-        // Create user document with 'company' role
+        // Create/update user document with 'company' role
         const userRef = db.collection('users').doc(userRecord.uid);
         batch.set(userRef, {
             id: userRecord.uid,
@@ -107,24 +120,24 @@ async function seedCompanyUsers(count) {
             role: 'company',
             companyId: userRecord.uid, // Company's ID is its own UID
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        }, { merge: true });
         
         // Add to role collection for security rules
         const roleRef = db.collection('roles_company').doc(userRecord.uid);
-        batch.set(roleRef, { email: email });
+        batch.set(roleRef, { email: email, createdAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
         
         await batch.commit();
         companies.push({ id: userRecord.uid, name });
     }
-    log(`Seeded ${companies.length} company users.`);
+    log(`Seeded/updated ${companies.length} company users.`);
     return companies;
 }
 
 async function seedAdminUsers() {
     console.log('\n--- Seeding Admin Users ---');
     try {
-        const userRecord = await auth.getUserByEmail(ADMIN_EMAIL);
-        log(`Found admin user: ${ADMIN_EMAIL}`);
+        const userRecord = await createFirebaseUser(ADMIN_EMAIL, 'password', 'Admin');
+        log(`Found/created admin user: ${ADMIN_EMAIL}`);
         const batch = db.batch();
         const userRef = db.collection('users').doc(userRecord.uid);
         const roleRef = db.collection('roles_admin').doc(userRecord.uid);
@@ -138,13 +151,13 @@ async function seedAdminUsers() {
         }, { merge: true });
         
         // CRITICAL: Set data in the role document so .data is not null in security rules
-        batch.set(roleRef, { email: userRecord.email }, { merge: true });
+        batch.set(roleRef, { email: userRecord.email, createdAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
         
         await batch.commit();
         log('Admin user documents created/updated successfully.');
         return [userRecord];
     } catch (error) {
-        logError(`Could not find or create admin user ${ADMIN_EMAIL}. Make sure this user exists in Firebase Auth.`, error.message);
+        logError(`Could not find or create admin user ${ADMIN_EMAIL}.`, error.message);
         return [];
     }
 }
@@ -166,7 +179,7 @@ async function seedCouriers(count) {
             id: userRecord.uid,
             name: name,
             commissionRate: commissionRate,
-        });
+        }, { merge: true });
 
         const userRef = db.collection('users').doc(userRecord.uid);
         batch.set(userRef, {
@@ -176,19 +189,30 @@ async function seedCouriers(count) {
             role: 'courier',
             commissionRate: commissionRate,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        }, { merge: true });
         
         const roleRef = db.collection('roles_courier').doc(userRecord.uid);
-        batch.set(roleRef, { email: email });
+        batch.set(roleRef, { email: email, createdAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
         
         await batch.commit();
         couriers.push({ id: userRecord.uid, name: name });
     }
+    log(`Seeded/updated ${couriers.length} couriers.`);
     return couriers;
 }
 
 async function seedShipments(count, companies, couriers, governorates) {
     console.log(`\n--- Seeding ${count} Shipments ---`);
+    
+    // Clear existing shipments for a clean slate
+    const snapshot = await db.collection('shipments').limit(500).get();
+    if (!snapshot.empty) {
+        const deleteBatch = db.batch();
+        snapshot.docs.forEach(doc => deleteBatch.delete(doc.ref));
+        await deleteBatch.commit();
+        log(`Deleted ${snapshot.size} old shipments.`);
+    }
+
     const batch = db.batch();
     const shipmentsRef = db.collection('shipments');
 
@@ -225,7 +249,7 @@ async function seedShipments(count, companies, couriers, governorates) {
     }
 
     await batch.commit();
-    log(`Seeded ${count} shipments.`);
+    log(`Seeded ${count} new shipments.`);
 }
 
 // --- تشغيل السكربت ---
@@ -241,6 +265,7 @@ async function main() {
         
         console.log("\n\x1b[32m%s\x1b[0m", "Database seeding completed successfully!");
         console.log("You can now log in with the following dummy accounts (password for all is 'password'):");
+        console.log(`- Admin: ${ADMIN_EMAIL}`);
         for (let i = 1; i <= NUM_COMPANIES; i++) console.log(`- Company: company${i}@alsaqr.com`);
         for (let i = 1; i <= NUM_COURIERS; i++) console.log(`- Courier: courier${i}@alsaqr.com`);
 
@@ -250,3 +275,5 @@ async function main() {
 }
 
 main();
+
+    
