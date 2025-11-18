@@ -109,6 +109,35 @@ async function seedAdminUsers() {
     }
 }
 
+// This function is for reference.
+// It will not run by default, but shows how you could add a courier payment.
+async function seedCourierPayments(adminUser) {
+    console.log('\n--- Seeding Courier Payments (Reference) ---');
+    // Note: This requires a valid courier ID to work.
+    // Since we are not creating mock couriers, this function is for demonstration only.
+    // To use it, get a real courierId from your dashboard and replace 'COURIER_ID_HERE'.
+    const COURIER_ID_HERE = "some_courier_id"; // <-- Replace this with a real ID to test
+    const paymentCollection = db.collection('courier_payments');
+    
+    const querySnapshot = await paymentCollection.where('courierId', '==', COURIER_ID_HERE).limit(1).get();
+
+    if (querySnapshot.empty && COURIER_ID_HERE !== "some_courier_id") {
+        log(`No payments found for courier ${COURIER_ID_HERE}. Seeding one for reference.`);
+        const paymentRef = paymentCollection.doc();
+        await paymentRef.set({
+            id: paymentRef.id,
+            courierId: COURIER_ID_HERE,
+            amount: 150,
+            paymentDate: admin.firestore.FieldValue.serverTimestamp(),
+            recordedById: adminUser.uid,
+            notes: "دفعة تسوية وهمية من السكربت"
+        });
+        log('Added sample courier payment.');
+    } else {
+        log('Skipping courier payment seeding.');
+    }
+}
+
 
 // --- تشغيل السكربت ---
 async function main() {
@@ -116,7 +145,12 @@ async function main() {
         console.log("\x1b[34m%s\x1b[0m", "Starting database seeding process...");
 
         await seedGovernorates();
-        await seedAdminUsers();
+        const [adminUser] = await seedAdminUsers();
+
+        // Check if we have an admin user before attempting to seed payments
+        if (adminUser) {
+             await seedCourierPayments(adminUser);
+        }
         
         console.log("\n\x1b[32m%s\x1b[0m", "Database seeding completed successfully!");
         console.log("Essential data (Admin & Governorates) has been seeded.");
