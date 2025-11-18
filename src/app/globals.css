@@ -82,26 +82,22 @@
   }
 }
 
-@media print {
-    body, html {
-        width: 100%;
-        height: 100%;
-        margin: 0;
-        padding: 0;
-        background: #fff;
-    }
-    main, .printable-area {
-        margin: 0 !important;
-        padding: 0 !important;
-        width: 100% !important;
-        height: 100% !important;
-    }
-    @page {
-        size: auto;
-        margin: 0mm;
-    }
+@page {
+  size: 100mm 150mm;
+  margin: 0;
 }
 
-.page-break {
-    page-break-after: always;
+@media print {
+    body, html {
+        background: #fff;
+        margin: 0;
+        padding: 0;
+    }
+    main {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .page-break {
+        page-break-after: always;
+    }
 }

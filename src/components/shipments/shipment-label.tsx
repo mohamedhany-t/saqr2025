@@ -13,46 +13,57 @@ interface ShipmentLabelProps {
   editUrl: string;
 }
 
+// Component for a single label with a specific key-value pair
+const InfoLine = ({ label, value, valueClass = '' }: { label: string; value: string; valueClass?: string }) => (
+  <p className="text-base leading-tight">
+    <span className="font-bold">{label}:</span> <span className={valueClass}>{value}</span>
+  </p>
+);
+
 export function ShipmentLabel({ shipment, governorateName, companyName, editUrl }: ShipmentLabelProps) {
+  // Style for the main container, fitting the 100mm x 150mm size
+  const labelStyle: React.CSSProperties = {
+    width: '100mm',
+    height: '150mm',
+    boxSizing: 'border-box',
+    fontFamily: 'Cairo, sans-serif'
+  };
+
   return (
-    <div id="printable-label" className="w-full h-full bg-white border border-black p-8 flex flex-col font-sans text-black" dir="rtl">
+    <div id="printable-label" style={labelStyle} className="bg-white border-2 border-black p-4 flex flex-col font-sans text-black" dir="rtl">
+        
         {/* Header */}
-        <div className="flex justify-between items-center border-b-2 border-black pb-4 mb-4">
-            <div className="text-right">
-                <h1 className="text-4xl font-bold">AlSaqr Logistics</h1>
-                <p className="text-lg">شريكك اللوجستي الموثوق</p>
+        <div className="flex justify-between items-start border-b-2 border-black pb-2 mb-2">
+            <div className="text-right flex-grow">
+                <h1 className="text-2xl font-bold">AlSaqr Logistics</h1>
+                <p className="text-sm">شريكك اللوجستي الموثوق</p>
             </div>
-            <Logo className="w-24 h-24" />
+            <Logo className="w-16 h-16 flex-shrink-0" />
         </div>
 
         {/* Recipient Info */}
-        <div className="mb-4">
-            <p className="text-xl">
-                <span className="font-bold">إلى:</span> {shipment.recipientName}
-            </p>
-            <p className="text-xl">
-                <span className="font-bold">الهاتف:</span> {shipment.recipientPhone}
-            </p>
-            <p className="text-xl">
-                <span className="font-bold">المحافظة:</span> {governorateName}
-            </p>
-            <p className="text-2xl font-bold leading-tight mt-2">
+        <div className="border-b-2 border-black pb-2 mb-2">
+            <InfoLine label="إلى" value={shipment.recipientName} valueClass="text-lg font-bold" />
+            <InfoLine label="الهاتف" value={shipment.recipientPhone} valueClass="text-lg font-bold" />
+            <InfoLine label="المحافظة" value={governorateName} valueClass="font-semibold" />
+            <p className="text-xl font-bold mt-1 leading-tight">
                 {shipment.address}
             </p>
         </div>
 
-        {/* Details & QR Code */}
-        <div className="flex-grow flex justify-between items-end border-t-2 border-black pt-4 mt-auto">
-            <div className="flex-grow">
-                <p className="text-lg">
-                    <span className="font-bold">رقم الشحنة:</span> {shipment.trackingNumber || shipment.shipmentCode}
-                </p>
-                <p className="text-lg">
-                    <span className="font-bold">الشركة:</span> {companyName}
-                </p>
-                 <div className="mt-4">
-                    <p className="text-xl font-bold">المبلغ المطلوب:</p>
-                    <p className="text-5xl font-bold">
+        {/* Notes section - takes up remaining space */}
+        <div className="flex-grow min-h-[4cm]">
+             <p className="text-base font-bold">ملاحظات:</p>
+        </div>
+
+        {/* Footer with Details & QR Code */}
+        <div className="flex justify-between items-end border-t-2 border-black pt-2">
+            <div className="flex-grow space-y-1">
+                <InfoLine label="رقم الشحنة" value={shipment.trackingNumber || shipment.shipmentCode} valueClass="font-mono font-bold" />
+                <InfoLine label="الشركة" value={companyName} valueClass="font-semibold" />
+                <div className="mt-2">
+                    <p className="text-base font-bold">المبلغ المطلوب:</p>
+                    <p className="text-3xl font-bold">
                         {new Intl.NumberFormat('ar-EG', {
                             style: 'currency',
                             currency: 'EGP',
@@ -60,14 +71,14 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
                     </p>
                 </div>
             </div>
-            <div className="w-32 h-32 flex-shrink-0">
-                {editUrl && <QRCode value={editUrl} size={128} level="M" />}
+            <div className="w-24 h-24 flex-shrink-0">
+                {editUrl && <QRCode value={editUrl} size={96} level="M" />}
             </div>
         </div>
 
-         {/* Footer */}
-        <div className="border-t-2 border-black pt-2 mt-4 text-center">
-            <p className="text-base">شكرًا لاختياركم الصقر للخدمات اللوجستية.</p>
+         {/* Final Footer */}
+        <div className="border-t-2 border-black pt-1 mt-2 text-center">
+            <p className="text-xs">شكرًا لاختياركم الصقر للخدمات اللوجستية.</p>
         </div>
     </div>
   );
