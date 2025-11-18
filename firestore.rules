@@ -29,6 +29,11 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow update: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
       allow create, delete: if isAdmin();
+      
+      // Allow users to manage their own push subscriptions
+      match /pushSubscriptions/{subscriptionId} {
+        allow read, write: if request.auth.uid == userId;
+      }
     }
 
     // Shipments can be read by their owner (company), the assigned courier, or an admin.

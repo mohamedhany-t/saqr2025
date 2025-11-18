@@ -255,6 +255,27 @@
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "senderId", "timestamp"]
+    },
+    "PushSubscription": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "PushSubscription",
+        "type": "object",
+        "description": "Represents a push notification subscription for a user's device.",
+        "properties": {
+            "endpoint": { "type": "string", "format": "uri" },
+            "expirationTime": { "type": ["number", "null"] },
+            "keys": {
+                "type": "object",
+                "properties": {
+                    "p256dh": { "type": "string" },
+                    "auth": { "type": "string" }
+                },
+                "required": ["p256dh", "auth"]
+            },
+            "userId": { "type": "string", "description": "The UID of the user this subscription belongs to." },
+            "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["endpoint", "keys", "userId", "createdAt"]
     }
   },
   "auth": {
@@ -279,6 +300,18 @@
               "description": "Firebase Auth UID of the user."
             }
           ]
+        }
+      },
+      {
+        "path": "/users/{userId}/pushSubscriptions/{subscriptionId}",
+        "definition": {
+            "entityName": "PushSubscription",
+            "schema": { "$ref": "#/backend/entities/PushSubscription" },
+            "description": "Stores push notification subscriptions for a user.",
+            "params": [
+                { "name": "userId", "description": "The user's UID." },
+                { "name": "subscriptionId", "description": "A unique ID for the subscription." }
+            ]
         }
       },
       {
