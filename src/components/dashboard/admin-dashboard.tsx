@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, User, CourierPayment } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, User, CourierPayment, Chat } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { UsersTable } from "@/components/dashboard/users-table";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ChatInterface from "@/components/chat/chat-interface";
+import { Badge } from "../ui/badge";
 
 
 interface AdminDashboardProps {
@@ -54,6 +55,21 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  const chatsQuery = useMemoFirebase(() => {
+    if (!firestore || !user?.id) return null;
+    return query(
+      collection(firestore, 'chats'),
+      where('participants', 'array-contains', user.id)
+    );
+  }, [firestore, user?.id]);
+
+  const { data: chats } = useCollection<Chat>(chatsQuery);
+  
+  const totalUnreadCount = React.useMemo(() => {
+    if (!chats || !user?.id) return 0;
+    return chats.reduce((sum, chat) => sum + (chat.unreadCounts?.[user.id] || 0), 0);
+  }, [chats, user?.id]);
 
   // State for handling shipment editing via URL
   const [editingShipmentFromUrl, setEditingShipmentFromUrl] = React.useState<Shipment | null>(null);
@@ -629,7 +645,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             <TabsTrigger value="courier-management">إدارة المناديب</TabsTrigger>
             <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
             <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
-            <TabsTrigger value="chat">الدردشة</TabsTrigger>
+            <TabsTrigger value="chat" className="relative">
+              الدردشة
+              {totalUnreadCount > 0 && (
+                <Badge className="absolute -top-2 -right-2 h-5 w-5 justify-center p-0">{totalUnreadCount}</Badge>
+              )}
+            </TabsTrigger>
             </TabsList>
             <div className="ms-auto flex items-center gap-2">
                 <input

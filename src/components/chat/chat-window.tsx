@@ -70,10 +70,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
     if (fileUpload && fileUpload.file) {
         try {
             const filePath = `chat_attachments/${chatId}/${Date.now()}_${fileUpload.file.name}`;
-            const { promise } = uploadFile(filePath, fileUpload.file, (progress) => {
+            const downloadURL = await uploadFile(filePath, fileUpload.file, (progress) => {
                 setFileUpload(prev => prev ? { ...prev, progress } : null);
             });
-            const downloadURL = await promise;
             
             if (fileUpload.file.type.startsWith('image/')) {
                 filePayload.imageUrl = downloadURL;

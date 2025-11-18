@@ -15,8 +15,6 @@ import { StatsCards } from "@/components/dashboard/stats-cards";
 import { Loader2, MessageSquare } from "lucide-react";
 import { Card, CardContent } from "../ui/card";
 import ChatInterface from "../chat/chat-interface";
-import { useUnreadMessages } from "@/hooks/use-unread-messages";
-
 
 interface CourierDashboardProps {
   user: User;
@@ -33,7 +31,21 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { totalUnreadCount } = useUnreadMessages(user.id);
+  
+  const chatsQuery = useMemoFirebase(() => {
+    if (!firestore || !user?.id) return null;
+    return query(
+      collection(firestore, 'chats'),
+      where('participants', 'array-contains', user.id)
+    );
+  }, [firestore, user?.id]);
+
+  const { data: chats } = useCollection<Chat>(chatsQuery);
+  
+  const totalUnreadCount = React.useMemo(() => {
+    if (!chats || !user?.id) return 0;
+    return chats.reduce((sum, chat) => sum + (chat.unreadCounts?.[user.id] || 0), 0);
+  }, [chats, user?.id]);
 
   // Effect to fetch shipment data if 'edit' param is in the URL
   React.useEffect(() => {
@@ -411,5 +423,3 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     </>
   );
 }
-
-    

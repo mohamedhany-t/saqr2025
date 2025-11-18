@@ -2,7 +2,7 @@
 import React, { Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import type { User, Role } from "@/lib/types";
+import type { User } from "@/lib/types";
 import { useUser, useUserProfile } from "@/firebase";
 import AdminDashboard from "@/components/dashboard/admin-dashboard";
 import CourierDashboard from "@/components/dashboard/courier-dashboard";
