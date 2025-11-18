@@ -59,7 +59,15 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
             const chatCollectionRef = collection(firestore, 'chats');
             const newChatDoc = await addDoc(chatCollectionRef, newChatData);
             
-            setActiveChat({ ...newChatData, id: newChatDoc.id } as Chat);
+            const docDataForState = {
+              ...newChatData,
+              id: newChatDoc.id,
+              // Timestamps will be null on the client initially, this is expected
+              createdAt: null, 
+              updatedAt: null,
+              lastMessageAt: null,
+            }
+            setActiveChat(docDataForState as Chat);
         }
         setIsChatLoading(false);
     };
