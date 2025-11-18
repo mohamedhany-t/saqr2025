@@ -51,6 +51,7 @@ export function AdminChat({ couriers, adminUser }: AdminChatProps) {
                     [courier.id]: { name: courier.name, role: "courier" }
                 },
                 createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
                 lastMessage: "بدأت المحادثة",
                 lastMessageAt: serverTimestamp(),
             };
