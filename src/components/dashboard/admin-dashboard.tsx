@@ -503,7 +503,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       })
       .catch(serverError => {
         const permissionError = new FirestorePermissionError({
-            path: paymentsCollection.path,
+            path: paymentDocRef.path,
             operation: 'create',
             requestResourceData: newPayment,
         });
