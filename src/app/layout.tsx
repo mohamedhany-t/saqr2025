@@ -13,19 +13,22 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const cairo = Cairo({ subsets: ["arabic"], variable: "--font-cairo", weight: ['400', '700'] });
 
-// export const metadata: Metadata = {
-//   title: "AlSaqr Logistics",
-//   description: "Efficient Shipment Management",
-//   manifest: "/manifest.json",
-//   icons: {
-//     icon: '/fav.png',
-//     apple: '/fav.png',
-//   },
-// };
-
 function PwaAndNotificationHandler() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
+
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -39,34 +42,35 @@ function PwaAndNotificationHandler() {
     }
   }, []);
 
-  useEffect(() => {
-    if (isUserLoading || !user || !firestore || !('Notification' in window) || !('serviceWorker' in navigator)) {
-      return;
-    }
-
-    if (Notification.permission === 'granted') {
-      subscribeUserToPush();
-    } else if (Notification.permission !== 'denied') {
-      Notification.requestPermission().then(permission => {
-        if (permission === 'granted') {
-          subscribeUserToPush();
-        }
-      });
-    }
-  }, [user, isUserLoading, firestore]);
-
   const subscribeUserToPush = async () => {
     try {
       const vapidKey = "BLG2BQxTEoSiIqvV-oIAuSkAXiVmiS7sHSERBiWiYz9rXIaEkT0sTDQj0MwjHq-oTQO3CneVA-KV8QMqenKmtiA";
-      if (!vapidKey) {
-        console.warn('VAPID public key is not defined. Push notifications will not work in local development.');
-        return;
-      }
+      const applicationServerKey = urlBase64ToUint8Array(vapidKey);
+      
       const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey),
-      });
+      
+      // Check for existing subscription
+      let subscription = await registration.pushManager.getSubscription();
+
+      // If subscription exists but with a different key, unsubscribe
+      if (subscription && subscription.options.applicationServerKey) {
+        const existingKey = btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(subscription.options.applicationServerKey))));
+        const newKey = btoa(String.fromCharCode.apply(null, Array.from(applicationServerKey)));
+        if (existingKey !== newKey) {
+          console.log('Application server key mismatch, unsubscribing...');
+          await subscription.unsubscribe();
+          subscription = null; // Set to null to re-subscribe
+        }
+      }
+
+      // If no subscription, create one
+      if (!subscription) {
+          console.log('No existing subscription, creating new one...');
+          subscription = await registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: applicationServerKey,
+          });
+      }
       
       const subscriptionJson = subscription.toJSON();
       if (!subscriptionJson.endpoint) {
@@ -74,10 +78,8 @@ function PwaAndNotificationHandler() {
           return;
       }
 
-      // Use a URL-safe version of the endpoint as the document ID
       const subId = btoa(subscriptionJson.endpoint).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 
-      // Store the subscription in Firestore
       const subRef = doc(firestore, `users/${user.uid}/pushSubscriptions`, subId);
       await setDoc(subRef, {
         ...subscriptionJson,
@@ -92,18 +94,22 @@ function PwaAndNotificationHandler() {
     }
   };
 
-  const urlBase64ToUint8Array = (base64String: string) => {
-    const padding = '='.repeat((4 - base64String.length % 4) % 4);
-    const base64 = (base64String + padding)
-      .replace(/-/g, '+')
-      .replace(/_/g, '/');
-    const rawData = window.atob(base64);
-    const outputArray = new Uint8Array(rawData.length);
-    for (let i = 0; i < rawData.length; ++i) {
-      outputArray[i] = rawData.charCodeAt(i);
+
+  useEffect(() => {
+    if (isUserLoading || !user || !firestore || !('Notification'in window) || !('serviceWorker' in navigator)) {
+      return;
     }
-    return outputArray;
-  };
+
+    if (Notification.permission === 'granted') {
+      subscribeUserToPush();
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          subscribeUserToPush();
+        }
+      });
+    }
+  }, [user, isUserLoading, firestore]);
   
   return null; // This component does not render anything
 }
