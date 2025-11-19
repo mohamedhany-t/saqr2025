@@ -187,7 +187,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && firestore && user) {
+    if (file && firestore && user && companies) {
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
@@ -211,6 +211,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
               const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
               const senderNameValue = row['الراسل'] || row['العميل الفرعي'];
               const orderNumberValue = row['رقم الطلب']?.toString() || `ORD-${Date.now()}-${index}`;
+              
+              const companyNameFromSheet = row['الشركة']?.toString().trim();
+              const foundCompany = companies.find(c => c.name === companyNameFromSheet);
 
 
               const shipmentData: Partial<Shipment> = {
@@ -226,7 +229,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                   reason: row['السبب'] || '',
                   deliveryDate: deliveryDate || new Date(),
                   updatedAt: serverTimestamp(),
-                  companyId: user.uid, // Assume admin imports for themselves
+                  companyId: foundCompany ? foundCompany.id : user.uid,
               };
 
               const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
@@ -977,5 +980,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
+
+    
 
     
