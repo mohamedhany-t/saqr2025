@@ -358,7 +358,7 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     },
     initialState: {
         pagination: {
-            pageSize: 100,
+            pageSize: 500,
         },
         columnVisibility: {
           companyId: role !== 'admin',
@@ -711,3 +711,5 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     </div>
   )
 }
+
+    
