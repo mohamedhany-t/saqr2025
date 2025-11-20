@@ -18,7 +18,7 @@ import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
-import { createAuthUser, updateAuthUserPassword, deleteAuthUser } from '@/lib/actions';
+import { createAuthUser, updateAuthUserPassword, deleteAuthUser, sendPushNotification } from '@/lib/actions';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -324,8 +324,13 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     const cleanShipmentData: { [key: string]: any } = Object.fromEntries(
       Object.entries(shipment).filter(([_, v]) => v !== undefined && v !== null && v !== '')
     );
+    
+    let originalCourierId: string | undefined;
 
     if (id) {
+      const originalShipment = shipments?.find(s => s.id === id);
+      originalCourierId = originalShipment?.assignedCourierId;
+
       const docRef = doc(firestore, 'shipments', id);
       const dataToUpdate = { ...cleanShipmentData, updatedAt: serverTimestamp() };
       
@@ -336,6 +341,15 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             description: `تم تحديث الشحنة بنجاح`,
           });
           handleSheetOpenChange(false);
+          // Check if courier was changed or newly assigned
+          if (dataToUpdate.assignedCourierId && dataToUpdate.assignedCourierId !== originalCourierId) {
+             sendPushNotification({
+              recipientId: dataToUpdate.assignedCourierId,
+              title: 'تم تعيين شحنة جديدة لك',
+              body: `تم إسناد الشحنة #${dataToUpdate.trackingNumber || dataToUpdate.orderNumber} إليك.`,
+              url: '/'
+            });
+          }
         })
         .catch(serverError => {
           const permissionError = new FirestorePermissionError({
@@ -358,6 +372,15 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             description: `تم إنشاء الشحنة بنجاح`,
           });
           handleSheetOpenChange(false);
+           // Send notification if a courier was assigned on creation
+          if (dataToAdd.assignedCourierId) {
+            sendPushNotification({
+              recipientId: dataToAdd.assignedCourierId,
+              title: 'تم تعيين شحنة جديدة لك',
+              body: `تم إسناد الشحنة #${dataToAdd.trackingNumber || dataToAdd.orderNumber} إليك.`,
+              url: '/'
+            });
+          }
         })
         .catch(serverError => {
           const permissionError = new FirestorePermissionError({
@@ -870,7 +893,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 </TabsContent>
                 <TabsContent value="delivered">
                     <ShipmentsTable 
-                        shipments={filteredShipments.filter(s => s.status === 'Delivered')}
+                        shipments={filteredShipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered' || s.status === 'Evasion')}
                         isLoading={shipmentsLoading}
                         governorates={governorates || []}
                         companies={companies || []}
@@ -1294,3 +1317,5 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
+
+    
