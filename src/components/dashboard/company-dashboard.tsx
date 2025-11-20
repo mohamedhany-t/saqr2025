@@ -162,6 +162,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                   reason: row['السبب'] || '',
                   deliveryDate: deliveryDate || new Date(),
                   updatedAt: serverTimestamp(),
+                  isArchived: false,
                   companyId: user.id, // Shipment belongs to the current company user
               };
 
@@ -254,7 +255,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
     } else {
       const shipmentsCollection = collection(firestore, 'shipments');
       const docRef = doc(shipmentsCollection);
-      const dataToAdd = { ...cleanShipmentData, id: docRef.id, companyId: user.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+      const dataToAdd = { ...cleanShipmentData, id: docRef.id, companyId: user.id, isArchived: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
       
       setDoc(docRef, dataToAdd)
         .then(() => {
@@ -394,5 +395,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
     </div>
   );
 }
+
+    
 
     

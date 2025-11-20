@@ -625,16 +625,28 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   };
 
   const filteredShipments = React.useMemo(() => {
-    if (!shipments) return [];
-    if (!searchTerm) return shipments;
+    const activeShipments = shipments?.filter(shipment => !shipment.isArchived) || [];
+    if (!searchTerm) return activeShipments;
     const lowercasedTerm = searchTerm.toLowerCase();
-    return shipments.filter(shipment => 
-        !shipment.isArchived &&
-        (shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
+    return activeShipments.filter(shipment => 
+        shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
         shipment.orderNumber?.toLowerCase().includes(lowercasedTerm) ||
         shipment.recipientName?.toLowerCase().includes(lowercasedTerm) ||
         shipment.trackingNumber?.toLowerCase().includes(lowercasedTerm) ||
-        shipment.address?.toLowerCase().includes(lowercasedTerm))
+        shipment.address?.toLowerCase().includes(lowercasedTerm)
+    );
+  }, [shipments, searchTerm]);
+  
+  const archivedShipments = React.useMemo(() => {
+    const archived = shipments?.filter(shipment => shipment.isArchived) || [];
+     if (!searchTerm) return archived;
+    const lowercasedTerm = searchTerm.toLowerCase();
+    return archived.filter(shipment => 
+        shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
+        shipment.orderNumber?.toLowerCase().includes(lowercasedTerm) ||
+        shipment.recipientName?.toLowerCase().includes(lowercasedTerm) ||
+        shipment.trackingNumber?.toLowerCase().includes(lowercasedTerm) ||
+        shipment.address?.toLowerCase().includes(lowercasedTerm)
     );
   }, [shipments, searchTerm]);
 
@@ -727,6 +739,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
                     <TabsTrigger value="returned">مرتجعات</TabsTrigger>
                     <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
+                    <TabsTrigger value="archived">المؤرشفة</TabsTrigger>
                 </TabsList>
                 <TabsContent value="all-shipments">
                      <ShipmentsTable 
@@ -793,6 +806,17 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                         onEdit={openShipmentForm}
                         role={role}
                     />
+                </TabsContent>
+                <TabsContent value="archived">
+                    <ShipmentsTable 
+                        shipments={archivedShipments} 
+                        isLoading={shipmentsLoading}
+                        governorates={governorates || []}
+                        companies={companies || []}
+                        couriers={courierUsers}
+                        onEdit={openShipmentForm}
+                        role={role}
+                        />
                 </TabsContent>
             </Tabs>
         </TabsContent>
@@ -1040,6 +1064,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
+
+    
 
     
 
