@@ -64,7 +64,8 @@ service cloud.firestore {
     
      // Admins can manage all payments. Companies can only read their own payments.
     match /company_payments/{paymentId} {
-      allow read: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
+      allow get: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
+      allow list: if isAdmin();
       allow write: if isAdmin();
     }
 
