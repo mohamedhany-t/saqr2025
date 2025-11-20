@@ -1163,7 +1163,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                         </UserFormSheet>
                     </div>
                 </div>
-                <UsersTable users={users || []} isLoading={usersLoading || companiesLoading} onEdit={openUserform} onDelete={setUserToDelete}/>
+                <UsersTable users={users || []} isLoading={usersLoading || companiesLoading} onEdit={openUserForm} onDelete={setUserToDelete}/>
             </div>
         </TabsContent>
         <TabsContent value="reports">
@@ -1294,5 +1294,3 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
-
-    
