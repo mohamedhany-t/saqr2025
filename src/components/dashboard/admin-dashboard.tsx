@@ -2,7 +2,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -50,6 +50,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const [payingCourier, setPayingCourier] = React.useState<User | undefined>(undefined);
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
   const [paymentToDelete, setPaymentToDelete] = React.useState<CourierPayment | null>(null);
+  const [courierToArchive, setCourierToArchive] = React.useState<User | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -229,6 +230,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                   reason: row['السبب'] || '',
                   deliveryDate: deliveryDate || new Date(),
                   updatedAt: serverTimestamp(),
+                  isArchived: false,
                   companyId: foundCompany ? foundCompany.id : user.uid,
               };
 
@@ -321,7 +323,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     } else {
       const shipmentsCollection = collection(firestore, 'shipments');
       const docRef = doc(shipmentsCollection);
-      const dataToAdd = { ...cleanShipmentData, id: docRef.id, companyId: shipment.companyId || user.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+      const dataToAdd = { ...cleanShipmentData, id: docRef.id, companyId: shipment.companyId || user.uid, isArchived: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
       
       setDoc(docRef, dataToAdd)
         .then(() => {
@@ -585,16 +587,54 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       });
   };
 
+  const handleArchiveCourierData = async () => {
+      if (!firestore || !courierToArchive) return;
+      toast({ title: `جاري أرشفة بيانات ${courierToArchive.name}...` });
+
+      const batch = writeBatch(firestore);
+
+      // Archive shipments
+      const courierShipments = shipments?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchived) || [];
+      courierShipments.forEach(shipment => {
+          const shipmentRef = doc(firestore, 'shipments', shipment.id);
+          batch.update(shipmentRef, { isArchived: true });
+      });
+
+      // Archive payments
+      const courierPayments = payments?.filter(p => p.courierId === courierToArchive.id && !p.isArchived) || [];
+      courierPayments.forEach(payment => {
+          const paymentRef = doc(firestore, 'courier_payments', payment.id);
+          batch.update(paymentRef, { isArchived: true });
+      });
+      
+      await batch.commit()
+          .then(() => {
+              toast({ title: "اكتملت الأرشفة بنجاح!", description: `تمت أرشفة جميع شحنات ودفعات ${courierToArchive.name}.` });
+          })
+          .catch(serverError => {
+              const permissionError = new FirestorePermissionError({
+                  path: `batch_archive`,
+                  operation: 'update',
+                  requestResourceData: { note: `Batch archive for courier ${courierToArchive.id} failed.` }
+              });
+              errorEmitter.emit('permission-error', permissionError);
+          })
+          .finally(() => {
+              setCourierToArchive(null);
+          });
+  };
+
   const filteredShipments = React.useMemo(() => {
     if (!shipments) return [];
     if (!searchTerm) return shipments;
     const lowercasedTerm = searchTerm.toLowerCase();
     return shipments.filter(shipment => 
-        shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
+        !shipment.isArchived &&
+        (shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
         shipment.orderNumber?.toLowerCase().includes(lowercasedTerm) ||
         shipment.recipientName?.toLowerCase().includes(lowercasedTerm) ||
         shipment.trackingNumber?.toLowerCase().includes(lowercasedTerm) ||
-        shipment.address?.toLowerCase().includes(lowercasedTerm)
+        shipment.address?.toLowerCase().includes(lowercasedTerm))
     );
   }, [shipments, searchTerm]);
 
@@ -602,11 +642,11 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     if (!users || !shipments) return [];
     
     return courierUsers.map(courier => {
-        const courierShipments = shipments.filter(s => s.assignedCourierId === courier.id);
+        const courierShipments = shipments?.filter(s => s.assignedCourierId === courier.id && !s.isArchived) || [];
         const totalCollected = courierShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
         const totalCommission = courierShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
         
-        const courierPayments = payments?.filter(p => p.courierId === courier.id) || [];
+        const courierPayments = payments?.filter(p => p.courierId === courier.id && !p.isArchived) || [];
         const totalPaidByCourier = courierPayments.reduce((acc, p) => acc + p.amount, 0);
 
         const netDue = (totalCollected - totalCommission) - totalPaidByCourier;
@@ -628,7 +668,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const companyRevenues = React.useMemo(() => {
     if (!companies || !shipments) return [];
     return companies.map(company => {
-        const companyShipments = shipments.filter(s => s.companyId === company.id);
+        const companyShipments = shipments.filter(s => s.companyId === company.id && !s.isArchived);
         const totalRevenue = companyShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
         const totalCommission = companyShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
         const netRevenue = totalRevenue - totalCommission;
@@ -677,7 +717,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 </Button>
             </div>
         </div>
-        <StatsCards shipments={shipments || []} role={role} />
+        <StatsCards shipments={filteredShipments || []} role={role} />
         <TabsContent value="shipments">
             <Tabs defaultValue="all-shipments">
                 <TabsList className="flex-nowrap overflow-x-auto justify-start mt-4">
@@ -850,11 +890,17 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                                         )}
                                     </div>
                                 </CardContent>
-                                <CardFooter>
+                                <CardFooter className="flex flex-col items-stretch gap-2">
                                     <Button variant="outline" className="w-full" onClick={() => openPaymentForm(courier)} disabled={courier.netDue <= 0}>
                                         <HandCoins className="me-2 h-4 w-4" />
                                         تسوية الحساب
                                     </Button>
+                                    {courier.totalShipments > 0 && (
+                                        <Button variant="secondary" className="w-full" onClick={() => setCourierToArchive(courier)}>
+                                            <Archive className="me-2 h-4 w-4" />
+                                            أرشفة وتسوية الكل
+                                        </Button>
+                                    )}
                                 </CardFooter>
                             </Card>
                         ))}
@@ -963,6 +1009,20 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+       <AlertDialog open={!!courierToArchive} onOpenChange={(open) => !open && setCourierToArchive(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>أرشفة وتسوية حساب {courierToArchive?.name}؟</AlertDialogTitle>
+            <AlertDialogDescription>
+              سيؤدي هذا الإجراء إلى أرشفة جميع الشحنات والدفعات الحالية للمندوب. سيتم تصفير حسابه ليبدأ دورة عمل جديدة. لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setCourierToArchive(null)}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={handleArchiveCourierData}>نعم، أرشفة وتسوية</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <CourierPaymentFormSheet
         open={isPaymentSheetOpen}
         onOpenChange={(open) => {
@@ -980,6 +1040,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
+
+    
 
     
 

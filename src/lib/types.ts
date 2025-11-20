@@ -35,7 +35,7 @@ export type Shipment = {
   trackingNumber: string;
   recipientName: string;
   recipientPhone: string;
-  governorateId: string;
+  governorateId?: string; // Made optional
   address: string;
   deliveryDate: Date;
   status: ShipmentStatus;
@@ -48,6 +48,7 @@ export type Shipment = {
   assignedCourierId?: string; // Corresponds to a document ID in /couriers
   createdAt: any; // Can be Date or Firebase Timestamp
   updatedAt: any; // Can be Date or Firebase Timestamp
+  isArchived?: boolean; // For settling courier accounts
 };
 
 export interface Company {
@@ -73,6 +74,7 @@ export interface CourierPayment {
     paymentDate: any; // Can be Date or Firebase Timestamp
     recordedById: string; // Admin UID
     notes?: string;
+    isArchived?: boolean; // For settling courier accounts
 }
 
 export interface Chat {
@@ -93,4 +95,6 @@ export interface ChatMessage {
     fileName?: string;
     timestamp: any;
 }
+    
+
     

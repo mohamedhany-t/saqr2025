@@ -1,3 +1,4 @@
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -96,13 +97,13 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
 
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'shipments'), where("assignedCourierId", "==", user.id));
+    return query(collection(firestore, 'shipments'), where("assignedCourierId", "==", user.id), where("isArchived", "==", false));
   }, [firestore, user]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'courier_payments'), where("courierId", "==", user.id));
+    return query(collection(firestore, 'courier_payments'), where("courierId", "==", user.id), where("isArchived", "==", false));
   }, [firestore, user]);
   const { data: payments, isLoading: paymentsLoading } = useCollection<CourierPayment>(paymentsQuery);
 
@@ -401,7 +402,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
                 <p className="text-muted-foreground mb-6">
                     هنا يمكنك رؤية ملخص مالي لجميع شحناتك، بما في ذلك المبالغ المحصلة وعمولاتك والمدفوعات التي قمت بها.
                 </p>
-                {paymentsLoading ? (
+                {paymentsLoading || shipmentsLoading ? (
                     <div className="flex h-full w-full items-center justify-center">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
@@ -426,3 +427,5 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     </>
   );
 }
+
+    

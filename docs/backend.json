@@ -125,6 +125,10 @@
         "assignedCourierId": {
           "type": "string",
           "description": "Reference to Courier. (Relationship: Courier 1:N Shipment)"
+        },
+        "isArchived": {
+            "type": "boolean",
+            "description": "Flag to indicate if a shipment is archived and excluded from active calculations."
         }
       },
       "required": [
@@ -216,7 +220,8 @@
             "amount": { "type": "number", "description": "The amount paid." },
             "paymentDate": { "type": "string", "format": "date-time", "description": "Timestamp of when the payment was recorded." },
             "recordedById": { "type": "string", "description": "The UID of the admin who recorded the payment." },
-            "notes": { "type": "string", "description": "Optional notes about the payment." }
+            "notes": { "type": "string", "description": "Optional notes about the payment." },
+            "isArchived": { "type": "boolean", "description": "Flag to indicate if a payment is archived." }
         },
         "required": ["id", "courierId", "amount", "paymentDate", "recordedById"]
     },
@@ -459,3 +464,5 @@
     "reasoning": "The Firestore structure now includes a 'company' role. Companies are users that can manage their own shipments. Couriers are independent and are assigned to shipments directly. The 'companies' collection stores public profiles for these company users. The 'shipments' collection now uses 'companyId' to link to the user UID of the owning company."
   }
 }
+
+    
