@@ -21,11 +21,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useForm } from "react-hook-form"
+import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import type { Company, User } from '@/lib/types';
+import type { Company, User, Governorate } from '@/lib/types';
+import { ScrollArea } from '../ui/scroll-area';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, query } from 'firebase/firestore';
 
 // Schema for user creation/editing
 const baseUserSchema = z.object({
@@ -33,8 +36,11 @@ const baseUserSchema = z.object({
   email: z.string().email("بريد إلكتروني غير صالح"),
   password: z.string().optional(),
   role: z.enum(["courier", "admin", "company"], { required_error: "الدور مطلوب" }),
-  companyName: z.string().optional(), // Now used for company creation name
   commissionRate: z.coerce.number().optional(),
+  governorateCommissions: z.array(z.object({
+    governorateId: z.string(),
+    commission: z.coerce.number().optional(),
+  })).optional(),
 });
 
 
@@ -43,11 +49,20 @@ type UserFormSheetProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSave: (data: z.infer<typeof baseUserSchema>, userId?: string) => void;
-    user?: User; // Make user optional for creating vs. editing
+    user?: User;
+    companyDetails?: Company;
 }
 
-export function UserFormSheet({ children, open, onOpenChange, onSave, user }: UserFormSheetProps) {
+export function UserFormSheet({ children, open, onOpenChange, onSave, user, companyDetails }: UserFormSheetProps) {
   const isEditing = !!user;
+  const firestore = useFirestore();
+
+  const governoratesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'governorates'));
+  }, [firestore]);
+  const { data: governorates, isLoading: governoratesLoading } = useCollection<Governorate>(governoratesQuery);
+
 
     const formSchemaForMode = baseUserSchema.superRefine((data, ctx) => {
         if (!isEditing && (!data.password || data.password.length < 6)) {
@@ -83,9 +98,15 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user }: Us
       password: "",
       role: 'courier',
       commissionRate: 0,
+      governorateCommissions: [],
     },
   });
   
+    const { fields, replace } = useFieldArray({
+        control: form.control,
+        name: "governorateCommissions",
+    });
+
   React.useEffect(() => {
     if (open) {
       if (isEditing && user) {
@@ -96,6 +117,14 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user }: Us
           commissionRate: user.commissionRate || 0,
           password: "", // Always reset password field
         });
+        if (user.role === 'company' && governorates) {
+             const commissions = governorates.map(g => ({
+                governorateId: g.id,
+                commission: companyDetails?.governorateCommissions?.[g.id] || 0
+            }));
+            replace(commissions);
+        }
+
       } else {
         form.reset({
           name: "",
@@ -104,9 +133,16 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user }: Us
           role: 'courier',
           commissionRate: 0,
         });
+        if(governorates) {
+            const commissions = governorates.map(g => ({
+                governorateId: g.id,
+                commission: 0
+            }));
+            replace(commissions);
+        }
       }
     }
-  }, [open, user, isEditing, form]);
+  }, [open, user, isEditing, form, companyDetails, governorates, replace]);
 
   const onSubmit = (values: z.infer<typeof baseUserSchema>) => {
     onSave(values, user?.id);
@@ -119,7 +155,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user }: Us
       {children && <SheetTrigger asChild>
         {children}
       </SheetTrigger>}
-      <SheetContent className="sm:max-w-md" dir="rtl">
+      <SheetContent className="sm:max-w-2xl" dir="rtl">
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
                 <SheetHeader>
@@ -128,7 +164,8 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user }: Us
                         {isEditing ? "قم بتحديث بيانات المستخدم. اترك كلمة المرور فارغة لعدم تغييرها." : "أدخل تفاصيل المستخدم الجديد ودوره في النظام."}
                     </SheetDescription>
                 </SheetHeader>
-                <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6 mr-[-1.5rem] pl-6">
+                <ScrollArea className="flex-1 -mr-6">
+                <div className="grid gap-4 py-4 pr-6 pl-6">
                      <FormField
                         control={form.control}
                         name="name"
@@ -207,7 +244,34 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user }: Us
                             />
                         </>
                      )}
+                     {selectedRole === 'company' && (
+                        <div className="col-span-4 space-y-4 rounded-lg border p-4">
+                            <h4 className="font-medium text-center">عمولات المحافظات</h4>
+                            <p className="text-xs text-muted-foreground text-center">أدخل عمولة التوصيل بالجنيه لكل محافظة. اتركها 0 إذا لم يكن هناك عمولة.</p>
+                            {governoratesLoading && <p>جاري تحميل المحافظات...</p>}
+                            {fields.map((field, index) => {
+                                const governorate = governorates?.find(g => g.id === field.governorateId);
+                                if(!governorate) return null;
+                                return (
+                                    <FormField
+                                        key={field.id}
+                                        control={form.control}
+                                        name={`governorateCommissions.${index}.commission`}
+                                        render={({ field: formField }) => (
+                                             <FormItem className="grid grid-cols-2 items-center gap-4">
+                                                <FormLabel>{governorate.name}</FormLabel>
+                                                <FormControl>
+                                                    <Input type="number" {...formField} placeholder="0" value={formField.value ?? 0} />
+                                                </FormControl>
+                                             </FormItem>
+                                        )}
+                                    />
+                                )
+                            })}
+                        </div>
+                     )}
                 </div>
+                </ScrollArea>
                 <SheetFooter>
                     <SheetClose asChild>
                         <Button variant="outline">إلغاء</Button>

@@ -118,6 +118,10 @@
             "type": "number",
             "description": "The commission earned by the courier for this specific shipment."
         },
+        "companyCommission": {
+            "type": "number",
+            "description": "The commission earned by the company for this specific shipment."
+        },
         "companyId": {
           "type": "string",
           "description": "Reference to the User (with 'company' role) that owns this shipment."
@@ -158,6 +162,13 @@
         "name": {
           "type": "string",
           "description": "Name of the logistics company."
+        },
+        "governorateCommissions": {
+            "type": "object",
+            "description": "Map of governorate IDs to commission amounts for this company.",
+            "additionalProperties": {
+                "type": "number"
+            }
         }
       },
       "required": [
@@ -208,6 +219,22 @@
         "id",
         "name"
       ]
+    },
+    "CompanyPayment": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "CompanyPayment",
+        "type": "object",
+        "description": "Represents a payment made by the admin to a company to settle their account.",
+        "properties": {
+            "id": { "type": "string", "description": "Unique ID for the payment transaction." },
+            "companyId": { "type": "string", "description": "The UID of the company receiving the payment." },
+            "amount": { "type": "number", "description": "The amount paid." },
+            "paymentDate": { "type": "string", "format": "date-time", "description": "Timestamp of when the payment was recorded." },
+            "recordedById": { "type": "string", "description": "The UID of the admin who recorded the payment." },
+            "notes": { "type": "string", "description": "Optional notes about the payment." },
+            "isArchived": { "type": "boolean", "description": "Flag to indicate if a payment is archived." }
+        },
+        "required": ["id", "companyId", "amount", "paymentDate", "recordedById"]
     },
     "CourierPayment": {
         "$schema": "http://json-schema.org/draft-07/schema#",
@@ -388,6 +415,15 @@
           "entityName": "CourierPayment",
           "schema": { "$ref": "#/backend/entities/CourierPayment" },
           "description": "Stores records of payments made by couriers.",
+          "params": [{ "name": "paymentId", "description": "Unique ID for the payment." }]
+        }
+      },
+      {
+        "path": "/company_payments/{paymentId}",
+        "definition": {
+          "entityName": "CompanyPayment",
+          "schema": { "$ref": "#/backend/entities/CompanyPayment" },
+          "description": "Stores records of payments made to companies.",
           "params": [{ "name": "paymentId", "description": "Unique ID for the payment." }]
         }
       },

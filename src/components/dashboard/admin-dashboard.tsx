@@ -2,17 +2,18 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, User, CourierPayment, Chat } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, User, CourierPayment, Chat, CompanyPayment } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { UsersTable } from "@/components/dashboard/users-table";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { UserFormSheet } from "@/components/users/user-form-sheet";
 import { CourierPaymentFormSheet } from "@/components/users/courier-payment-form-sheet";
+import { CompanyPaymentFormSheet } from "@/components/users/company-payment-form-sheet";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
@@ -43,14 +44,25 @@ interface AdminDashboardProps {
 export default function AdminDashboard({ user, role, searchTerm }: AdminDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
-  const [isPaymentSheetOpen, setIsPaymentSheetOpen] = React.useState(false);
+  const [isCourierPaymentSheetOpen, setIsCourierPaymentSheetOpen] = React.useState(false);
+  const [isCompanyPaymentSheetOpen, setIsCompanyPaymentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const [editingUser, setEditingUser] = React.useState<User | undefined>(undefined);
-  const [editingPayment, setEditingPayment] = React.useState<CourierPayment | undefined>(undefined);
+  const [editingCompany, setEditingCompany] = React.useState<Company | undefined>(undefined);
+  
   const [payingCourier, setPayingCourier] = React.useState<User | undefined>(undefined);
+  const [editingCourierPayment, setEditingCourierPayment] = React.useState<CourierPayment | undefined>(undefined);
+  
+  const [payingCompany, setPayingCompany] = React.useState<Company | undefined>(undefined);
+  const [editingCompanyPayment, setEditingCompanyPayment] = React.useState<CompanyPayment | undefined>(undefined);
+
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
-  const [paymentToDelete, setPaymentToDelete] = React.useState<CourierPayment | null>(null);
+  const [courierPaymentToDelete, setCourierPaymentToDelete] = React.useState<CourierPayment | null>(null);
+  const [companyPaymentToDelete, setCompanyPaymentToDelete] = React.useState<CompanyPayment | null>(null);
+  
   const [courierToArchive, setCourierToArchive] = React.useState<User | null>(null);
+  const [companyToArchive, setCompanyToArchive] = React.useState<Company | null>(null);
+  
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -138,11 +150,17 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   }, [firestore, user]);
   const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
 
-  const paymentsQuery = useMemoFirebase(() => {
+  const courierPaymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, 'courier_payments'));
   }, [firestore, user]);
-  const { data: payments } = useCollection<CourierPayment>(paymentsQuery);
+  const { data: courierPayments } = useCollection<CourierPayment>(courierPaymentsQuery);
+
+  const companyPaymentsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'company_payments'));
+  }, [firestore, user]);
+  const { data: companyPayments } = useCollection<CompanyPayment>(companyPaymentsQuery);
   
   const courierUsers = React.useMemo(() => users?.filter(u => u.role === 'courier') || [], [users]);
   
@@ -151,15 +169,22 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     setShipmentSheetOpen(true);
   };
   
-  const openUserForm = (user?: User) => {
+  const openUserForm = (user?: User, company?: Company) => {
     setEditingUser(user);
+    setEditingCompany(company);
     setIsUserSheetOpen(true);
   };
 
-  const openPaymentForm = (courier: User, payment?: CourierPayment) => {
+  const openCourierPaymentForm = (courier: User, payment?: CourierPayment) => {
     setPayingCourier(courier);
-    setEditingPayment(payment);
-    setIsPaymentSheetOpen(true);
+    setEditingCourierPayment(payment);
+    setIsCourierPaymentSheetOpen(true);
+  }
+  
+  const openCompanyPaymentForm = (company: Company, payment?: CompanyPayment) => {
+    setPayingCompany(company);
+    setEditingCompanyPayment(payment);
+    setIsCompanyPaymentSheetOpen(true);
   }
   
   const handleImportClick = () => {
@@ -354,17 +379,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     if (userId) { // --- UPDATE LOGIC ---
         toast({ title: "جاري تحديث المستخدم...", description: "قد تستغرق هذه العملية بضع لحظات." });
         
-        // Step 1: Update password if provided
         if (data.password) {
             const passResult = await updateAuthUserPassword({ uid: userId, password: data.password });
             if (!passResult.success) {
                 toast({ variant: "destructive", title: "فشل تحديث كلمة المرور", description: `حدث خطأ: ${passResult.error}` });
-                // Decide if you want to stop or continue with Firestore updates
                 return;
             }
         }
         
-        // Step 2: Update Firestore documents
         const batch = writeBatch(firestore);
         const userDocRef = doc(firestore, 'users', userId);
         const userUpdatePayload: any = { name: data.name, updatedAt: serverTimestamp() };
@@ -375,7 +397,13 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             batch.update(courierDocRef, { name: data.name, commissionRate: data.commissionRate });
         } else if (data.role === 'company') {
             const companyDocRef = doc(firestore, 'companies', userId);
-            batch.update(companyDocRef, { name: data.name });
+             const commissions = data.governorateCommissions.reduce((acc: any, item: any) => {
+                if (item.commission > 0) {
+                    acc[item.governorateId] = item.commission;
+                }
+                return acc;
+            }, {});
+            batch.set(companyDocRef, { name: data.name, governorateCommissions: commissions }, { merge: true });
         }
 
         batch.update(userDocRef, userUpdatePayload);
@@ -424,7 +452,13 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
         if (data.role === 'company') {
             const companyRef = doc(firestore, 'companies', newUid);
-            batch.set(companyRef, { id: newUid, name: data.name });
+            const commissions = data.governorateCommissions.reduce((acc: any, item: any) => {
+                if (item.commission > 0) {
+                    acc[item.governorateId] = item.commission;
+                }
+                return acc;
+            }, {});
+            batch.set(companyRef, { id: newUid, name: data.name, governorateCommissions: commissions });
             userPayload.companyId = newUid;
         } else if (data.role === 'courier') {
             const courierRef = doc(firestore, 'couriers', newUid);
@@ -475,15 +509,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     // 2. Delete from Firestore (users, roles_*, and couriers/companies)
     const batch = writeBatch(firestore);
     
-    // Delete user doc
     const userDocRef = doc(firestore, 'users', userToDelete.id);
     batch.delete(userDocRef);
 
-    // Delete role doc
     const roleDocRef = doc(firestore, `roles_${userToDelete.role}`, userToDelete.id);
     batch.delete(roleDocRef);
 
-    // Delete company/courier doc
     if (userToDelete.role === 'company') {
       const companyDocRef = doc(firestore, 'companies', userToDelete.id);
       batch.delete(companyDocRef);
@@ -507,7 +538,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     });
   };
 
-  const handleSavePayment = (paymentData: { amount: number; notes?: string }, paymentId?: string) => {
+  const handleSaveCourierPayment = (paymentData: { amount: number; notes?: string }, paymentId?: string) => {
     if (!firestore || !payingCourier || !user) return;
     
     if (paymentId) { // Update existing payment
@@ -558,34 +589,72 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           errorEmitter.emit('permission-error', permissionError);
         });
     }
-
-    setIsPaymentSheetOpen(false);
+    setIsCourierPaymentSheetOpen(false);
     setPayingCourier(undefined);
-    setEditingPayment(undefined);
+    setEditingCourierPayment(undefined);
   };
   
-  const handleDeletePayment = () => {
-    if (!firestore || !paymentToDelete) return;
+    const handleSaveCompanyPayment = (paymentData: { amount: number; notes?: string }, paymentId?: string) => {
+    if (!firestore || !payingCompany || !user) return;
     
-    const docRef = doc(firestore, 'courier_payments', paymentToDelete.id);
+    if (paymentId) { // Update existing payment
+      const paymentDocRef = doc(firestore, 'company_payments', paymentId);
+      const dataToUpdate = { ...paymentData, updatedAt: serverTimestamp() };
+      updateDoc(paymentDocRef, dataToUpdate)
+        .catch(serverError => {
+          const permissionError = new FirestorePermissionError({ path: paymentDocRef.path, operation: 'update', requestResourceData: dataToUpdate });
+          errorEmitter.emit('permission-error', permissionError);
+        });
+
+    } else { // Create new payment
+      const paymentsCollection = collection(firestore, 'company_payments');
+      const paymentDocRef = doc(paymentsCollection);
+      const newPayment: CompanyPayment = {
+          id: paymentDocRef.id,
+          companyId: payingCompany.id,
+          amount: paymentData.amount,
+          paymentDate: serverTimestamp(),
+          recordedById: user.id,
+          notes: paymentData.notes || "",
+      };
+      setDoc(paymentDocRef, newPayment)
+        .catch(serverError => {
+          const permissionError = new FirestorePermissionError({ path: paymentDocRef.path, operation: 'create', requestResourceData: newPayment });
+          errorEmitter.emit('permission-error', permissionError);
+        });
+    }
+    setIsCompanyPaymentSheetOpen(false);
+    setPayingCompany(undefined);
+    setEditingCompanyPayment(undefined);
+  };
+  
+  const handleDeleteCourierPayment = () => {
+    if (!firestore || !courierPaymentToDelete) return;
+    
+    const docRef = doc(firestore, 'courier_payments', courierPaymentToDelete.id);
     deleteDoc(docRef)
       .then(() => {
-        toast({
-          title: "تم حذف الدفعة",
-          description: "تم حذف سجل الدفعة بنجاح.",
-        });
+        toast({ title: "تم حذف الدفعة", description: "تم حذف سجل الدفعة بنجاح." });
       })
       .catch(serverError => {
-        const permissionError = new FirestorePermissionError({
-          path: docRef.path,
-          operation: 'delete',
-        });
+        const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'delete' });
         errorEmitter.emit('permission-error', permissionError);
       })
-      .finally(() => {
-        setPaymentToDelete(null);
-      });
+      .finally(() => setCourierPaymentToDelete(null));
   };
+  
+  const handleDeleteCompanyPayment = () => {
+    if (!firestore || !companyPaymentToDelete) return;
+    
+    const docRef = doc(firestore, 'company_payments', companyPaymentToDelete.id);
+    deleteDoc(docRef)
+      .catch(serverError => {
+        const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'delete' });
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => setCompanyPaymentToDelete(null));
+  };
+
 
   const handleArchiveCourierData = async () => {
       if (!firestore || !courierToArchive) return;
@@ -593,36 +662,52 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
       const batch = writeBatch(firestore);
 
-      // Archive shipments
       const courierShipments = shipments?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchived) || [];
       courierShipments.forEach(shipment => {
           const shipmentRef = doc(firestore, 'shipments', shipment.id);
           batch.update(shipmentRef, { isArchived: true });
       });
+      
+      await batch.commit()
+          .then(() => {
+              toast({ title: "اكتملت الأرشفة بنجاح!", description: `تمت أرشفة جميع شحنات ${courierToArchive.name}.` });
+          })
+          .catch(serverError => {
+              const permissionError = new FirestorePermissionError({ path: `batch_archive`, operation: 'update', requestResourceData: { note: `Batch archive for courier ${courierToArchive.id} failed.` }});
+              errorEmitter.emit('permission-error', permissionError);
+          })
+          .finally(() => setCourierToArchive(null));
+  };
+  
+  const handleArchiveCompanyData = async () => {
+      if (!firestore || !companyToArchive) return;
+      toast({ title: `جاري أرشفة بيانات ${companyToArchive.name}...` });
 
-      // Archive payments made during the active period
-      const courierPaymentsToArchive = payments?.filter(p => p.courierId === courierToArchive.id && !p.isArchived) || [];
-      courierPaymentsToArchive.forEach(payment => {
-          const paymentRef = doc(firestore, 'courier_payments', payment.id);
+      const batch = writeBatch(firestore);
+
+      const companyShipments = shipments?.filter(s => s.companyId === companyToArchive.id && !s.isArchived) || [];
+      companyShipments.forEach(shipment => {
+          const shipmentRef = doc(firestore, 'shipments', shipment.id);
+          batch.update(shipmentRef, { isArchived: true });
+      });
+      
+      const companyPaymentsToArchive = companyPayments?.filter(p => p.companyId === companyToArchive.id && !p.isArchived) || [];
+      companyPaymentsToArchive.forEach(payment => {
+          const paymentRef = doc(firestore, 'company_payments', payment.id);
           batch.update(paymentRef, { isArchived: true });
       });
       
       await batch.commit()
           .then(() => {
-              toast({ title: "اكتملت الأرشفة بنجاح!", description: `تمت أرشفة جميع شحنات ودفعات ${courierToArchive.name}.` });
+              toast({ title: "اكتملت الأرشفة بنجاح!", description: `تمت أرشفة جميع شحنات ودفعات ${companyToArchive.name}.` });
           })
           .catch(serverError => {
-              const permissionError = new FirestorePermissionError({
-                  path: `batch_archive`,
-                  operation: 'update',
-                  requestResourceData: { note: `Batch archive for courier ${courierToArchive.id} failed.` }
-              });
+              const permissionError = new FirestorePermissionError({ path: `batch_archive`, operation: 'update', requestResourceData: { note: `Batch archive for company ${companyToArchive.id} failed.` }});
               errorEmitter.emit('permission-error', permissionError);
           })
-          .finally(() => {
-              setCourierToArchive(null);
-          });
+          .finally(() => setCompanyToArchive(null));
   };
+
 
   const filteredShipments = React.useMemo(() => {
     const activeShipments = shipments?.filter(shipment => !shipment.isArchived) || [];
@@ -654,9 +739,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     if (!users || !shipments) return [];
     
     return courierUsers.map(courier => {
-        // Calculations for active cycle (non-archived items)
         const activeShipments = shipments?.filter(s => s.assignedCourierId === courier.id && !s.isArchived) || [];
-        const activePayments = payments?.filter(p => p.courierId === courier.id && !p.isArchived) || [];
+        const activePayments = courierPayments?.filter(p => p.courierId === courier.id && !p.isArchived) || [];
         
         const totalCollected = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
         const totalCommission = activeShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
@@ -664,8 +748,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
         const netDue = (totalCollected - totalCommission) - totalPaidByCourier;
         
-        // Full payment history (archived and active)
-        const allPayments = payments?.filter(p => p.courierId === courier.id) || [];
+        const allPayments = courierPayments?.filter(p => p.courierId === courier.id) || [];
 
         return {
             ...courier,
@@ -679,25 +762,39 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             paymentHistory: allPayments.sort((a, b) => (b.paymentDate?.toDate?.() || 0) - (a.paymentDate?.toDate?.() || 0)),
         }
     })
-  }, [users, shipments, courierUsers, payments]);
+  }, [users, shipments, courierUsers, courierPayments]);
   
-  const companyRevenues = React.useMemo(() => {
-    if (!companies || !shipments) return [];
+    const companyDues = React.useMemo(() => {
+    if (!companies || !shipments || !companyPayments) return [];
+    
     return companies.map(company => {
-        const companyShipments = shipments.filter(s => s.companyId === company.id && !s.isArchived);
-        const totalRevenue = companyShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
-        const totalCommission = companyShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
-        const netRevenue = totalRevenue - totalCommission;
+        const activeShipments = shipments?.filter(s => s.companyId === company.id && !s.isArchived) || [];
+        const activePayments = companyPayments?.filter(p => p.companyId === company.id && !p.isArchived) || [];
+        
+        const totalRevenue = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
+        const totalCompanyCommission = activeShipments.reduce((acc, s) => acc + (s.companyCommission || 0), 0);
+        const totalCourierCommission = activeShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
+        const totalPaidToCompany = activePayments.reduce((acc, p) => acc + p.amount, 0);
+        
+        const netDue = (totalRevenue - totalCourierCommission - totalCompanyCommission) - totalPaidToCompany;
+        
+        const allPayments = companyPayments?.filter(p => p.companyId === company.id) || [];
+
         return {
             ...company,
+            totalShipments: activeShipments.length,
             totalRevenue,
-            netRevenue,
-            shipmentCount: companyShipments.length
+            totalCompanyCommission,
+            totalCourierCommission,
+            totalPaidToCompany,
+            netDue,
+            paymentHistory: allPayments.sort((a, b) => (b.paymentDate?.toDate?.() || 0) - (a.paymentDate?.toDate?.() || 0)),
         }
     })
-  }, [companies, shipments]);
+  }, [companies, shipments, companyPayments]);
 
-  const currentNetDue = courierDues.find(c => c.id === payingCourier?.id)?.netDue;
+  const currentCourierNetDue = courierDues.find(c => c.id === payingCourier?.id)?.netDue;
+  const currentCompanyNetDue = companyDues.find(c => c.id === payingCompany?.id)?.netDue;
 
   return (
     <div className="flex flex-col w-full">
@@ -827,7 +924,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         <TabsContent value="courier-management">
              <div className="mt-8">
                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-headline font-semibold">إدارة أداء المناديب</h2>
+                    <h2 className="text-2xl font-headline font-semibold">إدارة حسابات المناديب</h2>
                 </div>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {courierDues.map(courier => (
@@ -904,10 +1001,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                                                               <span>{new Date(payment.paymentDate?.toDate?.() || Date.now()).toLocaleDateString('ar-EG')}</span>
                                                           </div>
                                                           <div className="flex items-center">
-                                                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openPaymentForm(courier, payment)}>
+                                                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openCourierPaymentForm(courier, payment)}>
                                                                   <Pencil className="h-3 w-3" />
                                                               </Button>
-                                                              <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setPaymentToDelete(payment)}>
+                                                              <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setCourierPaymentToDelete(payment)}>
                                                                   <Trash2 className="h-3 w-3" />
                                                               </Button>
                                                           </div>
@@ -919,7 +1016,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                                     </div>
                                 </CardContent>
                                 <CardFooter className="flex flex-col items-stretch gap-2">
-                                    <Button variant="outline" className="w-full" onClick={() => openPaymentForm(courier)} disabled={courier.netDue <= 0}>
+                                    <Button variant="outline" className="w-full" onClick={() => openCourierPaymentForm(courier)} disabled={courier.netDue <= 0}>
                                         <HandCoins className="me-2 h-4 w-4" />
                                         تسوية الحساب
                                     </Button>
@@ -938,33 +1035,104 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
          <TabsContent value="company-management">
                <div className="mt-8">
                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl fontheadline font-semibold">إيرادات الشركات</h2>
+                    <h2 className="text-2xl fontheadline font-semibold">إدارة حسابات الشركات</h2>
                 </div>
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        {companyRevenues.map(company => (
-                            <Card key={company.id}>
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        {companyDues.map(company => (
+                             <Card key={company.id} className="flex flex-col">
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                     <CardTitle className="text-sm font-medium flex items-center gap-2">
                                         <Building className="h-4 w-4 text-muted-foreground" />
                                         {company.name}
                                     </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-xl font-bold">
-                                        {company.totalRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                                    <div className={`text-xl font-bold ${company.netDue >= 0 ? 'text-green-600' : 'text-destructive'}`}>
+                                        {company.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
                                     </div>
+                                </CardHeader>
+                                <CardContent className="flex-grow">
                                     <p className="text-xs text-muted-foreground">
-                                        إجمالي الإيرادات من {company.shipmentCount} شحنة
+                                        المبلغ المستحق للشركة
                                     </p>
-                                    <div className="mt-2 pt-2 border-t">
-                                        <div className="text-lg font-bold text-primary">
-                                            {company.netRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                                    <div className="mt-4 space-y-2 text-sm">
+                                         <div className="flex justify-between items-center border-b pb-2">
+                                            <span className="flex items-center gap-2 text-muted-foreground">
+                                                <Package className="h-4 w-4" />
+                                                إجمالي الشحنات:
+                                            </span>
+                                            <span className="font-medium">{company.totalShipments}</span>
                                         </div>
-                                        <p className="text-xs text-muted-foreground">
-                                            المبلغ المستحق للدفع (بعد العمولات)
-                                        </p>
+                                        <div className="flex justify-between items-center pt-2 border-t">
+                                            <span className="flex items-center gap-2 text-muted-foreground">
+                                                <DollarSign className="h-4 w-4" />
+                                                إجمالي التحصيل:
+                                            </span>
+                                            <span className="font-medium">{company.totalRevenue.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="flex items-center gap-2 text-muted-foreground">
+                                                <BadgePercent className="h-4 w-4" />
+                                                عمولات الشركة:
+                                            </span>
+                                            <span className="font-medium">{company.totalCompanyCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                        </div>
+                                         <div className="flex justify-between items-center">
+                                            <span className="flex items-center gap-2 text-muted-foreground">
+                                                <BadgePercent className="h-4 w-4 text-orange-500" />
+                                                عمولات المناديب:
+                                            </span>
+                                            <span className="font-medium">{company.totalCourierCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                        </div>
+                                         <div className="flex justify-between items-center border-t pt-2 mt-2">
+                                            <span className="flex items-center gap-2 text-muted-foreground">
+                                                <WalletCards className="h-4 w-4" />
+                                                إجمالي المدفوعات:
+                                            </span>
+                                            <span className="font-medium text-green-700">{company.totalPaidToCompany.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                        </div>
+                                        
+                                        {company.paymentHistory && company.paymentHistory.length > 0 && (
+                                            <Collapsible className="pt-2 text-xs">
+                                                <CollapsibleTrigger asChild>
+                                                    <Button variant="ghost" size="sm" className="flex items-center gap-2 w-full justify-start p-0 h-auto text-xs">
+                                                        <History className="h-3 w-3"/>
+                                                        <span>عرض سجل الدفعات ({company.paymentHistory.length})</span>
+                                                    </Button>
+                                                </CollapsibleTrigger>
+                                                <CollapsibleContent className="space-y-2 mt-2">
+                                                  {company.paymentHistory.map(payment => (
+                                                      <div key={payment.id} className="flex justify-between items-center text-muted-foreground p-2 rounded-md bg-muted/50">
+                                                          <div>
+                                                              <span className="font-semibold">{payment.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
+                                                              <span className="mx-2">-</span>
+                                                              <span>{new Date(payment.paymentDate?.toDate?.() || Date.now()).toLocaleDateString('ar-EG')}</span>
+                                                          </div>
+                                                          <div className="flex items-center">
+                                                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openCompanyPaymentForm(company, payment)}>
+                                                                  <Pencil className="h-3 w-3" />
+                                                              </Button>
+                                                              <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setCompanyPaymentToDelete(payment)}>
+                                                                  <Trash2 className="h-3 w-3" />
+                                                              </Button>
+                                                          </div>
+                                                      </div>
+                                                  ))}
+                                                </CollapsibleContent>
+                                            </Collapsible>
+                                        )}
                                     </div>
                                 </CardContent>
+                                <CardFooter className="flex flex-col items-stretch gap-2">
+                                    <Button variant="outline" className="w-full" onClick={() => openCompanyPaymentForm(company)} disabled={company.netDue <= 0}>
+                                        <Banknote className="me-2 h-4 w-4" />
+                                        تسوية الحساب
+                                    </Button>
+                                    {company.totalShipments > 0 && (
+                                        <Button variant="secondary" className="w-full" onClick={() => setCompanyToArchive(company)}>
+                                            <Archive className="me-2 h-4 w-4" />
+                                            أرشفة وتسوية الكل
+                                        </Button>
+                                    )}
+                                </CardFooter>
                             </Card>
                         ))}
                     </div>
@@ -976,10 +1144,11 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين والشركات</h2>
                     <div className="flex items-center gap-2">
                         <UserFormSheet 
-                        open={isUserSheetOpen}
-                        onOpenChange={setIsUserSheetOpen}
-                        onSave={handleSaveUser}
-                        user={editingUser}
+                            open={isUserSheetOpen}
+                            onOpenChange={setIsUserSheetOpen}
+                            onSave={handleSaveUser}
+                            user={editingUser}
+                            companyDetails={editingCompany}
                         >
                             <Button size="sm" onClick={() => openUserForm()}>
                                 <PlusCircle className="h-4 w-4" />
@@ -1023,7 +1192,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-       <AlertDialog open={!!paymentToDelete} onOpenChange={(open) => !open && setPaymentToDelete(null)}>
+       <AlertDialog open={!!courierPaymentToDelete} onOpenChange={(open) => !open && setCourierPaymentToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>هل أنت متأكد من حذف الدفعة؟</AlertDialogTitle>
@@ -1032,8 +1201,22 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setPaymentToDelete(null)}>إلغاء</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeletePayment} className="bg-destructive hover:bg-destructive/90">حذف</AlertDialogAction>
+            <AlertDialogCancel onClick={() => setCourierPaymentToDelete(null)}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCourierPayment} className="bg-destructive hover:bg-destructive/90">حذف</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={!!companyPaymentToDelete} onOpenChange={(open) => !open && setCompanyPaymentToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>هل أنت متأكد من حذف الدفعة؟</AlertDialogTitle>
+            <AlertDialogDescription>
+              سيتم حذف سجل هذه الدفعة بشكل نهائي. سيؤثر هذا على المبلغ المستحق للشركة. لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setCompanyPaymentToDelete(null)}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCompanyPayment} className="bg-destructive hover:bg-destructive/90">حذف</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1042,7 +1225,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           <AlertDialogHeader>
             <AlertDialogTitle>أرشفة وتسوية حساب {courierToArchive?.name}؟</AlertDialogTitle>
             <AlertDialogDescription>
-              سيؤدي هذا الإجراء إلى أرشفة جميع الشحنات والدفعات الحالية للمندوب. سيتم تصفير حسابه ليبدأ دورة عمل جديدة. لا يمكن التراجع عن هذا الإجراء.
+              سيؤدي هذا الإجراء إلى أرشفة جميع الشحنات الحالية للمندوب. سيتم تصفير حسابه ليبدأ دورة عمل جديدة. لا يمكن التراجع عن هذا الإجراء.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1051,22 +1234,48 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AlertDialog open={!!companyToArchive} onOpenChange={(open) => !open && setCompanyToArchive(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>أرشفة وتسوية حساب {companyToArchive?.name}؟</AlertDialogTitle>
+            <AlertDialogDescription>
+              سيؤدي هذا الإجراء إلى أرشفة جميع الشحنات والدفعات الحالية للشركة. سيتم تصفير حسابها لتبدأ دورة عمل جديدة. لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setCompanyToArchive(null)}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={handleArchiveCompanyData}>نعم، أرشفة وتسوية</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <CourierPaymentFormSheet
-        open={isPaymentSheetOpen}
+        open={isCourierPaymentSheetOpen}
         onOpenChange={(open) => {
           if (!open) {
             setPayingCourier(undefined);
-            setEditingPayment(undefined);
+            setEditingCourierPayment(undefined);
           }
-          setIsPaymentSheetOpen(open);
+          setIsCourierPaymentSheetOpen(open);
         }}
         courier={payingCourier}
-        payment={editingPayment}
-        onSave={handleSavePayment}
-        netDue={currentNetDue}
+        payment={editingCourierPayment}
+        onSave={handleSaveCourierPayment}
+        netDue={currentCourierNetDue}
+      />
+      <CompanyPaymentFormSheet
+        open={isCompanyPaymentSheetOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPayingCompany(undefined);
+            setEditingCompanyPayment(undefined);
+          }
+          setIsCompanyPaymentSheetOpen(open);
+        }}
+        company={payingCompany}
+        payment={editingCompanyPayment}
+        onSave={handleSaveCompanyPayment}
+        netDue={currentCompanyNetDue}
       />
     </div>
   );
 }
-
-    

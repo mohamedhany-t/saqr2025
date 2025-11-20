@@ -51,7 +51,7 @@ service cloud.firestore {
       // Couriers can ONLY update specific fields on their assigned shipments.
       allow update: if (isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid)) ||
                        (isCourier() && resource.data.assignedCourierId == request.auth.uid && 
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'companyCommission', 'paidAmount']));
 
       allow delete: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
     }
@@ -59,6 +59,12 @@ service cloud.firestore {
     // Admins can manage all payments. Couriers can only read their own payments.
     match /courier_payments/{paymentId} {
       allow read: if isAdmin() || (isCourier() && resource.data.courierId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+    
+     // Admins can manage all payments. Companies can only read their own payments.
+    match /company_payments/{paymentId} {
+      allow read: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
       allow write: if isAdmin();
     }
 
@@ -98,5 +104,3 @@ service cloud.firestore {
     }
   }
 }
-
-    

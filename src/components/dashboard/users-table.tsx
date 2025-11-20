@@ -30,8 +30,10 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import type { User, Role } from "@/lib/types"
+import type { User, Role, Company } from "@/lib/types"
 import { Skeleton } from "../ui/skeleton"
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
+import { collection } from "firebase/firestore"
 
 const roleIcons: Record<Role, React.ReactNode> = {
     admin: <UserIcon className="h-4 w-4 text-red-500" />,
@@ -51,7 +53,7 @@ const roleVariants: Record<Role, "default" | "secondary" | "destructive" | "outl
     courier: "outline",
 }
 
-export const getColumns = (onEdit: (user: User) => void, onDelete: (user: User) => void): ColumnDef<User>[] => [
+export const getColumns = (onEdit: (user: User, company?: Company) => void, onDelete: (user: User) => void, companies: Company[]): ColumnDef<User>[] => [
   {
     accessorKey: "name",
     header: "الاسم",
@@ -94,6 +96,9 @@ export const getColumns = (onEdit: (user: User) => void, onDelete: (user: User) 
                 <span>{rate.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
             </Badge>
         }
+        if (user.role === 'company') {
+            return <Badge variant="secondary">لكل محافظة</Badge>
+        }
         return <div className="text-muted-foreground text-center">N/A</div>;
     },
   },
@@ -124,7 +129,10 @@ export const getColumns = (onEdit: (user: User) => void, onDelete: (user: User) 
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>إجراءات</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => onEdit(user)}>
+            <DropdownMenuItem onClick={() => {
+                const companyDetails = user.role === 'company' ? companies.find(c => c.id === user.id) : undefined;
+                onEdit(user, companyDetails);
+            }}>
                 <Pencil className="me-2 h-4 w-4" /> تعديل
             </DropdownMenuItem>
              <DropdownMenuSeparator />
@@ -139,9 +147,16 @@ export const getColumns = (onEdit: (user: User) => void, onDelete: (user: User) 
 ]
 
 
-export function UsersTable({ users, isLoading, onEdit, onDelete }: { users: User[], isLoading: boolean, onEdit: (user: User) => void, onDelete: (user: User) => void }) {
+export function UsersTable({ users, isLoading, onEdit, onDelete }: { users: User[], isLoading: boolean, onEdit: (user: User, company?: Company) => void, onDelete: (user: User) => void }) {
   
-  const columns = React.useMemo(() => getColumns(onEdit, onDelete), [onEdit, onDelete]);
+  const firestore = useFirestore();
+  const companiesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'companies');
+  }, [firestore]);
+  const { data: companies, isLoading: companiesLoading } = useCollection<Company>(companiesQuery);
+  
+  const columns = React.useMemo(() => getColumns(onEdit, onDelete, companies || []), [onEdit, onDelete, companies]);
   
   const table = useReactTable({
     data: users,
@@ -173,7 +188,7 @@ export function UsersTable({ users, isLoading, onEdit, onDelete }: { users: User
             ))}
           </TableHeader>
           <TableBody>
-            {isLoading ? (
+            {isLoading || companiesLoading ? (
                 Array.from({length: 5}).map((_, i) => (
                     <TableRow key={i}>
                         <TableCell colSpan={columns.length}>
