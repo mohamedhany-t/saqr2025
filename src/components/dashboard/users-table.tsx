@@ -191,9 +191,7 @@ export function UsersTable({ users, isLoading, onEdit, onDelete }: { users: User
             {isLoading || companiesLoading ? (
                 Array.from({length: 5}).map((_, i) => (
                     <TableRow key={i}>
-                        <TableCell colSpan={columns.length}>
-                            <Skeleton className="h-6 w-full" />
-                        </TableCell>
+                         {columns.map(col => <TableCell key={(col as any).id || (col as any).accessorKey}><Skeleton className="h-6 w-full" /></TableCell>)}
                     </TableRow>
                 ))
             ) : table.getRowModel().rows?.length ? (
@@ -245,3 +243,5 @@ export function UsersTable({ users, isLoading, onEdit, onDelete }: { users: User
     </div>
   )
 }
+
+    

@@ -2,7 +2,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -33,6 +33,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import ChatInterface from "@/components/chat/chat-interface";
 import { Badge } from "../ui/badge";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
+import { ReportsPage } from "../reports/reports-page";
 
 
 interface AdminDashboardProps {
@@ -667,6 +668,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           const shipmentRef = doc(firestore, 'shipments', shipment.id);
           batch.update(shipmentRef, { isArchived: true });
       });
+
+      // Do not archive payments, keep them as history
       
       await batch.commit()
           .then(() => {
@@ -805,6 +808,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             <TabsTrigger value="courier-management">إدارة المناديب</TabsTrigger>
             <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
             <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
+            <TabsTrigger value="reports">التقارير</TabsTrigger>
             <TabsTrigger value="chat" className="relative">
               الدردشة
               {totalUnreadCount > 0 && (
@@ -1159,8 +1163,19 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                         </UserFormSheet>
                     </div>
                 </div>
-                <UsersTable users={users || []} isLoading={usersLoading || companiesLoading} onEdit={openUserForm} onDelete={setUserToDelete}/>
+                <UsersTable users={users || []} isLoading={usersLoading || companiesLoading} onEdit={openUserform} onDelete={setUserToDelete}/>
             </div>
+        </TabsContent>
+        <TabsContent value="reports">
+             <ReportsPage 
+                shipments={shipments || []}
+                companies={companies || []}
+                couriers={courierUsers || []}
+                governorates={governorates || []}
+                companyPayments={companyPayments || []}
+                courierPayments={courierPayments || []}
+                isLoading={shipmentsLoading || companiesLoading || usersLoading}
+             />
         </TabsContent>
         <TabsContent value="chat">
            <ChatInterface />
@@ -1279,3 +1294,5 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
+
+    
