@@ -11,29 +11,9 @@ interface jsPDFWithAutoTable extends jsPDF {
   autoTable: (options: any) => jsPDF;
 }
 
-const getHeader = (columnDef: ColumnDef<Shipment, any>): string => {
+const getHeader = (columnDef: ColumnDef<any, any>): string => {
     if (typeof columnDef.header === 'string') {
         return columnDef.header;
-    }
-    // Attempt to extract header from a function if it's simple
-    if (typeof columnDef.header === 'function') {
-        try {
-            const rendered = columnDef.header({
-                // Provide a mock context if needed
-                table: {} as any,
-                column: {
-                    toggleSorting: () => {},
-                    getIsSorted: () => false,
-                } as any,
-            });
-            if(typeof rendered === 'string') return rendered;
-            // A bit of a hack to get simple string headers from JSX
-            if(React.isValidElement(rendered) && typeof rendered.props.children === 'string') {
-                return rendered.props.children;
-            }
-        } catch (e) {
-            // Fallback for complex headers
-        }
     }
     const key = (columnDef as any).accessorKey;
     if (typeof key === 'string') {
@@ -44,19 +24,17 @@ const getHeader = (columnDef: ColumnDef<Shipment, any>): string => {
 }
 
 const getCellValue = (
-    row: Shipment, 
+    row: any, 
     accessorKey: string | undefined, 
     governorates: Governorate[],
     companies: Company[],
     users: User[],
-    statusText: Record<string, string>
     ): any => {
     if (!accessorKey) return '';
     
-    if (accessorKey === 'netDue') {
-        const paidAmount = row.paidAmount || 0;
-        const commission = row.courierCommission || 0;
-        return paidAmount - commission;
+    // Handle special calculation for financial reports
+    if (row.netDue !== undefined && accessorKey === 'netDue') {
+        return row.netDue;
     }
     
     const value = (row as any)[accessorKey];
@@ -72,16 +50,24 @@ const getCellValue = (
             const company = companies.find(c => c.id === value);
             return company ? company.name : '';
         case 'status':
-             const statusKey = value as keyof typeof statusText;
-             return statusText[statusKey] || value;
+             const statusTextMap: Record<string, string> = {
+                Pending: 'قيد الانتظار',
+                'In-Transit': 'قيد التوصيل',
+                Delivered: 'تم التوصيل',
+                'Partially Delivered': 'تم التوصيل جزئياً',
+                Evasion: 'تهرب',
+                Cancelled: 'تم الإلغاء',
+                Returned: 'مرتجع',
+                Postponed: 'مؤجل',
+                'Returned to Sender': 'تم الرجوع للراسل'
+            };
+             const statusKey = value as keyof typeof statusTextMap;
+             return statusTextMap[statusKey] || value;
         case 'createdAt':
         case 'deliveryDate':
              if (!value) return '';
              const date = value.toDate ? value.toDate() : new Date(value);
              return date.toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-        case 'address':
-            const gov = governorates.find(g => g.id === row.governorateId);
-            return `${value}${gov ? `, ${gov.name}`: ''}`;
         default:
              if (value instanceof Date) {
                 return value.toLocaleDateString('ar-EG');
@@ -95,57 +81,41 @@ const getCellValue = (
 
 
 export const exportToExcel = (
-  data: Shipment[],
-  columns: ColumnDef<Shipment, any>[],
+  data: any[],
+  columns: ColumnDef<any, any>[],
   filename: string,
   governorates: Governorate[],
   companies: Company[],
   users: User[],
 ) => {
+  if (!data || data.length === 0) {
+    console.error("No data to export");
+    return;
+  }
   const workbook = new Workbook();
-  const worksheet = workbook.addWorksheet('Shipments');
-
-  const statusTextMap: Record<string, string> = {
-    Pending: 'قيد الانتظار',
-    'In-Transit': 'قيد التوصيل',
-    Delivered: 'تم التوصيل',
-    'Partially Delivered': 'تم التوصيل جزئياً',
-    Evasion: 'تهرب',
-    Cancelled: 'تم الإلغاء',
-    Returned: 'مرتجع',
-    'مؤجل': 'مؤجل',
-    'مغلق او غير متاح': 'مغلق او غير متاح',
-    'فشل التسليم': 'فشل التسليم',
-    'مرتجع ودفع الشحن': 'مرتجع ودفع الشحن',
-    'لاغي': 'لاغي',
-    'المسلمة ودفع كامل': 'المسلمة ودفع كامل',
-    'فضل التسليم': 'فضل التسليم',
-    'لم يتم الرد': 'لم يتم الرد',
-  };
-
-  const excelColumns = [
-      { header: 'رقم الطلب', key: 'orderNumber', width: 15 },
-      { header: 'رقم الشحنة', key: 'trackingNumber', width: 20 },
-      { header: 'الشركة', key: 'companyId', width: 25 },
-      { header: 'الراسل', key: 'senderName', width: 25 },
-      { header: 'التاريخ', key: 'createdAt', width: 20 },
-      { header: 'المرسل اليه', key: 'recipientName', width: 25 },
-      { header: 'التليفون', key: 'recipientPhone', width: 20 },
-      { header: 'المحافظة', key: 'governorateId', width: 20 },
-      { header: 'العنوان', key: 'address', width: 40 },
-      { header: 'المندوب', key: 'assignedCourierId', width: 25},
-      { header: 'تاريخ التسليم للمندوب', key: 'deliveryDate', width: 20 },
-      { header: 'حالة الأوردر', key: 'status', width: 20 },
-      { header: 'السبب', key: 'reason', width: 20 },
-      { header: 'الاجمالي', key: 'totalAmount', width: 15, style: { numFmt: '#,##0.00' } },
-      { header: 'المدفوع', key: 'paidAmount', width: 15, style: { numFmt: '#,##0.00' } },
-      { header: 'عمولة المندوب', key: 'courierCommission', width: 15, style: { numFmt: '#,##0.00' } },
-      { header: 'المستحق للدفع', key: 'netDue', width: 15, style: { numFmt: '#,##0.00' } },
-    ];
-    
-  worksheet.columns = excelColumns;
+  const worksheet = workbook.addWorksheet(filename);
   
   worksheet.views = [{ rightToLeft: true }];
+  
+  const excelColumns = columns.map(col => ({
+      header: getHeader(col),
+      key: (col as any).accessorKey as string,
+      width: 20, // default width
+      style: {}
+  }));
+
+  // Adjust width for specific columns
+  excelColumns.forEach(col => {
+      if (col.key === 'address') col.width = 40;
+      if (col.key && ['totalAmount', 'paidAmount', 'courierCommission', 'companyCommission', 'netDue', 'totalCollected', 'totalRevenue'].includes(col.key)) {
+          col.style = { numFmt: '#,##0.00' };
+          col.width = 18;
+      }
+  });
+
+  worksheet.columns = excelColumns;
+  
+  // Style header row
   worksheet.getRow(1).font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
   worksheet.getRow(1).fill = {
     type: 'pattern',
@@ -154,15 +124,13 @@ export const exportToExcel = (
   };
   worksheet.getRow(1).alignment = { horizontal: 'right', vertical: 'middle' };
 
+  // Add data rows
   data.forEach(row => {
     const rowData: any = {};
     excelColumns.forEach(col => {
         const key = col.key;
         if (key) {
-             rowData[key] = getCellValue(row, key, governorates, companies, users, statusTextMap);
-             if(key === 'address'){
-                 rowData[key] = row.address; // Don't append governorate to address here
-             }
+             rowData[key] = getCellValue(row, key, governorates, companies, users);
         }
     })
     const addedRow = worksheet.addRow(rowData);
@@ -194,20 +162,10 @@ export const exportToPDF = (
     doc.addFont('/fonts/Amiri-Regular.ttf', 'Amiri', 'normal');
     doc.setFont('Amiri');
     
-    const statusTextMap: Record<string, string> = {
-      Pending: 'قيد الانتظار',
-      'In-Transit': 'قيد التوصيل',
-      Delivered: 'تم التوصيل',
-      'Partially Delivered': 'تم التوصيل جزئياً',
-      Evasion: 'تهرب',
-      Cancelled: 'تم الإلغاء',
-      Returned: 'مرتجع',
-    };
-
     const tableColumns = columns.map(col => getHeader(col));
     const tableRows = data.map(row => {
         return columns.map(col => {
-            return getCellValue(row, (col as any).accessorKey as string, governorates, companies, users, statusTextMap);
+            return getCellValue(row, (col as any).accessorKey as string, governorates, companies, users);
         })
     });
 
@@ -231,5 +189,3 @@ export const exportToPDF = (
 
     doc.save('shipments_report.pdf');
 };
-
-    

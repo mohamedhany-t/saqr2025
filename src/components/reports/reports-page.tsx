@@ -139,11 +139,13 @@ export function ReportsPage({
             </p>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {reportCards.map(report => (
-                    <Card key={report.type}>
+                    <Card key={report.type} className="flex flex-col">
                         <CardHeader>
                             <CardTitle>{report.title}</CardTitle>
-                            <CardDescription>{report.description}</CardDescription>
                         </CardHeader>
+                        <CardContent className="flex-grow">
+                             <CardDescription>{report.description}</CardDescription>
+                        </CardContent>
                         <CardFooter>
                             <Button className="w-full" onClick={() => handleExport(report.data, report.type)} disabled={report.data.length === 0}>
                                 <FileUp className="me-2 h-4 w-4" />
@@ -156,5 +158,3 @@ export function ReportsPage({
         </div>
     )
 }
-
-    
