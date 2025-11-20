@@ -133,7 +133,6 @@
         "orderNumber",
         "recipientName",
         "recipientPhone",
-        "governorateId",
         "address",
         "deliveryDate",
         "status",

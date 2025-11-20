@@ -34,7 +34,7 @@ const shipmentSchema = z.object({
   trackingNumber: z.string().optional(),
   recipientName: z.string().min(1, "اسم المرسل إليه مطلوب"),
   recipientPhone: z.string().min(10, "رقم هاتف المستلم غير صحيح"),
-  governorateId: z.string().min(1, "المحافظة مطلوبة"),
+  governorateId: z.string().optional(),
   address: z.string().min(1, "العنوان مطلوب"),
   totalAmount: z.coerce.number().min(0, "المبلغ يجب أن يكون إيجابي"),
   paidAmount: z.coerce.number().optional(),
@@ -370,5 +370,3 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
     </Sheet>
   )
 }
-
-    
