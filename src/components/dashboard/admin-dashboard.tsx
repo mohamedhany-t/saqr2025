@@ -600,9 +600,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           batch.update(shipmentRef, { isArchived: true });
       });
 
-      // Archive payments
-      const courierPayments = payments?.filter(p => p.courierId === courierToArchive.id && !p.isArchived) || [];
-      courierPayments.forEach(payment => {
+      // Archive payments made during the active period
+      const courierPaymentsToArchive = payments?.filter(p => p.courierId === courierToArchive.id && !p.isArchived) || [];
+      courierPaymentsToArchive.forEach(payment => {
           const paymentRef = doc(firestore, 'courier_payments', payment.id);
           batch.update(paymentRef, { isArchived: true });
       });
@@ -654,25 +654,29 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     if (!users || !shipments) return [];
     
     return courierUsers.map(courier => {
-        const courierShipments = shipments?.filter(s => s.assignedCourierId === courier.id && !s.isArchived) || [];
-        const totalCollected = courierShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
-        const totalCommission = courierShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
+        // Calculations for active cycle (non-archived items)
+        const activeShipments = shipments?.filter(s => s.assignedCourierId === courier.id && !s.isArchived) || [];
+        const activePayments = payments?.filter(p => p.courierId === courier.id && !p.isArchived) || [];
         
-        const courierPayments = payments?.filter(p => p.courierId === courier.id && !p.isArchived) || [];
-        const totalPaidByCourier = courierPayments.reduce((acc, p) => acc + p.amount, 0);
+        const totalCollected = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
+        const totalCommission = activeShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
+        const totalPaidByCourier = activePayments.reduce((acc, p) => acc + p.amount, 0);
 
         const netDue = (totalCollected - totalCommission) - totalPaidByCourier;
         
+        // Full payment history (archived and active)
+        const allPayments = payments?.filter(p => p.courierId === courier.id) || [];
+
         return {
             ...courier,
-            totalShipments: courierShipments.length,
-            deliveredCount: courierShipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered' || s.status === 'Evasion').length,
-            returnedCount: courierShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled').length,
+            totalShipments: activeShipments.length,
+            deliveredCount: activeShipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered' || s.status === 'Evasion').length,
+            returnedCount: activeShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled').length,
             totalCollected,
             totalCommission,
             totalPaidByCourier,
             netDue,
-            paymentHistory: courierPayments.sort((a, b) => (b.paymentDate?.toDate?.() || 0) - (a.paymentDate?.toDate?.() || 0)),
+            paymentHistory: allPayments.sort((a, b) => (b.paymentDate?.toDate?.() || 0) - (a.paymentDate?.toDate?.() || 0)),
         }
     })
   }, [users, shipments, courierUsers, payments]);
@@ -1064,6 +1068,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
+
+    
 
     
 
