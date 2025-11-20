@@ -35,7 +35,7 @@ export type Shipment = {
   trackingNumber: string;
   recipientName: string;
   recipientPhone: string;
-  governorateId?: string; // Made optional
+  governorateId?: string;
   address: string;
   deliveryDate: Date;
   status: ShipmentStatus;
@@ -95,5 +95,3 @@ export interface ChatMessage {
     fileName?: string;
     timestamp: any;
 }
-
-    

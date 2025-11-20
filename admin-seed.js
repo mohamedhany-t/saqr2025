@@ -225,6 +225,7 @@ async function seedShipments(users, governorates) {
             assignedCourierId: courier.uid,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            isArchived: false,
         };
         batch.set(docRef, shipmentData);
         count++;
