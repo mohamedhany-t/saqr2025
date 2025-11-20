@@ -1,3 +1,4 @@
+
 "use client";
 import React from 'react';
 import { cn } from '@/lib/utils';
@@ -49,3 +50,5 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage }) 
 };
 
 export default MessageBubble;
+
+    

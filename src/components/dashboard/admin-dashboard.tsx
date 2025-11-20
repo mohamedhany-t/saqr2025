@@ -1070,11 +1070,3 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 }
 
     
-
-    
-
-    
-
-    
-
-    

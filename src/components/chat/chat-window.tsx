@@ -1,3 +1,4 @@
+
 "use client";
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -206,3 +207,5 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
 };
 
 export default ChatWindow;
+
+    

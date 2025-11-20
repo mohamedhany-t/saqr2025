@@ -2,17 +2,20 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp } from "lucide-react";
+import { PlusCircle, FileUp, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, User } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, User, Chat } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, setDoc, getDoc } from "firebase/firestore";
+import ChatInterface from "../chat/chat-interface";
+import { Badge } from "../ui/badge";
+import { useNotificationSound } from "@/hooks/use-notification-sound";
 
 interface CompanyDashboardProps {
   user: User;
@@ -30,6 +33,23 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  
+  const chatsQuery = useMemoFirebase(() => {
+    if (!firestore || !user?.id) return null;
+    return query(
+      collection(firestore, 'chats'),
+      where('participants', 'array-contains', user.id)
+    );
+  }, [firestore, user?.id]);
+
+  const { data: chats } = useCollection<Chat>(chatsQuery);
+  
+  const totalUnreadCount = React.useMemo(() => {
+    if (!chats || !user?.id) return 0;
+    return chats.reduce((sum, chat) => sum + (chat.unreadCounts?.[user.id] || 0), 0);
+  }, [chats, user?.id]);
+
+  useNotificationSound(totalUnreadCount);
 
   // Effect to fetch shipment data if 'edit' param is in the URL
   React.useEffect(() => {
@@ -77,7 +97,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
 
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'shipments'), where("companyId", "==", user.id));
+    return query(collection(firestore, 'shipments'), where("companyId", "==", user.id), where("isArchived", "==", false));
   }, [firestore, user]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
@@ -292,93 +312,110 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
 
   return (
     <div className="flex flex-col w-full">
-        <Tabs defaultValue="all-shipments">
-        <div className="flex items-center">
-            <TabsList className="flex-nowrap overflow-x-auto justify-start">
-            <TabsTrigger value="all-shipments">الكل</TabsTrigger>
-            <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
-            <TabsTrigger value="delivered">تم التوصيل</TabsTrigger>
-            <TabsTrigger value="returned">مرتجعات</TabsTrigger>
-                <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
+        <Tabs defaultValue="shipments">
+            <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="shipments">الشحنات</TabsTrigger>
+                <TabsTrigger value="chat" className="relative">
+                    <MessageSquare className="me-2 h-4 w-4" />
+                    <span>الدردشة</span>
+                    {totalUnreadCount > 0 && (
+                        <Badge className="absolute -top-2 -right-2 h-5 w-5 justify-center p-0">{totalUnreadCount}</Badge>
+                    )}
+                </TabsTrigger>
             </TabsList>
-            <div className="ms-auto flex items-center gap-2">
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    className="hidden"
-                    accept=".xlsx, .xls"
-                />
-            <Button variant="outline" size="sm" onClick={handleImportClick}>
-                <FileUp className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only">
-                استيراد
-                </span>
-            </Button>
-            <Button size="sm" onClick={() => openShipmentForm()}>
-                <PlusCircle className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only">
-                شحنة جديدة
-                </span>
-            </Button>
-            </div>
-        </div>
-        <StatsCards shipments={shipments || []} role={role} />
-        <TabsContent value="all-shipments">
-            <ShipmentsTable 
-            shipments={filteredShipments} 
-            isLoading={shipmentsLoading}
-            governorates={governorates || []}
-            companies={[]}
-            couriers={courierUsers || []}
-            onEdit={openShipmentForm}
-            role={role}
-            />
-        </TabsContent>
-        <TabsContent value="in-transit">
-            <ShipmentsTable 
-                shipments={filteredShipments.filter(s => s.status === 'In-Transit')}
-                isLoading={shipmentsLoading}
-                governorates={governorates || []}
-                companies={[]}
-                couriers={courierUsers || []}
-                onEdit={openShipmentForm}
-                role={role}
-            />
-        </TabsContent>
-            <TabsContent value="delivered">
-            <ShipmentsTable 
-                shipments={filteredShipments.filter(s => s.status === 'Delivered')}
-                isLoading={shipmentsLoading}
-                governorates={governorates || []}
-                companies={[]}
-                couriers={courierUsers || []}
-                onEdit={openShipmentForm}
-                role={role}
-            />
-        </TabsContent>
-            <TabsContent value="returned">
-            <ShipmentsTable 
-                shipments={filteredShipments.filter(s => s.status === 'Returned')}
-                isLoading={shipmentsLoading}
-                governorates={governorates || []}
-                companies={[]}
-                couriers={courierUsers || []}
-                onEdit={openShipmentForm}
-                role={role}
-            />
-        </TabsContent>
-            <TabsContent value="returned-to-sender">
-            <ShipmentsTable 
-                shipments={filteredShipments.filter(s => s.status === 'Returned to Sender')}
-                isLoading={shipmentsLoading}
-                governorates={governorates || []}
-                companies={[]}
-                couriers={courierUsers || []}
-                onEdit={openShipmentForm}
-                role={role}
-            />
-        </TabsContent>
+            <TabsContent value="shipments" className="p-4 sm:p-0">
+                <Tabs defaultValue="all-shipments">
+                    <div className="flex items-center">
+                        <TabsList className="flex-nowrap overflow-x-auto justify-start">
+                        <TabsTrigger value="all-shipments">الكل</TabsTrigger>
+                        <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
+                        <TabsTrigger value="delivered">تم التوصيل</TabsTrigger>
+                        <TabsTrigger value="returned">مرتجعات</TabsTrigger>
+                        <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
+                        </TabsList>
+                        <div className="ms-auto flex items-center gap-2">
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleFileChange}
+                                className="hidden"
+                                accept=".xlsx, .xls"
+                            />
+                        <Button variant="outline" size="sm" onClick={handleImportClick}>
+                            <FileUp className="h-4 w-4" />
+                            <span className="sr-only sm:not-sr-only">
+                            استيراد
+                            </span>
+                        </Button>
+                        <Button size="sm" onClick={() => openShipmentForm()}>
+                            <PlusCircle className="h-4 w-4" />
+                            <span className="sr-only sm:not-sr-only">
+                            شحنة جديدة
+                            </span>
+                        </Button>
+                        </div>
+                    </div>
+                    <StatsCards shipments={shipments || []} role={role} />
+                    <TabsContent value="all-shipments">
+                        <ShipmentsTable 
+                        shipments={filteredShipments} 
+                        isLoading={shipmentsLoading}
+                        governorates={governorates || []}
+                        companies={[]}
+                        couriers={courierUsers || []}
+                        onEdit={openShipmentForm}
+                        role={role}
+                        />
+                    </TabsContent>
+                    <TabsContent value="in-transit">
+                        <ShipmentsTable 
+                            shipments={filteredShipments.filter(s => s.status === 'In-Transit')}
+                            isLoading={shipmentsLoading}
+                            governorates={governorates || []}
+                            companies={[]}
+                            couriers={courierUsers || []}
+                            onEdit={openShipmentForm}
+                            role={role}
+                        />
+                    </TabsContent>
+                        <TabsContent value="delivered">
+                        <ShipmentsTable 
+                            shipments={filteredShipments.filter(s => s.status === 'Delivered')}
+                            isLoading={shipmentsLoading}
+                            governorates={governorates || []}
+                            companies={[]}
+                            couriers={courierUsers || []}
+                            onEdit={openShipmentForm}
+                            role={role}
+                        />
+                    </TabsContent>
+                        <TabsContent value="returned">
+                        <ShipmentsTable 
+                            shipments={filteredShipments.filter(s => s.status === 'Returned')}
+                            isLoading={shipmentsLoading}
+                            governorates={governorates || []}
+                            companies={[]}
+                            couriers={courierUsers || []}
+                            onEdit={openShipmentForm}
+                            role={role}
+                        />
+                    </TabsContent>
+                        <TabsContent value="returned-to-sender">
+                        <ShipmentsTable 
+                            shipments={filteredShipments.filter(s => s.status === 'Returned to Sender')}
+                            isLoading={shipmentsLoading}
+                            governorates={governorates || []}
+                            companies={[]}
+                            couriers={courierUsers || []}
+                            onEdit={openShipmentForm}
+                            role={role}
+                        />
+                    </TabsContent>
+                </Tabs>
+            </TabsContent>
+            <TabsContent value="chat">
+                <ChatInterface />
+            </TabsContent>
         </Tabs>
       <ShipmentFormSheet
         open={isShipmentSheetOpen}
@@ -395,7 +432,5 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
     </div>
   );
 }
-
-    
 
     

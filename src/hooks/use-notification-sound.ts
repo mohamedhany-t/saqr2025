@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useRef } from 'react';
@@ -36,3 +37,5 @@ export function useNotificationSound(totalUnreadCount: number) {
     prevUnreadCountRef.current = totalUnreadCount;
   }, [totalUnreadCount]); // This effect runs whenever totalUnreadCount changes
 }
+
+    

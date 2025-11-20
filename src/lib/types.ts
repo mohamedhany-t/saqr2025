@@ -95,6 +95,5 @@ export interface ChatMessage {
     fileName?: string;
     timestamp: any;
 }
-    
 
     
