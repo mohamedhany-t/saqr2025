@@ -123,8 +123,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
         title: currentUser.name || 'رسالة جديدة',
         body: lastMessageText,
         url: notificationUrl,
-        vapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
-        vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || '',
       });
     }
   };

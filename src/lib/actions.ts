@@ -48,8 +48,6 @@ const pushNotificationSchema = z.object({
     title: z.string(),
     body: z.string(),
     url: z.string().url(),
-    vapidPublicKey: z.string().min(1),
-    vapidPrivateKey: z.string().min(1),
 });
 
 // --- Reliable Admin App Initializer ---
@@ -114,10 +112,13 @@ export async function deleteAuthUser(userData: z.infer<typeof deleteUserSchema>)
 
 
 export async function sendPushNotification(notificationData: z.infer<typeof pushNotificationSchema>) {
-    const { recipientId, title, body, url, vapidPublicKey, vapidPrivateKey } = pushNotificationSchema.parse(notificationData);
+    const { recipientId, title, body, url } = pushNotificationSchema.parse(notificationData);
     
+    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+
     if (!vapidPublicKey || !vapidPrivateKey) {
-        console.error("VAPID keys are not provided. Skipping push notification.");
+        console.error("VAPID keys are not set on the server. Skipping push notification.");
         return { success: false, error: "VAPID keys not set on server." };
     }
     

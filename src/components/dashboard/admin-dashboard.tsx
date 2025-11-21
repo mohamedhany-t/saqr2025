@@ -337,8 +337,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 title: 'شحنة جديدة',
                 body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
                 url: notificationUrl,
-                vapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
-                vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || '',
             });
           }
           toast({
@@ -369,8 +367,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 title: 'شحنة جديدة',
                 body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
                 url: notificationUrl,
-                vapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
-                vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || '',
             });
           }
           toast({
@@ -833,8 +829,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 title: 'شحنات جديدة',
                 body: `تم تعيين ${selectedRows.length} شحنة جديدة لك.`,
                 url: notificationUrl,
-                vapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
-                vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || '',
             });
         }
 

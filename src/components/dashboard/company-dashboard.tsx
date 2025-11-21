@@ -1,4 +1,5 @@
 
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -265,8 +266,6 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                 title: 'شحنة جديدة',
                 body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
                 url: notificationUrl,
-                vapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
-                vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || '',
             });
           }
           toast({
@@ -297,8 +296,6 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                 title: 'شحنة جديدة',
                 body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
                 url: notificationUrl,
-                vapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
-                vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || '',
             });
           }
           toast({
@@ -356,8 +353,6 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                 title: 'شحنات جديدة',
                 body: `تم تعيين ${selectedRows.length} شحنة جديدة لك.`,
                 url: notificationUrl,
-                vapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
-                vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || '',
             });
         }
 
