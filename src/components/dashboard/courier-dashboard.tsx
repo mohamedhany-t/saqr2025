@@ -1,5 +1,4 @@
 
-
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -16,6 +15,7 @@ import { ShipmentCard } from "@/components/shipments/shipment-card";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { Loader2, MessageSquare } from "lucide-react";
 import ChatInterface from "../chat/chat-interface";
+import { sendPushNotification } from "@/lib/actions";
 
 interface CourierDashboardProps {
   user: User;
@@ -448,3 +448,5 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     </>
   );
 }
+
+    
