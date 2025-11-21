@@ -1,4 +1,5 @@
 
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -18,7 +19,6 @@ import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
-import { createAuthUser, updateAuthUserPassword, deleteAuthUser, sendPushNotification } from '@/lib/actions';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,8 +32,8 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ChatInterface from "@/components/chat/chat-interface";
 import { Badge } from "../ui/badge";
-import { useNotificationSound } from "@/hooks/use-notification-sound";
 import { ReportsPage } from "../reports/reports-page";
+import { createAuthUser, deleteAuthUser, updateAuthUserPassword } from "@/lib/actions";
 
 
 interface AdminDashboardProps {
@@ -86,8 +86,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     if (!chats || !user?.id) return 0;
     return chats.reduce((sum, chat) => sum + (chat.unreadCounts?.[user.id] || 0), 0);
   }, [chats, user?.id]);
-
-  useNotificationSound(totalUnreadCount);
 
   // State for handling shipment editing via URL
   const [editingShipmentFromUrl, setEditingShipmentFromUrl] = React.useState<Shipment | null>(null);
@@ -170,9 +168,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     setShipmentSheetOpen(true);
   };
   
-  const openUserForm = (user?: User, company?: Company) => {
+  const openUserForm = (user?: User) => {
     setEditingUser(user);
-    setEditingCompany(company);
     setIsUserSheetOpen(true);
   };
 
@@ -325,12 +322,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       Object.entries(shipment).filter(([_, v]) => v !== undefined && v !== null && v !== '')
     );
     
-    let originalCourierId: string | undefined;
-
     if (id) {
-      const originalShipment = shipments?.find(s => s.id === id);
-      originalCourierId = originalShipment?.assignedCourierId;
-
       const docRef = doc(firestore, 'shipments', id);
       const dataToUpdate = { ...cleanShipmentData, updatedAt: serverTimestamp() };
       
@@ -341,15 +333,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             description: `تم تحديث الشحنة بنجاح`,
           });
           handleSheetOpenChange(false);
-          // Check if courier was changed or newly assigned
-          if (dataToUpdate.assignedCourierId && dataToUpdate.assignedCourierId !== originalCourierId) {
-             sendPushNotification({
-              recipientId: dataToUpdate.assignedCourierId,
-              title: 'تم تعيين شحنة جديدة لك',
-              body: `تم إسناد الشحنة #${dataToUpdate.trackingNumber || dataToUpdate.orderNumber} إليك.`,
-              url: '/'
-            });
-          }
         })
         .catch(serverError => {
           const permissionError = new FirestorePermissionError({
@@ -372,15 +355,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             description: `تم إنشاء الشحنة بنجاح`,
           });
           handleSheetOpenChange(false);
-           // Send notification if a courier was assigned on creation
-          if (dataToAdd.assignedCourierId) {
-            sendPushNotification({
-              recipientId: dataToAdd.assignedCourierId,
-              title: 'تم تعيين شحنة جديدة لك',
-              body: `تم إسناد الشحنة #${dataToAdd.trackingNumber || dataToAdd.orderNumber} إليك.`,
-              url: '/'
-            });
-          }
         })
         .catch(serverError => {
           const permissionError = new FirestorePermissionError({
@@ -421,13 +395,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             batch.update(courierDocRef, { name: data.name, commissionRate: data.commissionRate });
         } else if (data.role === 'company') {
             const companyDocRef = doc(firestore, 'companies', userId);
-             const commissions = data.governorateCommissions.reduce((acc: any, item: any) => {
-                if (item.commission > 0) {
-                    acc[item.governorateId] = item.commission;
-                }
-                return acc;
-            }, {});
-            batch.set(companyDocRef, { name: data.name, governorateCommissions: commissions }, { merge: true });
+            batch.update(companyDocRef, { name: data.name });
         }
 
         batch.update(userDocRef, userUpdatePayload);
@@ -476,13 +444,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
         if (data.role === 'company') {
             const companyRef = doc(firestore, 'companies', newUid);
-            const commissions = data.governorateCommissions.reduce((acc: any, item: any) => {
-                if (item.commission > 0) {
-                    acc[item.governorateId] = item.commission;
-                }
-                return acc;
-            }, {});
-            batch.set(companyRef, { id: newUid, name: data.name, governorateCommissions: commissions });
+            batch.set(companyRef, { id: newUid, name: data.name });
             userPayload.companyId = newUid;
         } else if (data.role === 'courier') {
             const courierRef = doc(firestore, 'couriers', newUid);
@@ -798,11 +760,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         const activePayments = companyPayments?.filter(p => p.companyId === company.id && !p.isArchived) || [];
         
         const totalRevenue = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
-        const totalCompanyCommission = activeShipments.reduce((acc, s) => acc + (s.companyCommission || 0), 0);
         const totalCourierCommission = activeShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
         const totalPaidToCompany = activePayments.reduce((acc, p) => acc + p.amount, 0);
         
-        const netDue = (totalRevenue - totalCourierCommission - totalCompanyCommission) - totalPaidToCompany;
+        const netDue = (totalRevenue - totalCourierCommission) - totalPaidToCompany;
         
         const allPayments = companyPayments?.filter(p => p.companyId === company.id) || [];
 
@@ -810,7 +771,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             ...company,
             totalShipments: activeShipments.length,
             totalRevenue,
-            totalCompanyCommission,
             totalCourierCommission,
             totalPaidToCompany,
             netDue,
@@ -1095,13 +1055,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                                             </span>
                                             <span className="font-medium">{company.totalRevenue.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
                                         </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="flex items-center gap-2 text-muted-foreground">
-                                                <BadgePercent className="h-4 w-4" />
-                                                عمولات الشركة:
-                                            </span>
-                                            <span className="font-medium">{company.totalCompanyCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                        </div>
                                          <div className="flex justify-between items-center">
                                             <span className="flex items-center gap-2 text-muted-foreground">
                                                 <BadgePercent className="h-4 w-4 text-orange-500" />
@@ -1175,7 +1128,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                             onOpenChange={setIsUserSheetOpen}
                             onSave={handleSaveUser}
                             user={editingUser}
-                            companyDetails={editingCompany}
                         >
                             <Button size="sm" onClick={() => openUserForm()}>
                                 <PlusCircle className="h-4 w-4" />
@@ -1317,5 +1269,3 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
-
-    

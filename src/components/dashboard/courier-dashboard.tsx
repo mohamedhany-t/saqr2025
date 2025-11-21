@@ -1,4 +1,5 @@
 
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -14,9 +15,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { Loader2, MessageSquare } from "lucide-react";
-import { Card, CardContent } from "../ui/card";
 import ChatInterface from "../chat/chat-interface";
-import { useNotificationSound } from "@/hooks/use-notification-sound";
 
 interface CourierDashboardProps {
   user: User;
@@ -49,7 +48,6 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     return chats.reduce((sum, chat) => sum + (chat.unreadCounts?.[user.id] || 0), 0);
   }, [chats, user?.id]);
 
-  useNotificationSound(totalUnreadCount);
 
   // Effect to fetch shipment data if 'edit' param is in the URL
   React.useEffect(() => {
@@ -135,21 +133,14 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         totalAmount: number,
         collectedAmount: number,
         courierCommissionRate: number,
-        company: Company | undefined,
-        governorateId: string | undefined
     ) => {
-        const update: { paidAmount?: number; courierCommission?: number; collectedAmount?: number, companyCommission?: number } = {};
+        const update: { paidAmount?: number; courierCommission?: number; collectedAmount?: number } = {};
         
         const isSuccess = status === 'Delivered' || status === 'Partially Delivered' || status === 'Evasion';
 
         if (isSuccess) {
             update.courierCommission = courierCommissionRate;
-            if (company && governorateId && company.governorateCommissions?.[governorateId]) {
-                 update.companyCommission = company.governorateCommissions[governorateId];
-            } else {
-                update.companyCommission = 0;
-            }
-
+            
             if (status === 'Delivered' || status === 'Evasion') {
                 update.paidAmount = totalAmount;
                 update.collectedAmount = totalAmount;
@@ -159,7 +150,6 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         } else { // Returned, Cancelled, etc.
             update.paidAmount = 0;
             update.courierCommission = 0;
-            update.companyCommission = 0;
             update.collectedAmount = 0;
         }
         return update;
@@ -167,7 +157,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
 
 
   const handleSaveShipment = async (shipment: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
-    if (!firestore || !id || !user || !companies) return;
+    if (!firestore || !id || !user) return;
     
     const courierUser = user;
     if (!courierUser) {
@@ -183,7 +173,6 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     const originalShipmentData = originalShipmentDocSnap.data() as Shipment;
 
     const courierCommissionRate = courierUser.commissionRate || 0;
-    const company = companies.find(c => c.id === originalShipmentData.companyId);
 
     const dataToUpdate: { [key: string]: any } = {
         updatedAt: serverTimestamp(),
@@ -200,9 +189,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         newStatus,
         originalShipmentData.totalAmount,
         collectedAmount,
-        courierCommissionRate,
-        company,
-        originalShipmentData.governorateId
+        courierCommissionRate
     );
     Object.assign(dataToUpdate, calculatedFields);
 
@@ -233,7 +220,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   };
 
   const handleBulkUpdateShipments = (selectedRows: Shipment[], update: Partial<Shipment>) => {
-    if (!firestore || !user || !companies) return;
+    if (!firestore || !user) return;
     if (selectedRows.length === 0) {
         toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
         return;
@@ -262,15 +249,12 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         }
 
         const newStatus = allowedUpdates.status || row.status;
-        const company = companies.find(c => c.id === row.companyId);
         
         const calculatedFields = calculateCommissionAndPaidAmount(
             newStatus,
             row.totalAmount,
             row.collectedAmount || 0,
-            courierCommissionRate,
-            company,
-            row.governorateId
+            courierCommissionRate
         );
 
         Object.assign(finalUpdate, allowedUpdates, calculatedFields);

@@ -4,7 +4,6 @@
 import { getAuth } from 'firebase-admin/auth';
 import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
-import webpush from 'web-push';
 import { z } from 'zod';
 
 // This is a workaround to use service account credentials in a Vercel-like environment
@@ -41,13 +40,6 @@ const updateUserPasswordSchema = z.object({
 
 const deleteUserSchema = z.object({
     uid: z.string().min(1),
-});
-
-const sendNotificationSchema = z.object({
-    recipientId: z.string(),
-    title: z.string(),
-    body: z.string(),
-    url: z.string().optional(),
 });
 
 
@@ -110,76 +102,3 @@ export async function deleteAuthUser(userData: z.infer<typeof deleteUserSchema>)
         return { success: false, error: error.code || 'unknown_error' };
     }
 }
-
-export async function sendPushNotification(data: z.infer<typeof sendNotificationSchema>) {
-    const validation = sendNotificationSchema.safeParse(data);
-    if (!validation.success) {
-        console.error("Invalid notification data:", validation.error);
-        return { success: false, error: 'Invalid data' };
-    }
-    
-    const { recipientId, title, body, url } = validation.data;
-    
-    try {
-        const app = getAdminApp();
-        const db = getFirestore(app);
-
-        // Configure web-push
-        const vapidPublicKey = "BLG2BQxTEoSiIqvV-oIAuSkAXiVmiS7sHSERBiWiYz9rXIaEkT0sTDQj0MwjHq-oTQO3CneVA-KV8QMqenKmtiA";
-        const vapidPrivateKey = "MeO03gzQygzYTdFcbc1WuB_Lo30bjeyJwUNE61RcUio";
-
-        if (!vapidPublicKey || !vapidPrivateKey) {
-            console.error('VAPID keys are not configured on the server.');
-            return { success: false, error: 'VAPID keys not configured.'};
-        }
-
-        webpush.setVapidDetails(
-            'mailto:mhanyt21@gmail.com',
-            vapidPublicKey,
-            vapidPrivateKey
-        );
-
-
-        const subscriptionsSnap = await db.collection(`users/${recipientId}/pushSubscriptions`).get();
-
-        if (subscriptionsSnap.empty) {
-            console.log(`No push subscriptions found for user ${recipientId}`);
-            return { success: true, message: 'No subscriptions to send to.' };
-        }
-
-        const notificationPayload = JSON.stringify({
-            title,
-            body,
-            icon: '/fav.png',
-            data: {
-                url: url || process.env.NEXT_PUBLIC_BASE_URL || '/',
-            }
-        });
-
-        const responses = [];
-        for (const doc of subscriptionsSnap.docs) {
-            const subscription = doc.data();
-            try {
-                const response = await webpush.sendNotification(subscription, notificationPayload);
-                responses.push({ success: true, subscriptionId: doc.id });
-            } catch (e: any) {
-                console.error(`Error sending to ${subscription.endpoint}:`, e.statusCode, e.body);
-                responses.push({ success: false, subscriptionId: doc.id, error: e.statusCode });
-                
-                // If subscription is gone (410) or invalid (404), remove it from Firestore
-                if (e.statusCode === 410 || e.statusCode === 404) {
-                    await doc.ref.delete();
-                    console.log(`Deleted invalid subscription: ${doc.id}`);
-                }
-            }
-        }
-
-        return { success: true, results: responses };
-
-    } catch (error: any) {
-        console.error(`Failed to send push notifications for user ${recipientId}:`, error);
-        return { success: false, error: error.message };
-    }
-}
-
-    

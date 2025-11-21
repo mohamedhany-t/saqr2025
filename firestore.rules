@@ -1,4 +1,5 @@
 
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -51,7 +52,7 @@ service cloud.firestore {
       // Couriers can ONLY update specific fields on their assigned shipments.
       allow update: if (isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid)) ||
                        (isCourier() && resource.data.assignedCourierId == request.auth.uid && 
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'companyCommission', 'paidAmount']));
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'updatedAt', 'collectedAmount', 'courierCommission', 'paidAmount']));
 
       allow delete: if isAdmin() || (isCompany() && resource.data.companyId == request.auth.uid);
     }
@@ -87,6 +88,9 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
     match /roles_courier/{userId} {
+      allow read, write: if isAdmin();
+    }
+    match /roles_admin/{userId} {
       allow read, write: if isAdmin();
     }
 
