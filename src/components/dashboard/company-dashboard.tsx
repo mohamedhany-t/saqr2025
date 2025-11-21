@@ -258,9 +258,9 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
       const dataToUpdate = { ...cleanShipmentData, updatedAt: serverTimestamp() };
       
       updateDoc(docRef, dataToUpdate)
-        .then(() => {
+        .then(async () => {
           if (shipment.assignedCourierId) {
-             sendPushNotification({
+             await sendPushNotification({
                 recipientId: shipment.assignedCourierId,
                 title: 'شحنة جديدة',
                 body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
@@ -288,9 +288,9 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
       const dataToAdd = { ...cleanShipmentData, id: docRef.id, companyId: user.id, isArchived: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
       
       setDoc(docRef, dataToAdd)
-        .then(() => {
+        .then(async () => {
           if (shipment.assignedCourierId) {
-             sendPushNotification({
+             await sendPushNotification({
                 recipientId: shipment.assignedCourierId,
                 title: 'شحنة جديدة',
                 body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
@@ -328,18 +328,16 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
   }, [shipments, searchTerm]);
 
 
-  const handleGenericBulkUpdate = async (update: Partial<Shipment>) => {
+  const handleGenericBulkUpdate = async (selectedRows: Shipment[], update: Partial<Shipment>) => {
     if (!firestore) return;
-    const selectedRows = table.getFilteredSelectedRowModel().rows;
     if (selectedRows.length === 0) {
         toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
         return;
     }
     
-    // Generic handler primarily for admin
     const batch = writeBatch(firestore);
     selectedRows.forEach(row => {
-        const docRef = doc(firestore, "shipments", row.original.id);
+        const docRef = doc(firestore, "shipments", row.id);
         const finalUpdate: { [key: string]: any } = { ...update, updatedAt: serverTimestamp() };
         batch.update(docRef, finalUpdate);
     });
@@ -358,7 +356,6 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
         }
 
         toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
-        table.resetRowSelection();
     } catch (serverError) {
         const permissionError = new FirestorePermissionError({
             path: 'shipments',
@@ -368,12 +365,6 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
         errorEmitter.emit('permission-error', permissionError);
     }
   }
-
-
-  const { table, getFilteredSelectedRowModel } = useReactTable({
-        // ... other table config
-    });
-
 
   return (
     <div className="flex flex-col w-full">
@@ -502,5 +493,3 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
     </div>
   );
 }
-
-    

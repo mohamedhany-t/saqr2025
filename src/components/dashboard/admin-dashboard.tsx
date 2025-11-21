@@ -328,7 +328,16 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       const dataToUpdate = { ...cleanShipmentData, updatedAt: serverTimestamp() };
       
       updateDoc(docRef, dataToUpdate)
-        .then(() => {
+        .then(async () => {
+          if (shipment.assignedCourierId) {
+             const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
+             await sendPushNotification({
+                recipientId: shipment.assignedCourierId,
+                title: 'شحنة جديدة',
+                body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
+                url: notificationUrl, 
+            });
+          }
           toast({
             title: "تم تحديث الشحنة",
             description: `تم تحديث الشحنة بنجاح`,
@@ -350,7 +359,16 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       const dataToAdd = { ...cleanShipmentData, id: docRef.id, companyId: shipment.companyId || user.uid, isArchived: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
       
       setDoc(docRef, dataToAdd)
-        .then(() => {
+        .then(async () => {
+          if (shipment.assignedCourierId) {
+             const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
+             await sendPushNotification({
+                recipientId: shipment.assignedCourierId,
+                title: 'شحنة جديدة',
+                body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
+                url: notificationUrl,
+            });
+          }
           toast({
             title: "تم حفظ الشحنة",
             description: `تم إنشاء الشحنة بنجاح`,
@@ -785,9 +803,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const currentCourierNetDue = courierDues.find(c => c.id === payingCourier?.id)?.netDue;
   const currentCompanyNetDue = companyDues.find(c => c.id === payingCompany?.id)?.netDue;
   
-  const handleGenericBulkUpdate = async (update: Partial<Shipment>) => {
+  const handleGenericBulkUpdate = async (selectedRows: Shipment[], update: Partial<Shipment>) => {
     if (!firestore) return;
-    const selectedRows = table.getFilteredSelectedRowModel().rows;
     if (selectedRows.length === 0) {
         toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
         return;
@@ -796,7 +813,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     // Generic handler primarily for admin
     const batch = writeBatch(firestore);
     selectedRows.forEach(row => {
-        const docRef = doc(firestore, "shipments", row.original.id);
+        const docRef = doc(firestore, "shipments", row.id);
         const finalUpdate: { [key: string]: any } = { ...update, updatedAt: serverTimestamp() };
         batch.update(docRef, finalUpdate);
     });
@@ -815,7 +832,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         }
 
         toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
-        table.resetRowSelection();
     } catch (serverError) {
         const permissionError = new FirestorePermissionError({
             path: 'shipments',
@@ -825,11 +841,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         errorEmitter.emit('permission-error', permissionError);
     }
   }
-
-
-  const { table, getFilteredSelectedRowModel } = useReactTable({
-        // ... other table config
-    });
 
 
   return (
@@ -1334,5 +1345,3 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
-
-    
