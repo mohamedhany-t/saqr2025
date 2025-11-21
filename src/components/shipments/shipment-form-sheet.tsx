@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import * as React from 'react';
@@ -46,6 +47,7 @@ const shipmentSchema = z.object({
   companyId: z.string().optional(),
   collectedAmount: z.coerce.number().optional(),
   courierCommission: z.coerce.number().optional(),
+  companyCommission: z.coerce.number().optional(),
 }).superRefine((data, ctx) => {
     if (data.status === "Partially Delivered" && (data.collectedAmount === undefined || data.collectedAmount <= 0)) {
         ctx.addIssue({

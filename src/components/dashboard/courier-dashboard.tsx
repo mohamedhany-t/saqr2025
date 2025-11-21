@@ -133,13 +133,15 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         totalAmount: number,
         collectedAmount: number,
         courierCommissionRate: number,
+        companyCommission: number,
     ) => {
-        const update: { paidAmount?: number; courierCommission?: number; collectedAmount?: number } = {};
+        const update: { paidAmount?: number; courierCommission?: number; companyCommission?: number; collectedAmount?: number } = {};
         
         const isSuccess = status === 'Delivered' || status === 'Partially Delivered' || status === 'Evasion';
 
         if (isSuccess) {
             update.courierCommission = courierCommissionRate;
+            update.companyCommission = companyCommission;
             
             if (status === 'Delivered' || status === 'Evasion') {
                 update.paidAmount = totalAmount;
@@ -150,6 +152,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         } else { // Returned, Cancelled, etc.
             update.paidAmount = 0;
             update.courierCommission = 0;
+            update.companyCommission = 0;
             update.collectedAmount = 0;
         }
         return update;
@@ -157,7 +160,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
 
 
   const handleSaveShipment = async (shipment: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
-    if (!firestore || !id || !user) return;
+    if (!firestore || !id || !user || !companies) return;
     
     const courierUser = user;
     if (!courierUser) {
@@ -171,6 +174,9 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         return;
     }
     const originalShipmentData = originalShipmentDocSnap.data() as Shipment;
+
+    const shipmentCompany = companies.find(c => c.id === originalShipmentData.companyId);
+    const companyGovernorateCommission = (shipmentCompany?.governorateCommissions?.[originalShipmentData.governorateId || ''] || 0);
 
     const courierCommissionRate = courierUser.commissionRate || 0;
 
@@ -189,7 +195,8 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         newStatus,
         originalShipmentData.totalAmount,
         collectedAmount,
-        courierCommissionRate
+        courierCommissionRate,
+        companyGovernorateCommission,
     );
     Object.assign(dataToUpdate, calculatedFields);
 
@@ -220,7 +227,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   };
 
   const handleBulkUpdateShipments = (selectedRows: Shipment[], update: Partial<Shipment>) => {
-    if (!firestore || !user) return;
+    if (!firestore || !user || !companies) return;
     if (selectedRows.length === 0) {
         toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
         return;
@@ -249,12 +256,15 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         }
 
         const newStatus = allowedUpdates.status || row.status;
-        
+        const shipmentCompany = companies.find(c => c.id === row.companyId);
+        const companyGovernorateCommission = (shipmentCompany?.governorateCommissions?.[row.governorateId || ''] || 0);
+
         const calculatedFields = calculateCommissionAndPaidAmount(
             newStatus,
             row.totalAmount,
             row.collectedAmount || 0,
-            courierCommissionRate
+            courierCommissionRate,
+            companyGovernorateCommission
         );
 
         Object.assign(finalUpdate, allowedUpdates, calculatedFields);

@@ -113,12 +113,18 @@ async function seedGovernorates() {
      return await db.collection('governorates').get().then(snap => snap.docs.map(doc => ({...doc.data(), id: doc.id})));
 }
 
-async function seedUsersAndRoles() {
+async function seedUsersAndRoles(governorates) {
     console.log('\n--- Seeding Users and Roles ---');
+    
+    const governorateCommissions = governorates.reduce((acc, gov) => {
+        acc[gov.id] = 10 + Math.floor(Math.random() * 15); // Random commission between 10 and 25
+        return acc;
+    }, {});
+    
     const usersToSeed = [
         { email: ADMIN_EMAIL, password: ADMIN_PASSWORD, displayName: 'Admin', role: 'admin' },
-        { email: 'company1@alsaqr.com', password: '123456', displayName: 'شركة النور', role: 'company' },
-        { email: 'company2@alsaqr.com', password: '123456', displayName: 'شركة الأمل', role: 'company' },
+        { email: 'company1@alsaqr.com', password: '123456', displayName: 'شركة النور', role: 'company', governorateCommissions },
+        { email: 'company2@alsaqr.com', password: '123456', displayName: 'شركة الأمل', role: 'company', governorateCommissions },
         { email: 'courier1@alsaqr.com', password: '123456', displayName: 'أحمد محمود', role: 'courier', commissionRate: 15 },
         { email: 'courier2@alsaqr.com', password: '123456', displayName: 'سارة حسين', role: 'courier', commissionRate: 20 },
         { email: 'courier3@alsaqr.com', password: '123456', displayName: 'علي حسن', role: 'courier', commissionRate: 18 },
@@ -151,7 +157,7 @@ async function seedUsersAndRoles() {
             if (userData.role === 'company') {
                 userDocData.companyId = userRecord.uid;
                 const companyRef = db.collection('companies').doc(userRecord.uid);
-                batch.set(companyRef, { id: userRecord.uid, name: userData.displayName }, { merge: true });
+                batch.set(companyRef, { id: userRecord.uid, name: userData.displayName, governorateCommissions: userData.governorateCommissions }, { merge: true });
             }
             
             batch.set(userDocRef, userDocData, { merge: true });
@@ -168,12 +174,12 @@ async function seedUsersAndRoles() {
 }
 
 
-async function seedShipments(users, governorates) {
+async function seedShipments(users, governorates, companies) {
     console.log('\n--- Seeding Shipments ---');
-    const companies = users.filter(u => u.role === 'company');
+    const companyUsers = users.filter(u => u.role === 'company');
     const couriers = users.filter(u => u.role === 'courier');
 
-    if (companies.length === 0 || couriers.length === 0) {
+    if (companyUsers.length === 0 || couriers.length === 0) {
         logError("Cannot seed shipments without companies and couriers.");
         return;
     }
@@ -183,7 +189,8 @@ async function seedShipments(users, governorates) {
     let count = 0;
 
     for (let i = 0; i < 25; i++) {
-        const company = companies[i % companies.length];
+        const companyUser = companyUsers[i % companyUsers.length];
+        const companyDetails = companies.find(c => c.id === companyUser.uid);
         const courier = couriers[i % couriers.length];
         const governorate = governorates[i % governorates.length];
         const status = SHIPMENT_STATUSES[i % SHIPMENT_STATUSES.length];
@@ -192,18 +199,19 @@ async function seedShipments(users, governorates) {
         const totalAmount = 100 + (i * 15 % 500);
         let paidAmount = 0;
         let courierCommission = 0;
+        let companyCommission = 0;
         let collectedAmount = 0;
 
         if (status === 'Delivered' || status === 'Evasion') {
             paidAmount = totalAmount;
             collectedAmount = totalAmount;
             courierCommission = courier.commissionRate || 0;
+            companyCommission = companyDetails?.governorateCommissions?.[governorate.id] || 0;
         } else if (status === 'Partially Delivered') {
             paidAmount = totalAmount / 2;
             collectedAmount = totalAmount / 2;
             courierCommission = courier.commissionRate || 0;
-        } else if (status === 'Returned' || status === 'Cancelled') {
-            courierCommission = 0;
+            companyCommission = companyDetails?.governorateCommissions?.[governorate.id] || 0;
         }
 
         const shipmentData = {
@@ -222,7 +230,8 @@ async function seedShipments(users, governorates) {
             paidAmount: paidAmount,
             collectedAmount: collectedAmount,
             courierCommission: courierCommission,
-            companyId: company.uid,
+            companyCommission: companyCommission,
+            companyId: companyUser.uid,
             assignedCourierId: courier.uid,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -243,8 +252,9 @@ async function main() {
         await clearCollection('shipments');
         
         const governorates = await seedGovernorates();
-        const users = await seedUsersAndRoles();
-        await seedShipments(users, governorates);
+        const users = await seedUsersAndRoles(governorates);
+        const companies = await db.collection('companies').get().then(snap => snap.docs.map(doc => ({...doc.data(), id: doc.id})));
+        await seedShipments(users, governorates, companies);
         
         console.log("\n\x1b[32m%s\x1b[0m", "Database seeding completed successfully!");
         console.log("Mock data for users, companies, and shipments has been created.");

@@ -168,8 +168,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     setShipmentSheetOpen(true);
   };
   
-  const openUserForm = (user?: User) => {
+  const openUserForm = (user?: User, company?: Company) => {
     setEditingUser(user);
+    setEditingCompany(company);
     setIsUserSheetOpen(true);
   };
 
@@ -395,7 +396,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             batch.update(courierDocRef, { name: data.name, commissionRate: data.commissionRate });
         } else if (data.role === 'company') {
             const companyDocRef = doc(firestore, 'companies', userId);
-            batch.update(companyDocRef, { name: data.name });
+            batch.update(companyDocRef, { name: data.name, governorateCommissions: data.governorateCommissions || {} });
         }
 
         batch.update(userDocRef, userUpdatePayload);
@@ -444,7 +445,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
         if (data.role === 'company') {
             const companyRef = doc(firestore, 'companies', newUid);
-            batch.set(companyRef, { id: newUid, name: data.name });
+            batch.set(companyRef, { id: newUid, name: data.name, governorateCommissions: data.governorateCommissions || {} });
             userPayload.companyId = newUid;
         } else if (data.role === 'courier') {
             const courierRef = doc(firestore, 'couriers', newUid);
@@ -761,9 +762,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         
         const totalRevenue = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
         const totalCourierCommission = activeShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
+        const totalCompanyCommission = activeShipments.reduce((acc, s) => acc + (s.companyCommission || 0), 0);
         const totalPaidToCompany = activePayments.reduce((acc, p) => acc + p.amount, 0);
         
-        const netDue = (totalRevenue - totalCourierCommission) - totalPaidToCompany;
+        const netDue = (totalRevenue - totalCourierCommission - totalCompanyCommission) - totalPaidToCompany;
         
         const allPayments = companyPayments?.filter(p => p.companyId === company.id) || [];
 
@@ -772,6 +774,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             totalShipments: activeShipments.length,
             totalRevenue,
             totalCourierCommission,
+            totalCompanyCommission,
             totalPaidToCompany,
             netDue,
             paymentHistory: allPayments.sort((a, b) => (b.paymentDate?.toDate?.() || 0) - (a.paymentDate?.toDate?.() || 0)),
@@ -1062,6 +1065,13 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                                             </span>
                                             <span className="font-medium">{company.totalCourierCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
                                         </div>
+                                          <div className="flex justify-between items-center">
+                                            <span className="flex items-center gap-2 text-muted-foreground">
+                                                <BadgePercent className="h-4 w-4 text-indigo-500" />
+                                                عمولات الشركة:
+                                            </span>
+                                            <span className="font-medium">{company.totalCompanyCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                        </div>
                                          <div className="flex justify-between items-center border-t pt-2 mt-2">
                                             <span className="flex items-center gap-2 text-muted-foreground">
                                                 <WalletCards className="h-4 w-4" />
@@ -1128,6 +1138,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                             onOpenChange={setIsUserSheetOpen}
                             onSave={handleSaveUser}
                             user={editingUser}
+                            companyDetails={editingCompany}
                         >
                             <Button size="sm" onClick={() => openUserForm()}>
                                 <PlusCircle className="h-4 w-4" />

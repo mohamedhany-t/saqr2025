@@ -119,6 +119,10 @@
             "type": "number",
             "description": "The commission earned by the courier for this specific shipment."
         },
+        "companyCommission": {
+            "type": "number",
+            "description": "The commission earned by the company for this specific shipment."
+        },
         "companyId": {
           "type": "string",
           "description": "Reference to the User (with 'company' role) that owns this shipment."
@@ -159,6 +163,13 @@
         "name": {
           "type": "string",
           "description": "Name of the logistics company."
+        },
+        "governorateCommissions": {
+            "type": "object",
+            "description": "A map where keys are governorate IDs and values are the commission fees.",
+            "additionalProperties": {
+                "type": "number"
+            }
         }
       },
       "required": [

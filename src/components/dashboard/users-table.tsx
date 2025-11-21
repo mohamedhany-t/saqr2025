@@ -99,7 +99,7 @@ export const getColumns = (onEdit: (user: User, company?: Company) => void, onDe
         if (user.role === 'company') {
             return <Badge variant="secondary">لكل محافظة</Badge>
         }
-        return <div className="text-muted-foreground text-center">N/A</div>;
+        return <div className="text-muted-foreground text-center">--</div>;
     },
   },
   {
@@ -243,5 +243,3 @@ export function UsersTable({ users, isLoading, onEdit, onDelete }: { users: User
     </div>
   )
 }
-
-    

@@ -64,7 +64,6 @@ import { useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase
 import { doc, writeBatch, serverTimestamp } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
-import { sendPushNotification } from "@/lib/actions"
 
 export const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
     Pending: <Hourglass className="h-4 w-4 text-yellow-500" />,
@@ -451,19 +450,6 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
 
     batch.commit().then(() => {
         toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
-        
-        // Send notifications if a courier was assigned
-        if (update.assignedCourierId) {
-            selectedRows.forEach(row => {
-                sendPushNotification({
-                  recipientId: update.assignedCourierId!,
-                  title: 'تم تعيين شحنة جديدة لك',
-                  body: `تم إسناد الشحنة #${row.original.trackingNumber || row.original.orderNumber} إليك.`,
-                  url: '/'
-                });
-            });
-        }
-        
         table.resetRowSelection();
     }).catch(serverError => {
         const permissionError = new FirestorePermissionError({
@@ -725,5 +711,3 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     </div>
   )
 }
-
-    

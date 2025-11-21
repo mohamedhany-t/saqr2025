@@ -26,8 +26,10 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import type { Company, User } from '@/lib/types';
+import type { Company, Governorate, User } from '@/lib/types';
 import { ScrollArea } from '../ui/scroll-area';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
 
 // Schema for user creation/editing
 const baseUserSchema = z.object({
@@ -36,6 +38,7 @@ const baseUserSchema = z.object({
   password: z.string().optional(),
   role: z.enum(["courier", "admin", "company"], { required_error: "الدور مطلوب" }),
   commissionRate: z.coerce.number().optional(),
+  governorateCommissions: z.record(z.coerce.number()).optional(),
 });
 
 
@@ -48,8 +51,12 @@ type UserFormSheetProps = {
     companyDetails?: Company;
 }
 
-export function UserFormSheet({ children, open, onOpenChange, onSave, user }: UserFormSheetProps) {
+export function UserFormSheet({ children, open, onOpenChange, onSave, user, companyDetails }: UserFormSheetProps) {
   const isEditing = !!user;
+  const firestore = useFirestore();
+
+  const governoratesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'governorates') : null, [firestore]);
+  const { data: governorates, isLoading: governoratesLoading } = useCollection<Governorate>(governoratesQuery);
 
   const formSchemaForMode = baseUserSchema.superRefine((data, ctx) => {
       if (!isEditing && (!data.password || data.password.length < 6)) {
@@ -85,6 +92,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user }: Us
       password: "",
       role: 'courier',
       commissionRate: 0,
+      governorateCommissions: {},
     },
   });
   
@@ -98,6 +106,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user }: Us
           role: user.role,
           commissionRate: user.commissionRate || 0,
           password: "", // Always reset password field
+          governorateCommissions: companyDetails?.governorateCommissions || {},
         });
       } else {
         form.reset({
@@ -106,10 +115,11 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user }: Us
           password: "",
           role: 'courier',
           commissionRate: 0,
+          governorateCommissions: {},
         });
       }
     }
-  }, [open, user, isEditing, form]);
+  }, [open, user, isEditing, form, companyDetails]);
 
   const onSubmit = (values: z.infer<typeof baseUserSchema>) => {
     onSave(values, user?.id);
@@ -196,21 +206,42 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user }: Us
                         )}
                     />
                      {selectedRole === 'courier' && (
-                        <>
-                             <FormField
-                                control={form.control}
-                                name="commissionRate"
-                                render={({ field }) => (
-                                    <FormItem className="grid grid-cols-4 items-center gap-4">
-                                        <FormLabel className="text-right">عمولة التوصيل</FormLabel>
-                                        <FormControl className="col-span-3">
-                                            <Input type="number" {...field} placeholder="عمولة ثابتة لكل توصيلة" value={field.value ?? 0} />
-                                        </FormControl>
-                                        <FormMessage className="col-span-4" />
-                                    </FormItem>
-                                )}
-                            />
-                        </>
+                         <FormField
+                            control={form.control}
+                            name="commissionRate"
+                            render={({ field }) => (
+                                <FormItem className="grid grid-cols-4 items-center gap-4">
+                                    <FormLabel className="text-right">عمولة التوصيل</FormLabel>
+                                    <FormControl className="col-span-3">
+                                        <Input type="number" {...field} placeholder="عمولة ثابتة لكل توصيلة" value={field.value ?? 0} />
+                                    </FormControl>
+                                    <FormMessage className="col-span-4" />
+                                </FormItem>
+                            )}
+                        />
+                     )}
+                     {selectedRole === 'company' && (
+                        <div className="col-span-4">
+                            <h4 className="font-medium text-lg mb-2">عمولات المحافظات</h4>
+                            <div className="space-y-3">
+                            {governoratesLoading && <p>جاري تحميل المحافظات...</p>}
+                            {governorates?.map(gov => (
+                                <FormField
+                                    key={gov.id}
+                                    control={form.control}
+                                    name={`governorateCommissions.${gov.id}` as const}
+                                    render={({ field }) => (
+                                        <FormItem className="grid grid-cols-4 items-center gap-4">
+                                            <FormLabel className="text-right">{gov.name}</FormLabel>
+                                            <FormControl className="col-span-3">
+                                                <Input type="number" {...field} placeholder="أدخل العمولة" value={field.value ?? ''} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+                            ))}
+                            </div>
+                        </div>
                      )}
                 </div>
                 </ScrollArea>

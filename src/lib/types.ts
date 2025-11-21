@@ -44,6 +44,7 @@ export type Shipment = {
   paidAmount: number;
   collectedAmount?: number; // For partial delivery
   courierCommission?: number; // Calculated commission for the courier on this shipment
+  companyCommission?: number; // Calculated commission for the company on this shipment
   companyId: string; // The company that owns this shipment. (was assignedCompanyId)
   assignedCourierId?: string; // Corresponds to a document ID in /couriers
   createdAt: any; // Can be Date or Firebase Timestamp
@@ -54,6 +55,7 @@ export type Shipment = {
 export interface Company {
   id: string;
   name: string;
+  governorateCommissions?: { [governorateId: string]: number };
 }
 
 export interface Courier {
