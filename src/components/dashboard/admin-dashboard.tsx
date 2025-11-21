@@ -784,6 +784,53 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
   const currentCourierNetDue = courierDues.find(c => c.id === payingCourier?.id)?.netDue;
   const currentCompanyNetDue = companyDues.find(c => c.id === payingCompany?.id)?.netDue;
+  
+  const handleGenericBulkUpdate = async (update: Partial<Shipment>) => {
+    if (!firestore) return;
+    const selectedRows = table.getFilteredSelectedRowModel().rows;
+    if (selectedRows.length === 0) {
+        toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
+        return;
+    }
+    
+    // Generic handler primarily for admin
+    const batch = writeBatch(firestore);
+    selectedRows.forEach(row => {
+        const docRef = doc(firestore, "shipments", row.original.id);
+        const finalUpdate: { [key: string]: any } = { ...update, updatedAt: serverTimestamp() };
+        batch.update(docRef, finalUpdate);
+    });
+
+    try {
+        await batch.commit();
+
+        if (update.assignedCourierId && selectedRows.length > 0) {
+            const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
+            await sendPushNotification({
+                recipientId: update.assignedCourierId,
+                title: 'شحنات جديدة',
+                body: `تم تعيين ${selectedRows.length} شحنة جديدة لك.`,
+                url: notificationUrl,
+            });
+        }
+
+        toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
+        table.resetRowSelection();
+    } catch (serverError) {
+        const permissionError = new FirestorePermissionError({
+            path: 'shipments',
+            operation: 'update',
+            requestResourceData: { update, note: `Bulk update of ${selectedRows.length} documents.` }
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    }
+  }
+
+
+  const { table, getFilteredSelectedRowModel } = useReactTable({
+        // ... other table config
+    });
+
 
   return (
     <div className="flex flex-col w-full">
@@ -841,6 +888,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                         couriers={courierUsers}
                         onEdit={openShipmentForm}
                         role={role}
+                        onBulkUpdate={handleGenericBulkUpdate}
                         />
                 </TabsContent>
                  <TabsContent value="in-transit">
@@ -852,6 +900,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                         couriers={courierUsers}
                         onEdit={openShipmentForm}
                         role={role}
+                        onBulkUpdate={handleGenericBulkUpdate}
                     />
                 </TabsContent>
                 <TabsContent value="delivered">
@@ -863,6 +912,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                         couriers={courierUsers}
                         onEdit={openShipmentForm}
                         role={role}
+                        onBulkUpdate={handleGenericBulkUpdate}
                     />
                 </TabsContent>
                 <TabsContent value="postponed">
@@ -874,6 +924,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                         couriers={courierUsers}
                         onEdit={openShipmentForm}
                         role={role}
+                        onBulkUpdate={handleGenericBulkUpdate}
                     />
                 </TabsContent>
                 <TabsContent value="returned">
@@ -885,6 +936,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                         couriers={courierUsers}
                         onEdit={openShipmentForm}
                         role={role}
+                        onBulkUpdate={handleGenericBulkUpdate}
                     />
                 </TabsContent>
                 <TabsContent value="returned-to-sender">
@@ -896,6 +948,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                         couriers={courierUsers}
                         onEdit={openShipmentForm}
                         role={role}
+                        onBulkUpdate={handleGenericBulkUpdate}
                     />
                 </TabsContent>
                 <TabsContent value="archived">
@@ -907,6 +960,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                         couriers={courierUsers}
                         onEdit={openShipmentForm}
                         role={role}
+                        onBulkUpdate={handleGenericBulkUpdate}
                         />
                 </TabsContent>
             </Tabs>
@@ -1280,3 +1334,5 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
+
+    

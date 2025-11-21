@@ -251,6 +251,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
     const cleanShipmentData: { [key: string]: any } = Object.fromEntries(
       Object.entries(shipment).filter(([_, v]) => v !== undefined && v !== null && v !== '')
     );
+    const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
 
     if (id) {
       const docRef = doc(firestore, 'shipments', id);
@@ -263,7 +264,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                 recipientId: shipment.assignedCourierId,
                 title: 'شحنة جديدة',
                 body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
-                url: `/`, 
+                url: notificationUrl, 
             });
           }
           toast({
@@ -293,7 +294,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                 recipientId: shipment.assignedCourierId,
                 title: 'شحنة جديدة',
                 body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
-                url: `/`,
+                url: notificationUrl,
             });
           }
           toast({
@@ -325,6 +326,53 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
         shipment.address?.toLowerCase().includes(lowercasedTerm)
     );
   }, [shipments, searchTerm]);
+
+
+  const handleGenericBulkUpdate = async (update: Partial<Shipment>) => {
+    if (!firestore) return;
+    const selectedRows = table.getFilteredSelectedRowModel().rows;
+    if (selectedRows.length === 0) {
+        toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
+        return;
+    }
+    
+    // Generic handler primarily for admin
+    const batch = writeBatch(firestore);
+    selectedRows.forEach(row => {
+        const docRef = doc(firestore, "shipments", row.original.id);
+        const finalUpdate: { [key: string]: any } = { ...update, updatedAt: serverTimestamp() };
+        batch.update(docRef, finalUpdate);
+    });
+
+    try {
+        await batch.commit();
+
+        if (update.assignedCourierId && selectedRows.length > 0) {
+            const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
+            await sendPushNotification({
+                recipientId: update.assignedCourierId,
+                title: 'شحنات جديدة',
+                body: `تم تعيين ${selectedRows.length} شحنة جديدة لك.`,
+                url: notificationUrl,
+            });
+        }
+
+        toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
+        table.resetRowSelection();
+    } catch (serverError) {
+        const permissionError = new FirestorePermissionError({
+            path: 'shipments',
+            operation: 'update',
+            requestResourceData: { update, note: `Bulk update of ${selectedRows.length} documents.` }
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    }
+  }
+
+
+  const { table, getFilteredSelectedRowModel } = useReactTable({
+        // ... other table config
+    });
 
 
   return (
@@ -382,6 +430,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                         couriers={courierUsers || []}
                         onEdit={openShipmentForm}
                         role={role}
+                        onBulkUpdate={handleGenericBulkUpdate}
                         />
                     </TabsContent>
                     <TabsContent value="in-transit">
@@ -393,6 +442,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                             couriers={courierUsers || []}
                             onEdit={openShipmentForm}
                             role={role}
+                            onBulkUpdate={handleGenericBulkUpdate}
                         />
                     </TabsContent>
                         <TabsContent value="delivered">
@@ -404,6 +454,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                             couriers={courierUsers || []}
                             onEdit={openShipmentForm}
                             role={role}
+                            onBulkUpdate={handleGenericBulkUpdate}
                         />
                     </TabsContent>
                         <TabsContent value="returned">
@@ -415,6 +466,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                             couriers={courierUsers || []}
                             onEdit={openShipmentForm}
                             role={role}
+                            onBulkUpdate={handleGenericBulkUpdate}
                         />
                     </TabsContent>
                         <TabsContent value="returned-to-sender">
@@ -426,6 +478,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                             couriers={courierUsers || []}
                             onEdit={openShipmentForm}
                             role={role}
+                            onBulkUpdate={handleGenericBulkUpdate}
                         />
                     </TabsContent>
                 </Tabs>
@@ -449,3 +502,5 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
     </div>
   );
 }
+
+    

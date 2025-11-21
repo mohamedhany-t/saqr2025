@@ -117,11 +117,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
     setIsSending(false);
     
     if (otherParticipantId) {
+      const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
       await sendPushNotification({
         recipientId: otherParticipantId,
         title: currentUser.name || 'رسالة جديدة',
         body: lastMessageText,
-        url: `/`, 
+        url: notificationUrl, 
       });
     }
   };
@@ -207,3 +208,5 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
 };
 
 export default ChatWindow;
+
+    
