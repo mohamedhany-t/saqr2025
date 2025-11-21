@@ -323,6 +323,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       Object.entries(shipment).filter(([_, v]) => v !== undefined && v !== null && v !== '')
     );
     
+    const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
+
     if (id) {
       const docRef = doc(firestore, 'shipments', id);
       const dataToUpdate = { ...cleanShipmentData, updatedAt: serverTimestamp() };
@@ -330,12 +332,13 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       updateDoc(docRef, dataToUpdate)
         .then(async () => {
           if (shipment.assignedCourierId) {
-             const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
              await sendPushNotification({
                 recipientId: shipment.assignedCourierId,
                 title: 'شحنة جديدة',
                 body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
-                url: notificationUrl, 
+                url: notificationUrl,
+                vapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
+                vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || '',
             });
           }
           toast({
@@ -361,12 +364,13 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       setDoc(docRef, dataToAdd)
         .then(async () => {
           if (shipment.assignedCourierId) {
-             const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
              await sendPushNotification({
                 recipientId: shipment.assignedCourierId,
                 title: 'شحنة جديدة',
                 body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
                 url: notificationUrl,
+                vapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
+                vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || '',
             });
           }
           toast({
@@ -810,6 +814,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         return;
     }
     
+    const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
+
     // Generic handler primarily for admin
     const batch = writeBatch(firestore);
     selectedRows.forEach(row => {
@@ -822,12 +828,13 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         await batch.commit();
 
         if (update.assignedCourierId && selectedRows.length > 0) {
-            const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
             await sendPushNotification({
                 recipientId: update.assignedCourierId,
                 title: 'شحنات جديدة',
                 body: `تم تعيين ${selectedRows.length} شحنة جديدة لك.`,
                 url: notificationUrl,
+                vapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
+                vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || '',
             });
         }
 
