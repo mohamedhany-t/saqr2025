@@ -38,7 +38,7 @@ const baseUserSchema = z.object({
   password: z.string().optional(),
   role: z.enum(["courier", "admin", "company"], { required_error: "الدور مطلوب" }),
   commissionRate: z.coerce.number().optional(),
-  governorateCommissions: z.record(z.coerce.number()).optional(),
+  governorateCommissions: z.record(z.coerce.number().optional()).optional(),
 });
 
 
@@ -122,6 +122,16 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
   }, [open, user, isEditing, form, companyDetails]);
 
   const onSubmit = (values: z.infer<typeof baseUserSchema>) => {
+    // Filter out empty/zero values from governorateCommissions before saving
+    if (values.governorateCommissions) {
+        const cleanCommissions: { [key: string]: number } = {};
+        for (const [key, value] of Object.entries(values.governorateCommissions)) {
+            if (value !== undefined && value > 0) {
+                cleanCommissions[key] = value;
+            }
+        }
+        values.governorateCommissions = cleanCommissions;
+    }
     onSave(values, user?.id);
   };
   
@@ -234,7 +244,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
                                         <FormItem className="grid grid-cols-4 items-center gap-4">
                                             <FormLabel className="text-right">{gov.name}</FormLabel>
                                             <FormControl className="col-span-3">
-                                                <Input type="number" {...field} placeholder="أدخل العمولة" value={field.value ?? ''} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} />
+                                                <Input type="number" {...field} placeholder="اتركه فارغاً لعمولة 0" value={field.value ?? ''} onChange={(e) => field.onChange(parseFloat(e.target.value))} />
                                             </FormControl>
                                         </FormItem>
                                     )}
