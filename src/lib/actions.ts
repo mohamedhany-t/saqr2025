@@ -135,6 +135,7 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
         
         const subscriptionsSnap = await db.collection(`users/${recipientId}/pushSubscriptions`).get();
         if (subscriptionsSnap.empty) {
+            console.log(`No push subscriptions found for user ${recipientId}.`);
             return { success: true, message: "No push subscriptions found for user." };
         }
         
@@ -143,9 +144,10 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
         const promises = subscriptionsSnap.docs.map(doc => {
             const subscription = doc.data();
             return webpush.sendNotification(subscription, payload).catch(error => {
-                console.error(`Error sending notification to endpoint ${subscription.endpoint}:`, error);
+                console.error(`Error sending notification to endpoint for user ${recipientId}:`, error.statusCode, error.body);
                 // If subscription is expired or invalid, delete it
                 if (error.statusCode === 410 || error.statusCode === 404) {
+                    console.log(`Subscription for user ${recipientId} is invalid. Deleting.`);
                     return doc.ref.delete();
                 }
             });
