@@ -37,5 +37,3 @@ export function useNotificationSound(totalUnreadCount: number) {
     prevUnreadCountRef.current = totalUnreadCount;
   }, [totalUnreadCount]); // This effect runs whenever totalUnreadCount changes
 }
-
-    

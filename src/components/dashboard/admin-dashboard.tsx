@@ -33,7 +33,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import ChatInterface from "@/components/chat/chat-interface";
 import { Badge } from "../ui/badge";
 import { ReportsPage } from "../reports/reports-page";
-import { createAuthUser, deleteAuthUser, updateAuthUserPassword } from "@/lib/actions";
+import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotification } from "@/lib/actions";
 
 
 interface AdminDashboardProps {

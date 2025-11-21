@@ -16,6 +16,7 @@ import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, w
 import ChatInterface from "../chat/chat-interface";
 import { Badge } from "../ui/badge";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
+import { sendPushNotification } from "@/lib/actions";
 
 interface CompanyDashboardProps {
   user: User;
@@ -257,6 +258,14 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
       
       updateDoc(docRef, dataToUpdate)
         .then(() => {
+          if (shipment.assignedCourierId) {
+             sendPushNotification({
+                recipientId: shipment.assignedCourierId,
+                title: 'شحنة جديدة',
+                body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
+                url: `/`, 
+            });
+          }
           toast({
             title: "تم تحديث الشحنة",
             description: `تم تحديث الشحنة بنجاح`,
@@ -279,6 +288,14 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
       
       setDoc(docRef, dataToAdd)
         .then(() => {
+          if (shipment.assignedCourierId) {
+             sendPushNotification({
+                recipientId: shipment.assignedCourierId,
+                title: 'شحنة جديدة',
+                body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
+                url: `/`,
+            });
+          }
           toast({
             title: "تم حفظ الشحنة",
             description: `تم إنشاء الشحنة بنجاح`,
@@ -432,5 +449,3 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
     </div>
   );
 }
-
-    

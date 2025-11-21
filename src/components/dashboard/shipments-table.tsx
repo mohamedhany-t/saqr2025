@@ -64,6 +64,7 @@ import { useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase
 import { doc, writeBatch, serverTimestamp } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
+import { sendPushNotification } from "@/lib/actions"
 
 export const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
     Pending: <Hourglass className="h-4 w-4 text-yellow-500" />,
@@ -448,7 +449,16 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
         batch.update(docRef, finalUpdate);
     });
 
-    batch.commit().then(() => {
+    batch.commit().then(async () => {
+        if (update.assignedCourierId) {
+            await sendPushNotification({
+                recipientId: update.assignedCourierId,
+                title: 'شحنات جديدة',
+                body: `تم تعيين ${selectedRows.length} شحنة جديدة لك.`,
+                url: '/',
+            });
+        }
+
         toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
         table.resetRowSelection();
     }).catch(serverError => {

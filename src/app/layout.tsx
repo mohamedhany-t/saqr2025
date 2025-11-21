@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
 import React, { useEffect } from 'react';
+import { PwaAndNotificationHandler } from "@/components/pwa-and-notification-handler";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const cairo = Cairo({ subsets: ["arabic"], variable: "--font-cairo", weight: ['400', '700'] });
@@ -25,6 +26,7 @@ export default function RootLayout({
       </head>
       <body className={`${inter.variable} ${cairo.variable} font-headline`}>
         <FirebaseClientProvider>
+          <PwaAndNotificationHandler />
           {children}
         </FirebaseClientProvider>
         <Toaster />
