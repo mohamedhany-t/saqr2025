@@ -244,7 +244,13 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
                                         <FormItem className="grid grid-cols-4 items-center gap-4">
                                             <FormLabel className="text-right">{gov.name}</FormLabel>
                                             <FormControl className="col-span-3">
-                                                <Input type="number" {...field} placeholder="اتركه فارغاً لعمولة 0" value={field.value ?? ''} onChange={(e) => field.onChange(parseFloat(e.target.value))} />
+                                                <Input 
+                                                    type="number" 
+                                                    {...field} 
+                                                    placeholder="أدخل العمولة" 
+                                                    value={field.value || ''}
+                                                    onChange={(e) => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
+                                                />
                                             </FormControl>
                                         </FormItem>
                                     )}
