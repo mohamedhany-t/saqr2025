@@ -101,7 +101,8 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'courier_payments'), where("courierId", "==", user.id), where("isArchived", "==", false));
+    // Fetch ALL payments for the courier, archived or not, to get the correct financial history.
+    return query(collection(firestore, 'courier_payments'), where("courierId", "==", user.id));
   }, [firestore, user]);
   const { data: payments, isLoading: paymentsLoading } = useCollection<CourierPayment>(paymentsQuery);
 
@@ -448,5 +449,3 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     </>
   );
 }
-
-    
