@@ -24,6 +24,18 @@ export function PwaAndNotificationHandler() {
     const { toast } = useToast();
     
     useEffect(() => {
+        if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+            return;
+        }
+
+        // Register the service worker
+        navigator.serviceWorker.register('/sw.js').catch(err => {
+            console.error('Service Worker registration failed:', err);
+        });
+
+    }, []);
+
+    useEffect(() => {
         if (isUserLoading || !user || !firestore || typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
             return;
         }

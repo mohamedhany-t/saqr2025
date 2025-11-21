@@ -16,6 +16,7 @@ import { StatsCards } from "@/components/dashboard/stats-cards";
 import { Loader2, MessageSquare } from "lucide-react";
 import ChatInterface from "../chat/chat-interface";
 import { sendPushNotification } from "@/lib/actions";
+import { useNotificationSound } from "@/hooks/use-notification-sound";
 
 interface CourierDashboardProps {
   user: User;
@@ -47,6 +48,8 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     if (!chats || !user?.id) return 0;
     return chats.reduce((sum, chat) => sum + (chat.unreadCounts?.[user.id] || 0), 0);
   }, [chats, user?.id]);
+
+  useNotificationSound(totalUnreadCount);
 
 
   // Effect to fetch shipment data if 'edit' param is in the URL
