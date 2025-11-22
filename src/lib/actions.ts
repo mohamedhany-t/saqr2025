@@ -9,32 +9,62 @@ import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
 
-// This is a workaround to use service account credentials in a Vercel-like environment
+
+// --- Function to get the service account credentials ---
 function getServiceAccount() {
-  // Check for environment variable first (for production environments)
+  // Prio 1: Environment variable (for production on Vercel, etc.)
   if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
     try {
-      return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-    } catch (parseError) {
-      console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:", parseError);
-      return null;
+      // The value is expected to be a base64 encoded string of the JSON file
+      const decodedKey = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_KEY, 'base64').toString('utf-8');
+      return JSON.parse(decodedKey);
+    } catch (e) {
+      console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY from environment variable.", e);
+      // Fall through to try reading from file
     }
   }
 
-  // Fallback to reading the file from the filesystem (for local development)
+  // Prio 2: Filesystem (for local development)
   try {
     const serviceAccountPath = path.resolve(process.cwd(), 'serviceAccountKey.json');
     if (fs.existsSync(serviceAccountPath)) {
-        const fileContents = fs.readFileSync(serviceAccountPath, 'utf8');
-        return JSON.parse(fileContents);
+      const fileContents = fs.readFileSync(serviceAccountPath, 'utf8');
+      return JSON.parse(fileContents);
     }
   } catch (e) {
-      console.error("Error reading serviceAccountKey.json from filesystem:", e);
+    console.error("Error reading serviceAccountKey.json from filesystem.", e);
   }
 
-  console.error("Service account key not found. Please set the FIREBASE_SERVICE_ACCOUNT_KEY environment variable or place serviceAccountKey.json in the root directory.");
-  return null;
+  // If neither method works, we cannot proceed.
+  throw new Error("Firebase Admin SDK credentials not found. Ensure FIREBASE_SERVICE_ACCOUNT_KEY env var is set or serviceAccountKey.json exists.");
 }
+
+
+// --- Reliable Admin App Initializer ---
+let adminApp: App | null = null;
+function getAdminApp(): App {
+    if (adminApp) {
+        return adminApp;
+    }
+    
+    const serviceAccount = getServiceAccount();
+    
+    // If multiple apps are not needed, you can use a unique name
+    const appName = `firebase-admin-app-${Date.now()}`;
+
+    if (getApps().length === 0) {
+       adminApp = initializeApp({
+          credential: cert(serviceAccount)
+       });
+    } else {
+        // This case is less likely if we manage the singleton `adminApp`
+        // but as a fallback, we get the default app.
+        adminApp = getApps()[0];
+    }
+    
+    return adminApp;
+}
+
 
 // --- Zod Schemas for Input Validation ---
 const createUserSchema = z.object({
@@ -59,21 +89,6 @@ const pushNotificationSchema = z.object({
     url: z.string().url(),
 });
 
-// --- Reliable Admin App Initializer ---
-function getAdminApp(): App {
-    if (getApps().length > 0) {
-        return getApps()[0];
-    }
-    
-    const serviceAccount = getServiceAccount();
-    if (!serviceAccount) {
-      throw new Error("Firebase Admin SDK credentials not found or are invalid.");
-    }
-    
-    return initializeApp({
-      credential: cert(serviceAccount)
-    });
-}
 
 
 export async function createAuthUser(userData: z.infer<typeof createUserSchema>) {
