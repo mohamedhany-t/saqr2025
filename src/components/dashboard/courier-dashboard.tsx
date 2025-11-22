@@ -141,19 +141,25 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     ) => {
         const update: { paidAmount?: number; courierCommission?: number; companyCommission?: number; collectedAmount?: number } = {};
         
-        const isSuccess = status === 'Delivered' || status === 'Partially Delivered' || status === 'Evasion' || status === 'Refused (Paid)';
+        const isSuccess = status === 'Delivered' || status === 'Partially Delivered' || status === 'Evasion' || status === 'Refused (Paid)' || status === 'Refused (Unpaid)';
 
         if (isSuccess) {
             update.courierCommission = courierCommissionRate;
-            update.companyCommission = companyCommission;
             
             if (status === 'Delivered' || status === 'Evasion') {
                 update.paidAmount = totalAmount;
                 update.collectedAmount = totalAmount;
-            } else { // Partially Delivered or Refused (Paid)
+                update.companyCommission = companyCommission;
+            } else if (status === 'Partially Delivered' || status === 'Refused (Paid)') {
                 update.paidAmount = collectedAmount;
+                update.companyCommission = companyCommission;
+            } else { // Refused (Unpaid) and other future success statuses
+                update.paidAmount = 0;
+                update.collectedAmount = 0;
+                // Company commission might be 0 here, depends on business logic
+                update.companyCommission = 0; 
             }
-        } else { // Returned, Cancelled, Refused (Unpaid) etc.
+        } else { // Returned, Cancelled, Postponed etc.
             update.paidAmount = 0;
             update.courierCommission = 0;
             update.companyCommission = 0;
