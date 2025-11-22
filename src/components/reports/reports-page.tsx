@@ -1,4 +1,5 @@
 
+
 "use client";
 import React from 'react';
 import type { Shipment, Company, User, Governorate, CourierPayment, CompanyPayment, ShipmentStatus } from '@/lib/types';
@@ -75,7 +76,6 @@ export function ReportsPage({
                     { accessorKey: "totalShipments", header: "إجمالي الشحنات" },
                     { accessorKey: "totalRevenue", header: "إجمالي الإيرادات" },
                     { accessorKey: "totalCompanyCommission", header: "عمولات الشركة" },
-                    { accessorKey: "totalCourierCommission", header: "عمولات المناديب" },
                     { accessorKey: "totalPaidByAdmin", header: "إجمالي المدفوع من الإدارة" },
                     { accessorKey: "netDue", header: "صافي المستحق" },
                  ];
@@ -109,15 +109,13 @@ export function ReportsPage({
         const payments = companyPayments.filter(p => p.companyId === company.id);
         const totalRevenue = companyShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
         const totalCompanyCommission = companyShipments.reduce((acc, s) => acc + (s.companyCommission || 0), 0);
-        const totalCourierCommission = companyShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
         const totalPaidByAdmin = payments.reduce((acc, p) => acc + p.amount, 0);
-        const netDue = (totalRevenue - totalCourierCommission - totalCompanyCommission) - totalPaidByAdmin;
+        const netDue = (totalRevenue - totalCompanyCommission) - totalPaidByAdmin;
         return {
             name: company.name,
             totalShipments: companyShipments.length,
             totalRevenue,
             totalCompanyCommission,
-            totalCourierCommission,
             totalPaidByAdmin,
             netDue,
         }

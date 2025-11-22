@@ -771,7 +771,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     })
   }, [users, shipments, courierUsers, courierPayments]);
   
-    const companyDues = React.useMemo(() => {
+  const companyDues = React.useMemo(() => {
     if (!companies || !shipments || !companyPayments) return [];
     
     return companies.map(company => {
@@ -779,11 +779,11 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         const activePayments = companyPayments?.filter(p => p.companyId === company.id && !p.isArchived) || [];
         
         const totalRevenue = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
-        const totalCourierCommission = activeShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
         const totalCompanyCommission = activeShipments.reduce((acc, s) => acc + (s.companyCommission || 0), 0);
         const totalPaidToCompany = activePayments.reduce((acc, p) => acc + p.amount, 0);
         
-        const netDue = (totalRevenue - totalCourierCommission - totalCompanyCommission) - totalPaidToCompany;
+        // Net Due = (Total Collected Revenue) - (Company's Cut) - (Payments already made to them)
+        const netDue = (totalRevenue - totalCompanyCommission) - totalPaidToCompany;
         
         const allPayments = companyPayments?.filter(p => p.companyId === company.id) || [];
 
@@ -791,7 +791,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             ...company,
             totalShipments: activeShipments.length,
             totalRevenue,
-            totalCourierCommission,
             totalCompanyCommission,
             totalPaidToCompany,
             netDue,
@@ -1123,13 +1122,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                                                 إجمالي التحصيل:
                                             </span>
                                             <span className="font-medium">{company.totalRevenue.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                        </div>
-                                         <div className="flex justify-between items-center">
-                                            <span className="flex items-center gap-2 text-muted-foreground">
-                                                <BadgePercent className="h-4 w-4 text-orange-500" />
-                                                عمولات المناديب:
-                                            </span>
-                                            <span className="font-medium">{company.totalCourierCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
                                         </div>
                                           <div className="flex justify-between items-center">
                                             <span className="flex items-center gap-2 text-muted-foreground">
