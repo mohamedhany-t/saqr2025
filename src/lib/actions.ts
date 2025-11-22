@@ -9,59 +9,50 @@ import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
 
-
-// --- Function to get the service account credentials ---
-function getServiceAccount() {
-  // Prio 1: Environment variable (for production on Vercel, etc.)
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-    try {
-      // The value is expected to be a base64 encoded string of the JSON file
-      const decodedKey = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_KEY, 'base64').toString('utf-8');
-      return JSON.parse(decodedKey);
-    } catch (e) {
-      console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY from environment variable.", e);
-      // Fall through to try reading from file
-    }
-  }
-
-  // Prio 2: Filesystem (for local development)
-  try {
-    const serviceAccountPath = path.resolve(process.cwd(), 'serviceAccountKey.json');
-    if (fs.existsSync(serviceAccountPath)) {
-      const fileContents = fs.readFileSync(serviceAccountPath, 'utf8');
-      return JSON.parse(fileContents);
-    }
-  } catch (e) {
-    console.error("Error reading serviceAccountKey.json from filesystem.", e);
-  }
-
-  // If neither method works, we cannot proceed.
-  throw new Error("Firebase Admin SDK credentials not found. Ensure FIREBASE_SERVICE_ACCOUNT_KEY env var is set or serviceAccountKey.json exists.");
-}
-
-
 // --- Reliable Admin App Initializer ---
 let adminApp: App | null = null;
+
 function getAdminApp(): App {
     if (adminApp) {
         return adminApp;
     }
-    
-    const serviceAccount = getServiceAccount();
-    
-    // If multiple apps are not needed, you can use a unique name
-    const appName = `firebase-admin-app-${Date.now()}`;
+
+    const serviceAccountKeyFromEnv = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    const serviceAccountPath = path.resolve(process.cwd(), 'serviceAccountKey.json');
+
+    let serviceAccount;
+
+    if (serviceAccountKeyFromEnv) {
+        try {
+            serviceAccount = JSON.parse(Buffer.from(serviceAccountKeyFromEnv, 'base64').toString('utf-8'));
+        } catch (e) {
+            console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY from environment variable.", e);
+            throw new Error("Firebase Admin SDK credentials from environment variable are corrupted.");
+        }
+    } else if (fs.existsSync(serviceAccountPath)) {
+        try {
+            serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+        } catch (e) {
+            console.error("Error reading serviceAccountKey.json from filesystem.", e);
+            throw new Error("serviceAccountKey.json is corrupted.");
+        }
+    } else {
+        throw new Error("Firebase Admin SDK credentials not found. Ensure FIREBASE_SERVICE_ACCOUNT_KEY env var is set or serviceAccountKey.json exists.");
+    }
 
     if (getApps().length === 0) {
-       adminApp = initializeApp({
-          credential: cert(serviceAccount)
-       });
+        adminApp = initializeApp({
+            credential: cert(serviceAccount)
+        });
     } else {
-        // This case is less likely if we manage the singleton `adminApp`
-        // but as a fallback, we get the default app.
         adminApp = getApps()[0];
     }
     
+    // This check is important. It's possible getApps()[0] exists but is not our initialized app.
+    if (!adminApp) {
+         throw new Error("Could not initialize Firebase Admin App.");
+    }
+
     return adminApp;
 }
 
