@@ -34,6 +34,7 @@ import type { User, Role, Company } from "@/lib/types"
 import { Skeleton } from "../ui/skeleton"
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
 import { collection } from "firebase/firestore"
+import { Card, CardContent } from "../ui/card"
 
 const roleIcons: Record<Role, React.ReactNode> = {
     admin: <UserIcon className="h-4 w-4 text-red-500" />,
@@ -51,6 +52,62 @@ const roleVariants: Record<Role, "default" | "secondary" | "destructive" | "outl
     admin: "destructive",
     company: "secondary",
     courier: "outline",
+}
+
+
+export const UserCard = ({ user, company, onEdit, onDelete }: { user: User, company?: Company, onEdit: (user: User, company?: Company) => void, onDelete: (user: User) => void }) => {
+    const { name, email, role, avatarUrl, commissionRate } = user;
+    const canBeDeleted = !(role === 'admin' && email === 'mhanyt21@gmail.com');
+    return (
+        <Card>
+            <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <Avatar>
+                        <AvatarImage src={avatarUrl} />
+                        <AvatarFallback>{name ? name.charAt(0) : email.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col">
+                        <span className="font-semibold">{name}</span>
+                        <span className="text-sm text-muted-foreground">{email}</span>
+                        <div className="mt-1 flex items-center gap-2">
+                             <Badge variant={roleVariants[role]} className="capitalize flex gap-2 text-xs">
+                                {roleIcons[role]}
+                                <span>{roleText[role]}</span>
+                            </Badge>
+                             {role === 'courier' && commissionRate !== undefined && (
+                                <Badge variant="outline" className="flex items-center gap-1 text-xs">
+                                    <BadgeDollarSign className="h-3 w-3 text-primary"/>
+                                    <span>{commissionRate.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
+                                </Badge>
+                             )}
+                        </div>
+                    </div>
+                </div>
+                 <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                        <span className="sr-only">فتح القائمة</span>
+                        <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>إجراءات</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => onEdit(user, company)}>
+                            <Pencil className="me-2 h-4 w-4" /> تعديل
+                        </DropdownMenuItem>
+                        {canBeDeleted && (
+                            <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-red-100" onClick={() => onDelete(user)}>
+                                    <Trash2 className="me-2 h-4 w-4" /> حذف
+                                </DropdownMenuItem>
+                            </>
+                        )}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </CardContent>
+        </Card>
+    )
 }
 
 export const getColumns = (onEdit: (user: User, company?: Company) => void, onDelete: (user: User) => void, companies: Company[]): ColumnDef<User>[] => [
