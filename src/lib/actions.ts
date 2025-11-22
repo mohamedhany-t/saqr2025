@@ -7,6 +7,7 @@ import { getFirestore, Firestore } from 'firebase-admin/firestore';
 import webpush from 'web-push';
 import { z } from 'zod';
 import path from 'path';
+import fs from 'fs';
 
 // --- Centralized Admin App Initialization ---
 
@@ -23,14 +24,15 @@ function initializeAdminApp(): App {
     try {
         // Construct the full path to the service account key file.
         const serviceAccountPath = path.join(process.cwd(), 'serviceAccountKey.json');
-        const serviceAccount = require(serviceAccountPath);
+        // Read and parse the file synchronously.
+        const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
         
         // Initialize the app with a specific name 'admin' to prevent conflicts.
         return initializeApp({
             credential: cert(serviceAccount)
         }, 'admin');
     } catch (e: any) {
-        console.error("Fatal: Failed to initialize Firebase Admin SDK from serviceAccountKey.json.", e);
+        console.error("Fatal: Failed to initialize Firebase Admin SDK. Ensure serviceAccountKey.json is present and valid.", e);
         // This is a critical error, so we throw to stop execution.
         throw new Error("Firebase Admin SDK initialization failed. Ensure serviceAccountKey.json is present and valid.");
     }
