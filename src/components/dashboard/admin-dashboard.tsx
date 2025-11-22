@@ -3,7 +3,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2 } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -61,6 +61,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const [editingCompanyPayment, setEditingCompanyPayment] = React.useState<CompanyPayment | undefined>(undefined);
 
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
+  const [shipmentToDelete, setShipmentToDelete] = React.useState<Shipment | null>(null);
   const [courierPaymentToDelete, setCourierPaymentToDelete] = React.useState<CourierPayment | null>(null);
   const [companyPaymentToDelete, setCompanyPaymentToDelete] = React.useState<CompanyPayment | null>(null);
   
@@ -387,6 +388,30 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           errorEmitter.emit('permission-error', permissionError);
         });
     }
+  };
+
+  const handleDeleteShipment = () => {
+    if (!firestore || !shipmentToDelete) return;
+    const docRef = doc(firestore, 'shipments', shipmentToDelete.id);
+    deleteDoc(docRef)
+        .then(() => {
+            toast({ title: `تم حذف الشحنة ${shipmentToDelete.recipientName} بنجاح` });
+        })
+        .catch((err) => {
+            toast({ title: 'خطأ', description: 'حدث خطأ أثناء حذف الشحنة', variant: 'destructive' });
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: docRef.path,
+                operation: 'delete'
+            }));
+        })
+        .finally(() => {
+            setShipmentToDelete(null);
+        });
+  };
+
+  const handlePrintShipment = (shipment: Shipment) => {
+    const printUrl = `/print/${shipment.id}`;
+    window.open(printUrl, '_blank', 'width=800,height=600');
   };
 
   const handleSaveUser = async (data: any, userId?: string) => {
@@ -871,6 +896,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             governorateName={governorates?.find(g => g.id === shipment.governorateId)?.name || ''}
             companyName={companies?.find(c => c.id === shipment.companyId)?.name || ''}
             onEdit={() => openShipmentForm(shipment)}
+            onDelete={() => setShipmentToDelete(shipment)}
+            onPrint={() => handlePrintShipment(shipment)}
           />
         ))}
       </div>
@@ -1132,7 +1159,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                                 </CardHeader>
                                 <CardContent className="flex-grow">
                                     <p className="text-xs text-muted-foreground">
-                                        المبلغ المستحق للشركة
+                                        المبلغ المستحق للدفع للشركة
                                     </p>
                                     <div className="mt-4 space-y-2 text-sm">
                                          <div className="flex justify-between items-center border-b pb-2">
@@ -1277,6 +1304,20 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+        <AlertDialog open={!!shipmentToDelete} onOpenChange={(open) => !open && setShipmentToDelete(null)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>هل أنت متأكد من حذف الشحنة؟</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        سيتم حذف الشحنة ({shipmentToDelete?.recipientName}) بشكل نهائي. لا يمكن التراجع عن هذا الإجراء.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setShipmentToDelete(null)}>إلغاء</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteShipment} className="bg-destructive hover:bg-destructive/90">حذف</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
        <AlertDialog open={!!courierPaymentToDelete} onOpenChange={(open) => !open && setCourierPaymentToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

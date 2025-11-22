@@ -19,6 +19,8 @@ import ChatInterface from "../chat/chat-interface";
 import { Badge } from "../ui/badge";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
 import { sendPushNotification } from "@/lib/actions";
+import { ShipmentCard } from "../shipments/shipment-card";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface CompanyDashboardProps {
   user: User;
@@ -32,6 +34,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const firestore = useFirestore();
+  const isMobile = useIsMobile();
 
   const router = useRouter();
   const pathname = usePathname();
@@ -366,6 +369,42 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
         errorEmitter.emit('permission-error', permissionError);
     }
   }
+  
+  const renderShipmentList = (shipmentsToRender: Shipment[], isLoading: boolean) => {
+    if (isLoading) {
+        return <div className="text-center py-10"><p>جاري التحميل...</p></div>;
+    }
+    if (shipmentsToRender.length === 0) {
+        return <div className="text-center py-10 text-muted-foreground">لا توجد شحنات.</div>;
+    }
+    return (
+        <div className="space-y-4">
+            {shipmentsToRender.map(s => (
+                <ShipmentCard
+                    key={s.id}
+                    shipment={s}
+                    governorateName={governorates?.find(g => g.id === s.governorateId)?.name || ''}
+                    companyName={user.name || ''}
+                    onEdit={openShipmentForm}
+                />
+            ))}
+        </div>
+    );
+  };
+  
+  const renderShipmentTable = (shipmentsToRender: Shipment[], isLoading: boolean) => (
+       <ShipmentsTable 
+            shipments={shipmentsToRender} 
+            isLoading={isLoading}
+            governorates={governorates || []}
+            companies={[]}
+            couriers={courierUsers || []}
+            onEdit={openShipmentForm}
+            role={role}
+            onBulkUpdate={handleGenericBulkUpdate}
+        />
+  );
+
 
   return (
     <div className="flex flex-col w-full">
@@ -413,66 +452,23 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                         </div>
                     </div>
                     <StatsCards shipments={shipments || []} role={role} />
-                    <TabsContent value="all-shipments">
-                        <ShipmentsTable 
-                        shipments={filteredShipments} 
-                        isLoading={shipmentsLoading}
-                        governorates={governorates || []}
-                        companies={[]}
-                        couriers={courierUsers || []}
-                        onEdit={openShipmentForm}
-                        role={role}
-                        onBulkUpdate={handleGenericBulkUpdate}
-                        />
-                    </TabsContent>
-                    <TabsContent value="in-transit">
-                        <ShipmentsTable 
-                            shipments={filteredShipments.filter(s => s.status === 'In-Transit')}
-                            isLoading={shipmentsLoading}
-                            governorates={governorates || []}
-                            companies={[]}
-                            couriers={courierUsers || []}
-                            onEdit={openShipmentForm}
-                            role={role}
-                            onBulkUpdate={handleGenericBulkUpdate}
-                        />
-                    </TabsContent>
-                        <TabsContent value="delivered">
-                        <ShipmentsTable 
-                            shipments={filteredShipments.filter(s => s.status === 'Delivered')}
-                            isLoading={shipmentsLoading}
-                            governorates={governorates || []}
-                            companies={[]}
-                            couriers={courierUsers || []}
-                            onEdit={openShipmentForm}
-                            role={role}
-                            onBulkUpdate={handleGenericBulkUpdate}
-                        />
-                    </TabsContent>
-                        <TabsContent value="returned">
-                        <ShipmentsTable 
-                            shipments={filteredShipments.filter(s => s.status === 'Returned')}
-                            isLoading={shipmentsLoading}
-                            governorates={governorates || []}
-                            companies={[]}
-                            couriers={courierUsers || []}
-                            onEdit={openShipmentForm}
-                            role={role}
-                            onBulkUpdate={handleGenericBulkUpdate}
-                        />
-                    </TabsContent>
-                        <TabsContent value="returned-to-sender">
-                        <ShipmentsTable 
-                            shipments={filteredShipments.filter(s => s.status === 'Returned to Sender')}
-                            isLoading={shipmentsLoading}
-                            governorates={governorates || []}
-                            companies={[]}
-                            couriers={courierUsers || []}
-                            onEdit={openShipmentForm}
-                            role={role}
-                            onBulkUpdate={handleGenericBulkUpdate}
-                        />
-                    </TabsContent>
+                    {isMobile ? (
+                        <>
+                            <TabsContent value="all-shipments">{renderShipmentList(filteredShipments, shipmentsLoading)}</TabsContent>
+                            <TabsContent value="in-transit">{renderShipmentList(filteredShipments.filter(s => s.status === 'In-Transit'), shipmentsLoading)}</TabsContent>
+                            <TabsContent value="delivered">{renderShipmentList(filteredShipments.filter(s => s.status === 'Delivered'), shipmentsLoading)}</TabsContent>
+                            <TabsContent value="returned">{renderShipmentList(filteredShipments.filter(s => s.status === 'Returned'), shipmentsLoading)}</TabsContent>
+                            <TabsContent value="returned-to-sender">{renderShipmentList(filteredShipments.filter(s => s.status === 'Returned to Sender'), shipmentsLoading)}</TabsContent>
+                        </>
+                    ) : (
+                         <>
+                            <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments, shipmentsLoading)}</TabsContent>
+                            <TabsContent value="in-transit">{renderShipmentTable(filteredShipments.filter(s => s.status === 'In-Transit'), shipmentsLoading)}</TabsContent>
+                            <TabsContent value="delivered">{renderShipmentTable(filteredShipments.filter(s => s.status === 'Delivered'), shipmentsLoading)}</TabsContent>
+                            <TabsContent value="returned">{renderShipmentTable(filteredShipments.filter(s => s.status === 'Returned'), shipmentsLoading)}</TabsContent>
+                            <TabsContent value="returned-to-sender">{renderShipmentTable(filteredShipments.filter(s => s.status === 'Returned to Sender'), shipmentsLoading)}</TabsContent>
+                        </>
+                    )}
                 </Tabs>
             </TabsContent>
             <TabsContent value="chat">

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { statusText } from "@/components/dashboard/shipments-table";
 import type { Shipment } from "@/lib/types";
-import { Pencil, MessageSquare, Package, CalendarDays, Phone, Share2 } from "lucide-react";
+import { Pencil, MessageSquare, Package, CalendarDays, Phone, Share2, Trash2, Printer } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useUser } from "@/firebase";
@@ -15,10 +15,12 @@ interface ShipmentCardProps {
     governorateName: string;
     companyName: string;
     onEdit: (shipment: Shipment) => void;
+    onDelete?: (shipment: Shipment) => void;
+    onPrint?: (shipment: Shipment) => void;
 }
 
-export function ShipmentCard({ shipment, governorateName, companyName, onEdit }: ShipmentCardProps) {
-    const { user: courierUser } = useUser();
+export function ShipmentCard({ shipment, governorateName, companyName, onEdit, onDelete, onPrint }: ShipmentCardProps) {
+    const { user: authUser } = useUser();
     const { 
         recipientName, 
         recipientPhone, 
@@ -31,18 +33,19 @@ export function ShipmentCard({ shipment, governorateName, companyName, onEdit }:
         senderName
     } = shipment;
 
+    const isAdmin = authUser?.email === 'mhanyt21@gmail.com'; // Simple admin check
+
     const handleWhatsApp = (e: React.MouseEvent) => {
         e.stopPropagation();
         const cleanPhone = recipientPhone.replace(/\D/g, '');
         const whatsappNumber = cleanPhone.startsWith('20') ? cleanPhone : `20${cleanPhone}`;
         
-        const courierName = courierUser?.displayName || "مندوب الشحن";
+        const courierName = authUser?.displayName || "مندوب الشحن";
         const customerName = recipientName;
         const orderAmount = totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
         const fullAddress = `${address}, ${governorateName}`;
 
-        const message = `أهلاً ${customerName}، معاك ${courierName} من شركة الصقر. حضرتك ليك اوردر بمبلغ ${orderAmount} والعنوان: ${fullAddress}. برجاء تأكيد إذا كنت ترغب في الاستلام – التأجيل – أو إلغاء الأوردر.
-شكرًا لك 🌸.`;
+        const message = `أهلاً ${customerName}، معاك ${courierName} من شركة الصقر. حضرتك ليك اوردر بمبلغ ${orderAmount} والعنوان: ${fullAddress}. برجاء تأكيد إذا كنت ترغب في الاستلام – التأجيل – أو إلغاء الأوردر.\nشكرًا لك 🌸.`;
         const encodedMessage = encodeURIComponent(message);
         
         window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');
@@ -51,13 +54,13 @@ export function ShipmentCard({ shipment, governorateName, companyName, onEdit }:
     const handleShareToAdmin = (e: React.MouseEvent) => {
         e.stopPropagation();
 
-        const courierName = courierUser?.displayName || "مندوب";
+        const courierName = authUser?.displayName || "مندوب";
         
         const shipmentDetails = [
             `*تقرير شحنة من ${courierName}*`,
             `--------------------------`,
             `*كود الشحنة:* ${trackingNumber || shipment.shipmentCode}`,
-            `*الشركة:* ${companyName}`,
+            `*الشركة (العميل الرئيسي):* ${companyName}`,
             `*الراسل (العميل الفرعي):* ${senderName || 'غير محدد'}`,
             `*المرسل إليه:* ${recipientName}`,
             `*الهاتف:* ${recipientPhone}`,
@@ -69,7 +72,6 @@ export function ShipmentCard({ shipment, governorateName, companyName, onEdit }:
 
         const encodedMessage = encodeURIComponent(shipmentDetails);
         
-        // This URL will open WhatsApp and let the user choose a contact to send the message to.
         window.open(`whatsapp://send?text=${encodedMessage}`, '_blank');
     }
 
@@ -82,6 +84,20 @@ export function ShipmentCard({ shipment, governorateName, companyName, onEdit }:
         e.stopPropagation();
         onEdit(shipment);
     }
+    
+    const handleDelete = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (onDelete) {
+            onDelete(shipment);
+        }
+    }
+    
+    const handlePrint = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (onPrint) {
+            onPrint(shipment);
+        }
+    }
 
     const timeAgo = createdAt?.toDate ? formatDistanceToNow(createdAt.toDate(), { addSuffix: true, locale: ar }) : '';
 
@@ -89,10 +105,10 @@ export function ShipmentCard({ shipment, governorateName, companyName, onEdit }:
         <Card className="shadow-md border w-full overflow-hidden" onClick={handleEdit}>
             <CardContent className="p-0">
                 {/* Top Bar */}
-                <div className="bg-muted/50 px-3 py-2 flex justify-between items-center text-sm text-muted-foreground border-b">
+                <div className="bg-muted/30 px-3 py-2 flex justify-between items-center text-sm text-muted-foreground border-b">
                      <div className="flex items-center gap-2">
                         <Package className="h-4 w-4"/>
-                        <span className="font-mono">{trackingNumber}</span>
+                        <span className="font-mono">{trackingNumber || shipment.shipmentCode}</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <CalendarDays className="h-4 w-4"/>
@@ -146,20 +162,32 @@ export function ShipmentCard({ shipment, governorateName, companyName, onEdit }:
                         <Share2 className="h-5 w-5" />
                          <span className="sr-only">مشاركة للإدارة</span>
                     </Button>
-                    <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" className="h-9 w-9 text-blue-600" onClick={handlePhoneCall}>
-                            <Phone className="h-5 w-5" />
-                            <span className="sr-only">اتصال</span>
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-9 w-9 text-green-600" onClick={handleWhatsApp}>
-                            <MessageSquare className="h-5 w-5" />
-                            <span className="sr-only">واتساب</span>
-                        </Button>
-                    </div>
+                    
+                    {isAdmin ? (
+                        <div className="flex items-center gap-2">
+                             <Button variant="ghost" size="icon" className="h-9 w-9 text-blue-600" onClick={handlePrint}>
+                                <Printer className="h-5 w-5" />
+                                <span className="sr-only">طباعة</span>
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 text-red-600" onClick={handleDelete}>
+                                <Trash2 className="h-5 w-5" />
+                                <span className="sr-only">حذف</span>
+                            </Button>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <Button variant="ghost" size="icon" className="h-9 w-9 text-blue-600" onClick={handlePhoneCall}>
+                                <Phone className="h-5 w-5" />
+                                <span className="sr-only">اتصال</span>
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 text-green-600" onClick={handleWhatsApp}>
+                                <MessageSquare className="h-5 w-5" />
+                                <span className="sr-only">واتساب</span>
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </CardContent>
         </Card>
     );
 }
-
-    
