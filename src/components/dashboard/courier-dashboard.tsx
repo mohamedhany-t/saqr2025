@@ -141,7 +141,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     ) => {
         const update: { paidAmount?: number; courierCommission?: number; companyCommission?: number; collectedAmount?: number } = {};
         
-        const isSuccess = status === 'Delivered' || status === 'Partially Delivered' || status === 'Evasion';
+        const isSuccess = status === 'Delivered' || status === 'Partially Delivered' || status === 'Evasion' || status === 'Refused (Paid)';
 
         if (isSuccess) {
             update.courierCommission = courierCommissionRate;
@@ -150,10 +150,10 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
             if (status === 'Delivered' || status === 'Evasion') {
                 update.paidAmount = totalAmount;
                 update.collectedAmount = totalAmount;
-            } else { // Partially Delivered
+            } else { // Partially Delivered or Refused (Paid)
                 update.paidAmount = collectedAmount;
             }
-        } else { // Returned, Cancelled, etc.
+        } else { // Returned, Cancelled, Refused (Unpaid) etc.
             update.paidAmount = 0;
             update.courierCommission = 0;
             update.companyCommission = 0;
@@ -291,7 +291,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   
   const { activeShipments, finishedShipments } = React.useMemo(() => {
     if (!shipments) return { activeShipments: [], finishedShipments: [] };
-    const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Evasion', 'Returned to Sender'];
+    const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Evasion', 'Returned to Sender', "Refused (Paid)", "Refused (Unpaid)"];
     const active = shipments.filter(s => !finishedStatuses.includes(s.status));
     const finished = shipments.filter(s => finishedStatuses.includes(s.status));
     return { activeShipments: active, finishedShipments: finished };

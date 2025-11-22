@@ -35,7 +35,9 @@ import {
     CheckSquare,
     AlertTriangle,
     MinusCircle,
-    CalendarClock
+    CalendarClock,
+    ThumbsDown,
+    HandCoins
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -76,6 +78,8 @@ export const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
     Returned: <Archive className="h-4 w-4 text-orange-500" />,
     Postponed: <CalendarClock className="h-4 w-4 text-gray-500" />,
     "Returned to Sender": <Archive className="h-4 w-4 text-orange-700" />,
+    "Refused (Paid)": <HandCoins className="h-4 w-4 text-green-500" />,
+    "Refused (Unpaid)": <ThumbsDown className="h-4 w-4 text-red-500" />,
 }
 
 export const statusVariants: Record<ShipmentStatus, "default" | "secondary" | "destructive" | "outline"> = {
@@ -88,6 +92,8 @@ export const statusVariants: Record<ShipmentStatus, "default" | "secondary" | "d
     Returned: "secondary",
     Postponed: "outline",
     "Returned to Sender": "secondary",
+    "Refused (Paid)": "default",
+    "Refused (Unpaid)": "destructive",
 }
 
 export const statusText: Record<string, string> = {
@@ -99,7 +105,9 @@ export const statusText: Record<string, string> = {
     Cancelled: 'تم الإلغاء',
     Returned: 'مرتجع',
     Postponed: 'مؤجل',
-    'Returned to Sender': 'تم الرجوع للراسل'
+    'Returned to Sender': 'تم الرجوع للراسل',
+    'Refused (Paid)': 'رفض ودفع الشحن',
+    'Refused (Unpaid)': 'رفض ولم يدفع',
 };
 
 const mapStatus = (status: string): ShipmentStatus => {

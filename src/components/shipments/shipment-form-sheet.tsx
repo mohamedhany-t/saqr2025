@@ -40,7 +40,7 @@ const shipmentSchema = z.object({
   address: z.string().min(1, "العنوان مطلوب"),
   totalAmount: z.coerce.number().min(0, "المبلغ يجب أن يكون إيجابي"),
   paidAmount: z.coerce.number().optional(),
-  status: z.enum(["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion", "Cancelled", "Returned", "Postponed", "Returned to Sender"]),
+  status: z.enum(["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion", "Cancelled", "Returned", "Postponed", "Returned to Sender", "Refused (Paid)", "Refused (Unpaid)"]),
   reason: z.string().optional(),
   deliveryDate: z.date().optional(),
   assignedCourierId: z.string().optional(),
@@ -49,10 +49,10 @@ const shipmentSchema = z.object({
   courierCommission: z.coerce.number().optional(),
   companyCommission: z.coerce.number().optional(),
 }).superRefine((data, ctx) => {
-    if (data.status === "Partially Delivered" && (data.collectedAmount === undefined || data.collectedAmount <= 0)) {
+    if ((data.status === "Partially Delivered" || data.status === "Refused (Paid)") && (data.collectedAmount === undefined || data.collectedAmount <= 0)) {
         ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: "المبلغ المحصّل مطلوب في حالة التسليم الجزئي",
+            message: "المبلغ المحصّل مطلوب في هذه الحالة",
             path: ["collectedAmount"],
         });
     }
@@ -297,6 +297,8 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                         <SelectItem value="Partially Delivered">تم التسليم جزئياً</SelectItem>
                                         <SelectItem value="Postponed">مؤجل</SelectItem>
                                         <SelectItem value="Returned to Sender">تم الرجوع للراسل</SelectItem>
+                                        <SelectItem value="Refused (Paid)">رفض ودفع مصاريف شحن</SelectItem>
+                                        <SelectItem value="Refused (Unpaid)">رفض ولم يدفع مصاريف شحن</SelectItem>
                                         <SelectItem value="Evasion">تهرب</SelectItem>
                                         <SelectItem value="Cancelled">تم الإلغاء</SelectItem>
                                         <SelectItem value="Returned">مرتجع</SelectItem>
@@ -306,7 +308,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />
-                    {isCourier && selectedStatus === 'Partially Delivered' && (
+                    {isCourier && (selectedStatus === 'Partially Delivered' || selectedStatus === 'Refused (Paid)') && (
                         <FormField
                             control={form.control}
                             name="collectedAmount"

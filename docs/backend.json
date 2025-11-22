@@ -97,7 +97,7 @@
         "status": {
           "type": "string",
           "description": "Current status of the shipment.",
-          "enum": ["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion", "Cancelled", "Returned", "Postponed", "Returned to Sender"]
+          "enum": ["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion", "Cancelled", "Returned", "Postponed", "Returned to Sender", "Refused (Paid)", "Refused (Unpaid)"]
         },
         "reason": {
           "type": "string",

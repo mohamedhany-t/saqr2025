@@ -25,7 +25,9 @@ export type ShipmentStatus =
   | "Cancelled"
   | "Returned"
   | "Postponed"
-  | "Returned to Sender";
+  | "Returned to Sender"
+  | "Refused (Paid)"
+  | "Refused (Unpaid)";
 
 export type Shipment = {
   id: string;
