@@ -27,7 +27,8 @@ export function ShipmentCard({ shipment, governorateName, companyName, onEdit }:
         status, 
         trackingNumber, 
         reason,
-        createdAt
+        createdAt,
+        senderName
     } = shipment;
 
     const handleWhatsApp = (e: React.MouseEvent) => {
@@ -55,8 +56,9 @@ export function ShipmentCard({ shipment, governorateName, companyName, onEdit }:
         const shipmentDetails = [
             `*تقرير شحنة من ${courierName}*`,
             `--------------------------`,
-            `*كود الشحنة:* ${trackingNumber}`,
-            `*الراسل:* ${companyName}`,
+            `*كود الشحنة:* ${trackingNumber || shipment.shipmentCode}`,
+            `*الشركة:* ${companyName}`,
+            `*الراسل (العميل الفرعي):* ${senderName || 'غير محدد'}`,
             `*المرسل إليه:* ${recipientName}`,
             `*الهاتف:* ${recipientPhone}`,
             `*العنوان:* ${address}, ${governorateName}`,
