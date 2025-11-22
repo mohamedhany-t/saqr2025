@@ -6,25 +6,34 @@ import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import webpush from 'web-push';
 import { z } from 'zod';
+import fs from 'fs';
+import path from 'path';
 
 // This is a workaround to use service account credentials in a Vercel-like environment
 function getServiceAccount() {
-  try {
-    // This will work in local development
-    return require('../../serviceAccountKey.json');
-  } catch (e) {
-    // In a Vercel/production environment, parse the environment variable
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      try {
-        return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-      } catch (parseError) {
-        console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:", parseError);
-        return null;
-      }
+  // Check for environment variable first (for production environments)
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+    try {
+      return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+    } catch (parseError) {
+      console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:", parseError);
+      return null;
     }
-    console.error("Service account key not found. Please set the FIREBASE_SERVICE_ACCOUNT_KEY environment variable or place serviceAccountKey.json in the root.");
-    return null;
   }
+
+  // Fallback to reading the file from the filesystem (for local development)
+  try {
+    const serviceAccountPath = path.resolve(process.cwd(), 'serviceAccountKey.json');
+    if (fs.existsSync(serviceAccountPath)) {
+        const fileContents = fs.readFileSync(serviceAccountPath, 'utf8');
+        return JSON.parse(fileContents);
+    }
+  } catch (e) {
+      console.error("Error reading serviceAccountKey.json from filesystem:", e);
+  }
+
+  console.error("Service account key not found. Please set the FIREBASE_SERVICE_ACCOUNT_KEY environment variable or place serviceAccountKey.json in the root directory.");
+  return null;
 }
 
 // --- Zod Schemas for Input Validation ---
@@ -52,13 +61,13 @@ const pushNotificationSchema = z.object({
 
 // --- Reliable Admin App Initializer ---
 function getAdminApp(): App {
+    if (getApps().length > 0) {
+        return getApps()[0];
+    }
+    
     const serviceAccount = getServiceAccount();
     if (!serviceAccount) {
       throw new Error("Firebase Admin SDK credentials not found or are invalid.");
-    }
-    
-    if (getApps().length > 0) {
-        return getApps()[0];
     }
     
     return initializeApp({
@@ -123,7 +132,7 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
     }
     
     webpush.setVapidDetails(
-        'mailto:support@alsaqr-logistics.com', // Replace with your contact email
+        'mailto:support@alsaqr-logistics.com',
         vapidPublicKey,
         vapidPrivateKey
     );
