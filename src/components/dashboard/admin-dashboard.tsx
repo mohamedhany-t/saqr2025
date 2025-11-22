@@ -810,7 +810,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         const totalCompanyCommission = activeShipments.reduce((acc, s) => acc + (s.companyCommission || 0), 0);
         const totalPaidToCompany = activePayments.reduce((acc, p) => acc + p.amount, 0);
         
-        // Net Due = (Total Collected Revenue) - (Company's Cut) - (Payments already made to them)
         const netDue = (totalRevenue - totalCompanyCommission) - totalPaidToCompany;
         
         const allPayments = companyPayments?.filter(p => p.companyId === company.id) || [];
@@ -870,54 +869,112 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     }
   }
 
-  const renderShipmentList = (shipmentList: Shipment[], listIsLoading: boolean) => {
-    if (listIsLoading) {
-      return (
-        <div className="space-y-3 mt-4">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="p-4 bg-card rounded-lg border">
-                <div className="w-full h-8 bg-muted rounded animate-pulse"/>
-                <div className="w-full h-4 bg-muted rounded animate-pulse mt-3"/>
-                <div className="w-1/2 h-4 bg-muted rounded animate-pulse mt-2"/>
+  const getShipmentsByStatus = (status: ShipmentStatus | ShipmentStatus[]) => {
+    const statuses = Array.isArray(status) ? status : [status];
+    return filteredShipments.filter(s => statuses.includes(s.status));
+  }
+  
+  const MobileShipmentsView = ({
+    listIsLoading
+  }: {
+    listIsLoading: boolean;
+  }) => {
+    const renderShipmentList = (shipmentList: Shipment[]) => {
+        if (listIsLoading) {
+          return (
+            <div className="space-y-3 mt-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="p-4 bg-card rounded-lg border">
+                    <div className="w-full h-8 bg-muted rounded animate-pulse"/>
+                    <div className="w-full h-4 bg-muted rounded animate-pulse mt-3"/>
+                    <div className="w-1/2 h-4 bg-muted rounded animate-pulse mt-2"/>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      );
-    }
-    if (shipmentList.length === 0) {
-      return <div className="text-center py-10 text-muted-foreground">لا توجد شحنات في هذه الفئة.</div>;
-    }
-    return (
-      <div className="space-y-3 mt-4">
-        {shipmentList.map(shipment => (
-          <ShipmentCard 
-            key={shipment.id}
-            shipment={shipment}
-            governorateName={governorates?.find(g => g.id === shipment.governorateId)?.name || ''}
-            companyName={companies?.find(c => c.id === shipment.companyId)?.name || ''}
-            onEdit={() => openShipmentForm(shipment)}
-            onDelete={() => setShipmentToDelete(shipment)}
-            onPrint={() => handlePrintShipment(shipment)}
-          />
-        ))}
-      </div>
-    );
+          );
+        }
+        if (shipmentList.length === 0) {
+          return <div className="text-center py-10 text-muted-foreground">لا توجد شحنات في هذه الفئة.</div>;
+        }
+        return (
+          <div className="space-y-3 mt-4">
+            {shipmentList.map(shipment => (
+              <ShipmentCard 
+                key={shipment.id}
+                shipment={shipment}
+                governorateName={governorates?.find(g => g.id === shipment.governorateId)?.name || ''}
+                companyName={companies?.find(c => c.id === shipment.companyId)?.name || ''}
+                onEdit={() => openShipmentForm(shipment)}
+                onDelete={() => setShipmentToDelete(shipment)}
+                onPrint={() => handlePrintShipment(shipment)}
+              />
+            ))}
+          </div>
+        );
+      }
+      return (
+        <Tabs defaultValue="all-shipments">
+            <TabsList className="flex-nowrap overflow-x-auto justify-start mt-4">
+                <TabsTrigger value="all-shipments">الكل</TabsTrigger>
+                <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
+                <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
+                <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
+                <TabsTrigger value="returned">مرتجعات</TabsTrigger>
+                <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
+                <TabsTrigger value="archived">المؤرشفة</TabsTrigger>
+            </TabsList>
+            <TabsContent value="all-shipments">{renderShipmentList(filteredShipments)}</TabsContent>
+            <TabsContent value="in-transit">{renderShipmentList(getShipmentsByStatus('In-Transit'))}</TabsContent>
+            <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion']))}</TabsContent>
+            <TabsContent value="postponed">{renderShipmentList(getShipmentsByStatus('Postponed'))}</TabsContent>
+            <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled']))}</TabsContent>
+            <TabsContent value="returned-to-sender">{renderShipmentList(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
+            <TabsContent value="archived">{renderShipmentList(archivedShipments)}</TabsContent>
+        </Tabs>
+      )
   }
 
-  const renderShipmentTable = (shipmentList: Shipment[], tableIsLoading: boolean) => (
-    <ShipmentsTable 
-      shipments={shipmentList} 
-      isLoading={tableIsLoading}
-      governorates={governorates || []}
-      companies={companies || []}
-      couriers={courierUsers}
-      onEdit={openShipmentForm}
-      role={role}
-      onBulkUpdate={handleGenericBulkUpdate}
-    />
-  );
+  const DesktopShipmentsView = ({
+    listIsLoading
+  }: {
+    listIsLoading: boolean;
+  }) => {
+    const renderShipmentTable = (shipmentList: Shipment[]) => (
+        <ShipmentsTable 
+          shipments={shipmentList} 
+          isLoading={listIsLoading}
+          governorates={governorates || []}
+          companies={companies || []}
+          couriers={courierUsers}
+          onEdit={openShipmentForm}
+          role={role}
+          onBulkUpdate={handleGenericBulkUpdate}
+        />
+    );
+
+    return (
+        <Tabs defaultValue="all-shipments">
+            <TabsList className="flex-nowrap overflow-x-auto justify-start mt-4">
+                <TabsTrigger value="all-shipments">الكل</TabsTrigger>
+                <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
+                <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
+                <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
+                <TabsTrigger value="returned">مرتجعات</TabsTrigger>
+                <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
+                <TabsTrigger value="archived">المؤرشفة</TabsTrigger>
+            </TabsList>
+            <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments)}</TabsContent>
+            <TabsContent value="in-transit">{renderShipmentTable(getShipmentsByStatus('In-Transit'))}</TabsContent>
+            <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion']))}</TabsContent>
+            <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
+            <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Cancelled']))}</TabsContent>
+            <TabsContent value="returned-to-sender">{renderShipmentTable(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
+            <TabsContent value="archived">{renderShipmentTable(archivedShipments)}</TabsContent>
+        </Tabs>
+    )
+  }
   
-  const renderUserList = (userList: User[], listIsLoading: boolean) => {
+  const MobileUsersView = ({ listIsLoading } : { listIsLoading: boolean }) => {
      if (listIsLoading) {
       return (
         <div className="space-y-3 mt-4">
@@ -930,12 +987,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         </div>
       );
     }
-    if (userList.length === 0) {
+    if ((users || []).length === 0) {
       return <div className="text-center py-10 text-muted-foreground">لا يوجد مستخدمون.</div>;
     }
     return (
         <div className="space-y-3 mt-4">
-            {userList.map(u => (
+            {(users || []).map(u => (
                 <UserCard
                     key={u.id}
                     user={u}
@@ -948,15 +1005,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     );
   }
   
-  const renderUserTable = (userList: User[], tableIsLoading: boolean) => (
-    <UsersTable users={userList || []} isLoading={tableIsLoading} onEdit={openUserForm} onDelete={setUserToDelete}/>
+  const DesktopUsersView = ({ listIsLoading }: { listIsLoading: boolean }) => (
+    <UsersTable users={users || []} isLoading={listIsLoading} onEdit={openUserForm} onDelete={setUserToDelete}/>
   )
-
-
-  const getShipmentsByStatus = (status: ShipmentStatus | ShipmentStatus[]) => {
-    const statuses = Array.isArray(status) ? status : [status];
-    return filteredShipments.filter(s => statuses.includes(s.status));
-  }
 
 
   return (
@@ -996,38 +1047,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         </div>
         <StatsCards shipments={filteredShipments || []} role={role} />
         <TabsContent value="shipments">
-            <Tabs defaultValue="all-shipments">
-                <TabsList className="flex-nowrap overflow-x-auto justify-start mt-4">
-                    <TabsTrigger value="all-shipments">الكل</TabsTrigger>
-                    <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
-                    <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
-                    <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
-                    <TabsTrigger value="returned">مرتجعات</TabsTrigger>
-                    <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
-                    <TabsTrigger value="archived">المؤرشفة</TabsTrigger>
-                </TabsList>
-                 {isMobile ? (
-                    <>
-                        <TabsContent value="all-shipments">{renderShipmentList(filteredShipments, shipmentsLoading)}</TabsContent>
-                        <TabsContent value="in-transit">{renderShipmentList(getShipmentsByStatus('In-Transit'), shipmentsLoading)}</TabsContent>
-                        <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion']), shipmentsLoading)}</TabsContent>
-                        <TabsContent value="postponed">{renderShipmentList(getShipmentsByStatus('Postponed'), shipmentsLoading)}</TabsContent>
-                        <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled']), shipmentsLoading)}</TabsContent>
-                        <TabsContent value="returned-to-sender">{renderShipmentList(getShipmentsByStatus('Returned to Sender'), shipmentsLoading)}</TabsContent>
-                        <TabsContent value="archived">{renderShipmentList(archivedShipments, shipmentsLoading)}</TabsContent>
-                    </>
-                ) : (
-                     <>
-                        <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments, shipmentsLoading)}</TabsContent>
-                        <TabsContent value="in-transit">{renderShipmentTable(getShipmentsByStatus('In-Transit'), shipmentsLoading)}</TabsContent>
-                        <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion']), shipmentsLoading)}</TabsContent>
-                        <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'), shipmentsLoading)}</TabsContent>
-                        <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Cancelled']), shipmentsLoading)}</TabsContent>
-                        <TabsContent value="returned-to-sender">{renderShipmentTable(getShipmentsByStatus('Returned to Sender'), shipmentsLoading)}</TabsContent>
-                        <TabsContent value="archived">{renderShipmentTable(archivedShipments, shipmentsLoading)}</TabsContent>
-                    </>
-                )}
-            </Tabs>
+            {isMobile ? 
+                <MobileShipmentsView listIsLoading={shipmentsLoading} /> : 
+                <DesktopShipmentsView listIsLoading={shipmentsLoading} />
+            }
         </TabsContent>
         <TabsContent value="courier-management">
              <div className="mt-8">
@@ -1260,7 +1283,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                         </UserFormSheet>
                     </div>
                 </div>
-                 {isMobile ? renderUserList(users || [], usersLoading || companiesLoading) : renderUserTable(users || [], usersLoading || companiesLoading)}
+                 {isMobile ? 
+                    <MobileUsersView listIsLoading={usersLoading || companiesLoading} /> : 
+                    <DesktopUsersView listIsLoading={usersLoading || companiesLoading} />
+                 }
             </div>
         </TabsContent>
         <TabsContent value="reports">
@@ -1411,3 +1437,5 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
+
+    
