@@ -15,6 +15,7 @@ import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { UserFormSheet } from "@/components/users/user-form-sheet";
 import { CourierPaymentFormSheet } from "@/components/users/courier-payment-form-sheet";
 import { CompanyPaymentFormSheet } from "@/components/users/company-payment-form-sheet";
+import { ImportProgressDialog, type ImportProgress } from "@/components/shipments/import-progress-dialog";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
@@ -71,6 +72,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  const [importProgress, setImportProgress] = React.useState<ImportProgress | null>(null);
 
   const chatsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.id) return null;
@@ -222,6 +225,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           const worksheet = workbook.Sheets[sheetName];
           const json = utils.sheet_to_json<any>(worksheet);
 
+          setImportProgress({ added: 0, updated: 0, total: json.length, processing: true });
           const batch = writeBatch(firestore);
           let addedCount = 0;
           let updatedCount = 0;
@@ -273,14 +277,16 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                       createdAt: creationDate || serverTimestamp()
                   });
                   addedCount++;
+                  setImportProgress(prev => prev ? { ...prev, added: addedCount } : null);
               } else {
                   const docRef = querySnapshot.docs[0].ref;
                   batch.update(docRef, cleanShipmentData);
                   updatedCount++;
+                  setImportProgress(prev => prev ? { ...prev, updated: updatedCount } : null);
               }
           }
           
-          batch.commit().catch(serverError => {
+          await batch.commit().catch(serverError => {
             const permissionError = new FirestorePermissionError({
                 path: 'shipments',
                 operation: 'write',
@@ -288,18 +294,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             });
             errorEmitter.emit('permission-error', permissionError);
           });
-
-          let toastMessage = "";
-          if (addedCount > 0) toastMessage += `تمت إضافة ${addedCount} شحنة جديدة. `;
-          if (updatedCount > 0) toastMessage += `تم تحديث ${updatedCount} شحنة.`;
           
-          toast({
-            title: "اكتمل الاستيراد بنجاح",
-            description: toastMessage.trim() || "لم يتم العثور على شحنات جديدة أو تحديثات.",
-          });
-
+          setImportProgress(prev => prev ? { ...prev, processing: false } : null);
+          
         } catch (error: any) {
             console.error("Error importing file:", error);
+             setImportProgress(prev => prev ? { ...prev, processing: false, error: "حدث خطأ أثناء معالجة الملف. يرجى التحقق من تنسيق الملف والمحاولة مرة أخرى." } : null);
             const permissionError = new FirestorePermissionError({
                 path: 'shipments',
                 operation: 'write',
@@ -1343,6 +1343,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         onSave={handleSaveCompanyPayment}
         netDue={currentCompanyNetDue}
       />
+       {importProgress && (
+        <ImportProgressDialog
+          progress={importProgress}
+          onClose={() => setImportProgress(null)}
+        />
+      )}
     </div>
   );
 }
