@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { statusText } from "@/components/dashboard/shipments-table";
 import type { Shipment } from "@/lib/types";
-import { Pencil, MessageSquare, Package, CalendarDays, Phone } from "lucide-react";
+import { Pencil, MessageSquare, Package, CalendarDays, Phone, Share2 } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useUser } from "@/firebase";
@@ -46,6 +46,30 @@ export function ShipmentCard({ shipment, governorateName, companyName, onEdit }:
         
         window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');
     };
+
+    const handleShareToAdmin = (e: React.MouseEvent) => {
+        e.stopPropagation();
+
+        const courierName = courierUser?.displayName || "مندوب";
+        
+        const shipmentDetails = [
+            `*تقرير شحنة من ${courierName}*`,
+            `--------------------------`,
+            `*كود الشحنة:* ${trackingNumber}`,
+            `*الراسل:* ${companyName}`,
+            `*المرسل إليه:* ${recipientName}`,
+            `*الهاتف:* ${recipientPhone}`,
+            `*العنوان:* ${address}, ${governorateName}`,
+            `*المبلغ الإجمالي:* ${totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`,
+            `*الحالة الحالية:* ${statusText[status] || status}`,
+            `*ملاحظات المندوب:* ${reason || 'لا يوجد'}`,
+        ].join('\n');
+
+        const encodedMessage = encodeURIComponent(shipmentDetails);
+        
+        // This URL will open WhatsApp and let the user choose a contact to send the message to.
+        window.open(`whatsapp://send?text=${encodedMessage}`, '_blank');
+    }
 
     const handlePhoneCall = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -115,6 +139,10 @@ export function ShipmentCard({ shipment, governorateName, companyName, onEdit }:
                     <Button variant="ghost" size="icon" className="h-9 w-9 text-primary" onClick={handleEdit}>
                         <Pencil className="h-5 w-5" />
                          <span className="sr-only">تعديل</span>
+                    </Button>
+                     <Button variant="ghost" size="icon" className="h-9 w-9 text-purple-600" onClick={handleShareToAdmin}>
+                        <Share2 className="h-5 w-5" />
+                         <span className="sr-only">مشاركة للإدارة</span>
                     </Button>
                     <div className="flex items-center gap-2">
                         <Button variant="ghost" size="icon" className="h-9 w-9 text-blue-600" onClick={handlePhoneCall}>
