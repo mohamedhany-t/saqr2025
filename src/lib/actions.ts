@@ -17,31 +17,42 @@ function getAdminApp(): App {
 
     const serviceAccountKeyFromEnv = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
 
-    if (!serviceAccountKeyFromEnv) {
-        throw new Error("Firebase Admin SDK credentials not found in FIREBASE_SERVICE_ACCOUNT_KEY environment variable.");
-    }
-
-    try {
-        const serviceAccount = JSON.parse(Buffer.from(serviceAccountKeyFromEnv, 'base64').toString('utf-8'));
-
-        if (getApps().length === 0) {
-            adminApp = initializeApp({
-                credential: cert(serviceAccount)
-            });
-        } else {
-            adminApp = getApps()[0];
+    if (serviceAccountKeyFromEnv) {
+        try {
+            const serviceAccount = JSON.parse(Buffer.from(serviceAccountKeyFromEnv, 'base64').toString('utf-8'));
+            if (getApps().length === 0) {
+                adminApp = initializeApp({
+                    credential: cert(serviceAccount)
+                });
+            } else {
+                adminApp = getApps()[0];
+            }
+        } catch (e: any) {
+            console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY from environment variable:", e.message);
+            throw new Error("Firebase Admin SDK initialization failed due to invalid environment variable.");
         }
-
-        if (!adminApp) {
-            throw new Error("Could not initialize Firebase Admin App.");
+    } else {
+        try {
+            // Fallback to reading the file if the env var is not set (for local development)
+            const serviceAccount = require('../../../serviceAccountKey.json');
+            if (getApps().length === 0) {
+                adminApp = initializeApp({
+                    credential: cert(serviceAccount)
+                });
+            } else {
+                adminApp = getApps()[0];
+            }
+        } catch (e: any) {
+            console.error("Failed to initialize Firebase Admin SDK from serviceAccountKey.json:", e.message);
+            throw new Error("Firebase Admin SDK initialization failed. Ensure serviceAccountKey.json exists or FIREBASE_SERVICE_ACCOUNT_KEY is set.");
         }
-
-        return adminApp;
-
-    } catch (e: any) {
-        console.error("Failed to parse or initialize Firebase Admin SDK:", e.message);
-        throw new Error("Firebase Admin SDK initialization failed.");
     }
+    
+    if (!adminApp) {
+        throw new Error("Could not initialize Firebase Admin App.");
+    }
+    
+    return adminApp;
 }
 
 
