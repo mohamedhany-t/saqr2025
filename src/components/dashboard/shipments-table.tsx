@@ -37,7 +37,8 @@ import {
     MinusCircle,
     CalendarClock,
     ThumbsDown,
-    HandCoins
+    HandCoins,
+    Share2
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -118,9 +119,11 @@ type ActionCellProps = {
   row: Row<Shipment>;
   onEdit: (shipment: Shipment) => void;
   role: Role | null;
+  governorates: Governorate[],
+  companies: Company[],
 };
 
-const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role }) => {
+const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role, governorates, companies }) => {
   const shipment = row.original;
   const { toast } = useToast();
 
@@ -128,6 +131,27 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role }) => {
     if (role === 'courier') return; // Couriers can't print
     const printUrl = `/print/${shipment.id}`;
     window.open(printUrl, '_blank', 'width=800,height=600');
+  };
+
+  const handleShare = () => {
+      const companyName = companies.find(c => c.id === shipment.companyId)?.name || 'غير محدد';
+      const governorateName = governorates.find(g => g.id === shipment.governorateId)?.name || 'غير محدد';
+
+      const shipmentDetails = [
+          `*تقرير شحنة*`,
+          `--------------------------`,
+          `*كود الشحنة:* ${shipment.trackingNumber || shipment.shipmentCode}`,
+          `*الراسل:* ${companyName}`,
+          `*المرسل إليه:* ${shipment.recipientName}`,
+          `*الهاتف:* ${shipment.recipientPhone}`,
+          `*العنوان:* ${shipment.address}, ${governorateName}`,
+          `*المبلغ الإجمالي:* ${shipment.totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`,
+          `*الحالة الحالية:* ${statusText[shipment.status] || shipment.status}`,
+          `*ملاحظات:* ${shipment.reason || 'لا يوجد'}`,
+      ].join('\n');
+
+      const encodedMessage = encodeURIComponent(shipmentDetails);
+      window.open(`whatsapp://send?text=${encodedMessage}`, '_blank');
   };
 
 
@@ -143,6 +167,9 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role }) => {
         <DropdownMenuLabel>إجراءات</DropdownMenuLabel>
         <DropdownMenuItem onClick={() => onEdit(shipment)}>
           <Pencil className="ms-2 h-4 w-4" /> تعديل
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleShare}>
+            <Share2 className="ms-2 h-4 w-4" /> مشاركة عبر واتساب
         </DropdownMenuItem>
         {role !== 'courier' && <DropdownMenuItem onClick={handlePrint}>
           <Printer className="ms-2 h-4 w-4" /> طباعة الملصق
@@ -329,6 +356,8 @@ export const getColumns = (
         {...props}
         onEdit={onEdit}
         role={role}
+        governorates={governorates}
+        companies={companies}
       />
     ),
   },
@@ -729,3 +758,5 @@ export function ShipmentsTable({ shipments, isLoading, governorates, companies, 
     </div>
   )
 }
+
+    
