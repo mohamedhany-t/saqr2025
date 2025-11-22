@@ -6,48 +6,27 @@ import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import webpush from 'web-push';
 import { z } from 'zod';
+import path from 'path';
 
 // --- Admin App Initializer ---
 let adminApp: App | null = null;
 
 function getAdminApp(): App {
-    if (adminApp) {
-        return adminApp;
-    }
-
-    const serviceAccountKeyFromEnv = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-
-    if (serviceAccountKeyFromEnv) {
-        try {
-            const serviceAccount = JSON.parse(Buffer.from(serviceAccountKeyFromEnv, 'base64').toString('utf-8'));
-            if (getApps().length === 0) {
-                adminApp = initializeApp({
-                    credential: cert(serviceAccount)
-                });
-            } else {
-                adminApp = getApps()[0];
-            }
-        } catch (e: any) {
-            console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY from environment variable:", e.message);
-            throw new Error("Firebase Admin SDK initialization failed due to invalid environment variable.");
-        }
-    } else {
-        try {
-            // Fallback to reading the file if the env var is not set (for local development)
-            const serviceAccount = require('../../../serviceAccountKey.json');
-            if (getApps().length === 0) {
-                adminApp = initializeApp({
-                    credential: cert(serviceAccount)
-                });
-            } else {
-                adminApp = getApps()[0];
-            }
-        } catch (e: any) {
-            console.error("Failed to initialize Firebase Admin SDK from serviceAccountKey.json:", e.message);
-            throw new Error("Firebase Admin SDK initialization failed. Ensure serviceAccountKey.json exists or FIREBASE_SERVICE_ACCOUNT_KEY is set.");
-        }
+    if (getApps().length > 0) {
+        return getApps()[0];
     }
     
+    try {
+        // Correct path from the project root
+        const serviceAccount = require(path.join(process.cwd(), 'serviceAccountKey.json'));
+        adminApp = initializeApp({
+            credential: cert(serviceAccount)
+        });
+    } catch (e: any) {
+        console.error("Failed to initialize Firebase Admin SDK from serviceAccountKey.json:", e.message);
+        throw new Error("Firebase Admin SDK initialization failed. Ensure serviceAccountKey.json exists at the project root.");
+    }
+
     if (!adminApp) {
         throw new Error("Could not initialize Firebase Admin App.");
     }
@@ -175,3 +154,4 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
         return { success: false, error: error.message };
     }
 }
+
