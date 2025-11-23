@@ -147,7 +147,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     if (!firestore || !user) return null;
     return query(collection(firestore, 'governorates'));
   }, [firestore, user]);
-  const { data: governorates } = useCollection<Governorate>(governoratesQuery);
+  const { data: governorates, isLoading: governoratesLoading } = useCollection<Governorate>(governoratesQuery);
 
   const companiesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -1054,9 +1054,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             </div>
             <TabsContent value="all-shipments">{renderShipmentList(filteredShipments)}</TabsContent>
             <TabsContent value="in-transit">{renderShipmentList(getShipmentsByStatus('In-Transit'))}</TabsContent>
-            <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)']))}</TabsContent>
+            <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentList(getShipmentsByStatus('Postponed'))}</TabsContent>
-            <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled']))}</TabsContent>
+            <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)']))}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentList(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
             <TabsContent value="archived">{renderShipmentList(archivedShipments)}</TabsContent>
         </Tabs>
@@ -1096,9 +1096,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             </TabsList>
             <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments)}</TabsContent>
             <TabsContent value="in-transit">{renderShipmentTable(getShipmentsByStatus('In-Transit'))}</TabsContent>
-            <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)']))}</TabsContent>
+            <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
-            <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Cancelled']))}</TabsContent>
+            <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)']))}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentTable(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
             <TabsContent value="archived">{renderShipmentTable(archivedShipments)}</TabsContent>
         </Tabs>
