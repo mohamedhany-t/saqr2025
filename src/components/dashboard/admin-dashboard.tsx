@@ -1043,6 +1043,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             <div className="flex flex-col gap-4 mt-4">
                 <TabsList className="grid grid-cols-3 h-auto">
                     <TabsTrigger value="all-shipments">الكل</TabsTrigger>
+                    <TabsTrigger value="pending">قيد الانتظار</TabsTrigger>
                     <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
                     <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
                     <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
@@ -1053,6 +1054,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 <Filters />
             </div>
             <TabsContent value="all-shipments">{renderShipmentList(filteredShipments)}</TabsContent>
+            <TabsContent value="pending">{renderShipmentList(getShipmentsByStatus('Pending'))}</TabsContent>
             <TabsContent value="in-transit">{renderShipmentList(getShipmentsByStatus('In-Transit'))}</TabsContent>
             <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentList(getShipmentsByStatus('Postponed'))}</TabsContent>
@@ -1087,6 +1089,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         <Tabs defaultValue="all-shipments">
             <TabsList className="flex-nowrap overflow-x-auto justify-start mt-4">
                 <TabsTrigger value="all-shipments">الكل</TabsTrigger>
+                <TabsTrigger value="pending">قيد الانتظار</TabsTrigger>
                 <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
                 <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
                 <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
@@ -1095,6 +1098,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 <TabsTrigger value="archived">المؤرشفة</TabsTrigger>
             </TabsList>
             <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments)}</TabsContent>
+            <TabsContent value="pending">{renderShipmentTable(getShipmentsByStatus('Pending'))}</TabsContent>
             <TabsContent value="in-transit">{renderShipmentTable(getShipmentsByStatus('In-Transit'))}</TabsContent>
             <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
