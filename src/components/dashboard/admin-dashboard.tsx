@@ -899,13 +899,13 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     return filteredShipments.filter(s => statuses.includes(s.status));
   }
   
-  const Filters = () => {
-    const governorateFilterValue = columnFilters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
-    const companyFilterValue = columnFilters.find(f => f.id === 'companyId')?.value as string[] | undefined;
-    const courierFilterValue = columnFilters.find(f => f.id === 'assignedCourierId')?.value as string[] | undefined;
+  const Filters = ({ filters, onFiltersChange }: { filters: ColumnFiltersState, onFiltersChange: React.Dispatch<React.SetStateAction<ColumnFiltersState>> }) => {
+    const governorateFilterValue = filters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
+    const companyFilterValue = filters.find(f => f.id === 'companyId')?.value as string[] | undefined;
+    const courierFilterValue = filters.find(f => f.id === 'assignedCourierId')?.value as string[] | undefined;
 
     const setFilter = (id: string, value: any) => {
-        setColumnFilters(prev => {
+        onFiltersChange(prev => {
             const newFilters = prev.filter(f => f.id !== id);
             if (value !== undefined && (!Array.isArray(value) || value.length > 0)) {
                 newFilters.push({ id, value });
@@ -1149,7 +1149,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     <TabsTrigger value="archived" className="col-span-3">المؤرشفة</TabsTrigger>
                 </TabsList>
                 <div className="flex items-center gap-4">
-                    <Filters />
+                    <Filters filters={columnFilters} onFiltersChange={setColumnFilters} />
                     {currentList.length > 0 && (
                         <Button variant="outline" size="sm" onClick={handleSelectAll} className="h-8 gap-1">
                             <ListChecks className="h-3.5 w-3.5" />
