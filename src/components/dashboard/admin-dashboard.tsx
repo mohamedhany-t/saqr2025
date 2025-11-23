@@ -3,7 +3,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -39,6 +39,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "../shipments/shipment-card";
 import { ColumnFiltersState } from "@tanstack/react-table";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "../ui/dropdown-menu";
+import AutoAssignPage from "../ai/auto-assign-page";
 
 
 interface AdminDashboardProps {
@@ -1139,6 +1140,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     <UsersTable users={users || []} isLoading={listIsLoading} onEdit={openUserForm} onDelete={setUserToDelete}/>
   )
 
+  const unassignedShipments = React.useMemo(() => {
+    return shipments?.filter(s => !s.assignedCourierId && !s.isArchived) || [];
+  }, [shipments]);
+
 
   return (
     <div className="flex flex-col w-full">
@@ -1150,6 +1155,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
             <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
             <TabsTrigger value="reports">التقارير</TabsTrigger>
+            <TabsTrigger value="ai-tools">
+              <Bot className="w-4 h-4 me-2" />
+              الذكاء الاصطناعي
+            </TabsTrigger>
             <TabsTrigger value="chat" className="relative">
               الدردشة
               {totalUnreadCount > 0 && (
@@ -1429,6 +1438,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 courierPayments={courierPayments || []}
                 isLoading={shipmentsLoading || companiesLoading || usersLoading}
              />
+        </TabsContent>
+        <TabsContent value="ai-tools">
+            <AutoAssignPage 
+                unassignedShipments={unassignedShipments}
+                couriers={courierUsers}
+                governorates={governorates || []}
+                isLoading={shipmentsLoading || usersLoading || governoratesLoading}
+            />
         </TabsContent>
         <TabsContent value="chat">
            <ChatInterface />
