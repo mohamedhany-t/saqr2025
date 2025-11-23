@@ -51,6 +51,127 @@ interface AdminDashboardProps {
   searchTerm: string;
 }
 
+const Filters = ({
+  governorates,
+  companies,
+  courierUsers,
+  onFiltersChange
+}: {
+  governorates: Governorate[];
+  companies: Company[];
+  courierUsers: User[];
+  onFiltersChange: React.Dispatch<React.SetStateAction<ColumnFiltersState>>;
+}) => {
+    const [localFilters, setLocalFilters] = React.useState<ColumnFiltersState>([]);
+
+    React.useEffect(() => {
+        onFiltersChange(localFilters);
+    }, [localFilters, onFiltersChange]);
+
+    const governorateFilterValue = localFilters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
+    const companyFilterValue = localFilters.find(f => f.id === 'companyId')?.value as string[] | undefined;
+    const courierFilterValue = localFilters.find(f => f.id === 'assignedCourierId')?.value as string[] | undefined;
+
+    const setFilter = (id: string, value: any) => {
+        setLocalFilters(prev => {
+            const newFilters = prev.filter(f => f.id !== id);
+            if (value !== undefined && (!Array.isArray(value) || value.length > 0)) {
+                newFilters.push({ id, value });
+            }
+            return newFilters;
+        });
+    };
+
+    return (
+        <div className="flex items-center gap-2 flex-wrap">
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-1">
+                        <ChevronDown className="h-3.5 w-3.5 ms-1" />
+                        <span>
+                            المحافظة
+                            {governorateFilterValue && governorateFilterValue.length > 0 && ` (${governorateFilterValue.length})`}
+                        </span>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                    {(governorates || []).map((governorate) => (
+                    <DropdownMenuCheckboxItem
+                        key={governorate.id}
+                        checked={governorateFilterValue?.includes(governorate.id)}
+                        onCheckedChange={(checked) => {
+                            const current = governorateFilterValue || [];
+                            const newFilter = checked
+                                ? [...current, governorate.id]
+                                : current.filter((id) => id !== governorate.id);
+                            setFilter("governorateId", newFilter.length ? newFilter : undefined);
+                        }}
+                    >
+                        {governorate.name}
+                    </DropdownMenuCheckboxItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-1">
+                         <ChevronDown className="h-3.5 w-3.5 ms-1" />
+                        <span>
+                            الشركة
+                            {companyFilterValue && companyFilterValue.length > 0 && ` (${companyFilterValue.length})`}
+                        </span>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                    {(companies || []).map((company) => (
+                    <DropdownMenuCheckboxItem
+                        key={company.id}
+                        checked={companyFilterValue?.includes(company.id)}
+                        onCheckedChange={(checked) => {
+                            const current = companyFilterValue || [];
+                            const newFilter = checked
+                                ? [...current, company.id]
+                                : current.filter((id) => id !== company.id);
+                            setFilter("companyId", newFilter.length ? newFilter : undefined);
+                        }}
+                    >
+                        {company.name}
+                    </DropdownMenuCheckboxItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-1">
+                         <ChevronDown className="h-3.5 w-3.5 ms-1" />
+                        <span>
+                            المندوب
+                            {courierFilterValue && courierFilterValue.length > 0 && ` (${courierFilterValue.length})`}
+                        </span>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                    {courierUsers.map((courier) => (
+                    <DropdownMenuCheckboxItem
+                        key={courier.id}
+                        checked={courierFilterValue?.includes(courier.id)}
+                        onCheckedChange={(checked) => {
+                            const current = courierFilterValue || [];
+                            const newFilter = checked
+                                ? [...current, courier.id]
+                                : current.filter((id) => id !== courier.id);
+                            setFilter("assignedCourierId", newFilter.length ? newFilter : undefined);
+                        }}
+                    >
+                        {courier.name}
+                    </DropdownMenuCheckboxItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
+    );
+};
+
 export default function AdminDashboard({ user, role, searchTerm }: AdminDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
@@ -899,111 +1020,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     return filteredShipments.filter(s => statuses.includes(s.status));
   }
   
-  const Filters = ({ filters, onFiltersChange }: { filters: ColumnFiltersState, onFiltersChange: React.Dispatch<React.SetStateAction<ColumnFiltersState>> }) => {
-    const governorateFilterValue = filters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
-    const companyFilterValue = filters.find(f => f.id === 'companyId')?.value as string[] | undefined;
-    const courierFilterValue = filters.find(f => f.id === 'assignedCourierId')?.value as string[] | undefined;
-
-    const setFilter = (id: string, value: any) => {
-        onFiltersChange(prev => {
-            const newFilters = prev.filter(f => f.id !== id);
-            if (value !== undefined && (!Array.isArray(value) || value.length > 0)) {
-                newFilters.push({ id, value });
-            }
-            return newFilters;
-        });
-    };
-
-    return (
-        <div className="flex items-center gap-2 flex-wrap">
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 gap-1">
-                        <ChevronDown className="h-3.5 w-3.5 ms-1" />
-                        <span>
-                            المحافظة
-                            {governorateFilterValue && governorateFilterValue.length > 0 && ` (${governorateFilterValue.length})`}
-                        </span>
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                    {(governorates || []).map((governorate) => (
-                    <DropdownMenuCheckboxItem
-                        key={governorate.id}
-                        checked={governorateFilterValue?.includes(governorate.id)}
-                        onCheckedChange={(checked) => {
-                            const current = governorateFilterValue || [];
-                            const newFilter = checked
-                                ? [...current, governorate.id]
-                                : current.filter((id) => id !== governorate.id);
-                            setFilter("governorateId", newFilter.length ? newFilter : undefined);
-                        }}
-                    >
-                        {governorate.name}
-                    </DropdownMenuCheckboxItem>
-                    ))}
-                </DropdownMenuContent>
-            </DropdownMenu>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 gap-1">
-                         <ChevronDown className="h-3.5 w-3.5 ms-1" />
-                        <span>
-                            الشركة
-                            {companyFilterValue && companyFilterValue.length > 0 && ` (${companyFilterValue.length})`}
-                        </span>
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                    {(companies || []).map((company) => (
-                    <DropdownMenuCheckboxItem
-                        key={company.id}
-                        checked={companyFilterValue?.includes(company.id)}
-                        onCheckedChange={(checked) => {
-                            const current = companyFilterValue || [];
-                            const newFilter = checked
-                                ? [...current, company.id]
-                                : current.filter((id) => id !== company.id);
-                            setFilter("companyId", newFilter.length ? newFilter : undefined);
-                        }}
-                    >
-                        {company.name}
-                    </DropdownMenuCheckboxItem>
-                    ))}
-                </DropdownMenuContent>
-            </DropdownMenu>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 gap-1">
-                         <ChevronDown className="h-3.5 w-3.5 ms-1" />
-                        <span>
-                            المندوب
-                            {courierFilterValue && courierFilterValue.length > 0 && ` (${courierFilterValue.length})`}
-                        </span>
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                    {courierUsers.map((courier) => (
-                    <DropdownMenuCheckboxItem
-                        key={courier.id}
-                        checked={courierFilterValue?.includes(courier.id)}
-                        onCheckedChange={(checked) => {
-                            const current = courierFilterValue || [];
-                            const newFilter = checked
-                                ? [...current, courier.id]
-                                : current.filter((id) => id !== courier.id);
-                            setFilter("assignedCourierId", newFilter.length ? newFilter : undefined);
-                        }}
-                    >
-                        {courier.name}
-                    </DropdownMenuCheckboxItem>
-                    ))}
-                </DropdownMenuContent>
-            </DropdownMenu>
-        </div>
-    );
-};
-
   
   const MobileShipmentsView = ({
     listIsLoading
@@ -1149,7 +1165,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     <TabsTrigger value="archived" className="col-span-3">المؤرشفة</TabsTrigger>
                 </TabsList>
                 <div className="flex items-center gap-4">
-                    <Filters filters={columnFilters} onFiltersChange={setColumnFilters} />
+                    <Filters governorates={governorates || []} companies={companies || []} courierUsers={courierUsers} onFiltersChange={setColumnFilters} />
                     {currentList.length > 0 && (
                         <Button variant="outline" size="sm" onClick={handleSelectAll} className="h-8 gap-1">
                             <ListChecks className="h-3.5 w-3.5" />
