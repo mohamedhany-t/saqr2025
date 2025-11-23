@@ -9,6 +9,8 @@ import { Pencil, MessageSquare, Package, CalendarDays, Phone, Share2, Trash2, Pr
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useUser } from "@/firebase";
+import { Checkbox } from "../ui/checkbox";
+import { cn } from "@/lib/utils";
 
 interface ShipmentCardProps {
     shipment: Shipment;
@@ -17,11 +19,23 @@ interface ShipmentCardProps {
     onEdit: (shipment: Shipment) => void;
     onDelete?: (shipment: Shipment) => void;
     onPrint?: (shipment: Shipment) => void;
+    isSelected?: boolean;
+    onSelectToggle?: (id: string) => void;
 }
 
-export function ShipmentCard({ shipment, governorateName, companyName, onEdit, onDelete, onPrint }: ShipmentCardProps) {
+export function ShipmentCard({ 
+    shipment, 
+    governorateName, 
+    companyName, 
+    onEdit, 
+    onDelete, 
+    onPrint,
+    isSelected,
+    onSelectToggle
+}: ShipmentCardProps) {
     const { user: authUser } = useUser();
     const { 
+        id,
         recipientName, 
         recipientPhone, 
         address, 
@@ -99,10 +113,28 @@ export function ShipmentCard({ shipment, governorateName, companyName, onEdit, o
         }
     }
 
+    const handleCardClick = () => {
+        if (onSelectToggle) {
+            onSelectToggle(id);
+        } else {
+            onEdit(shipment);
+        }
+    };
+
     const timeAgo = createdAt?.toDate ? formatDistanceToNow(createdAt.toDate(), { addSuffix: true, locale: ar }) : '';
 
     return (
-        <Card className="shadow-md border w-full overflow-hidden" onClick={handleEdit}>
+        <Card className={cn("shadow-md border w-full overflow-hidden relative", isSelected && "ring-2 ring-primary border-primary")} onClick={handleCardClick}>
+             {onSelectToggle && (
+                 <div className="absolute top-2 left-2 z-10" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => onSelectToggle(id)}
+                        aria-label="Select shipment"
+                        className="h-5 w-5"
+                    />
+                 </div>
+            )}
             <CardContent className="p-0">
                 {/* Top Bar */}
                 <div className="bg-muted/30 px-3 py-2 flex justify-between items-center text-sm text-muted-foreground border-b">

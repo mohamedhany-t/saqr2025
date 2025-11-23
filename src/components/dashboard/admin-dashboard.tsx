@@ -3,7 +3,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -38,8 +38,11 @@ import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotific
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "../shipments/shipment-card";
 import { ColumnFiltersState } from "@tanstack/react-table";
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "../ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import AutoAssignPage from "../ai/auto-assign-page";
+import { statusText } from './shipments-table';
+import { exportToExcel } from "@/lib/export";
+import { getColumns as getShipmentColumns } from './shipments-table';
 
 
 interface AdminDashboardProps {
@@ -83,6 +86,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const [importProgress, setImportProgress] = React.useState<ImportProgress | null>(null);
 
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [mobileRowSelection, setMobileRowSelection] = React.useState<Record<string, boolean>>({});
+
 
   const chatsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.id) return null;
@@ -1005,6 +1010,55 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   }: {
     listIsLoading: boolean;
   }) => {
+
+    const selectedCount = Object.values(mobileRowSelection).filter(Boolean).length;
+
+    const handleMobileBulkUpdate = (update: Partial<Shipment>) => {
+        const selectedIds = Object.keys(mobileRowSelection).filter(id => mobileRowSelection[id]);
+        const selectedShipments = shipments?.filter(s => selectedIds.includes(s.id)) || [];
+        handleGenericBulkUpdate(selectedShipments, update);
+        setMobileRowSelection({});
+    };
+
+    const handleMobileBulkDelete = () => {
+        if (!firestore) return;
+        const selectedIds = Object.keys(mobileRowSelection).filter(id => mobileRowSelection[id]);
+        if (selectedIds.length === 0) {
+            toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
+            return;
+        }
+
+        const batch = writeBatch(firestore);
+        selectedIds.forEach(id => {
+            const docRef = doc(firestore, "shipments", id);
+            batch.delete(docRef);
+        });
+
+        batch.commit().then(() => {
+            toast({ title: `تم حذف ${selectedIds.length} شحنة بنجاح` });
+            setMobileRowSelection({});
+        }).catch(serverError => {
+            const permissionError = new FirestorePermissionError({
+                path: 'shipments',
+                operation: 'delete',
+                requestResourceData: { note: `Bulk delete of ${selectedIds.length} documents.` }
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
+    };
+
+    const handleExport = () => {
+        const selectedIds = Object.keys(mobileRowSelection).filter(id => mobileRowSelection[id]);
+        const dataToExport = shipments?.filter(s => selectedIds.includes(s.id)) || [];
+        if (dataToExport.length === 0) {
+          toast({ title: "لا توجد بيانات للتصدير", variant: "destructive" });
+          return;
+        }
+        const shipmentColumns = getShipmentColumns(governorates || [], companies || [], courierUsers, openShipmentForm, role);
+        exportToExcel(dataToExport, shipmentColumns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates || [], companies || [], courierUsers);
+        setMobileRowSelection({});
+    }
+
     const renderShipmentList = (shipmentList: Shipment[]) => {
         if (listIsLoading) {
           return (
@@ -1033,6 +1087,13 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 onEdit={() => openShipmentForm(shipment)}
                 onDelete={() => setShipmentToDelete(shipment)}
                 onPrint={() => handlePrintShipment(shipment)}
+                isSelected={!!mobileRowSelection[shipment.id]}
+                onSelectToggle={(id) => {
+                    setMobileRowSelection(prev => ({
+                        ...prev,
+                        [id]: !prev[id]
+                    }));
+                }}
               />
             ))}
           </div>
@@ -1061,6 +1122,33 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)']))}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentList(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
             <TabsContent value="archived">{renderShipmentList(archivedShipments)}</TabsContent>
+            {selectedCount > 0 && (
+                <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-2 shadow-lg flex items-center justify-around gap-2 z-40">
+                     <span className="text-sm font-medium">{selectedCount} شحنات محددة</span>
+                     <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                             <Button variant="outline" size="sm">
+                                <CheckSquare className="me-2 h-4 w-4" />
+                                <span>تغيير الحالة</span>
+                             </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            {Object.entries(statusText).map(([statusValue, statusLabel]) => (
+                                 <DropdownMenuItem key={statusValue} onSelect={() => handleMobileBulkUpdate({ status: statusValue as ShipmentStatus })}>
+                                     {statusLabel}
+                                 </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button variant="outline" size="sm" onClick={handleExport}>
+                        <FileUp className="me-2 h-4 w-4" />
+                        تصدير
+                    </Button>
+                    <Button variant="destructive" size="icon" onClick={handleMobileBulkDelete}>
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                </div>
+            )}
         </Tabs>
       )
   }
@@ -1189,7 +1277,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             </div>
         </div>
         <StatsCards shipments={shipments?.filter(s => !s.isArchived) || []} role={role} />
-        <TabsContent value="shipments">
+        <TabsContent value="shipments" className={isMobile ? "pb-20" : ""}>
             {isMobile ? 
                 <MobileShipmentsView listIsLoading={shipmentsLoading} /> : 
                 <DesktopShipmentsView listIsLoading={shipmentsLoading} />
