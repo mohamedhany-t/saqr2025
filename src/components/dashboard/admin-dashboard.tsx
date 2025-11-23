@@ -3,7 +3,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -262,14 +262,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
               const shipmentData: Partial<Shipment> = {
                   senderName: senderNameValue,
                   orderNumber: orderNumberValue,
-                  recipientName: row['المرسل اليه'],
-                  recipientPhone: row['التليفون']?.toString(),
+                  recipientName: String(row['المرسل اليه']),
+                  recipientPhone: String(row['التليفون']?.toString()),
                   governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
-                  address: row['العنوان'] || 'N/A',
+                  address: String(row['العنوان'] || 'N/A'),
                   totalAmount: parseFloat(String(totalAmountValue).replace(/[^0-9.]/g, '')),
                   paidAmount: parseFloat(String(row['المدفوع'] || '0').replace(/[^0-9.]/g, '')),
                   status: row['حالة الأوردر'] || 'Pending',
-                  reason: row['السبب'] || '',
+                  reason: String(row['السبب'] || ''),
                   deliveryDate: deliveryDate || new Date(),
                   updatedAt: serverTimestamp(),
                   isArchived: false,
@@ -1011,6 +1011,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     listIsLoading: boolean;
   }) => {
 
+    const [activeTab, setActiveTab] = React.useState("all-shipments");
     const selectedCount = Object.values(mobileRowSelection).filter(Boolean).length;
 
     const handleMobileBulkUpdate = (update: Partial<Shipment>) => {
@@ -1059,6 +1060,41 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         setMobileRowSelection({});
     }
 
+    const getCurrentShipmentList = () => {
+      switch (activeTab) {
+        case "pending": return getShipmentsByStatus('Pending');
+        case "in-transit": return getShipmentsByStatus('In-Transit');
+        case "delivered": return getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']);
+        case "postponed": return getShipmentsByStatus('Postponed');
+        case "returned": return getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)']);
+        case "returned-to-sender": return getShipmentsByStatus('Returned to Sender');
+        case "archived": return archivedShipments;
+        case "all-shipments":
+        default: return filteredShipments;
+      }
+    };
+
+    const currentList = getCurrentShipmentList();
+    const areAllSelected = currentList.length > 0 && currentList.every(s => mobileRowSelection[s.id]);
+
+    const handleSelectAll = () => {
+        const newSelection: Record<string, boolean> = {};
+        if (areAllSelected) { // If all are selected, unselect all
+            setMobileRowSelection({});
+        } else { // Otherwise, select all in current list
+            currentList.forEach(s => {
+                newSelection[s.id] = true;
+            });
+            setMobileRowSelection(newSelection);
+        }
+    };
+
+    React.useEffect(() => {
+        // Reset selection when tab changes
+        setMobileRowSelection({});
+    }, [activeTab]);
+
+
     const renderShipmentList = (shipmentList: Shipment[]) => {
         if (listIsLoading) {
           return (
@@ -1100,7 +1136,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         );
       }
       return (
-        <Tabs defaultValue="all-shipments">
+        <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
             <div className="flex flex-col gap-4 mt-4">
                 <TabsList className="grid grid-cols-3 h-auto">
                     <TabsTrigger value="all-shipments">الكل</TabsTrigger>
@@ -1112,7 +1148,15 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
                     <TabsTrigger value="archived" className="col-span-3">المؤرشفة</TabsTrigger>
                 </TabsList>
-                <Filters />
+                <div className="flex items-center gap-4">
+                    <Filters />
+                    {currentList.length > 0 && (
+                        <Button variant="outline" size="sm" onClick={handleSelectAll} className="h-8 gap-1">
+                            <ListChecks className="h-3.5 w-3.5" />
+                            <span>{areAllSelected ? 'إلغاء تحديد الكل' : 'تحديد الكل'}</span>
+                        </Button>
+                    )}
+                </div>
             </div>
             <TabsContent value="all-shipments">{renderShipmentList(filteredShipments)}</TabsContent>
             <TabsContent value="pending">{renderShipmentList(getShipmentsByStatus('Pending'))}</TabsContent>
