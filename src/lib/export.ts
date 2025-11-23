@@ -18,8 +18,13 @@ const getHeader = (columnDef: ColumnDef<any, any>): string => {
     }
     const key = (columnDef as any).accessorKey;
     if (typeof key === 'string') {
-        const result = key.replace(/([A-Z])/g, " $1");
-        return result.charAt(0).toUpperCase() + result.slice(1);
+        switch(key) {
+            case 'totalAmount': return 'الاجمالي';
+            case 'paidAmount': return 'المدفوع';
+            default:
+                const result = key.replace(/([A-Z])/g, " $1");
+                return result.charAt(0).toUpperCase() + result.slice(1);
+        }
     }
     return '';
 }
@@ -56,7 +61,7 @@ const getCellValue = (
                 'In-Transit': 'قيد التوصيل',
                 Delivered: 'تم التسليم',
                 'Partially Delivered': 'تم التسليم جزئياً',
-                'Evasion (Phone)': 'تهرب من الاستلام هاتفيا',
+                'Evasion (Phone)': 'تهرب هاتفيًا',
                 'Evasion (Delivery Attempt)': 'تهرب بعد التنسيق والوصول',
                 Cancelled: 'تم الإلغاء',
                 Returned: 'مرتجع',
