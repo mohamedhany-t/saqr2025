@@ -1,3 +1,4 @@
+
 import type { ColumnDef } from '@tanstack/react-table';
 import { Workbook } from 'exceljs';
 import jsPDF from 'jspdf';
@@ -55,12 +56,14 @@ const getCellValue = (
                 'In-Transit': 'قيد التوصيل',
                 Delivered: 'تم التسليم',
                 'Partially Delivered': 'تم التسليم جزئياً',
-                'Evasion (Phone)': 'تهرب هاتفيًا',
-                'Evasion (Delivery Attempt)': 'تهرب بعد الوصول',
+                'Evasion (Phone)': 'تهرب من الاستلام هاتفيا',
+                'Evasion (Delivery Attempt)': 'تهرب بعد التنسيق والوصول',
                 Cancelled: 'تم الإلغاء',
                 Returned: 'مرتجع',
                 Postponed: 'مؤجل',
-                'Returned to Sender': 'تم الرجوع للراسل'
+                'Returned to Sender': 'تم الرجوع للراسل',
+                'Refused (Paid)': 'رفض ودفع مصاريف شحن',
+                'Refused (Unpaid)': 'رفض ولم يدفع مصاريف شحن',
             };
              const statusKey = value as keyof typeof statusTextMap;
              return statusTextMap[statusKey] || value;
