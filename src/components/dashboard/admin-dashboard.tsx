@@ -749,11 +749,11 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     if (!searchTerm) return activeShipments;
     const lowercasedTerm = searchTerm.toLowerCase();
     return activeShipments.filter(shipment => 
-        shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
-        shipment.orderNumber?.toLowerCase().includes(lowercasedTerm) ||
-        shipment.recipientName?.toLowerCase().includes(lowercasedTerm) ||
-        shipment.trackingNumber?.toLowerCase().includes(lowercasedTerm) ||
-        shipment.address?.toLowerCase().includes(lowercasedTerm)
+        String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
+        String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
+        String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
+        String(shipment.trackingNumber || '').toLowerCase().includes(lowercasedTerm) ||
+        String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
     );
   }, [shipments, searchTerm]);
   
@@ -762,11 +762,11 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
      if (!searchTerm) return archived;
     const lowercasedTerm = searchTerm.toLowerCase();
     return archived.filter(shipment => 
-        shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
-        shipment.orderNumber?.toLowerCase().includes(lowercasedTerm) ||
-        shipment.recipientName?.toLowerCase().includes(lowercasedTerm) ||
-        shipment.trackingNumber?.toLowerCase().includes(lowercasedTerm) ||
-        shipment.address?.toLowerCase().includes(lowercasedTerm)
+        String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
+        String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
+        String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
+        String(shipment.trackingNumber || '').toLowerCase().includes(lowercasedTerm) ||
+        String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
     );
   }, [shipments, searchTerm]);
 
@@ -810,7 +810,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         const totalCompanyCommission = activeShipments.reduce((acc, s) => acc + (s.companyCommission || 0), 0);
         const totalPaidToCompany = activePayments.reduce((acc, p) => acc + p.amount, 0);
         
-        const netDue = (totalRevenue - totalCompanyCommission) - totalPaidToCompany;
+        const netDue = totalRevenue - totalCompanyCommission - totalPaidToCompany;
         
         const allPayments = companyPayments?.filter(p => p.companyId === company.id) || [];
 
@@ -1437,5 +1437,3 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
-
-    
