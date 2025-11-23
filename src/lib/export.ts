@@ -6,6 +6,7 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import type { Shipment, Governorate, Company, User } from './types';
 import React from 'react';
+import { useToast } from '@/hooks/use-toast';
 
 
 // Extend jsPDF with autoTable
@@ -101,7 +102,9 @@ export const exportToExcel = (
   users: User[],
 ) => {
   if (!data || data.length === 0) {
-    console.error("No data to export");
+    // This part now primarily serves as a safeguard.
+    // The calling component should handle the user-facing notification.
+    console.error("No data to export. This should have been caught by the calling component.");
     return;
   }
   const workbook = new Workbook();
@@ -201,3 +204,5 @@ export const exportToPDF = (
 
     doc.save('shipments_report.pdf');
 };
+
+    

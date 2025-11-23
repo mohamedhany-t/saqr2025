@@ -1,5 +1,4 @@
 
-
 "use client";
 import React, { useState } from 'react';
 import type { Shipment, Company, User, Governorate, CourierPayment, CompanyPayment, ShipmentStatus } from '@/lib/types';
@@ -9,6 +8,7 @@ import { FileUp, Loader2 } from 'lucide-react';
 import { exportToExcel } from '@/lib/export';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { statusText } from '../dashboard/shipments-table';
+import { useToast } from '@/hooks/use-toast';
 
 interface ReportsPageProps {
     shipments: Shipment[];
@@ -35,6 +35,7 @@ export function ReportsPage({
     const [selectedCourierId, setSelectedCourierId] = useState<string | null>(null);
     const [companyReportStatus, setCompanyReportStatus] = useState<ReportStatusFilter>('all');
     const [courierReportStatus, setCourierReportStatus] = useState<ReportStatusFilter>('all');
+    const { toast } = useToast();
 
     if (isLoading) {
         return (
@@ -45,6 +46,14 @@ export function ReportsPage({
     }
     
     const handleExport = (data: any[], type: string, fileName: string) => {
+        if (!data || data.length === 0) {
+            toast({
+                title: "لا توجد بيانات للتصدير",
+                description: "لم يتم العثور على بيانات تطابق الفلاتر المحددة.",
+                variant: "default"
+            });
+            return;
+        }
         const reportColumns = getReportColumns(type);
         exportToExcel(data, reportColumns, fileName, governorates, companies, couriers);
     };
@@ -288,3 +297,5 @@ export function ReportsPage({
         </div>
     )
 }
+
+    
