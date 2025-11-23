@@ -22,13 +22,14 @@ import {
 import { sendPushNotification } from '@/lib/actions';
 
 interface AutoAssignPageProps {
+  shipments: Shipment[]; // Pass all shipments to calculate active count
   unassignedShipments: Shipment[];
   couriers: User[];
   governorates: Governorate[];
   isLoading: boolean;
 }
 
-const AutoAssignPage: React.FC<AutoAssignPageProps> = ({ unassignedShipments, couriers, governorates, isLoading }) => {
+const AutoAssignPage: React.FC<AutoAssignPageProps> = ({ shipments, unassignedShipments, couriers, governorates, isLoading }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
   const [suggestions, setSuggestions] = useState<AssignmentOutput['assignments'] | null>(null);
@@ -36,8 +37,8 @@ const AutoAssignPage: React.FC<AutoAssignPageProps> = ({ unassignedShipments, co
   const firestore = useFirestore();
 
   const couriersWithStats = couriers.map(courier => {
-      // In a real app, you'd calculate this from the main shipments list
-      const activeShipments = 0; // Placeholder
+      // Calculate the number of active shipments for each courier from the main list
+      const activeShipments = shipments.filter(s => s.assignedCourierId === courier.id && !s.isArchived).length;
       return { ...courier, activeShipments };
   });
 
@@ -87,7 +88,7 @@ const AutoAssignPage: React.FC<AutoAssignPageProps> = ({ unassignedShipments, co
     toast({ title: "جاري تنفيذ التعيينات..." });
 
     const batch = writeBatch(firestore);
-    const notificationsToSend: { recipientId: string; count: number } = {};
+    const notificationsToSend: { [courierId: string]: number } = {};
 
     suggestions.forEach(suggestion => {
         const shipmentRef = doc(firestore, 'shipments', suggestion.shipmentId);
@@ -289,5 +290,3 @@ const AutoAssignPage: React.FC<AutoAssignPageProps> = ({ unassignedShipments, co
 };
 
 export default AutoAssignPage;
-
-    

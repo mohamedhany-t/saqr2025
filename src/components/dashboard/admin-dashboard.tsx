@@ -1056,7 +1056,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             <TabsContent value="in-transit">{renderShipmentList(getShipmentsByStatus('In-Transit'))}</TabsContent>
             <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentList(getShipmentsByStatus('Postponed'))}</TabsContent>
-            <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)']))}</TabsContent>
+            <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)']))}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentList(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
             <TabsContent value="archived">{renderShipmentList(archivedShipments)}</TabsContent>
         </Tabs>
@@ -1098,7 +1098,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             <TabsContent value="in-transit">{renderShipmentTable(getShipmentsByStatus('In-Transit'))}</TabsContent>
             <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
-            <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)']))}</TabsContent>
+            <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)']))}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentTable(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
             <TabsContent value="archived">{renderShipmentTable(archivedShipments)}</TabsContent>
         </Tabs>
@@ -1441,6 +1441,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         </TabsContent>
         <TabsContent value="ai-tools">
             <AutoAssignPage 
+                shipments={shipments || []}
                 unassignedShipments={unassignedShipments}
                 couriers={courierUsers}
                 governorates={governorates || []}
