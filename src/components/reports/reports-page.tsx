@@ -2,7 +2,7 @@
 
 "use client";
 import React, { useState } from 'react';
-import type { Shipment, Company, User, Governorate, CourierPayment, CompanyPayment } from '@/lib/types';
+import type { Shipment, Company, User, Governorate, CourierPayment, CompanyPayment, ShipmentStatus } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../ui/card';
 import { Button } from '../ui/button';
 import { FileUp, Loader2 } from 'lucide-react';
@@ -19,6 +19,8 @@ interface ReportsPageProps {
     isLoading: boolean;
 }
 
+type ReportStatusFilter = 'all' | 'delivered' | 'returned';
+
 export function ReportsPage({
     shipments,
     companies,
@@ -30,6 +32,8 @@ export function ReportsPage({
 }: ReportsPageProps) {
     const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
     const [selectedCourierId, setSelectedCourierId] = useState<string | null>(null);
+    const [companyReportStatus, setCompanyReportStatus] = useState<ReportStatusFilter>('all');
+    const [courierReportStatus, setCourierReportStatus] = useState<ReportStatusFilter>('all');
 
     if (isLoading) {
         return (
@@ -93,8 +97,11 @@ export function ReportsPage({
         }
     }
 
-    const deliveredShipments = shipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered' || s.status === 'Evasion (Delivery Attempt)');
-    const returnedShipments = shipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled' || s.status === 'Returned to Sender' || s.status === 'Evasion (Phone)');
+    const deliveredShipmentStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'];
+    const returnedShipmentStatuses: ShipmentStatus[] = ['Returned', 'Cancelled', 'Returned to Sender', 'Evasion (Phone)', 'Refused (Unpaid)'];
+
+    const deliveredShipments = shipments.filter(s => deliveredShipmentStatuses.includes(s.status));
+    const returnedShipments = shipments.filter(s => returnedShipmentStatuses.includes(s.status));
 
     const courierFinancials = couriers.map(courier => {
         const courierShipments = shipments.filter(s => s.assignedCourierId === courier.id);
@@ -138,12 +145,25 @@ export function ReportsPage({
         { title: "التقرير المالي للشركات", description: "ملخص مالي لجميع الشركات.", data: companyFinancials, type: 'company_financials', fileName: 'company_financials' },
     ]
 
+    const filterShipmentsByStatus = (shipments: Shipment[], statusFilter: ReportStatusFilter) => {
+        switch (statusFilter) {
+            case 'delivered':
+                return shipments.filter(s => deliveredShipmentStatuses.includes(s.status));
+            case 'returned':
+                return shipments.filter(s => returnedShipmentStatuses.includes(s.status));
+            case 'all':
+            default:
+                return shipments;
+        }
+    };
+
     const handleExportCompanyReport = () => {
         if (!selectedCompanyId) return;
         const company = companies.find(c => c.id === selectedCompanyId);
         if (!company) return;
         const companyShipments = shipments.filter(s => s.companyId === selectedCompanyId);
-        handleExport(companyShipments, 'company_shipments', `shipments_${company.name.replace(/\s/g, '_')}`);
+        const filteredData = filterShipmentsByStatus(companyShipments, companyReportStatus);
+        handleExport(filteredData, 'company_shipments', `shipments_${company.name.replace(/\s/g, '_')}_${companyReportStatus}`);
     };
 
     const handleExportCourierReport = () => {
@@ -151,7 +171,8 @@ export function ReportsPage({
         const courier = couriers.find(c => c.id === selectedCourierId);
         if (!courier) return;
         const courierShipments = shipments.filter(s => s.assignedCourierId === selectedCourierId);
-        handleExport(courierShipments, 'courier_shipments', `shipments_${courier.name?.replace(/\s/g, '_')}`);
+        const filteredData = filterShipmentsByStatus(courierShipments, courierReportStatus);
+        handleExport(filteredData, 'courier_shipments', `shipments_${courier.name?.replace(/\s/g, '_')}_${courierReportStatus}`);
     };
 
     return (
@@ -184,12 +205,12 @@ export function ReportsPage({
              <div className="mb-8">
                 <h2 className="text-2xl font-bold mb-2">تقارير الشركات المخصصة</h2>
                 <p className="text-muted-foreground">
-                    اختر شركة لاستخراج تقرير مفصل بجميع شحناتها.
+                    اختر شركة و حالة الشحنات لاستخراج تقرير مفصل.
                 </p>
                  <div className="mt-4">
                      <Card>
                         <CardContent className="pt-6">
-                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                                  <div className="md:col-span-2">
                                      <label className="text-sm font-medium mb-2 block">اختر الشركة</label>
                                      <Select dir="rtl" onValueChange={setSelectedCompanyId} value={selectedCompanyId || ''}>
@@ -201,9 +222,22 @@ export function ReportsPage({
                                          </SelectContent>
                                      </Select>
                                  </div>
+                                 <div>
+                                     <label className="text-sm font-medium mb-2 block">فلترة حسب الحالة</label>
+                                     <Select dir="rtl" onValueChange={(value) => setCompanyReportStatus(value as ReportStatusFilter)} value={companyReportStatus}>
+                                         <SelectTrigger>
+                                             <SelectValue placeholder="اختر الحالة..." />
+                                         </SelectTrigger>
+                                         <SelectContent>
+                                             <SelectItem value="all">الكل</SelectItem>
+                                             <SelectItem value="delivered">تم التسليم</SelectItem>
+                                             <SelectItem value="returned">مرتجع</SelectItem>
+                                         </SelectContent>
+                                     </Select>
+                                 </div>
                                  <Button onClick={handleExportCompanyReport} disabled={!selectedCompanyId}>
                                      <FileUp className="me-2 h-4 w-4" />
-                                     تصدير تقرير الشحنات
+                                     تصدير التقرير
                                  </Button>
                              </div>
                         </CardContent>
@@ -214,12 +248,12 @@ export function ReportsPage({
             <div>
                 <h2 className="text-2xl font-bold mb-2">تقارير المناديب المخصصة</h2>
                 <p className="text-muted-foreground">
-                    اختر مندوبًا لاستخراج تقرير مفصل بجميع شحناته.
+                    اختر مندوبًا و حالة الشحنات لاستخراج تقرير مفصل.
                 </p>
                 <div className="mt-4">
                      <Card>
                         <CardContent className="pt-6">
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                                   <div className="md:col-span-2">
                                      <label className="text-sm font-medium mb-2 block">اختر المندوب</label>
                                      <Select dir="rtl" onValueChange={setSelectedCourierId} value={selectedCourierId || ''}>
@@ -231,9 +265,22 @@ export function ReportsPage({
                                          </SelectContent>
                                      </Select>
                                   </div>
+                                   <div>
+                                     <label className="text-sm font-medium mb-2 block">فلترة حسب الحالة</label>
+                                     <Select dir="rtl" onValueChange={(value) => setCourierReportStatus(value as ReportStatusFilter)} value={courierReportStatus}>
+                                         <SelectTrigger>
+                                             <SelectValue placeholder="اختر الحالة..." />
+                                         </SelectTrigger>
+                                         <SelectContent>
+                                             <SelectItem value="all">الكل</SelectItem>
+                                             <SelectItem value="delivered">تم التسليم</SelectItem>
+                                             <SelectItem value="returned">مرتجع</SelectItem>
+                                         </SelectContent>
+                                     </Select>
+                                 </div>
                                   <Button onClick={handleExportCourierReport} disabled={!selectedCourierId}>
                                       <FileUp className="me-2 h-4 w-4" />
-                                      تصدير تقرير الشحنات
+                                      تصدير التقرير
                                   </Button>
                               </div>
                         </CardContent>
