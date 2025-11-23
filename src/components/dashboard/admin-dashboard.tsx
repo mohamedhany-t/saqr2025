@@ -3,7 +3,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,6 +37,8 @@ import { ReportsPage } from "../reports/reports-page";
 import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotification } from "@/lib/actions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "../shipments/shipment-card";
+import { ColumnFiltersState } from "@tanstack/react-table";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "../ui/dropdown-menu";
 
 
 interface AdminDashboardProps {
@@ -78,6 +80,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const searchParams = useSearchParams();
 
   const [importProgress, setImportProgress] = React.useState<ImportProgress | null>(null);
+
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
 
   const chatsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.id) return null;
@@ -745,17 +749,31 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
 
   const filteredShipments = React.useMemo(() => {
-    const activeShipments = shipments?.filter(shipment => !shipment.isArchived) || [];
-    if (!searchTerm) return activeShipments;
+    let baseShipments = shipments?.filter(shipment => !shipment.isArchived) || [];
+
+    // Apply column filters
+    if (columnFilters.length > 0) {
+        baseShipments = baseShipments.filter(shipment => {
+            return columnFilters.every(filter => {
+                const value = (shipment as any)[filter.id];
+                const filterValue = filter.value as string[];
+                return filterValue.includes(value);
+            });
+        });
+    }
+
+    if (!searchTerm) return baseShipments;
+    
     const lowercasedTerm = searchTerm.toLowerCase();
-    return activeShipments.filter(shipment => 
+    return baseShipments.filter(shipment => 
         String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
+        String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.trackingNumber || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
     );
-  }, [shipments, searchTerm]);
+  }, [shipments, searchTerm, columnFilters]);
   
   const archivedShipments = React.useMemo(() => {
     const archived = shipments?.filter(shipment => shipment.isArchived) || [];
@@ -765,6 +783,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
+        String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.trackingNumber || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
     );
@@ -874,6 +893,112 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     return filteredShipments.filter(s => statuses.includes(s.status));
   }
   
+  const Filters = () => {
+    const governorateFilterValue = columnFilters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
+    const companyFilterValue = columnFilters.find(f => f.id === 'companyId')?.value as string[] | undefined;
+    const courierFilterValue = columnFilters.find(f => f.id === 'assignedCourierId')?.value as string[] | undefined;
+
+    const setFilter = (id: string, value: any) => {
+        setColumnFilters(prev => {
+            const newFilters = prev.filter(f => f.id !== id);
+            if (value !== undefined && (!Array.isArray(value) || value.length > 0)) {
+                newFilters.push({ id, value });
+            }
+            return newFilters;
+        });
+    };
+
+    return (
+        <div className="flex items-center gap-2 flex-wrap">
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-1">
+                        <ChevronDown className="h-3.5 w-3.5 ms-1" />
+                        <span>
+                            المحافظة
+                            {governorateFilterValue && governorateFilterValue.length > 0 && ` (${governorateFilterValue.length})`}
+                        </span>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                    {(governorates || []).map((governorate) => (
+                    <DropdownMenuCheckboxItem
+                        key={governorate.id}
+                        checked={governorateFilterValue?.includes(governorate.id)}
+                        onCheckedChange={(checked) => {
+                            const current = governorateFilterValue || [];
+                            const newFilter = checked
+                                ? [...current, governorate.id]
+                                : current.filter((id) => id !== governorate.id);
+                            setFilter("governorateId", newFilter.length ? newFilter : undefined);
+                        }}
+                    >
+                        {governorate.name}
+                    </DropdownMenuCheckboxItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-1">
+                         <ChevronDown className="h-3.5 w-3.5 ms-1" />
+                        <span>
+                            الشركة
+                            {companyFilterValue && companyFilterValue.length > 0 && ` (${companyFilterValue.length})`}
+                        </span>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                    {(companies || []).map((company) => (
+                    <DropdownMenuCheckboxItem
+                        key={company.id}
+                        checked={companyFilterValue?.includes(company.id)}
+                        onCheckedChange={(checked) => {
+                            const current = companyFilterValue || [];
+                            const newFilter = checked
+                                ? [...current, company.id]
+                                : current.filter((id) => id !== company.id);
+                            setFilter("companyId", newFilter.length ? newFilter : undefined);
+                        }}
+                    >
+                        {company.name}
+                    </DropdownMenuCheckboxItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-1">
+                         <ChevronDown className="h-3.5 w-3.5 ms-1" />
+                        <span>
+                            المندوب
+                            {courierFilterValue && courierFilterValue.length > 0 && ` (${courierFilterValue.length})`}
+                        </span>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                    {courierUsers.map((courier) => (
+                    <DropdownMenuCheckboxItem
+                        key={courier.id}
+                        checked={courierFilterValue?.includes(courier.id)}
+                        onCheckedChange={(checked) => {
+                            const current = courierFilterValue || [];
+                            const newFilter = checked
+                                ? [...current, courier.id]
+                                : current.filter((id) => id !== courier.id);
+                            setFilter("assignedCourierId", newFilter.length ? newFilter : undefined);
+                        }}
+                    >
+                        {courier.name}
+                    </DropdownMenuCheckboxItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
+    );
+};
+
+  
   const MobileShipmentsView = ({
     listIsLoading
   }: {
@@ -914,15 +1039,18 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       }
       return (
         <Tabs defaultValue="all-shipments">
-            <TabsList className="flex-nowrap overflow-x-auto justify-start mt-4">
-                <TabsTrigger value="all-shipments">الكل</TabsTrigger>
-                <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
-                <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
-                <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
-                <TabsTrigger value="returned">مرتجعات</TabsTrigger>
-                <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
-                <TabsTrigger value="archived">المؤرشفة</TabsTrigger>
-            </TabsList>
+            <div className="flex flex-col gap-4 mt-4">
+                <TabsList className="grid grid-cols-3 h-auto">
+                    <TabsTrigger value="all-shipments">الكل</TabsTrigger>
+                    <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
+                    <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
+                    <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
+                    <TabsTrigger value="returned">مرتجعات</TabsTrigger>
+                    <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
+                    <TabsTrigger value="archived" className="col-span-3">المؤرشفة</TabsTrigger>
+                </TabsList>
+                <Filters />
+            </div>
             <TabsContent value="all-shipments">{renderShipmentList(filteredShipments)}</TabsContent>
             <TabsContent value="in-transit">{renderShipmentList(getShipmentsByStatus('In-Transit'))}</TabsContent>
             <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion']))}</TabsContent>
@@ -949,6 +1077,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           onEdit={openShipmentForm}
           role={role}
           onBulkUpdate={handleGenericBulkUpdate}
+          filters={columnFilters}
+          onFiltersChange={setColumnFilters}
         />
     );
 
@@ -1045,7 +1175,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 </Button>
             </div>
         </div>
-        <StatsCards shipments={filteredShipments || []} role={role} />
+        <StatsCards shipments={shipments?.filter(s => !s.isArchived) || []} role={role} />
         <TabsContent value="shipments">
             {isMobile ? 
                 <MobileShipmentsView listIsLoading={shipmentsLoading} /> : 
@@ -1437,3 +1567,5 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
+
+    
