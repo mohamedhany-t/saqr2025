@@ -8,6 +8,7 @@ import { Button } from '../ui/button';
 import { FileUp, Loader2 } from 'lucide-react';
 import { exportToExcel } from '@/lib/export';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { statusText } from '../dashboard/shipments-table';
 
 interface ReportsPageProps {
     shipments: Shipment[];
@@ -19,7 +20,7 @@ interface ReportsPageProps {
     isLoading: boolean;
 }
 
-type ReportStatusFilter = 'all' | 'delivered' | 'returned';
+type ReportStatusFilter = 'all' | ShipmentStatus;
 
 export function ReportsPage({
     shipments,
@@ -145,16 +146,11 @@ export function ReportsPage({
         { title: "التقرير المالي للشركات", description: "ملخص مالي لجميع الشركات.", data: companyFinancials, type: 'company_financials', fileName: 'company_financials' },
     ]
 
-    const filterShipmentsByStatus = (shipments: Shipment[], statusFilter: ReportStatusFilter) => {
-        switch (statusFilter) {
-            case 'delivered':
-                return shipments.filter(s => deliveredShipmentStatuses.includes(s.status));
-            case 'returned':
-                return shipments.filter(s => returnedShipmentStatuses.includes(s.status));
-            case 'all':
-            default:
-                return shipments;
+    const filterShipmentsByStatus = (shipments: Shipment[], statusFilter: ReportStatusFilter): Shipment[] => {
+        if (statusFilter === 'all') {
+            return shipments;
         }
+        return shipments.filter(s => s.status === statusFilter);
     };
 
     const handleExportCompanyReport = () => {
@@ -230,8 +226,9 @@ export function ReportsPage({
                                          </SelectTrigger>
                                          <SelectContent>
                                              <SelectItem value="all">الكل</SelectItem>
-                                             <SelectItem value="delivered">تم التسليم</SelectItem>
-                                             <SelectItem value="returned">مرتجع</SelectItem>
+                                             {Object.entries(statusText).map(([statusValue, statusLabel]) => (
+                                                <SelectItem key={statusValue} value={statusValue}>{statusLabel}</SelectItem>
+                                             ))}
                                          </SelectContent>
                                      </Select>
                                  </div>
@@ -272,9 +269,10 @@ export function ReportsPage({
                                              <SelectValue placeholder="اختر الحالة..." />
                                          </SelectTrigger>
                                          <SelectContent>
-                                             <SelectItem value="all">الكل</SelectItem>
-                                             <SelectItem value="delivered">تم التسليم</SelectItem>
-                                             <SelectItem value="returned">مرتجع</SelectItem>
+                                            <SelectItem value="all">الكل</SelectItem>
+                                            {Object.entries(statusText).map(([statusValue, statusLabel]) => (
+                                               <SelectItem key={statusValue} value={statusValue}>{statusLabel}</SelectItem>
+                                            ))}
                                          </SelectContent>
                                      </Select>
                                  </div>
