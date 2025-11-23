@@ -45,12 +45,6 @@ import { exportToExcel } from "@/lib/export";
 import { getColumns as getShipmentColumns } from './shipments-table';
 
 
-interface AdminDashboardProps {
-  user: User;
-  role: Role;
-  searchTerm: string;
-}
-
 const Filters = ({
   governorates,
   companies,
@@ -172,6 +166,314 @@ const Filters = ({
     );
 };
 
+const MobileShipmentsView = ({
+    shipments,
+    archivedShipments,
+    filteredShipments,
+    listIsLoading,
+    governorates,
+    companies,
+    courierUsers,
+    onEdit,
+    onDelete,
+    onPrint,
+    onBulkUpdate,
+    onBulkDelete,
+    columnFilters,
+    onFiltersChange,
+    role
+  }: {
+    shipments: Shipment[];
+    archivedShipments: Shipment[];
+    filteredShipments: Shipment[];
+    listIsLoading: boolean;
+    governorates: Governorate[];
+    companies: Company[];
+    courierUsers: User[];
+    onEdit: (shipment: Shipment) => void;
+    onDelete: (shipment: Shipment) => void;
+    onPrint: (shipment: Shipment) => void;
+    onBulkUpdate: (selectedRows: Shipment[], update: Partial<Shipment>) => void;
+    onBulkDelete: () => void;
+    columnFilters: ColumnFiltersState;
+    onFiltersChange: React.Dispatch<React.SetStateAction<ColumnFiltersState>>;
+    role: Role | null;
+  }) => {
+
+    const [activeTab, setActiveTab] = React.useState("all-shipments");
+    const [mobileRowSelection, setMobileRowSelection] = React.useState<Record<string, boolean>>({});
+    const { toast } = useToast();
+
+    const selectedCount = Object.values(mobileRowSelection).filter(Boolean).length;
+
+    const getShipmentsByStatus = (status: ShipmentStatus | ShipmentStatus[]) => {
+        const statuses = Array.isArray(status) ? status : [status];
+        return filteredShipments.filter(s => statuses.includes(s.status));
+    }
+
+    const handleMobileBulkUpdate = (update: Partial<Shipment>) => {
+        const selectedIds = Object.keys(mobileRowSelection).filter(id => mobileRowSelection[id]);
+        const selectedShipments = shipments?.filter(s => selectedIds.includes(s.id)) || [];
+        onBulkUpdate(selectedShipments, update);
+        setMobileRowSelection({});
+    };
+
+    const handleMobileBulkDelete = () => {
+        onBulkDelete();
+        setMobileRowSelection({});
+    };
+
+    const handleExport = () => {
+        const selectedIds = Object.keys(mobileRowSelection).filter(id => mobileRowSelection[id]);
+        const dataToExport = shipments?.filter(s => selectedIds.includes(s.id)) || [];
+        if (dataToExport.length === 0) {
+          toast({ title: "لا توجد بيانات للتصدير", variant: "destructive" });
+          return;
+        }
+        const shipmentColumns = getShipmentColumns(governorates || [], companies || [], courierUsers, onEdit, role);
+        exportToExcel(dataToExport, shipmentColumns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates || [], companies || [], courierUsers);
+        setMobileRowSelection({});
+    }
+
+    const getCurrentShipmentList = () => {
+      switch (activeTab) {
+        case "pending": return getShipmentsByStatus('Pending');
+        case "in-transit": return getShipmentsByStatus('In-Transit');
+        case "delivered": return getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']);
+        case "postponed": return getShipmentsByStatus('Postponed');
+        case "returned": return getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)']);
+        case "returned-to-sender": return getShipmentsByStatus('Returned to Sender');
+        case "archived": return archivedShipments;
+        case "all-shipments":
+        default: return filteredShipments;
+      }
+    };
+
+    const currentList = getCurrentShipmentList();
+    const areAllSelected = currentList.length > 0 && currentList.every(s => mobileRowSelection[s.id]);
+
+    const handleSelectAll = () => {
+        const newSelection: Record<string, boolean> = {};
+        if (areAllSelected) { // If all are selected, unselect all
+            setMobileRowSelection({});
+        } else { // Otherwise, select all in current list
+            currentList.forEach(s => {
+                newSelection[s.id] = true;
+            });
+            setMobileRowSelection(newSelection);
+        }
+    };
+
+    React.useEffect(() => {
+        // Reset selection when tab changes
+        setMobileRowSelection({});
+    }, [activeTab]);
+
+
+    const renderShipmentList = (shipmentList: Shipment[]) => {
+        if (listIsLoading) {
+          return (
+            <div className="space-y-3 mt-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="p-4 bg-card rounded-lg border">
+                    <div className="w-full h-8 bg-muted rounded animate-pulse"/>
+                    <div className="w-full h-4 bg-muted rounded animate-pulse mt-3"/>
+                    <div className="w-1/2 h-4 bg-muted rounded animate-pulse mt-2"/>
+                </div>
+              ))}
+            </div>
+          );
+        }
+        if (shipmentList.length === 0) {
+          return <div className="text-center py-10 text-muted-foreground">لا توجد شحنات في هذه الفئة.</div>;
+        }
+        return (
+          <div className="space-y-3 mt-4">
+            {shipmentList.map(shipment => (
+              <ShipmentCard 
+                key={shipment.id}
+                shipment={shipment}
+                governorateName={governorates?.find(g => g.id === shipment.governorateId)?.name || ''}
+                companyName={companies?.find(c => c.id === shipment.companyId)?.name || ''}
+                onEdit={() => onEdit(shipment)}
+                onDelete={() => onDelete(shipment)}
+                onPrint={() => onPrint(shipment)}
+                isSelected={!!mobileRowSelection[shipment.id]}
+                onSelectToggle={(id) => {
+                    setMobileRowSelection(prev => ({
+                        ...prev,
+                        [id]: !prev[id]
+                    }));
+                }}
+              />
+            ))}
+          </div>
+        );
+      }
+      return (
+        <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
+            <div className="flex flex-col gap-4 mt-4">
+                <TabsList className="grid grid-cols-3 h-auto">
+                    <TabsTrigger value="all-shipments">الكل</TabsTrigger>
+                    <TabsTrigger value="pending">قيد الانتظار</TabsTrigger>
+                    <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
+                    <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
+                    <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
+                    <TabsTrigger value="returned">مرتجعات</TabsTrigger>
+                    <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
+                    <TabsTrigger value="archived" className="col-span-3">المؤرشفة</TabsTrigger>
+                </TabsList>
+                <div className="flex items-center gap-4">
+                    <Filters governorates={governorates || []} companies={companies || []} courierUsers={courierUsers} onFiltersChange={onFiltersChange} />
+                    {currentList.length > 0 && (
+                        <Button variant="outline" size="sm" onClick={handleSelectAll} className="h-8 gap-1">
+                            <ListChecks className="h-3.5 w-3.5" />
+                            <span>{areAllSelected ? 'إلغاء تحديد الكل' : 'تحديد الكل'}</span>
+                        </Button>
+                    )}
+                </div>
+            </div>
+            <TabsContent value="all-shipments">{renderShipmentList(filteredShipments)}</TabsContent>
+            <TabsContent value="pending">{renderShipmentList(getShipmentsByStatus('Pending'))}</TabsContent>
+            <TabsContent value="in-transit">{renderShipmentList(getShipmentsByStatus('In-Transit'))}</TabsContent>
+            <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
+            <TabsContent value="postponed">{renderShipmentList(getShipmentsByStatus('Postponed'))}</TabsContent>
+            <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)']))}</TabsContent>
+            <TabsContent value="returned-to-sender">{renderShipmentList(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
+            <TabsContent value="archived">{renderShipmentList(archivedShipments)}</TabsContent>
+            {selectedCount > 0 && (
+                <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-2 shadow-lg flex items-center justify-around gap-2 z-40">
+                     <span className="text-sm font-medium">{selectedCount} شحنات محددة</span>
+                     <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                             <Button variant="outline" size="sm">
+                                <CheckSquare className="me-2 h-4 w-4" />
+                                <span>تغيير الحالة</span>
+                             </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            {Object.entries(statusText).map(([statusValue, statusLabel]) => (
+                                 <DropdownMenuItem key={statusValue} onSelect={() => handleMobileBulkUpdate({ status: statusValue as ShipmentStatus })}>
+                                     {statusLabel}
+                                 </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button variant="outline" size="sm" onClick={handleExport}>
+                        <FileUp className="me-2 h-4 w-4" />
+                        تصدير
+                    </Button>
+                    <Button variant="destructive" size="icon" onClick={handleMobileBulkDelete}>
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                </div>
+            )}
+        </Tabs>
+      )
+  }
+
+const DesktopShipmentsView = ({
+    listIsLoading,
+    role,
+    filteredShipments,
+    getShipmentsByStatus,
+    archivedShipments,
+    governorates,
+    companies,
+    courierUsers,
+    openShipmentForm,
+    handleGenericBulkUpdate,
+    columnFilters,
+    setColumnFilters,
+  }: {
+    listIsLoading: boolean;
+    role: Role | null;
+    filteredShipments: Shipment[];
+    getShipmentsByStatus: (status: ShipmentStatus | ShipmentStatus[]) => Shipment[];
+    archivedShipments: Shipment[];
+    governorates: Governorate[];
+    companies: Company[];
+    courierUsers: User[];
+    openShipmentForm: (shipment?: Shipment) => void;
+    handleGenericBulkUpdate: (selectedRows: Shipment[], update: Partial<Shipment>) => void;
+    columnFilters: ColumnFiltersState,
+    setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
+  }) => {
+    const renderShipmentTable = (shipmentList: Shipment[]) => (
+        <ShipmentsTable 
+          shipments={shipmentList} 
+          isLoading={listIsLoading}
+          governorates={governorates || []}
+          companies={companies || []}
+          couriers={courierUsers}
+          onEdit={openShipmentForm}
+          role={role}
+          onBulkUpdate={handleGenericBulkUpdate}
+          filters={columnFilters}
+          onFiltersChange={setColumnFilters}
+        />
+    );
+
+    return (
+        <Tabs defaultValue="all-shipments">
+            <TabsList className="flex-nowrap overflow-x-auto justify-start mt-4">
+                <TabsTrigger value="all-shipments">الكل</TabsTrigger>
+                <TabsTrigger value="pending">قيد الانتظار</TabsTrigger>
+                <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
+                <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
+                <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
+                <TabsTrigger value="returned">مرتجعات</TabsTrigger>
+                <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
+                <TabsTrigger value="archived">المؤرشفة</TabsTrigger>
+            </TabsList>
+            <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments)}</TabsContent>
+            <TabsContent value="pending">{renderShipmentTable(getShipmentsByStatus('Pending'))}</TabsContent>
+            <TabsContent value="in-transit">{renderShipmentTable(getShipmentsByStatus('In-Transit'))}</TabsContent>
+            <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
+            <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
+            <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)']))}</TabsContent>
+            <TabsContent value="returned-to-sender">{renderShipmentTable(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
+            <TabsContent value="archived">{renderShipmentTable(archivedShipments)}</TabsContent>
+        </Tabs>
+    )
+  }
+
+const MobileUsersView = ({ listIsLoading, users, companies, onEdit, onDelete } : { listIsLoading: boolean, users: User[], companies: Company[], onEdit: (user: User, company?: Company) => void, onDelete: (user: User) => void }) => {
+     if (listIsLoading) {
+      return (
+        <div className="space-y-3 mt-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="p-4 bg-card rounded-lg border">
+                <div className="w-full h-6 bg-muted rounded animate-pulse"/>
+                <div className="w-1/2 h-4 bg-muted rounded animate-pulse mt-2"/>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if ((users || []).length === 0) {
+      return <div className="text-center py-10 text-muted-foreground">لا يوجد مستخدمون.</div>;
+    }
+    return (
+        <div className="space-y-3 mt-4">
+            {(users || []).map(u => (
+                <UserCard
+                    key={u.id}
+                    user={u}
+                    company={u.role === 'company' ? companies?.find(c => c.id === u.id) : undefined}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                />
+            ))}
+        </div>
+    );
+  }
+  
+const DesktopUsersView = ({ listIsLoading, users, onEdit, onDelete }: { listIsLoading: boolean, users: User[], onEdit: (user: User, company?: Company) => void, onDelete: (user: User) => void }) => (
+    <UsersTable users={users || []} isLoading={listIsLoading} onEdit={onEdit} onDelete={onDelete}/>
+)
+
+
 export default function AdminDashboard({ user, role, searchTerm }: AdminDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
@@ -207,7 +509,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const [importProgress, setImportProgress] = React.useState<ImportProgress | null>(null);
 
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
-  const [mobileRowSelection, setMobileRowSelection] = React.useState<Record<string, boolean>>({});
 
 
   const chatsQuery = useMemoFirebase(() => {
@@ -883,6 +1184,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         baseShipments = baseShipments.filter(shipment => {
             return columnFilters.every(filter => {
                 const value = (shipment as any)[filter.id];
+                if (!value) return false;
                 const filterValue = filter.value as string[];
                 return filterValue.includes(value);
             });
@@ -1020,278 +1322,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     return filteredShipments.filter(s => statuses.includes(s.status));
   }
   
-  
-  const MobileShipmentsView = ({
-    listIsLoading
-  }: {
-    listIsLoading: boolean;
-  }) => {
-
-    const [activeTab, setActiveTab] = React.useState("all-shipments");
-    const selectedCount = Object.values(mobileRowSelection).filter(Boolean).length;
-
-    const handleMobileBulkUpdate = (update: Partial<Shipment>) => {
-        const selectedIds = Object.keys(mobileRowSelection).filter(id => mobileRowSelection[id]);
-        const selectedShipments = shipments?.filter(s => selectedIds.includes(s.id)) || [];
-        handleGenericBulkUpdate(selectedShipments, update);
-        setMobileRowSelection({});
-    };
-
-    const handleMobileBulkDelete = () => {
-        if (!firestore) return;
-        const selectedIds = Object.keys(mobileRowSelection).filter(id => mobileRowSelection[id]);
-        if (selectedIds.length === 0) {
-            toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
-            return;
-        }
-
-        const batch = writeBatch(firestore);
-        selectedIds.forEach(id => {
-            const docRef = doc(firestore, "shipments", id);
-            batch.delete(docRef);
-        });
-
-        batch.commit().then(() => {
-            toast({ title: `تم حذف ${selectedIds.length} شحنة بنجاح` });
-            setMobileRowSelection({});
-        }).catch(serverError => {
-            const permissionError = new FirestorePermissionError({
-                path: 'shipments',
-                operation: 'delete',
-                requestResourceData: { note: `Bulk delete of ${selectedIds.length} documents.` }
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        });
-    };
-
-    const handleExport = () => {
-        const selectedIds = Object.keys(mobileRowSelection).filter(id => mobileRowSelection[id]);
-        const dataToExport = shipments?.filter(s => selectedIds.includes(s.id)) || [];
-        if (dataToExport.length === 0) {
-          toast({ title: "لا توجد بيانات للتصدير", variant: "destructive" });
-          return;
-        }
-        const shipmentColumns = getShipmentColumns(governorates || [], companies || [], courierUsers, openShipmentForm, role);
-        exportToExcel(dataToExport, shipmentColumns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates || [], companies || [], courierUsers);
-        setMobileRowSelection({});
-    }
-
-    const getCurrentShipmentList = () => {
-      switch (activeTab) {
-        case "pending": return getShipmentsByStatus('Pending');
-        case "in-transit": return getShipmentsByStatus('In-Transit');
-        case "delivered": return getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']);
-        case "postponed": return getShipmentsByStatus('Postponed');
-        case "returned": return getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)']);
-        case "returned-to-sender": return getShipmentsByStatus('Returned to Sender');
-        case "archived": return archivedShipments;
-        case "all-shipments":
-        default: return filteredShipments;
-      }
-    };
-
-    const currentList = getCurrentShipmentList();
-    const areAllSelected = currentList.length > 0 && currentList.every(s => mobileRowSelection[s.id]);
-
-    const handleSelectAll = () => {
-        const newSelection: Record<string, boolean> = {};
-        if (areAllSelected) { // If all are selected, unselect all
-            setMobileRowSelection({});
-        } else { // Otherwise, select all in current list
-            currentList.forEach(s => {
-                newSelection[s.id] = true;
-            });
-            setMobileRowSelection(newSelection);
-        }
-    };
-
-    React.useEffect(() => {
-        // Reset selection when tab changes
-        setMobileRowSelection({});
-    }, [activeTab]);
-
-
-    const renderShipmentList = (shipmentList: Shipment[]) => {
-        if (listIsLoading) {
-          return (
-            <div className="space-y-3 mt-4">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="p-4 bg-card rounded-lg border">
-                    <div className="w-full h-8 bg-muted rounded animate-pulse"/>
-                    <div className="w-full h-4 bg-muted rounded animate-pulse mt-3"/>
-                    <div className="w-1/2 h-4 bg-muted rounded animate-pulse mt-2"/>
-                </div>
-              ))}
-            </div>
-          );
-        }
-        if (shipmentList.length === 0) {
-          return <div className="text-center py-10 text-muted-foreground">لا توجد شحنات في هذه الفئة.</div>;
-        }
-        return (
-          <div className="space-y-3 mt-4">
-            {shipmentList.map(shipment => (
-              <ShipmentCard 
-                key={shipment.id}
-                shipment={shipment}
-                governorateName={governorates?.find(g => g.id === shipment.governorateId)?.name || ''}
-                companyName={companies?.find(c => c.id === shipment.companyId)?.name || ''}
-                onEdit={() => openShipmentForm(shipment)}
-                onDelete={() => setShipmentToDelete(shipment)}
-                onPrint={() => handlePrintShipment(shipment)}
-                isSelected={!!mobileRowSelection[shipment.id]}
-                onSelectToggle={(id) => {
-                    setMobileRowSelection(prev => ({
-                        ...prev,
-                        [id]: !prev[id]
-                    }));
-                }}
-              />
-            ))}
-          </div>
-        );
-      }
-      return (
-        <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
-            <div className="flex flex-col gap-4 mt-4">
-                <TabsList className="grid grid-cols-3 h-auto">
-                    <TabsTrigger value="all-shipments">الكل</TabsTrigger>
-                    <TabsTrigger value="pending">قيد الانتظار</TabsTrigger>
-                    <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
-                    <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
-                    <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
-                    <TabsTrigger value="returned">مرتجعات</TabsTrigger>
-                    <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
-                    <TabsTrigger value="archived" className="col-span-3">المؤرشفة</TabsTrigger>
-                </TabsList>
-                <div className="flex items-center gap-4">
-                    <Filters governorates={governorates || []} companies={companies || []} courierUsers={courierUsers} onFiltersChange={setColumnFilters} />
-                    {currentList.length > 0 && (
-                        <Button variant="outline" size="sm" onClick={handleSelectAll} className="h-8 gap-1">
-                            <ListChecks className="h-3.5 w-3.5" />
-                            <span>{areAllSelected ? 'إلغاء تحديد الكل' : 'تحديد الكل'}</span>
-                        </Button>
-                    )}
-                </div>
-            </div>
-            <TabsContent value="all-shipments">{renderShipmentList(filteredShipments)}</TabsContent>
-            <TabsContent value="pending">{renderShipmentList(getShipmentsByStatus('Pending'))}</TabsContent>
-            <TabsContent value="in-transit">{renderShipmentList(getShipmentsByStatus('In-Transit'))}</TabsContent>
-            <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
-            <TabsContent value="postponed">{renderShipmentList(getShipmentsByStatus('Postponed'))}</TabsContent>
-            <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)']))}</TabsContent>
-            <TabsContent value="returned-to-sender">{renderShipmentList(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
-            <TabsContent value="archived">{renderShipmentList(archivedShipments)}</TabsContent>
-            {selectedCount > 0 && (
-                <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-2 shadow-lg flex items-center justify-around gap-2 z-40">
-                     <span className="text-sm font-medium">{selectedCount} شحنات محددة</span>
-                     <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                             <Button variant="outline" size="sm">
-                                <CheckSquare className="me-2 h-4 w-4" />
-                                <span>تغيير الحالة</span>
-                             </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                            {Object.entries(statusText).map(([statusValue, statusLabel]) => (
-                                 <DropdownMenuItem key={statusValue} onSelect={() => handleMobileBulkUpdate({ status: statusValue as ShipmentStatus })}>
-                                     {statusLabel}
-                                 </DropdownMenuItem>
-                            ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                    <Button variant="outline" size="sm" onClick={handleExport}>
-                        <FileUp className="me-2 h-4 w-4" />
-                        تصدير
-                    </Button>
-                    <Button variant="destructive" size="icon" onClick={handleMobileBulkDelete}>
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
-                </div>
-            )}
-        </Tabs>
-      )
-  }
-
-  const DesktopShipmentsView = ({
-    listIsLoading
-  }: {
-    listIsLoading: boolean;
-  }) => {
-    const renderShipmentTable = (shipmentList: Shipment[]) => (
-        <ShipmentsTable 
-          shipments={shipmentList} 
-          isLoading={listIsLoading}
-          governorates={governorates || []}
-          companies={companies || []}
-          couriers={courierUsers}
-          onEdit={openShipmentForm}
-          role={role}
-          onBulkUpdate={handleGenericBulkUpdate}
-          filters={columnFilters}
-          onFiltersChange={setColumnFilters}
-        />
-    );
-
-    return (
-        <Tabs defaultValue="all-shipments">
-            <TabsList className="flex-nowrap overflow-x-auto justify-start mt-4">
-                <TabsTrigger value="all-shipments">الكل</TabsTrigger>
-                <TabsTrigger value="pending">قيد الانتظار</TabsTrigger>
-                <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
-                <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
-                <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
-                <TabsTrigger value="returned">مرتجعات</TabsTrigger>
-                <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
-                <TabsTrigger value="archived">المؤرشفة</TabsTrigger>
-            </TabsList>
-            <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments)}</TabsContent>
-            <TabsContent value="pending">{renderShipmentTable(getShipmentsByStatus('Pending'))}</TabsContent>
-            <TabsContent value="in-transit">{renderShipmentTable(getShipmentsByStatus('In-Transit'))}</TabsContent>
-            <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
-            <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
-            <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)']))}</TabsContent>
-            <TabsContent value="returned-to-sender">{renderShipmentTable(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
-            <TabsContent value="archived">{renderShipmentTable(archivedShipments)}</TabsContent>
-        </Tabs>
-    )
-  }
-  
-  const MobileUsersView = ({ listIsLoading } : { listIsLoading: boolean }) => {
-     if (listIsLoading) {
-      return (
-        <div className="space-y-3 mt-4">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="p-4 bg-card rounded-lg border">
-                <div className="w-full h-6 bg-muted rounded animate-pulse"/>
-                <div className="w-1/2 h-4 bg-muted rounded animate-pulse mt-2"/>
-            </div>
-          ))}
-        </div>
-      );
-    }
-    if ((users || []).length === 0) {
-      return <div className="text-center py-10 text-muted-foreground">لا يوجد مستخدمون.</div>;
-    }
-    return (
-        <div className="space-y-3 mt-4">
-            {(users || []).map(u => (
-                <UserCard
-                    key={u.id}
-                    user={u}
-                    company={u.role === 'company' ? companies?.find(c => c.id === u.id) : undefined}
-                    onEdit={openUserForm}
-                    onDelete={setUserToDelete}
-                />
-            ))}
-        </div>
-    );
-  }
-  
-  const DesktopUsersView = ({ listIsLoading }: { listIsLoading: boolean }) => (
-    <UsersTable users={users || []} isLoading={listIsLoading} onEdit={openUserForm} onDelete={setUserToDelete}/>
-  )
-
   const unassignedShipments = React.useMemo(() => {
     return shipments?.filter(s => !s.assignedCourierId && !s.isArchived) || [];
   }, [shipments]);
@@ -1339,8 +1369,37 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         <StatsCards shipments={shipments?.filter(s => !s.isArchived) || []} role={role} />
         <TabsContent value="shipments" className={isMobile ? "pb-20" : ""}>
             {isMobile ? 
-                <MobileShipmentsView listIsLoading={shipmentsLoading} /> : 
-                <DesktopShipmentsView listIsLoading={shipmentsLoading} />
+                <MobileShipmentsView 
+                    shipments={shipments || []}
+                    archivedShipments={archivedShipments}
+                    filteredShipments={filteredShipments}
+                    listIsLoading={shipmentsLoading}
+                    governorates={governorates || []}
+                    companies={companies || []}
+                    courierUsers={courierUsers}
+                    onEdit={openShipmentForm}
+                    onDelete={setShipmentToDelete}
+                    onPrint={handlePrintShipment}
+                    onBulkUpdate={handleGenericBulkUpdate}
+                    onBulkDelete={handleDeleteShipment}
+                    columnFilters={columnFilters}
+                    onFiltersChange={setColumnFilters}
+                    role={role}
+                /> : 
+                <DesktopShipmentsView
+                    listIsLoading={shipmentsLoading}
+                    role={role}
+                    filteredShipments={filteredShipments}
+                    getShipmentsByStatus={getShipmentsByStatus}
+                    archivedShipments={archivedShipments}
+                    governorates={governorates || []}
+                    companies={companies || []}
+                    courierUsers={courierUsers}
+                    openShipmentForm={openShipmentForm}
+                    handleGenericBulkUpdate={handleGenericBulkUpdate}
+                    columnFilters={columnFilters}
+                    setColumnFilters={setColumnFilters}
+                />
             }
         </TabsContent>
         <TabsContent value="courier-management">
@@ -1575,8 +1634,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     </div>
                 </div>
                  {isMobile ? 
-                    <MobileUsersView listIsLoading={usersLoading || companiesLoading} /> : 
-                    <DesktopUsersView listIsLoading={usersLoading || companiesLoading} />
+                    <MobileUsersView listIsLoading={usersLoading || companiesLoading} users={users || []} companies={companies || []} onEdit={openUserForm} onDelete={setUserToDelete} /> : 
+                    <DesktopUsersView listIsLoading={usersLoading || companiesLoading} users={users || []} onEdit={openUserForm} onDelete={setUserToDelete} />
                  }
             </div>
         </TabsContent>
@@ -1588,7 +1647,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 governorates={governorates || []}
                 companyPayments={companyPayments || []}
                 courierPayments={courierPayments || []}
-                isLoading={shipmentsLoading || companiesLoading || usersLoading}
+                isLoading={shipmentsLoading || companiesLoading || usersLoading || governoratesLoading}
              />
         </TabsContent>
         <TabsContent value="ai-tools">
