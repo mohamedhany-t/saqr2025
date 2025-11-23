@@ -1,4 +1,5 @@
 
+
 "use client"
 import * as React from "react"
 import type {
@@ -38,7 +39,8 @@ import {
     CalendarClock,
     ThumbsDown,
     HandCoins,
-    Share2
+    Share2,
+    PhoneOff
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -74,7 +76,8 @@ export const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
     "In-Transit": <Truck className="h-4 w-4 text-blue-500" />,
     Delivered: <CheckCircle2 className="h-4 w-4 text-green-500" />,
     "Partially Delivered": <MinusCircle className="h-4 w-4 text-green-600" />,
-    Evasion: <AlertTriangle className="h-4 w-4 text-purple-500" />,
+    "Evasion (Phone)": <PhoneOff className="h-4 w-4 text-purple-500" />,
+    "Evasion (Delivery Attempt)": <AlertTriangle className="h-4 w-4 text-purple-600" />,
     Cancelled: <XCircle className="h-4 w-4 text-red-500" />,
     Returned: <Archive className="h-4 w-4 text-orange-500" />,
     Postponed: <CalendarClock className="h-4 w-4 text-gray-500" />,
@@ -88,7 +91,8 @@ export const statusVariants: Record<ShipmentStatus, "default" | "secondary" | "d
     "In-Transit": "secondary",
     Delivered: "default",
     "Partially Delivered": "default",
-    Evasion: "secondary",
+    "Evasion (Phone)": "secondary",
+    "Evasion (Delivery Attempt)": "secondary",
     Cancelled: "destructive",
     Returned: "secondary",
     Postponed: "outline",
@@ -102,7 +106,8 @@ export const statusText: Record<string, string> = {
     'In-Transit': 'قيد التوصيل',
     Delivered: 'تم التسليم',
     'Partially Delivered': 'تم التسليم جزئياً',
-    Evasion: 'تهرب',
+    'Evasion (Phone)': 'تهرب هاتفيًا',
+    'Evasion (Delivery Attempt)': 'تهرب بعد الوصول',
     Cancelled: 'تم الإلغاء',
     Returned: 'مرتجع',
     Postponed: 'مؤجل',
@@ -804,5 +809,3 @@ export function ShipmentsTable({
     </div>
   )
 }
-
-    

@@ -84,8 +84,8 @@ export function ReportsPage({
         }
     }
 
-    const deliveredShipments = shipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered' || s.status === 'Evasion');
-    const returnedShipments = shipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled' || s.status === 'Returned to Sender');
+    const deliveredShipments = shipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered' || s.status === 'Evasion (Delivery Attempt)');
+    const returnedShipments = shipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled' || s.status === 'Returned to Sender' || s.status === 'Evasion (Phone)');
 
     const courierFinancials = couriers.map(courier => {
         const courierShipments = shipments.filter(s => s.assignedCourierId === courier.id);

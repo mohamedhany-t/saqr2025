@@ -807,7 +807,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         return {
             ...courier,
             totalShipments: activeShipments.length,
-            deliveredCount: activeShipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered' || s.status === 'Evasion').length,
+            deliveredCount: activeShipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered' || s.status === 'Evasion (Delivery Attempt)').length,
             returnedCount: activeShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled').length,
             totalCollected,
             totalCommission,
@@ -1053,7 +1053,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             </div>
             <TabsContent value="all-shipments">{renderShipmentList(filteredShipments)}</TabsContent>
             <TabsContent value="in-transit">{renderShipmentList(getShipmentsByStatus('In-Transit'))}</TabsContent>
-            <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion']))}</TabsContent>
+            <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentList(getShipmentsByStatus('Postponed'))}</TabsContent>
             <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled']))}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentList(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
@@ -1095,7 +1095,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             </TabsList>
             <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments)}</TabsContent>
             <TabsContent value="in-transit">{renderShipmentTable(getShipmentsByStatus('In-Transit'))}</TabsContent>
-            <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion']))}</TabsContent>
+            <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
             <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Cancelled']))}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentTable(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
@@ -1567,5 +1567,3 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
-
-    

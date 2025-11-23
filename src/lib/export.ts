@@ -53,9 +53,10 @@ const getCellValue = (
              const statusTextMap: Record<string, string> = {
                 Pending: 'قيد الانتظار',
                 'In-Transit': 'قيد التوصيل',
-                Delivered: 'تم التوصيل',
-                'Partially Delivered': 'تم التوصيل جزئياً',
-                Evasion: 'تهرب',
+                Delivered: 'تم التسليم',
+                'Partially Delivered': 'تم التسليم جزئياً',
+                'Evasion (Phone)': 'تهرب هاتفيًا',
+                'Evasion (Delivery Attempt)': 'تهرب بعد الوصول',
                 Cancelled: 'تم الإلغاء',
                 Returned: 'مرتجع',
                 Postponed: 'مؤجل',

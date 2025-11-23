@@ -1,4 +1,5 @@
 
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -141,24 +142,30 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     ) => {
         const update: { paidAmount?: number; courierCommission?: number; companyCommission?: number; collectedAmount?: number } = {};
         
-        const isSuccess = status === 'Delivered' || status === 'Partially Delivered' || status === 'Evasion' || status === 'Refused (Paid)' || status === 'Refused (Unpaid)';
+        const isSuccessWithCommission = status === 'Delivered' || status === 'Partially Delivered' || status === 'Evasion (Delivery Attempt)' || status === 'Refused (Paid)' || status === 'Refused (Unpaid)';
+        const isSuccessWithoutCommission = status === 'Evasion (Phone)';
 
-        if (isSuccess) {
+        if (isSuccessWithCommission) {
             update.courierCommission = courierCommissionRate;
             
-            if (status === 'Delivered' || status === 'Evasion') {
+            if (status === 'Delivered') {
                 update.paidAmount = totalAmount;
                 update.collectedAmount = totalAmount;
                 update.companyCommission = companyCommission;
             } else if (status === 'Partially Delivered' || status === 'Refused (Paid)') {
                 update.paidAmount = collectedAmount;
                 update.companyCommission = companyCommission;
-            } else { // Refused (Unpaid) and other future success statuses
+            } else { // Evasion (Delivery Attempt), Refused (Unpaid) and other future success statuses
                 update.paidAmount = 0;
                 update.collectedAmount = 0;
                 // Company commission might be 0 here, depends on business logic
                 update.companyCommission = 0; 
             }
+        } else if (isSuccessWithoutCommission) {
+             update.courierCommission = 0;
+             update.paidAmount = 0;
+             update.collectedAmount = 0;
+             update.companyCommission = 0;
         } else { // Returned, Cancelled, Postponed etc.
             update.paidAmount = 0;
             update.courierCommission = 0;
@@ -297,7 +304,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   
   const { activeShipments, finishedShipments } = React.useMemo(() => {
     if (!shipments) return { activeShipments: [], finishedShipments: [] };
-    const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Evasion', 'Returned to Sender', "Refused (Paid)", "Refused (Unpaid)"];
+    const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Evasion (Phone)', 'Returned to Sender', "Refused (Paid)", "Refused (Unpaid)"];
     const active = shipments.filter(s => !finishedStatuses.includes(s.status));
     const finished = shipments.filter(s => finishedStatuses.includes(s.status));
     return { activeShipments: active, finishedShipments: finished };
