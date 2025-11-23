@@ -1,4 +1,5 @@
 
+
 import type { ColumnDef } from '@tanstack/react-table';
 import { Workbook } from 'exceljs';
 import jsPDF from 'jspdf';
@@ -21,6 +22,8 @@ const getHeader = (columnDef: ColumnDef<any, any>): string => {
         switch(key) {
             case 'totalAmount': return 'الاجمالي';
             case 'paidAmount': return 'المدفوع';
+            case 'courierCommission': return 'عمولة المندوب';
+            case 'companyCommission': return 'عمولة الشركة';
             default:
                 const result = key.replace(/([A-Z])/g, " $1");
                 return result.charAt(0).toUpperCase() + result.slice(1);
@@ -61,8 +64,8 @@ const getCellValue = (
                 'In-Transit': 'قيد التوصيل',
                 Delivered: 'تم التسليم',
                 'Partially Delivered': 'تم التسليم جزئياً',
-                'Evasion (Phone)': 'تهرب هاتفيًا',
-                'Evasion (Delivery Attempt)': 'تهرب بعد التنسيق والوصول',
+                'Evasion (Phone)': 'تهرب من الاستلام هاتفيا',
+                'Evasion (Delivery Attempt)': 'تهرب بعدالتنسيق والوصول',
                 Cancelled: 'تم الإلغاء',
                 Returned: 'مرتجع',
                 Postponed: 'مؤجل',
