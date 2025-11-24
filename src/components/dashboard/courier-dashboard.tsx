@@ -65,6 +65,7 @@ const calculateCommissionAndPaidAmount = (
             
         case 'Evasion (Phone)':
         case 'Returned':
+        case 'Returned to Warehouse':
         case 'Cancelled':
         case 'Postponed':
         case 'Returned to Sender':
@@ -323,7 +324,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   
   const { activeShipments, finishedShipments } = React.useMemo(() => {
     if (!shipments) return { activeShipments: [], finishedShipments: [] };
-    const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Evasion (Phone)', 'Returned to Sender', "Refused (Paid)", "Refused (Unpaid)"];
+    const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Evasion (Phone)', 'Returned to Sender', "Refused (Paid)", "Refused (Unpaid)", "Returned to Warehouse"];
     const active = shipments.filter(s => !finishedStatuses.includes(s.status));
     const finished = shipments.filter(s => finishedStatuses.includes(s.status));
     return { activeShipments: active, finishedShipments: finished };

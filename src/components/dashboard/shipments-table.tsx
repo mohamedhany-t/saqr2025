@@ -39,7 +39,8 @@ import {
     ThumbsDown,
     HandCoins,
     Share2,
-    PhoneOff
+    PhoneOff,
+    ArchiveRestore
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -79,6 +80,7 @@ export const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
     "Evasion (Delivery Attempt)": <AlertTriangle className="h-4 w-4 text-purple-600" />,
     Cancelled: <XCircle className="h-4 w-4 text-red-500" />,
     Returned: <Archive className="h-4 w-4 text-orange-500" />,
+    "Returned to Warehouse": <ArchiveRestore className="h-4 w-4 text-orange-600" />,
     Postponed: <CalendarClock className="h-4 w-4 text-gray-500" />,
     "Returned to Sender": <Archive className="h-4 w-4 text-orange-700" />,
     "Refused (Paid)": <HandCoins className="h-4 w-4 text-green-500" />,
@@ -94,6 +96,7 @@ export const statusVariants: Record<ShipmentStatus, "default" | "secondary" | "d
     "Evasion (Delivery Attempt)": "secondary",
     Cancelled: "destructive",
     Returned: "secondary",
+    "Returned to Warehouse": "secondary",
     Postponed: "outline",
     "Returned to Sender": "secondary",
     "Refused (Paid)": "default",
@@ -109,6 +112,7 @@ export const statusText: Record<string, string> = {
     'Evasion (Delivery Attempt)': 'تهرب بعد الوصول',
     Cancelled: 'تم الإلغاء',
     Returned: 'مرتجع',
+    'Returned to Warehouse': 'تم الرجوع للمخزن',
     Postponed: 'مؤجل',
     'Returned to Sender': 'تم الرجوع للراسل',
     'Refused (Paid)': 'رفض ودفع الشحن',

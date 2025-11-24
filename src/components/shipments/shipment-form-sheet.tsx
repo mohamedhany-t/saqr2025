@@ -40,7 +40,7 @@ const shipmentSchema = z.object({
   address: z.string().min(1, "العنوان مطلوب"),
   totalAmount: z.coerce.number().min(0, "المبلغ يجب أن يكون إيجابي"),
   paidAmount: z.coerce.number().optional(),
-  status: z.enum(["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion (Phone)", "Evasion (Delivery Attempt)", "Cancelled", "Returned", "Postponed", "Returned to Sender", "Refused (Paid)", "Refused (Unpaid)"]),
+  status: z.enum(["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion (Phone)", "Evasion (Delivery Attempt)", "Cancelled", "Returned", "Postponed", "Returned to Sender", "Refused (Paid)", "Refused (Unpaid)", "Returned to Warehouse"]),
   reason: z.string().optional(),
   deliveryDate: z.date().optional(),
   assignedCourierId: z.string().optional(),
@@ -296,13 +296,14 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                         <SelectItem value="Delivered">تم التسليم</SelectItem>
                                         <SelectItem value="Partially Delivered">تم التسليم جزئياً</SelectItem>
                                         <SelectItem value="Postponed">مؤجل</SelectItem>
+                                        <SelectItem value="Returned">مرتجع</SelectItem>
+                                        <SelectItem value="Returned to Warehouse">تم الرجوع للمخزن</SelectItem>
                                         <SelectItem value="Returned to Sender">تم الرجوع للراسل</SelectItem>
                                         <SelectItem value="Refused (Paid)">رفض ودفع مصاريف شحن</SelectItem>
                                         <SelectItem value="Refused (Unpaid)">رفض ولم يدفع مصاريف شحن</SelectItem>
                                         <SelectItem value="Evasion (Phone)">تهرب هاتفيًا</SelectItem>
                                         <SelectItem value="Evasion (Delivery Attempt)">تهرب بعد الوصول</SelectItem>
                                         <SelectItem value="Cancelled">تم الإلغاء</SelectItem>
-                                        <SelectItem value="Returned">مرتجع</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage className="col-span-4" />

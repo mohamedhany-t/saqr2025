@@ -28,7 +28,8 @@ export type ShipmentStatus =
   | "Postponed"
   | "Returned to Sender"
   | "Refused (Paid)"
-  | "Refused (Unpaid)";
+  | "Refused (Unpaid)"
+  | "Returned to Warehouse";
 
 export type Shipment = {
   id: string;
