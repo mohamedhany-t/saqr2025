@@ -1,5 +1,4 @@
 
-
 "use client"
 import * as React from "react"
 import type {
@@ -31,7 +30,7 @@ import {
     ChevronDown,
     FileUp,
     Trash2,
-    User,
+    User as UserIcon,
     Building,
     CheckSquare,
     AlertTriangle,
@@ -705,7 +704,7 @@ export function ShipmentsTable({
                          <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" size="sm" className="h-8 gap-1">
-                                    <User className="h-3.5 w-3.5" />
+                                    <UserIcon className="h-3.5 w-3.5" />
                                     <span className="sr-only sm:not-sr-only">تعيين مندوب</span>
                                 </Button>
                             </DropdownMenuTrigger>
