@@ -132,8 +132,8 @@ const BulkShipmentPrint = () => {
                   return;
                 }
 
-                const allGovIds = [...new Set(shipments.map(s => s.governorateId).filter(Boolean)) as string[]];
-                const allCompanyIds = [...new Set(shipments.map(s => s.companyId).filter(Boolean)) as string[]];
+                const allGovIds = [...new Set(shipments.map(s => s.governorateId).filter((id): id is string => !!id))];
+                const allCompanyIds = [...new Set(shipments.map(s => s.companyId).filter((id): id is string => !!id))];
                 
                 let govMap = new Map();
                 let companyMap = new Map();
@@ -150,7 +150,7 @@ const BulkShipmentPrint = () => {
 
                 const printableData = shipments.map(shipment => ({
                     ...shipment,
-                    governorateName: govMap.get(shipment.governorateId)?.name || 'N/A',
+                    governorateName: shipment.governorateId ? govMap.get(shipment.governorateId)?.name || 'N/A' : 'N/A',
                     companyName: companyMap.get(shipment.companyId)?.name || 'N/A'
                 }));
 
