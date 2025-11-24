@@ -6,7 +6,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, ShipmentStatus, User, CourierPayment, Chat } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, ShipmentStatus, User, CourierPayment, Chat, CustomStatus } from "@/lib/types";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
@@ -26,11 +26,12 @@ interface CourierDashboardProps {
 }
 
 const calculateCommissionAndPaidAmount = (
-    status: ShipmentStatus,
+    status: ShipmentStatus | string,
     totalAmount: number,
     collectedAmount: number,
     courierCommissionRate: number,
     companyCommission: number,
+    customStatuses: CustomStatus[]
 ) => {
     const update: { paidAmount?: number; courierCommission?: number; companyCommission?: number; collectedAmount?: number } = {};
     
@@ -40,6 +41,24 @@ const calculateCommissionAndPaidAmount = (
     const safeCourierCommissionRate = courierCommissionRate || 0;
     const safeCompanyCommission = companyCommission || 0;
     
+    // Check if it's a custom status
+    const customStatus = customStatuses.find(cs => cs.name === status);
+
+    if (customStatus) {
+        if (customStatus.hasCommission) {
+            update.courierCommission = safeCourierCommissionRate;
+            update.paidAmount = safeCollectedAmount; // Assume collected amount is provided for commissionable custom statuses
+            update.companyCommission = safeCompanyCommission; // Company commission logic might need refinement here
+        } else {
+            update.courierCommission = 0;
+            update.paidAmount = 0;
+            update.collectedAmount = 0;
+            update.companyCommission = 0;
+        }
+        return update;
+    }
+
+
     switch (status) {
         case 'Delivered':
             update.courierCommission = safeCourierCommissionRate;
@@ -190,13 +209,17 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   }, [firestore, user]);
   const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
 
+  const customStatusesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'custom_statuses') : null, [firestore]);
+  const { data: customStatuses, isLoading: customStatusesLoading } = useCollection<CustomStatus>(customStatusesQuery);
+
+
   const openShipmentForm = (shipment?: Shipment) => {
     setEditingShipment(shipment);
     setShipmentSheetOpen(true);
   };
   
   const handleSaveShipment = async (shipment: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
-    if (!firestore || !id || !user || !companies) return;
+    if (!firestore || !id || !user || !companies || !customStatuses) return;
     
     const courierUser = user;
     if (!courierUser) {
@@ -233,6 +256,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         collectedAmount,
         courierCommissionRate,
         companyGovernorateCommission,
+        customStatuses
     );
     Object.assign(dataToUpdate, calculatedFields);
 
@@ -263,7 +287,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   };
 
   const handleBulkUpdateShipments = (selectedRows: Shipment[], update: Partial<Shipment>) => {
-    if (!firestore || !user || !companies) return;
+    if (!firestore || !user || !companies || !customStatuses) return;
     if (selectedRows.length === 0) {
         toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
         return;
@@ -301,7 +325,8 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
             row.totalAmount,
             row.collectedAmount || 0, // Assume collectedAmount isn't changed in bulk, use existing
             courierCommissionRate,
-            companyGovernorateCommission
+            companyGovernorateCommission,
+            customStatuses
         );
 
         Object.assign(finalUpdate, allowedUpdates, calculatedFields);
@@ -324,7 +349,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   
   const { activeShipments, finishedShipments } = React.useMemo(() => {
     if (!shipments) return { activeShipments: [], finishedShipments: [] };
-    const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Evasion (Phone)', 'Returned to Sender', "Refused (Paid)", "Refused (Unpaid)", "Returned to Warehouse"];
+    const finishedStatuses: (ShipmentStatus | string)[] = ['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Evasion (Phone)', 'Returned to Sender', "Refused (Paid)", "Refused (Unpaid)", "Returned to Warehouse"];
     const active = shipments.filter(s => !finishedStatuses.includes(s.status));
     const finished = shipments.filter(s => finishedStatuses.includes(s.status));
     return { activeShipments: active, finishedShipments: finished };
@@ -384,6 +409,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
             governorateName={governorates?.find(g => g.id === shipment.governorateId)?.name || ''}
             companyName={companies?.find(c => c.id === shipment.companyId)?.name || ''}
             onEdit={() => openShipmentForm(shipment)}
+            settings={null}
           />
         ))}
       </div>

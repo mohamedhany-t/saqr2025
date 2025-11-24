@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { statusText } from "@/components/dashboard/shipments-table";
-import type { Shipment, SystemSettings } from "@/lib/types";
+import type { Shipment } from "@/lib/types";
 import { Pencil, MessageSquare, Package, CalendarDays, Phone, Share2, Trash2, Printer } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -12,7 +12,6 @@ import { useUser, useFirestore } from "@/firebase";
 import { Checkbox } from "../ui/checkbox";
 import { cn } from "@/lib/utils";
 import React, { useEffect, useState } from "react";
-import { getSettings } from "@/firebase/settings";
 
 interface ShipmentCardProps {
     shipment: Shipment;
@@ -23,7 +22,6 @@ interface ShipmentCardProps {
     onPrint?: (shipment: Shipment) => void;
     isSelected?: boolean;
     onSelectToggle?: (id: string) => void;
-    settings: SystemSettings | null;
 }
 
 export function ShipmentCard({ 
@@ -34,8 +32,7 @@ export function ShipmentCard({
     onDelete, 
     onPrint,
     isSelected,
-    onSelectToggle,
-    settings
+    onSelectToggle
 }: ShipmentCardProps) {
     const { user: authUser } = useUser();
 
@@ -56,25 +53,11 @@ export function ShipmentCard({
 
     const handleWhatsApp = (e: React.MouseEvent) => {
         e.stopPropagation();
-        const cleanPhone = recipientPhone.replace(/\D/g, '');
-        const whatsappNumber = cleanPhone.startsWith('20') ? cleanPhone : `20${cleanPhone}`;
-        
-        const courierName = authUser?.displayName || "مندوب الشحن";
-        const customerName = recipientName;
-        const orderAmount = totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
-        const fullAddress = `${address}, ${governorateName}`;
-
-        const defaultTemplate = `أهلاً {customerName}، معاك {courierName} من شركة الصقر. حضرتك ليك اوردر بمبلغ {orderAmount} والعنوان: {fullAddress}. برجاء تأكيد إذا كنت ترغب في الاستلام – التأجيل – أو إلغاء الأوردر.\nشكرًا لك 🌸.`;
-        const messageTemplate = settings?.whatsappTemplate || defaultTemplate;
-
-        const message = messageTemplate
-            .replace('{customerName}', customerName)
-            .replace('{courierName}', courierName)
-            .replace('{orderAmount}', orderAmount)
-            .replace('{fullAddress}', fullAddress);
-            
-        const encodedMessage = encodeURIComponent(message);
-        
+        // WhatsApp logic removed as it depended on settings that were removed.
+        // A simpler message can be constructed here if needed.
+        const defaultMessage = `أهلاً ${recipientName}, بخصوص شحنتك رقم ${trackingNumber || shipment.shipmentCode}.`;
+        const encodedMessage = encodeURIComponent(defaultMessage);
+        const whatsappNumber = recipientPhone.replace(/\D/g, '').replace(/^0/, '20');
         window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');
     };
 
@@ -93,7 +76,7 @@ export function ShipmentCard({
             `*الهاتف:* ${recipientPhone}`,
             `*العنوان:* ${address}, ${governorateName}`,
             `*المبلغ الإجمالي:* ${totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`,
-            `*الحالة الحالية:* ${statusText[status] || status}`,
+            `*الحالة الحالية:* ${statusText[status.toString()] || status}`,
             `*ملاحظات المندوب:* ${reason || 'لا يوجد'}`,
         ].join('\n');
 
@@ -192,7 +175,7 @@ export function ShipmentCard({
                         </div>
                         {/* Status */}
                         <div className="flex justify-end items-center gap-2">
-                            <Badge variant="outline">{statusText[status] || status}</Badge>
+                            <Badge variant="outline">{statusText[status.toString()] || status}</Badge>
                         </div>
                      </div>
                 </div>

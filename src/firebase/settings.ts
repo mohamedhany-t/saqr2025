@@ -6,18 +6,8 @@ import type { SystemSettings } from "@/lib/types";
 const SETTINGS_COLLECTION = 'settings';
 const SYSTEM_SETTINGS_DOC_ID = 'system_settings';
 
-const defaultSettings: SystemSettings = {
-    returnReasons: [
-        "لم يرد",
-        "رفض الاستلام",
-        "الهاتف مغلق",
-        "الهاتف غير صحيح",
-        "العنوان خاطئ",
-        "تأجيل",
-        "أسباب أخرى",
-    ],
-    whatsappTemplate: `أهلاً {customerName}، معاك {courierName} من شركة الصقر. حضرتك ليك اوردر بمبلغ {orderAmount} والعنوان: {fullAddress}. برجاء تأكيد إذا كنت ترغب في الاستلام – التأجيل – أو إلغاء الأوردر.\nشكرًا لك 🌸.`
-};
+// Default settings are minimal now.
+const defaultSettings: SystemSettings = {};
 
 /**
  * Fetches the system settings from Firestore. If they don't exist, it creates them with default values.
@@ -50,5 +40,3 @@ export async function updateSettings(firestore: Firestore, data: Partial<SystemS
     // Use set with merge:true to create the doc if it doesn't exist, or update it if it does.
     return setDoc(settingsDocRef, { ...data, updatedAt: serverTimestamp() }, { merge: true });
 }
-
-    

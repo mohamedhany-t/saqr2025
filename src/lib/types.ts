@@ -42,7 +42,7 @@ export type Shipment = {
   governorateId?: string;
   address: string;
   deliveryDate: Date;
-  status: ShipmentStatus;
+  status: ShipmentStatus | string; // Allow custom statuses as strings
   reason?: string;
   totalAmount: number;
   paidAmount: number;
@@ -112,9 +112,14 @@ export interface ChatMessage {
     timestamp: any;
 }
 
+export interface CustomStatus {
+    id: string;
+    name: string;
+    hasCommission: boolean;
+}
+
 export interface SystemSettings {
-    returnReasons?: string[];
-    whatsappTemplate?: string;
+    // This is now empty, but we keep the type for potential future settings.
 }
 
     

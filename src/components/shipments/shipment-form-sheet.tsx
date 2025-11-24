@@ -25,9 +25,11 @@ import {
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Role, User, SystemSettings } from '@/lib/types';
+import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Role, User, CustomStatus } from '@/lib/types';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '../ui/textarea';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
 
 const shipmentSchema = z.object({
   shipmentCode: z.string().optional(),
@@ -40,7 +42,7 @@ const shipmentSchema = z.object({
   address: z.string().min(1, "العنوان مطلوب"),
   totalAmount: z.coerce.number().min(0, "المبلغ يجب أن يكون إيجابي"),
   paidAmount: z.coerce.number().optional(),
-  status: z.enum(["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion (Phone)", "Evasion (Delivery Attempt)", "Cancelled", "Returned", "Postponed", "Returned to Sender", "Refused (Paid)", "Refused (Unpaid)", "Returned to Warehouse"]),
+  status: z.string().min(1, "الحالة مطلوبة"),
   reason: z.string().optional(),
   deliveryDate: z.date().optional(),
   assignedCourierId: z.string().optional(),
@@ -69,14 +71,17 @@ type ShipmentFormSheetProps = {
     couriers: User[];
     companies?: Company[];
     role: Role | null;
-    settings: SystemSettings | null;
 }
 
-export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave, governorates, couriers, companies, role, settings }: ShipmentFormSheetProps) {
+export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave, governorates, couriers, companies, role }: ShipmentFormSheetProps) {
   const isEditing = !!shipment;
   const isCourier = role === 'courier';
   const isAdmin = role === 'admin';
   const isCompany = role === 'company';
+  const firestore = useFirestore();
+
+  const customStatusesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'custom_statuses') : null, [firestore]);
+  const { data: customStatuses } = useCollection<CustomStatus>(customStatusesQuery);
 
   const form = useForm<z.infer<typeof shipmentSchema>>({
     resolver: zodResolver(shipmentSchema),
@@ -107,7 +112,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           address: "",
           totalAmount: 0,
           paidAmount: 0,
-          status: "Pending" as ShipmentStatus,
+          status: "Pending",
           reason: "",
           collectedAmount: 0,
           assignedCourierId: "",
@@ -124,7 +129,6 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   };
   
   const selectedStatus = form.watch("status");
-  const isReturnStatus = ["Returned", "Cancelled", "Evasion (Phone)", "Refused (Unpaid)"].includes(selectedStatus);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -305,6 +309,9 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                         <SelectItem value="Evasion (Phone)">تهرب هاتفيًا</SelectItem>
                                         <SelectItem value="Evasion (Delivery Attempt)">تهرب بعد الوصول</SelectItem>
                                         <SelectItem value="Cancelled">تم الإلغاء</SelectItem>
+                                        {customStatuses?.map(status => (
+                                            <SelectItem key={status.id} value={status.name}>{status.name}</SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                                 <FormMessage className="col-span-4" />
@@ -332,24 +339,9 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">السبب</FormLabel>
-                                {isReturnStatus && settings?.returnReasons && settings.returnReasons.length > 0 ? (
-                                    <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
-                                        <FormControl className="col-span-3">
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="اختر سبب الإرجاع" />
-                                            </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                            {settings.returnReasons.map((reason, i) => (
-                                                <SelectItem key={i} value={reason}>{reason}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                ) : (
-                                    <FormControl className="col-span-3">
-                                        <Textarea {...field} />
-                                    </FormControl>
-                                )}
+                                <FormControl className="col-span-3">
+                                    <Textarea {...field} />
+                                </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
