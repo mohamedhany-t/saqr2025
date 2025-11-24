@@ -45,6 +45,12 @@ import { exportToExcel } from "@/lib/export";
 import { getColumns as getShipmentColumns } from './shipments-table';
 
 
+interface AdminDashboardProps {
+  user: User;
+  role: Role;
+  searchTerm: string;
+}
+
 const Filters = ({
   governorates,
   companies,
@@ -180,7 +186,7 @@ const MobileShipmentsView = ({
     onBulkUpdate,
     onBulkDelete,
     columnFilters,
-    onFiltersChange,
+    setColumnFilters,
     role
   }: {
     shipments: Shipment[];
@@ -196,7 +202,7 @@ const MobileShipmentsView = ({
     onBulkUpdate: (selectedRows: Shipment[], update: Partial<Shipment>) => void;
     onBulkDelete: () => void;
     columnFilters: ColumnFiltersState;
-    onFiltersChange: React.Dispatch<React.SetStateAction<ColumnFiltersState>>;
+    setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>;
     role: Role | null;
   }) => {
 
@@ -219,6 +225,11 @@ const MobileShipmentsView = ({
     };
 
     const handleMobileBulkDelete = () => {
+        const selectedIds = Object.keys(mobileRowSelection).filter(id => mobileRowSelection[id]);
+        const selectedShipments = shipments?.filter(s => selectedIds.includes(s.id)) || [];
+        // The parent onBulkDelete expects the selected rows.
+        // This is a bit of a workaround for the props drilling.
+        // A better solution would be to manage selection state higher up.
         onBulkDelete();
         setMobileRowSelection({});
     };
@@ -324,7 +335,7 @@ const MobileShipmentsView = ({
                     <TabsTrigger value="archived" className="col-span-3">المؤرشفة</TabsTrigger>
                 </TabsList>
                 <div className="flex items-center gap-4">
-                    <Filters governorates={governorates || []} companies={companies || []} courierUsers={courierUsers} onFiltersChange={onFiltersChange} />
+                    <Filters governorates={governorates || []} companies={companies || []} courierUsers={courierUsers} onFiltersChange={setColumnFilters} />
                     {currentList.length > 0 && (
                         <Button variant="outline" size="sm" onClick={handleSelectAll} className="h-8 gap-1">
                             <ListChecks className="h-3.5 w-3.5" />
@@ -1383,7 +1394,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     onBulkUpdate={handleGenericBulkUpdate}
                     onBulkDelete={handleDeleteShipment}
                     columnFilters={columnFilters}
-                    onFiltersChange={setColumnFilters}
+                    setColumnFilters={setColumnFilters}
                     role={role}
                 /> : 
                 <DesktopShipmentsView
