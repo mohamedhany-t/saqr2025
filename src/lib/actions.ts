@@ -4,7 +4,7 @@
 import { getAuth, Auth } from 'firebase-admin/auth';
 import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
-import webpush from 'web-push';
+import webpush, { type PushSubscription } from 'web-push';
 import { z } from 'zod';
 import path from 'path';
 import fs from 'fs';
@@ -146,7 +146,7 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
         const payload = JSON.stringify({ title, body, url });
 
         const promises = subscriptionsSnap.docs.map(doc => {
-            const subscription = doc.data();
+            const subscription = doc.data() as PushSubscription;
             return webpush.sendNotification(subscription, payload).catch(error => {
                 console.error(`Error sending notification to endpoint for user ${recipientId}:`, error.statusCode, error.body);
                 // If subscription is expired or invalid, delete it
