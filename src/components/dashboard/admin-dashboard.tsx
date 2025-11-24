@@ -64,9 +64,13 @@ const Filters = ({
 }) => {
     const [localFilters, setLocalFilters] = React.useState<ColumnFiltersState>([]);
 
-    React.useEffect(() => {
+    const handleFilterChange = React.useCallback(() => {
         onFiltersChange(localFilters);
     }, [localFilters, onFiltersChange]);
+
+    React.useEffect(() => {
+        handleFilterChange();
+    }, [handleFilterChange]);
 
     const governorateFilterValue = localFilters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
     const companyFilterValue = localFilters.find(f => f.id === 'companyId')?.value as string[] | undefined;
@@ -187,7 +191,7 @@ const MobileShipmentsView = ({
     onBulkDelete,
     columnFilters,
     setColumnFilters,
-    role
+    role,
   }: {
     shipments: Shipment[];
     archivedShipments: Shipment[];
@@ -200,7 +204,7 @@ const MobileShipmentsView = ({
     onDelete: (shipment: Shipment) => void;
     onPrint: (shipment: Shipment) => void;
     onBulkUpdate: (selectedRows: Shipment[], update: Partial<Shipment>) => void;
-    onBulkDelete: () => void;
+    onBulkDelete: (selectedRows: Shipment[]) => void;
     columnFilters: ColumnFiltersState;
     setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>;
     role: Role | null;
@@ -211,6 +215,10 @@ const MobileShipmentsView = ({
     const { toast } = useToast();
 
     const selectedCount = Object.values(mobileRowSelection).filter(Boolean).length;
+    const selectedShipments = React.useMemo(() => {
+        const selectedIds = Object.keys(mobileRowSelection).filter(id => mobileRowSelection[id]);
+        return shipments?.filter(s => selectedIds.includes(s.id)) || [];
+    }, [mobileRowSelection, shipments]);
 
     const getShipmentsByStatus = (status: ShipmentStatus | ShipmentStatus[]) => {
         const statuses = Array.isArray(status) ? status : [status];
@@ -218,31 +226,22 @@ const MobileShipmentsView = ({
     }
 
     const handleMobileBulkUpdate = (update: Partial<Shipment>) => {
-        const selectedIds = Object.keys(mobileRowSelection).filter(id => mobileRowSelection[id]);
-        const selectedShipments = shipments?.filter(s => selectedIds.includes(s.id)) || [];
         onBulkUpdate(selectedShipments, update);
         setMobileRowSelection({});
     };
 
     const handleMobileBulkDelete = () => {
-        const selectedIds = Object.keys(mobileRowSelection).filter(id => mobileRowSelection[id]);
-        const selectedShipments = shipments?.filter(s => selectedIds.includes(s.id)) || [];
-        // The parent onBulkDelete expects the selected rows.
-        // This is a bit of a workaround for the props drilling.
-        // A better solution would be to manage selection state higher up.
-        onBulkDelete();
+        onBulkDelete(selectedShipments);
         setMobileRowSelection({});
     };
 
     const handleExport = () => {
-        const selectedIds = Object.keys(mobileRowSelection).filter(id => mobileRowSelection[id]);
-        const dataToExport = shipments?.filter(s => selectedIds.includes(s.id)) || [];
-        if (dataToExport.length === 0) {
-          toast({ title: "لا توجد بيانات للتصدير", variant: "destructive" });
+        if (selectedShipments.length === 0) {
+          toast({ title: "لا توجد بيانات للتصدير", description: "الرجاء تحديد شحنة واحدة على الأقل.", variant: "destructive" });
           return;
         }
-        const shipmentColumns = getShipmentColumns(governorates || [], companies || [], courierUsers, onEdit, role);
-        exportToExcel(dataToExport, shipmentColumns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates || [], companies || [], courierUsers);
+        const shipmentColumns = getShipmentColumns({ onEdit, role, governorates, companies, couriers: courierUsers });
+        exportToExcel(selectedShipments, shipmentColumns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates || [], companies || [], courierUsers);
         setMobileRowSelection({});
     }
 
@@ -394,6 +393,7 @@ const DesktopShipmentsView = ({
     courierUsers,
     openShipmentForm,
     handleGenericBulkUpdate,
+    handleBulkDelete,
     columnFilters,
     setColumnFilters,
   }: {
@@ -407,6 +407,7 @@ const DesktopShipmentsView = ({
     courierUsers: User[];
     openShipmentForm: (shipment?: Shipment) => void;
     handleGenericBulkUpdate: (selectedRows: Shipment[], update: Partial<Shipment>) => void;
+    handleBulkDelete: (selectedRows: Shipment[]) => void;
     columnFilters: ColumnFiltersState,
     setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
   }) => {
@@ -420,6 +421,7 @@ const DesktopShipmentsView = ({
           onEdit={openShipmentForm}
           role={role}
           onBulkUpdate={handleGenericBulkUpdate}
+          onBulkDelete={handleBulkDelete}
           filters={columnFilters}
           onFiltersChange={setColumnFilters}
         />
@@ -833,22 +835,28 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     }
   };
 
-  const handleDeleteShipment = () => {
-    if (!firestore || !shipmentToDelete) return;
-    const docRef = doc(firestore, 'shipments', shipmentToDelete.id);
-    deleteDoc(docRef)
+  const handleDeleteShipment = (shipmentsToDelete: Shipment[]) => {
+    if (!firestore || shipmentsToDelete.length === 0) return;
+    
+    const batch = writeBatch(firestore);
+    shipmentsToDelete.forEach(shipment => {
+        const docRef = doc(firestore, 'shipments', shipment.id);
+        batch.delete(docRef);
+    })
+    
+    batch.commit()
         .then(() => {
-            toast({ title: `تم حذف الشحنة ${shipmentToDelete.recipientName} بنجاح` });
+            toast({ title: `تم حذف ${shipmentsToDelete.length} شحنة بنجاح` });
         })
         .catch((err) => {
-            toast({ title: 'خطأ', description: 'حدث خطأ أثناء حذف الشحنة', variant: 'destructive' });
+            toast({ title: 'خطأ', description: 'حدث خطأ أثناء حذف الشحنات', variant: 'destructive' });
              errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: docRef.path,
+                path: 'shipments',
                 operation: 'delete'
             }));
         })
         .finally(() => {
-            setShipmentToDelete(null);
+            setShipmentToDelete(null); // Assuming single deletion state, might need adjustment for bulk
         });
   };
 
@@ -1389,7 +1397,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     companies={companies || []}
                     courierUsers={courierUsers}
                     onEdit={openShipmentForm}
-                    onDelete={setShipmentToDelete}
+                    onDelete={(shipment) => setShipmentToDelete(shipment)}
                     onPrint={handlePrintShipment}
                     onBulkUpdate={handleGenericBulkUpdate}
                     onBulkDelete={handleDeleteShipment}
@@ -1408,6 +1416,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     courierUsers={courierUsers}
                     openShipmentForm={openShipmentForm}
                     handleGenericBulkUpdate={handleGenericBulkUpdate}
+                    handleBulkDelete={handleDeleteShipment}
                     columnFilters={columnFilters}
                     setColumnFilters={setColumnFilters}
                 />
@@ -1710,7 +1719,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel onClick={() => setShipmentToDelete(null)}>إلغاء</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDeleteShipment} className="bg-destructive hover:bg-destructive/90">حذف</AlertDialogAction>
+                    <AlertDialogAction onClick={() => handleDeleteShipment(shipmentToDelete ? [shipmentToDelete] : [])} className="bg-destructive hover:bg-destructive/90">حذف</AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>

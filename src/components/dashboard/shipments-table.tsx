@@ -124,8 +124,8 @@ type ActionCellProps = {
   row: Row<Shipment>;
   onEdit: (shipment: Shipment) => void;
   role: Role | null;
-  governorates: Governorate[],
-  companies: Company[],
+  governorates: Governorate[];
+  companies: Company[];
 };
 
 const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role, governorates, companies }) => {
@@ -189,13 +189,21 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role, governorate
 };
 
 
-export const getColumns = (
-    governorates: Governorate[],
-    companies: Company[],
-    couriers: User[],
-    onEdit: (shipment: Shipment) => void,
-    role: Role | null,
-    ): ColumnDef<Shipment>[] => [
+interface GetColumnsProps {
+    governorates: Governorate[];
+    companies: Company[];
+    couriers: User[];
+    onEdit: (shipment: Shipment) => void;
+    role: Role | null;
+}
+
+export const getColumns = ({
+    governorates,
+    companies,
+    couriers,
+    onEdit,
+    role,
+}: GetColumnsProps): ColumnDef<Shipment>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -379,6 +387,7 @@ export function ShipmentsTable({
     onEdit, 
     role, 
     onBulkUpdate,
+    onBulkDelete,
     filters,
     onFiltersChange,
 }: { 
@@ -390,6 +399,7 @@ export function ShipmentsTable({
     onEdit: (shipment: Shipment) => void, 
     role: Role | null, 
     onBulkUpdate?: (selectedRows: Shipment[], update: Partial<Shipment>) => void,
+    onBulkDelete?: (selectedRows: Shipment[]) => void,
     filters?: ColumnFiltersState,
     onFiltersChange?: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
 }) {
@@ -403,7 +413,7 @@ export function ShipmentsTable({
   const { toast } = useToast()
   const firestore = useFirestore();
   
-  const columns = React.useMemo(() => getColumns(governorates, companies, couriers, onEdit, role), [governorates, companies, couriers, onEdit, role]);
+  const columns = React.useMemo(() => getColumns({ governorates, companies, couriers, onEdit, role }), [governorates, companies, couriers, onEdit, role]);
   
   const table = useReactTable({
     data: shipments,
@@ -464,31 +474,16 @@ export function ShipmentsTable({
   }
 
 
-  const handleBulkDelete = () => {
-    if (!firestore || role !== 'admin') return;
+  const handleBulkDeleteInternal = () => {
     const selectedRows = table.getFilteredSelectedRowModel().rows;
     if (selectedRows.length === 0) {
         toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
         return;
     }
-
-    const batch = writeBatch(firestore);
-    selectedRows.forEach(row => {
-        const docRef = doc(firestore, "shipments", row.original.id);
-        batch.delete(docRef);
-    });
-
-    batch.commit().then(() => {
-        toast({ title: `تم حذف ${selectedRows.length} شحنة بنجاح` });
-        table.resetRowSelection();
-    }).catch(serverError => {
-        const permissionError = new FirestorePermissionError({
-            path: 'shipments',
-            operation: 'delete',
-            requestResourceData: { note: `Bulk delete of ${selectedRows.length} documents.` }
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    });
+    if (onBulkDelete) {
+      onBulkDelete(selectedRows.map(row => row.original));
+      table.resetRowSelection();
+    }
   }
 
   const handleGenericBulkUpdate = (update: Partial<Shipment>) => {
@@ -506,7 +501,7 @@ export function ShipmentsTable({
         return;
     }
 
-    // Generic handler primarily for admin
+    // Generic handler primarily for admin (fallback)
     const batch = writeBatch(firestore);
     selectedRows.forEach(row => {
         const docRef = doc(firestore, "shipments", row.original.id);
@@ -700,7 +695,7 @@ export function ShipmentsTable({
                                     ))}
                                 </DropdownMenuContent>
                             </DropdownMenu>
-                            <Button variant="destructive" size="sm" className="h-8 gap-1" onClick={handleBulkDelete}>
+                            <Button variant="destructive" size="sm" className="h-8 gap-1" onClick={handleBulkDeleteInternal}>
                                 <Trash2 className="h-3.5 w-3.5" />
                                 <span className="sr-only sm:not-sr-only">حذف</span>
                             </Button>
