@@ -28,8 +28,6 @@ import { z } from "zod"
 import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Role, User, SystemSettings } from '@/lib/types';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '../ui/textarea';
-import { useFirestore } from '@/firebase';
-import { getSettings } from '@/firebase/settings';
 
 const shipmentSchema = z.object({
   shipmentCode: z.string().optional(),
@@ -71,16 +69,14 @@ type ShipmentFormSheetProps = {
     couriers: User[];
     companies?: Company[];
     role: Role | null;
+    settings: SystemSettings | null;
 }
 
-export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave, governorates, couriers, companies, role }: ShipmentFormSheetProps) {
+export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave, governorates, couriers, companies, role, settings }: ShipmentFormSheetProps) {
   const isEditing = !!shipment;
   const isCourier = role === 'courier';
   const isAdmin = role === 'admin';
   const isCompany = role === 'company';
-  const firestore = useFirestore();
-  const [settings, setSettings] = React.useState<SystemSettings | null>(null);
-
 
   const form = useForm<z.infer<typeof shipmentSchema>>({
     resolver: zodResolver(shipmentSchema),
@@ -88,10 +84,6 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   });
   
   React.useEffect(() => {
-    if (firestore) {
-        getSettings(firestore).then(setSettings);
-    }
-
     if (open) {
       if (isEditing && shipment) {
         const defaultValues = {
@@ -124,7 +116,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
         form.reset(defaultValues);
       }
     }
-  }, [open, shipment, isEditing, form, role, firestore]);
+  }, [open, shipment, isEditing, form, role]);
 
 
   const onSubmit = (values: z.infer<typeof shipmentSchema>) => {
@@ -401,5 +393,3 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
     </Sheet>
   )
 }
-
-    

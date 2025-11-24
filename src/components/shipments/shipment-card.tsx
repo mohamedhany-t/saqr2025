@@ -23,6 +23,7 @@ interface ShipmentCardProps {
     onPrint?: (shipment: Shipment) => void;
     isSelected?: boolean;
     onSelectToggle?: (id: string) => void;
+    settings: SystemSettings | null;
 }
 
 export function ShipmentCard({ 
@@ -33,11 +34,10 @@ export function ShipmentCard({
     onDelete, 
     onPrint,
     isSelected,
-    onSelectToggle
+    onSelectToggle,
+    settings
 }: ShipmentCardProps) {
     const { user: authUser } = useUser();
-    const firestore = useFirestore();
-    const [settings, setSettings] = useState<SystemSettings | null>(null);
 
     const { 
         id,
@@ -51,13 +51,6 @@ export function ShipmentCard({
         createdAt,
         senderName
     } = shipment;
-
-    useEffect(() => {
-        if(firestore) {
-            getSettings(firestore).then(setSettings);
-        }
-    }, [firestore]);
-
 
     const isAdmin = authUser?.email === 'mhanyt21@gmail.com'; // Simple admin check
 
@@ -243,5 +236,3 @@ export function ShipmentCard({
         </Card>
     );
 }
-
-    

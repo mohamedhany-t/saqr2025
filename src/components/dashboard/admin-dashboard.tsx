@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, User, CourierPayment, Chat, CompanyPayment, ShipmentStatus } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, User, CourierPayment, Chat, CompanyPayment, ShipmentStatus, SystemSettings } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { UsersTable, UserCard } from "@/components/dashboard/users-table";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
@@ -45,6 +45,7 @@ import { exportToExcel } from "@/lib/export";
 import { getColumns as getShipmentColumns } from './shipments-table';
 import { differenceInDays, differenceInHours } from "date-fns";
 import { SettingsPage } from "./settings-page";
+import { getSettings } from "@/firebase/settings";
 
 
 interface AdminDashboardProps {
@@ -194,6 +195,7 @@ const MobileShipmentsView = ({
     columnFilters,
     setColumnFilters,
     role,
+    settings,
   }: {
     shipments: Shipment[];
     archivedShipments: Shipment[];
@@ -210,6 +212,7 @@ const MobileShipmentsView = ({
     columnFilters: ColumnFiltersState;
     setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>;
     role: Role | null;
+    settings: SystemSettings | null;
   }) => {
 
     const [activeTab, setActiveTab] = React.useState("all-shipments");
@@ -317,6 +320,7 @@ const MobileShipmentsView = ({
                         [id]: !prev[id]
                     }));
                 }}
+                settings={settings}
               />
             ))}
           </div>
@@ -561,8 +565,25 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
 
+  const [systemSettings, setSystemSettings] = React.useState<SystemSettings | null>(null);
+  const [settingsLoading, setSettingsLoading] = React.useState(true);
+
+
   // We use useUser here to get the auth user (with .uid) for the import logic.
   const { user: authUser } = useUser();
+
+  React.useEffect(() => {
+    if (firestore) {
+        setSettingsLoading(true);
+        getSettings(firestore).then(data => {
+            setSystemSettings(data);
+        }).catch(error => {
+            console.error("Failed to load system settings:", error);
+            // Don't emit permission error here, let the rules handle it
+            // errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'settings/system_settings', operation: 'get' }));
+        }).finally(() => setSettingsLoading(false));
+    }
+  }, [firestore]);
 
 
   const chatsQuery = useMemoFirebase(() => {
@@ -1455,6 +1476,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     return shipments?.filter(s => !s.assignedCourierId && !s.isArchived) || [];
   }, [shipments]);
 
+  const listIsLoading = shipmentsLoading || governoratesLoading || companiesLoading || usersLoading || settingsLoading;
 
   return (
     <div className="flex flex-col w-full">
@@ -1509,7 +1531,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     shipments={shipments || []}
                     archivedShipments={archivedShipments}
                     filteredShipments={filteredShipments}
-                    listIsLoading={shipmentsLoading}
+                    listIsLoading={listIsLoading}
                     governorates={governorates || []}
                     companies={companies || []}
                     courierUsers={courierUsers}
@@ -1521,9 +1543,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     columnFilters={columnFilters}
                     setColumnFilters={setColumnFilters}
                     role={role}
+                    settings={systemSettings}
                 /> : 
                 <DesktopShipmentsView
-                    listIsLoading={shipmentsLoading}
+                    listIsLoading={listIsLoading}
                     role={role}
                     filteredShipments={filteredShipments}
                     getShipmentsByStatus={getShipmentsByStatus}
@@ -1816,7 +1839,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 governorates={governorates || []}
                 companyPayments={companyPayments || []}
                 courierPayments={courierPayments || []}
-                isLoading={shipmentsLoading || companiesLoading || usersLoading || governoratesLoading}
+                isLoading={listIsLoading}
              />
         </TabsContent>
         <TabsContent value="settings">
@@ -1828,7 +1851,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 unassignedShipments={unassignedShipments}
                 couriers={courierUsers}
                 governorates={governorates || []}
-                isLoading={shipmentsLoading || usersLoading || governoratesLoading}
+                isLoading={listIsLoading}
             />
         </TabsContent>
         <TabsContent value="chat">
@@ -1844,6 +1867,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         couriers={courierUsers}
         companies={companies || []}
         role={role}
+        settings={systemSettings}
       >
         <div />
       </ShipmentFormSheet>
@@ -1968,5 +1992,3 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
-
-    
