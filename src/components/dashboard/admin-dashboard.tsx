@@ -1290,7 +1290,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
       const batch = writeBatch(firestore);
 
-      const courierShipments = shipments?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchived && s.status !== 'Postponed') || [];
+      const statusesToExclude: ShipmentStatus[] = ['Pending', 'In-Transit', 'Postponed'];
+      const courierShipments = shipments?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchived && !statusesToExclude.includes(s.status)) || [];
+
       courierShipments.forEach(shipment => {
           const shipmentRef = doc(firestore, 'shipments', shipment.id);
           batch.update(shipmentRef, { isArchived: true });
@@ -1300,7 +1302,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       
       await batch.commit()
           .then(() => {
-              toast({ title: "اكتملت الأرشفة بنجاح!", description: `تمت أرشفة جميع شحنات ${courierToArchive.name} عدا المؤجلة.` });
+              toast({ title: "اكتملت الأرشفة بنجاح!", description: `تمت أرشفة جميع شحنات ${courierToArchive.name} المنتهية.` });
           })
           .catch(serverError => {
               if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
@@ -2030,7 +2032,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           <AlertDialogHeader>
             <AlertDialogTitle>أرشفة وتسوية حساب {courierToArchive?.name}؟</AlertDialogTitle>
             <AlertDialogDescription>
-              سيؤدي هذا الإجراء إلى أرشفة جميع الشحنات الحالية للمندوب (عدا المؤجلة). سيتم تصفير حسابه ليبدأ دورة عمل جديدة. لا يمكن التراجع عن هذا الإجراء.
+              سيؤدي هذا الإجراء إلى أرشفة جميع الشحنات المنتهية للمندوب. الشحنات النشطة (قيد الانتظار، قيد التوصيل، مؤجلة) لن يتم أرشفتها. لا يمكن التراجع عن هذا الإجراء.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
