@@ -40,7 +40,8 @@ import {
     HandCoins,
     Share2,
     PhoneOff,
-    ArchiveRestore
+    ArchiveRestore,
+    Warehouse
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -80,7 +81,7 @@ export const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
     "Evasion (Delivery Attempt)": <AlertTriangle className="h-4 w-4 text-purple-600" />,
     Cancelled: <XCircle className="h-4 w-4 text-red-500" />,
     Returned: <Archive className="h-4 w-4 text-orange-500" />,
-    "Returned to Warehouse": <ArchiveRestore className="h-4 w-4 text-orange-600" />,
+    "Returned to Warehouse": <Warehouse className="h-4 w-4 text-orange-600" />,
     Postponed: <CalendarClock className="h-4 w-4 text-gray-500" />,
     "Returned to Sender": <Archive className="h-4 w-4 text-orange-700" />,
     "Refused (Paid)": <HandCoins className="h-4 w-4 text-green-500" />,
@@ -126,12 +127,13 @@ const mapStatus = (status: string): ShipmentStatus => {
 type ActionCellProps = {
   row: Row<Shipment>;
   onEdit: (shipment: Shipment) => void;
+  onBulkUpdate: (selectedRows: Shipment[], update: Partial<Shipment>) => void;
   role: Role | null;
   governorates: Governorate[];
   companies: Company[];
 };
 
-const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role, governorates, companies }) => {
+const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, onBulkUpdate, role, governorates, companies }) => {
   const shipment = row.original;
   const { toast } = useToast();
 
@@ -162,6 +164,10 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role, governorate
       const encodedMessage = encodeURIComponent(shipmentDetails);
       window.open(`whatsapp://send?text=${encodedMessage}`, '_blank');
   };
+  
+    const handleReturnToWarehouse = () => {
+      onBulkUpdate([shipment], { status: 'Returned to Warehouse' });
+    };
 
 
   return (
@@ -177,6 +183,11 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, role, governorate
         <DropdownMenuItem onClick={() => onEdit(shipment)}>
           <Pencil className="ms-2 h-4 w-4" /> تعديل
         </DropdownMenuItem>
+        {role === 'admin' && (
+          <DropdownMenuItem onClick={handleReturnToWarehouse}>
+            <Warehouse className="ms-2 h-4 w-4" /> نقل إلى المخزن
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={handleShare}>
             <Share2 className="ms-2 h-4 w-4" /> مشاركة عبر واتساب
         </DropdownMenuItem>
@@ -197,6 +208,7 @@ interface GetColumnsProps {
     companies: Company[];
     couriers: User[];
     onEdit: (shipment: Shipment) => void;
+    onBulkUpdate: (selectedRows: Shipment[], update: Partial<Shipment>) => void;
     role: Role | null;
 }
 
@@ -205,6 +217,7 @@ export const getColumns = ({
     companies,
     couriers,
     onEdit,
+    onBulkUpdate,
     role,
 }: GetColumnsProps): ColumnDef<Shipment>[] => [
   {
@@ -372,6 +385,7 @@ export const getColumns = ({
       <ActionsCell
         {...props}
         onEdit={onEdit}
+        onBulkUpdate={onBulkUpdate!}
         role={role}
         governorates={governorates}
         companies={companies}
@@ -418,7 +432,7 @@ export function ShipmentsTable({
   const { toast } = useToast()
   const firestore = useFirestore();
   
-  const columns = React.useMemo(() => getColumns({ governorates, companies, couriers, onEdit, role }), [governorates, companies, couriers, onEdit, role]);
+  const columns = React.useMemo(() => getColumns({ governorates, companies, couriers, onEdit, onBulkUpdate: onBulkUpdate!, role }), [governorates, companies, couriers, onEdit, onBulkUpdate, role]);
   
   const table = useReactTable({
     data: shipments,
@@ -806,4 +820,6 @@ export function ShipmentsTable({
     </div>
   )
 }
+    
+
     
