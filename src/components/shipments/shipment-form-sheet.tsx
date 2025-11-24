@@ -25,11 +25,10 @@ import {
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Role, User, CustomStatus } from '@/lib/types';
+import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Role, User } from '@/lib/types';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '../ui/textarea';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
+
 
 const shipmentSchema = z.object({
   shipmentCode: z.string().optional(),
@@ -42,7 +41,24 @@ const shipmentSchema = z.object({
   address: z.string().min(1, "العنوان مطلوب"),
   totalAmount: z.coerce.number().min(0, "المبلغ يجب أن يكون إيجابي"),
   paidAmount: z.coerce.number().optional(),
-  status: z.string().min(1, "الحالة مطلوبة"),
+  status: z.nativeEnum(
+    {
+        Pending: "Pending",
+        "In-Transit": "In-Transit",
+        Delivered: "Delivered",
+        "Partially Delivered": "Partially Delivered",
+        "Evasion (Phone)": "Evasion (Phone)",
+        "Evasion (Delivery Attempt)": "Evasion (Delivery Attempt)",
+        Cancelled: "Cancelled",
+        Returned: "Returned",
+        Postponed: "Postponed",
+        "Returned to Sender": "Returned to Sender",
+        "Refused (Paid)": "Refused (Paid)",
+        "Refused (Unpaid)": "Refused (Unpaid)",
+        "Returned to Warehouse": "Returned to Warehouse",
+    },
+    { required_error: "الحالة مطلوبة" }
+  ),
   reason: z.string().optional(),
   deliveryDate: z.date().optional(),
   assignedCourierId: z.string().optional(),
@@ -78,13 +94,6 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   const isCourier = role === 'courier';
   const isAdmin = role === 'admin';
   const isCompany = role === 'company';
-  const firestore = useFirestore();
-
-  const customStatusesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'custom_statuses');
-  }, [firestore]);
-  const { data: customStatuses } = useCollection<CustomStatus>(customStatusesQuery);
 
   const form = useForm<z.infer<typeof shipmentSchema>>({
     resolver: zodResolver(shipmentSchema),
@@ -312,9 +321,6 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                         <SelectItem value="Evasion (Phone)">تهرب هاتفيًا</SelectItem>
                                         <SelectItem value="Evasion (Delivery Attempt)">تهرب بعد الوصول</SelectItem>
                                         <SelectItem value="Cancelled">تم الإلغاء</SelectItem>
-                                        {customStatuses?.map(status => (
-                                            <SelectItem key={status.id} value={status.name}>{status.name}</SelectItem>
-                                        ))}
                                     </SelectContent>
                                 </Select>
                                 <FormMessage className="col-span-4" />

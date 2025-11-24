@@ -223,7 +223,7 @@ const MobileShipmentsView = ({
 
     const getShipmentsByStatus = (status: ShipmentStatus | ShipmentStatus[]) => {
         const statuses = Array.isArray(status) ? status : [status];
-        return filteredShipments.filter(s => statuses.includes(s.status as ShipmentStatus));
+        return filteredShipments.filter(s => statuses.includes(s.status));
     }
 
     const handleMobileBulkUpdate = (update: Partial<Shipment>) => {
@@ -1446,7 +1446,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
   const getShipmentsByStatus = (status: ShipmentStatus | ShipmentStatus[]) => {
     const statuses = Array.isArray(status) ? status : [status];
-    return filteredShipments.filter(s => statuses.includes(s.status as ShipmentStatus));
+    return filteredShipments.filter(s => statuses.includes(s.status));
   }
   
   const unassignedShipments = React.useMemo(() => {
