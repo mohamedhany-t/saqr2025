@@ -40,36 +40,48 @@ const calculateCommissionAndPaidAmount = (
     const safeCourierCommissionRate = courierCommissionRate || 0;
     const safeCompanyCommission = companyCommission || 0;
     
-    const isSuccessWithCommission = status === 'Delivered' || status === 'Partially Delivered' || status === 'Evasion (Delivery Attempt)' || status === 'Refused (Paid)' || status === 'Refused (Unpaid)';
-    const isSuccessWithoutCommission = status === 'Evasion (Phone)';
-
-    if (isSuccessWithCommission) {
-        update.courierCommission = safeCourierCommissionRate;
-        
-        if (status === 'Delivered') {
+    switch (status) {
+        case 'Delivered':
+            update.courierCommission = safeCourierCommissionRate;
             update.paidAmount = safeTotalAmount;
             update.collectedAmount = safeTotalAmount;
             update.companyCommission = safeCompanyCommission;
-        } else if (status === 'Partially Delivered' || status === 'Refused (Paid)') {
+            break;
+
+        case 'Partially Delivered':
+        case 'Refused (Paid)':
+            update.courierCommission = safeCourierCommissionRate;
             update.paidAmount = safeCollectedAmount;
             update.companyCommission = safeCompanyCommission;
-        } else { // Evasion (Delivery Attempt), Refused (Unpaid) and other future success statuses
+            break;
+
+        case 'Evasion (Delivery Attempt)':
+        case 'Refused (Unpaid)':
+            update.courierCommission = safeCourierCommissionRate;
             update.paidAmount = 0;
             update.collectedAmount = 0;
-            // Company commission might be 0 here, depends on business logic
             update.companyCommission = 0; 
-        }
-    } else if (isSuccessWithoutCommission) {
-         update.courierCommission = 0;
-         update.paidAmount = 0;
-         update.collectedAmount = 0;
-         update.companyCommission = 0;
-    } else { // Returned, Cancelled, Postponed etc.
-        update.paidAmount = 0;
-        update.courierCommission = 0;
-        update.companyCommission = 0;
-        update.collectedAmount = 0;
+            break;
+            
+        case 'Evasion (Phone)':
+        case 'Returned':
+        case 'Cancelled':
+        case 'Postponed':
+        case 'Returned to Sender':
+            update.courierCommission = 0;
+            update.paidAmount = 0;
+            update.collectedAmount = 0;
+            update.companyCommission = 0;
+            break;
+
+        default: // Includes 'Pending', 'In-Transit', and any other status
+            update.paidAmount = 0;
+            update.courierCommission = 0;
+            update.companyCommission = 0;
+            update.collectedAmount = 0;
+            break;
     }
+
     return update;
 }
 

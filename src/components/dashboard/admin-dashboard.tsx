@@ -523,6 +523,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
 
+  // We use useUser here to get the auth user (with .uid) for the import logic.
+  const { user: authUser } = useUser();
+
 
   const chatsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.id) return null;
@@ -664,7 +667,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && firestore && user && companies) {
+    if (file && firestore && authUser && companies) {
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
@@ -708,7 +711,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                   deliveryDate: deliveryDate || new Date(),
                   updatedAt: serverTimestamp(),
                   isArchived: false,
-                  companyId: foundCompany ? foundCompany.id : user.id,
+                  companyId: foundCompany ? foundCompany.id : authUser.uid,
               };
 
               const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
