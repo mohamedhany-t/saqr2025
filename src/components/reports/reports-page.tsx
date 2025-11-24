@@ -208,9 +208,9 @@ export function ReportsPage({
             </div>
 
              <div className="mb-8">
-                <h2 className="text-2xl font-bold mb-2">تقارير الشركات المخصصة</h2>
+                <h2 className="text-2xl font-bold mb-2">شيت توريد الشركات</h2>
                 <p className="text-muted-foreground">
-                    اختر شركة و حالة الشحنات لاستخراج تقرير مفصل.
+                    اختر شركة و حالة الشحنات لاستخراج شيت توريد مفصل.
                 </p>
                  <div className="mt-4">
                      <Card>
@@ -243,7 +243,7 @@ export function ReportsPage({
                                  </div>
                                  <Button onClick={handleExportCompanyReport} disabled={!selectedCompanyId}>
                                      <FileUp className="me-2 h-4 w-4" />
-                                     تصدير التقرير
+                                     تصدير الشيت
                                  </Button>
                              </div>
                         </CardContent>
@@ -297,5 +297,3 @@ export function ReportsPage({
         </div>
     )
 }
-
-    
