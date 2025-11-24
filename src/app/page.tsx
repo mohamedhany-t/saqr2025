@@ -8,6 +8,7 @@ import AdminDashboard from "@/components/dashboard/admin-dashboard";
 import CourierDashboard from "@/components/dashboard/courier-dashboard";
 import CompanyDashboard from "@/components/dashboard/company-dashboard";
 import { Header } from "@/components/dashboard/header";
+import { PwaAndNotificationHandler } from "@/components/pwa-and-notification-handler";
 
 function PageContent() {
   const { user: authUser, isUserLoading: isAuthLoading } = useUser();
@@ -65,6 +66,7 @@ function PageContent() {
 
   return (
     <div className="flex min-h-screen w-full flex-col">
+      <PwaAndNotificationHandler />
       <Header onSearchChange={setSearchTerm} />
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
         {renderDashboard()}
