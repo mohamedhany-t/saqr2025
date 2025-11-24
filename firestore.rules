@@ -3,107 +3,108 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions
-    function isAuthenticated() {
+    
+    // --- Helper Functions ---
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    function isRole(role) {
-      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    function isUser(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function getUserData(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data;
+    }
+    
+    function isUserRole(role) {
+      return isSignedIn() && getUserData(request.auth.uid).role == role;
     }
 
     function isAdmin() {
-      return isRole('admin');
+      return isUserRole('admin');
     }
 
-    // Shipments:
-    // Admin: Can do anything.
-    // Company: Can create, can read/update their own shipments. Cannot delete.
-    // Courier: Can read their assigned shipments, can only update status and specific fields.
-    match /shipments/{shipmentId} {
-      allow read: if isAuthenticated();
-      allow create: if isRole('admin') || isRole('company');
-      allow update: if isAdmin() || 
-                       (isRole('company') && resource.data.companyId == request.auth.uid) ||
-                       (isRole('courier') && request.auth.uid == resource.data.assignedCourierId && request.resource.data.keys().hasOnly(['status', 'reason', 'updatedAt', 'paidAmount', 'courierCommission', 'companyCommission', 'collectedAmount']));
-      allow delete: if isAdmin();
-    }
-    
-    // Users:
-    // Admin: Can read/write/delete any user.
-    // Others: Can only read their own user document.
+    // --- Collections ---
+
+    // Users: Users can read their own data. Admins can read all user data.
+    // User creation/deletion is handled by server-side actions.
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create, update, delete: if isAdmin();
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow update: if isUser(userId) || isAdmin();
+      allow create, delete: if isAdmin(); // Only admins via server-action
     }
+
+    // Roles: Read-only for security rule checks. Written by server-side actions.
+    match /roles_admin/{userId} { allow read: if isSignedIn(); }
+    match /roles_company/{userId} { allow read: if isSignedIn(); }
+    match /roles_courier/{userId} { allow read: if isSignedIn(); }
     
-    // Companies & Couriers public data
-    // Anyone can read. Only admin can modify.
+    // Companies & Couriers: Public profiles. Writable by admins via server actions.
     match /companies/{companyId} {
-        allow read: if isAuthenticated();
-        allow create, update, delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow update, create, delete: if isAdmin();
     }
     match /couriers/{courierId} {
-        allow read: if isAuthenticated();
-        allow create, update, delete: if isAdmin();
-    }
-    
-    // Governorates:
-    // Anyone can read. Only admin can modify.
-    match /governorates/{governorateId} {
-      allow read: if isAuthenticated();
-      allow create, update, delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow update, create, delete: if isAdmin();
     }
 
-    // Payments (Company & Courier)
-    // Admin can do anything.
-    // Company/Courier can only read their own payments.
+    // Shipments: Detailed rules per role
+    match /shipments/{shipmentId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      
+      // Admin: Full access
+      allow create, delete, update: if isAdmin();
+      
+      // Company: Can create shipments for themselves. Can update shipments they own.
+      allow create: if isUserRole('company') && request.resource.data.companyId == request.auth.uid;
+      allow update: if isUserRole('company') && resource.data.companyId == request.auth.uid;
+      
+      // Courier: Can only update specific fields of their assigned shipments.
+      allow update: if isUserRole('courier')
+                      && resource.data.assignedCourierId == request.auth.uid
+                      && request.resource.data.keys().hasOnly(['status', 'reason', 'collectedAmount', 'paidAmount', 'courierCommission', 'companyCommission', 'updatedAt']);
+    }
+    
+    // Governorates: Writable only by Admin from the settings page. Readable by all.
+    match /governorates/{governorateId} {
+        allow read: if isSignedIn();
+        allow write: if isAdmin();
+    }
+    
+    // Payments (Company & Courier): Created/managed by Admin.
     match /company_payments/{paymentId} {
-        allow read: if isAdmin() || (isRole('company') && resource.data.companyId == request.auth.uid);
-        allow create, update, delete: if isAdmin();
+        allow read: if isSignedIn();
+        allow write: if isAdmin();
     }
      match /courier_payments/{paymentId} {
-        allow read: if isAdmin() || (isRole('courier') && resource.data.courierId == request.auth.uid);
-        allow create, update, delete: if isAdmin();
+        allow read: if isSignedIn();
+        allow write: if isAdmin();
     }
     
-    // Roles collections for role-based access control
-    // Only readable by admin to verify roles, not writable by client.
-     match /roles_admin/{userId} {
-      allow read: if isAdmin();
-      allow write: if false; // Managed server-side
-    }
-     match /roles_company/{userId} {
-      allow read: if isAdmin();
-      allow write: if false; // Managed server-side
-    }
-     match /roles_courier/{userId} {
-      allow read: if isAdmin();
-      allow write: if false; // Managed server-side
-    }
-    
-    // Chat & Messages
+    // Chat: Only participants can read/write.
     match /chats/{chatId} {
-      // Allow read/write if user is a participant in the chat
-      allow read, write: if isAuthenticated() && request.auth.uid in resource.data.participants;
+        allow read, update, delete: if isSignedIn() && request.auth.uid in resource.data.participants;
+        allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
+        
+        match /messages/{messageId} {
+            allow read, create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+            allow update, delete: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
+        }
     }
-    match /chats/{chatId}/messages/{messageId} {
-       // Allow read/write if user is a participant in the parent chat
-      allow read, write: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
-    }
-
-    // Push Subscriptions
-    // Users can only manage their own subscriptions
+    
+    // Push Subscriptions: Users can only manage their own subscriptions.
     match /users/{userId}/pushSubscriptions/{subscriptionId} {
-        allow read, write, delete: if isAuthenticated() && request.auth.uid == userId;
+        allow read, write, delete: if isUser(userId);
     }
-
-    // Settings
-    // Admin can write, any authenticated user can read
-    match /settings/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+    
+    // Settings: Readable by all authenticated users, writable only by admins.
+    match /settings/system_settings {
+        allow get: if isSignedIn();
+        allow write: if isAdmin();
     }
   }
 }
