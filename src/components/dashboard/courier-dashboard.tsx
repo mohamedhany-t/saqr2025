@@ -34,19 +34,25 @@ const calculateCommissionAndPaidAmount = (
 ) => {
     const update: { paidAmount?: number; courierCommission?: number; companyCommission?: number; collectedAmount?: number } = {};
     
+    // Ensure inputs are numbers
+    const safeTotalAmount = totalAmount || 0;
+    const safeCollectedAmount = collectedAmount || 0;
+    const safeCourierCommissionRate = courierCommissionRate || 0;
+    const safeCompanyCommission = companyCommission || 0;
+    
     const isSuccessWithCommission = status === 'Delivered' || status === 'Partially Delivered' || status === 'Evasion (Delivery Attempt)' || status === 'Refused (Paid)' || status === 'Refused (Unpaid)';
     const isSuccessWithoutCommission = status === 'Evasion (Phone)';
 
     if (isSuccessWithCommission) {
-        update.courierCommission = courierCommissionRate;
+        update.courierCommission = safeCourierCommissionRate;
         
         if (status === 'Delivered') {
-            update.paidAmount = totalAmount;
-            update.collectedAmount = totalAmount;
-            update.companyCommission = companyCommission;
+            update.paidAmount = safeTotalAmount;
+            update.collectedAmount = safeTotalAmount;
+            update.companyCommission = safeCompanyCommission;
         } else if (status === 'Partially Delivered' || status === 'Refused (Paid)') {
-            update.paidAmount = collectedAmount;
-            update.companyCommission = companyCommission;
+            update.paidAmount = safeCollectedAmount;
+            update.companyCommission = safeCompanyCommission;
         } else { // Evasion (Delivery Attempt), Refused (Unpaid) and other future success statuses
             update.paidAmount = 0;
             update.collectedAmount = 0;
