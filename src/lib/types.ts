@@ -111,3 +111,10 @@ export interface ChatMessage {
     fileName?: string;
     timestamp: any;
 }
+
+export interface SystemSettings {
+    returnReasons?: string[];
+    whatsappTemplate?: string;
+}
+
+    

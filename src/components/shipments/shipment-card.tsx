@@ -4,13 +4,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { statusText } from "@/components/dashboard/shipments-table";
-import type { Shipment } from "@/lib/types";
+import type { Shipment, SystemSettings } from "@/lib/types";
 import { Pencil, MessageSquare, Package, CalendarDays, Phone, Share2, Trash2, Printer } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { useUser } from "@/firebase";
+import { useUser, useFirestore } from "@/firebase";
 import { Checkbox } from "../ui/checkbox";
 import { cn } from "@/lib/utils";
+import React, { useEffect, useState } from "react";
+import { getSettings } from "@/firebase/settings";
 
 interface ShipmentCardProps {
     shipment: Shipment;
@@ -34,6 +36,9 @@ export function ShipmentCard({
     onSelectToggle
 }: ShipmentCardProps) {
     const { user: authUser } = useUser();
+    const firestore = useFirestore();
+    const [settings, setSettings] = useState<SystemSettings | null>(null);
+
     const { 
         id,
         recipientName, 
@@ -47,6 +52,13 @@ export function ShipmentCard({
         senderName
     } = shipment;
 
+    useEffect(() => {
+        if(firestore) {
+            getSettings(firestore).then(setSettings);
+        }
+    }, [firestore]);
+
+
     const isAdmin = authUser?.email === 'mhanyt21@gmail.com'; // Simple admin check
 
     const handleWhatsApp = (e: React.MouseEvent) => {
@@ -59,7 +71,15 @@ export function ShipmentCard({
         const orderAmount = totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
         const fullAddress = `${address}, ${governorateName}`;
 
-        const message = `أهلاً ${customerName}، معاك ${courierName} من شركة الصقر. حضرتك ليك اوردر بمبلغ ${orderAmount} والعنوان: ${fullAddress}. برجاء تأكيد إذا كنت ترغب في الاستلام – التأجيل – أو إلغاء الأوردر.\nشكرًا لك 🌸.`;
+        const defaultTemplate = `أهلاً {customerName}، معاك {courierName} من شركة الصقر. حضرتك ليك اوردر بمبلغ {orderAmount} والعنوان: {fullAddress}. برجاء تأكيد إذا كنت ترغب في الاستلام – التأجيل – أو إلغاء الأوردر.\nشكرًا لك 🌸.`;
+        const messageTemplate = settings?.whatsappTemplate || defaultTemplate;
+
+        const message = messageTemplate
+            .replace('{customerName}', customerName)
+            .replace('{courierName}', courierName)
+            .replace('{orderAmount}', orderAmount)
+            .replace('{fullAddress}', fullAddress);
+            
         const encodedMessage = encodeURIComponent(message);
         
         window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');
@@ -223,3 +243,5 @@ export function ShipmentCard({
         </Card>
     );
 }
+
+    

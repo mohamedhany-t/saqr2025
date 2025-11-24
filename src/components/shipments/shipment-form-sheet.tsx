@@ -25,9 +25,11 @@ import {
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Role, User } from '@/lib/types';
+import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Role, User, SystemSettings } from '@/lib/types';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '../ui/textarea';
+import { useFirestore } from '@/firebase';
+import { getSettings } from '@/firebase/settings';
 
 const shipmentSchema = z.object({
   shipmentCode: z.string().optional(),
@@ -76,6 +78,8 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   const isCourier = role === 'courier';
   const isAdmin = role === 'admin';
   const isCompany = role === 'company';
+  const firestore = useFirestore();
+  const [settings, setSettings] = React.useState<SystemSettings | null>(null);
 
 
   const form = useForm<z.infer<typeof shipmentSchema>>({
@@ -84,6 +88,10 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   });
   
   React.useEffect(() => {
+    if (firestore) {
+        getSettings(firestore).then(setSettings);
+    }
+
     if (open) {
       if (isEditing && shipment) {
         const defaultValues = {
@@ -116,7 +124,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
         form.reset(defaultValues);
       }
     }
-  }, [open, shipment, isEditing, form, role]);
+  }, [open, shipment, isEditing, form, role, firestore]);
 
 
   const onSubmit = (values: z.infer<typeof shipmentSchema>) => {
@@ -124,6 +132,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   };
   
   const selectedStatus = form.watch("status");
+  const isReturnStatus = ["Returned", "Cancelled", "Evasion (Phone)", "Refused (Unpaid)"].includes(selectedStatus);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -331,9 +340,24 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">السبب</FormLabel>
-                                <FormControl className="col-span-3">
-                                    <Textarea {...field} />
-                                </FormControl>
+                                {isReturnStatus && settings?.returnReasons && settings.returnReasons.length > 0 ? (
+                                    <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
+                                        <FormControl className="col-span-3">
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="اختر سبب الإرجاع" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            {settings.returnReasons.map((reason, i) => (
+                                                <SelectItem key={i} value={reason}>{reason}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                ) : (
+                                    <FormControl className="col-span-3">
+                                        <Textarea {...field} />
+                                    </FormControl>
+                                )}
                                 <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
@@ -377,3 +401,5 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
     </Sheet>
   )
 }
+
+    

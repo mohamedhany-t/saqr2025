@@ -350,7 +350,7 @@ const MobileShipmentsView = ({
             <TabsContent value="in-transit">{renderShipmentList(getShipmentsByStatus('In-Transit'))}</TabsContent>
             <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentList(getShipmentsByStatus('Postponed'))}</TabsContent>
-            <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)']))}</TabsContent>
+            <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Returned to Warehouse']))}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentList(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
             <TabsContent value="archived">{renderShipmentList(archivedShipments)}</TabsContent>
             {selectedCount > 0 && (
@@ -446,7 +446,7 @@ const DesktopShipmentsView = ({
             <TabsContent value="in-transit">{renderShipmentTable(getShipmentsByStatus('In-Transit'))}</TabsContent>
             <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
-            <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)']))}</TabsContent>
+            <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Returned to Warehouse']))}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentTable(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
             <TabsContent value="archived">{renderShipmentTable(archivedShipments)}</TabsContent>
         </Tabs>
@@ -1300,7 +1300,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             ...courier,
             totalShipments: activeShipments.length,
             deliveredCount: activeShipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered' || s.status === 'Evasion (Delivery Attempt)').length,
-            returnedCount: activeShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled').length,
+            returnedCount: activeShipments.filter(s => s.status === 'Returned' || s.status === 'Cancelled' || s.status === 'Returned to Warehouse').length,
             totalCollected,
             totalCommission,
             totalPaidByCourier,
@@ -1968,3 +1968,5 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
+
+    
