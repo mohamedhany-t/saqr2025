@@ -121,5 +121,3 @@ export interface CustomStatus {
 export interface SystemSettings {
     // This is now empty, but we keep the type for potential future settings.
 }
-
-    

@@ -1,96 +1,104 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Helper Functions ---
-    function isAdmin() {
-      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-    }
-    function isCompany() {
-      return exists(/databases/$(database)/documents/roles_company/$(request.auth.uid));
-    }
-    function isCourier() {
-      return exists(/databases/$(database)/documents/roles_courier/$(request.auth.uid));
-    }
+    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // --- Collection Rules ---
-
-    // SETTINGS & GOVERNORATES: Readable by signed-in users, writable only by admins.
-    match /settings/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+    function isOwner(userId) {
+      return request.auth.uid == userId;
     }
-    match /governorates/{govId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+
+    function getRole(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role;
     }
     
-    // CUSTOM_STATUSES: Readable by all, writable only by admins.
-    match /custom_statuses/{statusId} {
-      allow get, list: if isSignedIn();
-      allow write: if isAdmin();
+    function isAdmin() {
+      // Check if the user has an admin role document.
+      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+    
+    function isCompany() {
+       return exists(/databases/$(database)/documents/roles_company/$(request.auth.uid));
     }
 
-    // USERS, COMPANIES, COURIERS: Admins can do anything. Others can read the list.
+    function isCourier() {
+       return exists(/databases/$(database)/documents/roles_courier/$(request.auth.uid));
+    }
+    
+    // Rules for 'users' collection
     match /users/{userId} {
-        allow read, write, delete: if isAdmin();
-        allow get, list: if isSignedIn();
-    }
-    match /companies/{companyId} {
-       allow read, write, delete: if isAdmin();
-       allow get, list: if isSignedIn();
-    }
-     match /couriers/{courierId} {
-       allow read, write, delete: if isAdmin();
-       allow get, list: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if isAdmin();
+      allow update: if isAdmin() || isOwner(userId);
+      allow delete: if isAdmin();
     }
     
-    // SHIPMENTS: Complex logic based on role.
-    match /shipments/{shipmentId} {
-      // Admin can do anything.
-      allow read, write, create, delete: if isAdmin();
-      
-      // Company can create, and read/update their own shipments.
-      allow create: if isCompany() && request.resource.data.companyId == request.auth.uid;
-      allow read, update: if isCompany() && resource.data.companyId == request.auth.uid;
-
-      // Courier can read/update their assigned shipments.
-      allow read, update: if isCourier() && resource.data.assignedCourierId == request.auth.uid;
+    match /roles_admin/{userId} {
+      allow read, write: if isAdmin();
     }
-
-    // PAYMENTS: Admins can do anything. Involved party can read.
+    match /roles_company/{userId} {
+      allow read, write: if isAdmin();
+    }
+    match /roles_courier/{userId} {
+      allow read, write: if isAdmin();
+    }
+    
+    // Rules for 'shipments' collection
+    match /shipments/{shipmentId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() || isCompany();
+      allow update: if isAdmin() || isCourier() || (isCompany() && resource.data.companyId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+    
+    // Rules for 'companies' collection
+    match /companies/{companyId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // Rules for 'couriers' collection
+    match /couriers/{courierId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // Rules for 'governorates' collection
+    match /governorates/{governorateId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+    
+     match /custom_statuses/{statusId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // Rules for 'courier_payments' and 'company_payments'
     match /courier_payments/{paymentId} {
-        allow read, write, create, delete: if isAdmin();
-        allow list: if isAdmin(); // Only admin can list all payments
+      allow read, create, update, delete: if isAdmin();
     }
     match /company_payments/{paymentId} {
-        allow read, write, create, delete: if isAdmin();
-        allow list: if isAdmin();
+       allow read, create, update, delete: if isAdmin();
     }
-
-    // CHATS: Participants can read/write messages. Admin can oversee.
+    
+    // Rules for 'chats' and 'messages'
     match /chats/{chatId} {
-      allow read, update: if request.auth.uid in resource.data.participants || isAdmin();
+      allow read, update, delete: if isSignedIn() && request.auth.uid in resource.data.participants;
       allow create: if isSignedIn();
-
+      
       match /messages/{messageId} {
-        allow read, create: if request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants || isAdmin();
+         allow read, create: if isSignedIn() && get(/databases/$(database)/documents/chats/$(chatId)).data.participants.hasAny([request.auth.uid]);
+         allow update, delete: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
       }
     }
-
-    // USER-SPECIFIC SUBCOLLECTIONS (like Push Subscriptions)
-    match /users/{userId}/{subcollection}/{docId} {
-        allow read, write: if request.auth.uid == userId;
+    
+    match /users/{userId}/pushSubscriptions/{subscriptionId} {
+        allow read, write: if isOwner(userId);
     }
-
-    // ROLE DOCUMENTS: Only admin can manage roles.
-    match /roles_admin/{userId} { allow read, write: if isAdmin(); }
-    match /roles_company/{userId} { allow read, write: if isAdmin(); }
-    match /roles_courier/{userId} { allow read, write: if isAdmin(); }
   }
 }

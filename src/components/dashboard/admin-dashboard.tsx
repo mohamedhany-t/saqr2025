@@ -3,7 +3,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, Settings } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -44,7 +44,6 @@ import { statusText } from './shipments-table';
 import { exportToExcel } from "@/lib/export";
 import { getColumns as getShipmentColumns } from './shipments-table';
 import { differenceInDays, differenceInHours } from "date-fns";
-import { SettingsPage } from "./settings-page";
 
 
 interface AdminDashboardProps {
@@ -1472,7 +1471,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
             <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
             <TabsTrigger value="reports">التقارير</TabsTrigger>
-             <TabsTrigger value="settings">الإعدادات</TabsTrigger>
             <TabsTrigger value="ai-tools">
               <Bot className="w-4 h-4 me-2" />
               الذكاء الاصطناعي
@@ -1818,9 +1816,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 courierPayments={courierPayments || []}
                 isLoading={listIsLoading}
              />
-        </TabsContent>
-        <TabsContent value="settings">
-            <SettingsPage />
         </TabsContent>
         <TabsContent value="ai-tools">
             <AutoAssignPage 
