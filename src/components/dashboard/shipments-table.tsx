@@ -418,7 +418,7 @@ export function ShipmentsTable({
     data: shipments,
     columns,
     onSortingChange: setSorting,
-    onColumnFiltersChange: filters ? onFiltersChange : setColumnFilters,
+    onColumnFiltersChange: onFiltersChange || setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -534,15 +534,19 @@ export function ShipmentsTable({
   const companyFilterValue = currentFilters.find(f => f.id === 'companyId')?.value as string[] | undefined;
   const courierFilterValue = currentFilters.find(f => f.id === 'assignedCourierId')?.value as string[] | undefined;
   
-  const setFilter = onFiltersChange ? (id: string, value: any) => {
-    onFiltersChange(prev => {
+  const handleSetFilter = (id: string, value: any) => {
+    if (onFiltersChange) {
+      onFiltersChange(prev => {
         const newFilters = prev.filter(f => f.id !== id);
         if (value !== undefined && (!Array.isArray(value) || value.length > 0)) {
-            newFilters.push({ id, value });
+          newFilters.push({ id, value });
         }
         return newFilters;
-    });
-  } : table.getColumn("governorateId")?.setFilterValue;
+      });
+    } else {
+      table.getColumn(id)?.setFilterValue(value);
+    }
+  };
 
 
   return (
@@ -575,11 +579,7 @@ export function ShipmentsTable({
                                 const newFilter = checked
                                     ? [...current, governorate.id]
                                     : current.filter((id) => id !== governorate.id);
-                                if(onFiltersChange) {
-                                  setFilter("governorateId", newFilter.length ? newFilter : undefined);
-                                } else {
-                                  table.getColumn("governorateId")?.setFilterValue(newFilter.length ? newFilter : undefined)
-                                }
+                                handleSetFilter("governorateId", newFilter.length ? newFilter : undefined);
                             }}
                         >
                             {governorate.name}
@@ -607,11 +607,7 @@ export function ShipmentsTable({
                                 const newFilter = checked
                                     ? [...current, company.id]
                                     : current.filter((id) => id !== company.id);
-                                if (onFiltersChange) {
-                                    setFilter("companyId", newFilter.length ? newFilter : undefined);
-                                } else {
-                                    table.getColumn("companyId")?.setFilterValue(newFilter.length ? newFilter : undefined);
-                                }
+                                handleSetFilter("companyId", newFilter.length ? newFilter : undefined);
                             }}
                         >
                             {company.name}
@@ -639,11 +635,7 @@ export function ShipmentsTable({
                                 const newFilter = checked
                                     ? [...current, courier.id]
                                     : current.filter((id) => id !== courier.id);
-                                if (onFiltersChange) {
-                                    setFilter("assignedCourierId", newFilter.length ? newFilter : undefined);
-                                } else {
-                                    table.getColumn("assignedCourierId")?.setFilterValue(newFilter.length ? newFilter : undefined);
-                                }
+                                handleSetFilter("assignedCourierId", newFilter.length ? newFilter : undefined);
                             }}
                         >
                             {courier.name}
@@ -802,3 +794,4 @@ export function ShipmentsTable({
     </div>
   )
 }
+    
