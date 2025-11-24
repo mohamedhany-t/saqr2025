@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import * as React from 'react';
@@ -101,7 +100,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   React.useEffect(() => {
     if (open) {
       if (isEditing && shipment) {
-        const defaultValues = {
+        const defaultValues: Partial<Shipment> = {
           ...shipment,
           deliveryDate: shipment.deliveryDate ? (shipment.deliveryDate as any).toDate() : undefined,
           collectedAmount: shipment.collectedAmount ?? 0,
@@ -112,7 +111,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
         };
         form.reset(defaultValues as any);
       } else {
-        const defaultValues = {
+        const defaultValues: Partial<Shipment> = {
           senderName: "",
           orderNumber: "",
           trackingNumber: "",

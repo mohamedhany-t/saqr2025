@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import * as React from 'react';
@@ -103,23 +102,25 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
   React.useEffect(() => {
     if (open) {
       if (isEditing && user) {
-        form.reset({
+        const defaultValues: Partial<z.infer<typeof formSchemaForMode>> = {
           name: user.name || '',
           email: user.email,
           role: user.role,
           commissionRate: user.commissionRate || 0,
           password: "", // Always reset password field
           governorateCommissions: companyDetails?.governorateCommissions || {},
-        });
+        };
+        form.reset(defaultValues);
       } else {
-        form.reset({
+        const defaultValues: Partial<z.infer<typeof formSchemaForMode>> = {
           name: "",
           email: "",
           password: "",
           role: 'courier',
           commissionRate: 0,
           governorateCommissions: {},
-        });
+        };
+        form.reset(defaultValues);
       }
     }
   }, [open, user, isEditing, form, companyDetails]);
