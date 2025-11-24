@@ -55,7 +55,10 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
   const isEditing = !!user;
   const firestore = useFirestore();
 
-  const governoratesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'governorates') : null, [firestore]);
+  const governoratesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'governorates');
+  }, [firestore]);
   const { data: governorates, isLoading: governoratesLoading } = useCollection<Governorate>(governoratesQuery);
 
   const formSchemaForMode = baseUserSchema.superRefine((data, ctx) => {

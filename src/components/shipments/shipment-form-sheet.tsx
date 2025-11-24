@@ -80,7 +80,10 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   const isCompany = role === 'company';
   const firestore = useFirestore();
 
-  const customStatusesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'custom_statuses') : null, [firestore]);
+  const customStatusesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'custom_statuses');
+  }, [firestore]);
   const { data: customStatuses } = useCollection<CustomStatus>(customStatusesQuery);
 
   const form = useForm<z.infer<typeof shipmentSchema>>({

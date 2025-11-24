@@ -138,14 +138,20 @@ export function SettingsPage() {
   const { toast } = useToast();
 
   // Governorates State
-  const governoratesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'governorates') : null, [firestore]);
+  const governoratesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'governorates');
+  }, [firestore]);
   const { data: governorates, isLoading: governoratesLoading } = useCollection<Governorate>(governoratesQuery);
   const [isGovFormOpen, setIsGovFormOpen] = useState(false);
   const [editingGovernorate, setEditingGovernorate] = useState<Governorate | undefined>(undefined);
   const [deletingGovernorate, setDeletingGovernorate] = useState<Governorate | null>(null);
   
   // Custom Statuses State
-  const customStatusesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'custom_statuses') : null, [firestore]);
+  const customStatusesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'custom_statuses');
+  }, [firestore]);
   const { data: customStatuses, isLoading: statusesLoading } = useCollection<CustomStatus>(customStatusesQuery);
   const [isStatusFormOpen, setIsStatusFormOpen] = useState(false);
   const [editingStatus, setEditingStatus] = useState<CustomStatus | undefined>(undefined);

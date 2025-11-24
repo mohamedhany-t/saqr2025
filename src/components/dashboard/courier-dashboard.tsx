@@ -209,7 +209,10 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   }, [firestore, user]);
   const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
 
-  const customStatusesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'custom_statuses') : null, [firestore]);
+  const customStatusesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'custom_statuses');
+  }, [firestore]);
   const { data: customStatuses, isLoading: customStatusesLoading } = useCollection<CustomStatus>(customStatusesQuery);
 
 
@@ -409,7 +412,6 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
             governorateName={governorates?.find(g => g.id === shipment.governorateId)?.name || ''}
             companyName={companies?.find(c => c.id === shipment.companyId)?.name || ''}
             onEdit={() => openShipmentForm(shipment)}
-            settings={null}
           />
         ))}
       </div>
