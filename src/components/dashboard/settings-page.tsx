@@ -47,7 +47,7 @@ const GovernorateForm = ({ onSave, governorate }: { onSave: (name: string, id?: 
           <DialogTitle>{governorate ? 'تعديل محافظة' : 'إضافة محافظة جديدة'}</DialogTitle>
           <DialogDescription>
             {governorate ? 'قم بتغيير اسم المحافظة.' : 'أدخل اسم المحافظة الجديدة.'}
-          </Description>
+          </DialogDescription>
         </DialogHeader>
         <div className="py-4">
           <FormField
@@ -351,7 +351,7 @@ export function SettingsPage() {
                          <CardHeader className="p-0 text-right">
                              <CardTitle>تخصيص قالب واتساب</CardTitle>
                               <CardDescription className="pt-1">تعديل الرسالة الافتراضية التي يرسلها المندوب للعملاء.</CardDescription>
-                         </WebA>
+                         </CardHeader>
                     </AccordionTrigger>
                     <AccordionContent className="p-6 pt-0">
                         <WhatsAppTemplateForm settings={settings} onSave={handleSaveSettings} />
