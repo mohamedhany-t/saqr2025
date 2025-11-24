@@ -57,8 +57,8 @@ const SingleShipmentPrint = () => {
                     setError("لم يتم العثور على الشحنة المطلوبة.");
                     return;
                 }
-                const governorate = await fetchGovernorate(firestore, shipment.governorateId);
-                const company = await fetchCompany(firestore, shipment.companyId);
+                const governorate = shipment.governorateId ? await fetchGovernorate(firestore, shipment.governorateId) : null;
+                const company = shipment.companyId ? await fetchCompany(firestore, shipment.companyId) : null;
 
                 setData({
                     ...shipment,
@@ -132,8 +132,8 @@ const BulkShipmentPrint = () => {
                   return;
                 }
 
-                const allGovIds = [...new Set(shipments.map(s => s.governorateId).filter(Boolean))];
-                const allCompanyIds = [...new Set(shipments.map(s => s.companyId).filter(Boolean))];
+                const allGovIds = [...new Set(shipments.map(s => s.governorateId).filter(Boolean)) as string[]];
+                const allCompanyIds = [...new Set(shipments.map(s => s.companyId).filter(Boolean)) as string[]];
                 
                 let govMap = new Map();
                 let companyMap = new Map();
