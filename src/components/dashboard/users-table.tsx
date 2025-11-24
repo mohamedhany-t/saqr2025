@@ -110,7 +110,7 @@ export const UserCard = ({ user, company, onEdit, onDelete }: { user: User, comp
     )
 }
 
-export const getColumns = (onEdit: (user: User, company?: Company) => void, onDelete: (user: User) => void, companies: Company[]): ColumnDef<User>[] => [
+const getColumns = (onEdit: (user: User, company?: Company) => void, onDelete: (user: User) => void, companies: Company[]): ColumnDef<User>[] => [
   {
     accessorKey: "name",
     header: "الاسم",

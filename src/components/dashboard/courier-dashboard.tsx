@@ -25,6 +25,49 @@ interface CourierDashboardProps {
   searchTerm: string;
 }
 
+const calculateCommissionAndPaidAmount = (
+    status: ShipmentStatus,
+    totalAmount: number,
+    collectedAmount: number,
+    courierCommissionRate: number,
+    companyCommission: number,
+) => {
+    const update: { paidAmount?: number; courierCommission?: number; companyCommission?: number; collectedAmount?: number } = {};
+    
+    const isSuccessWithCommission = status === 'Delivered' || status === 'Partially Delivered' || status === 'Evasion (Delivery Attempt)' || status === 'Refused (Paid)' || status === 'Refused (Unpaid)';
+    const isSuccessWithoutCommission = status === 'Evasion (Phone)';
+
+    if (isSuccessWithCommission) {
+        update.courierCommission = courierCommissionRate;
+        
+        if (status === 'Delivered') {
+            update.paidAmount = totalAmount;
+            update.collectedAmount = totalAmount;
+            update.companyCommission = companyCommission;
+        } else if (status === 'Partially Delivered' || status === 'Refused (Paid)') {
+            update.paidAmount = collectedAmount;
+            update.companyCommission = companyCommission;
+        } else { // Evasion (Delivery Attempt), Refused (Unpaid) and other future success statuses
+            update.paidAmount = 0;
+            update.collectedAmount = 0;
+            // Company commission might be 0 here, depends on business logic
+            update.companyCommission = 0; 
+        }
+    } else if (isSuccessWithoutCommission) {
+         update.courierCommission = 0;
+         update.paidAmount = 0;
+         update.collectedAmount = 0;
+         update.companyCommission = 0;
+    } else { // Returned, Cancelled, Postponed etc.
+        update.paidAmount = 0;
+        update.courierCommission = 0;
+        update.companyCommission = 0;
+        update.collectedAmount = 0;
+    }
+    return update;
+}
+
+
 export default function CourierDashboard({ user, role, searchTerm }: CourierDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
@@ -133,49 +176,6 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     setShipmentSheetOpen(true);
   };
   
-    const calculateCommissionAndPaidAmount = (
-        status: ShipmentStatus,
-        totalAmount: number,
-        collectedAmount: number,
-        courierCommissionRate: number,
-        companyCommission: number,
-    ) => {
-        const update: { paidAmount?: number; courierCommission?: number; companyCommission?: number; collectedAmount?: number } = {};
-        
-        const isSuccessWithCommission = status === 'Delivered' || status === 'Partially Delivered' || status === 'Evasion (Delivery Attempt)' || status === 'Refused (Paid)' || status === 'Refused (Unpaid)';
-        const isSuccessWithoutCommission = status === 'Evasion (Phone)';
-
-        if (isSuccessWithCommission) {
-            update.courierCommission = courierCommissionRate;
-            
-            if (status === 'Delivered') {
-                update.paidAmount = totalAmount;
-                update.collectedAmount = totalAmount;
-                update.companyCommission = companyCommission;
-            } else if (status === 'Partially Delivered' || status === 'Refused (Paid)') {
-                update.paidAmount = collectedAmount;
-                update.companyCommission = companyCommission;
-            } else { // Evasion (Delivery Attempt), Refused (Unpaid) and other future success statuses
-                update.paidAmount = 0;
-                update.collectedAmount = 0;
-                // Company commission might be 0 here, depends on business logic
-                update.companyCommission = 0; 
-            }
-        } else if (isSuccessWithoutCommission) {
-             update.courierCommission = 0;
-             update.paidAmount = 0;
-             update.collectedAmount = 0;
-             update.companyCommission = 0;
-        } else { // Returned, Cancelled, Postponed etc.
-            update.paidAmount = 0;
-            update.courierCommission = 0;
-            update.companyCommission = 0;
-            update.collectedAmount = 0;
-        }
-        return update;
-    }
-
-
   const handleSaveShipment = async (shipment: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
     if (!firestore || !id || !user || !companies) return;
     
@@ -276,10 +276,11 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         const shipmentCompany = companies.find(c => c.id === row.companyId);
         const companyGovernorateCommission = (shipmentCompany?.governorateCommissions?.[row.governorateId || ''] || 0);
 
+        // Use the centralized calculation function
         const calculatedFields = calculateCommissionAndPaidAmount(
             newStatus,
             row.totalAmount,
-            row.collectedAmount || 0,
+            row.collectedAmount || 0, // Assume collectedAmount isn't changed in bulk, use existing
             courierCommissionRate,
             companyGovernorateCommission
         );
