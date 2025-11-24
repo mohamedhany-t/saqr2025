@@ -298,7 +298,7 @@ const MobileShipmentsView = ({
         setMobileRowSelection({});
     };
 
-    const handleExport = (onEdit: (shipment: Shipment) => void) => {
+    const handleExport = () => {
         if (selectedShipments.length === 0) {
           toast({ title: "لا توجد بيانات للتصدير", description: "الرجاء تحديد شحنة واحدة على الأقل.", variant: "destructive" });
           return;
@@ -432,7 +432,7 @@ const MobileShipmentsView = ({
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <Button variant="outline" size="sm" onClick={() => handleExport(onEdit)}>
+                    <Button variant="outline" size="sm" onClick={handleExport}>
                         <FileUp className="me-2 h-4 w-4" />
                         تصدير
                     </Button>
@@ -837,7 +837,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                   setImportProgress(prev => prev ? { ...prev, added: addedCount } : null);
               } else {
                   const docRef = querySnapshot.docs[0].ref;
-                  batch.update(docRef, cleanShipmentData);
+                  // Exclude status and assignedCourierId from updates
+                  const { status, assignedCourierId, ...updateData } = cleanShipmentData;
+                  batch.update(docRef, updateData);
                   updatedCount++;
                   setImportProgress(prev => prev ? { ...prev, updated: updatedCount } : null);
               }
@@ -1421,7 +1423,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     
     return companies.map(company => {
         const activeShipments = shipments?.filter(s => s.companyId === company.id && !s.isArchived) || [];
-        const activePayments = companyPayments?.filter(p => p.companyId === company.id && !p.isArchived) || [];
+        const activePayments = companyPayments?.filter(p => p.companyId === company.id && !s.isArchived) || [];
         
         const totalRevenue = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
         const totalCompanyCommission = activeShipments.reduce((acc, s) => acc + (s.companyCommission || 0), 0);
@@ -2092,3 +2094,5 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
+
+    

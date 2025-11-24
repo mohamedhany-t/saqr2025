@@ -213,7 +213,9 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                    setImportProgress(prev => prev ? { ...prev, added: addedCount } : null);
               } else {
                   const docRef = querySnapshot.docs[0].ref;
-                  batch.update(docRef, cleanShipmentData);
+                   // Exclude status and assignedCourierId from updates
+                  const { status, assignedCourierId, ...updateData } = cleanShipmentData;
+                  batch.update(docRef, updateData);
                   updatedCount++;
                   setImportProgress(prev => prev ? { ...prev, updated: updatedCount } : null);
               }
@@ -437,7 +439,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                         <>
                             <TabsContent value="all-shipments">{renderShipmentList(filteredShipments, shipmentsLoading)}</TabsContent>
                             <TabsContent value="in-transit">{renderShipmentList(filteredShipments.filter(s => s.status === 'In-Transit'), shipmentsLoading)}</TabsContent>
-                            <TabsContent value="delivered">{renderShipmentList(filteredShipments.filter(s => s.status === 'Delivered'), shipmentsLoading)}</TabsContent>
+                            <TabsContent value="delivered">{renderShipmentList(filteredShipments.filter(s => ['Delivered'].includes(s.status)), shipmentsLoading)}</TabsContent>
                             <TabsContent value="returned">{renderShipmentList(filteredShipments.filter(s => ['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Returned to Warehouse', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)), shipmentsLoading)}</TabsContent>
                             <TabsContent value="returned-to-sender">{renderShipmentList(filteredShipments.filter(s => s.status === 'Returned to Sender'), shipmentsLoading)}</TabsContent>
                         </>
@@ -445,7 +447,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                          <>
                             <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments, shipmentsLoading)}</TabsContent>
                             <TabsContent value="in-transit">{renderShipmentTable(filteredShipments.filter(s => s.status === 'In-Transit'), shipmentsLoading)}</TabsContent>
-                            <TabsContent value="delivered">{renderShipmentTable(filteredShipments.filter(s => s.status === 'Delivered'), shipmentsLoading)}</TabsContent>
+                            <TabsContent value="delivered">{renderShipmentTable(filteredShipments.filter(s => ['Delivered'].includes(s.status)), shipmentsLoading)}</TabsContent>
                             <TabsContent value="returned">{renderShipmentTable(filteredShipments.filter(s => ['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Returned to Warehouse', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)), shipmentsLoading)}</TabsContent>
                             <TabsContent value="returned-to-sender">{renderShipmentTable(filteredShipments.filter(s => s.status === 'Returned to Sender'), shipmentsLoading)}</TabsContent>
                         </>
@@ -477,3 +479,5 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
     </div>
   );
 }
+
+    
