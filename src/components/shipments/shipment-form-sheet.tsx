@@ -29,6 +29,21 @@ import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Role, Use
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '../ui/textarea';
 
+const shipmentStatusEnum = z.enum([
+    "Pending",
+    "In-Transit",
+    "Delivered",
+    "Partially Delivered",
+    "Evasion (Phone)",
+    "Evasion (Delivery Attempt)",
+    "Cancelled",
+    "Returned",
+    "Postponed",
+    "Returned to Sender",
+    "Refused (Paid)",
+    "Refused (Unpaid)",
+    "Returned to Warehouse",
+]);
 
 const shipmentSchema = z.object({
   shipmentCode: z.string().optional(),
@@ -41,24 +56,7 @@ const shipmentSchema = z.object({
   address: z.string().min(1, "العنوان مطلوب"),
   totalAmount: z.coerce.number().min(0, "المبلغ يجب أن يكون إيجابي"),
   paidAmount: z.coerce.number().optional(),
-  status: z.nativeEnum(
-    {
-        Pending: "Pending",
-        "In-Transit": "In-Transit",
-        Delivered: "Delivered",
-        "Partially Delivered": "Partially Delivered",
-        "Evasion (Phone)": "Evasion (Phone)",
-        "Evasion (Delivery Attempt)": "Evasion (Delivery Attempt)",
-        Cancelled: "Cancelled",
-        Returned: "Returned",
-        Postponed: "Postponed",
-        "Returned to Sender": "Returned to Sender",
-        "Refused (Paid)": "Refused (Paid)",
-        "Refused (Unpaid)": "Refused (Unpaid)",
-        "Returned to Warehouse": "Returned to Warehouse",
-    },
-    { required_error: "الحالة مطلوبة" }
-  ),
+  status: shipmentStatusEnum,
   reason: z.string().optional(),
   deliveryDate: z.date().optional(),
   assignedCourierId: z.string().optional(),
