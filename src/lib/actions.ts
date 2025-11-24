@@ -19,11 +19,30 @@ function initializeAdminApp(): App {
         return adminApp;
     }
 
-    // In a deployed Google Cloud environment (like Cloud Run used by Firebase App Hosting),
-    // the SDK automatically uses Application Default Credentials.
-    // We don't need to manually provide the service account key.
-    return initializeApp({}, 'admin');
+    // Recommended method for Vercel and other environments: Use Environment Variable
+    const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    if (serviceAccountString) {
+        try {
+            const serviceAccount = JSON.parse(serviceAccountString);
+            return initializeApp({
+                credential: cert(serviceAccount)
+            }, 'admin');
+        } catch (e) {
+            console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY. Please ensure it is a valid JSON string.', e);
+        }
+    }
+
+    // Fallback for Google Cloud environments (like Cloud Run used by Firebase App Hosting)
+    // where Application Default Credentials are automatically available.
+    try {
+        return initializeApp({}, 'admin');
+    } catch(e) {
+        console.error("Default Firebase Admin initialization failed. Ensure you have set up Application Default Credentials or the FIREBASE_SERVICE_ACCOUNT_KEY environment variable.", e);
+        // If all initialization methods fail, we throw an error to prevent the app from running with a misconfigured admin SDK.
+        throw new Error("Could not initialize Firebase Admin SDK. Please check server logs for details.");
+    }
 }
+
 
 // Initialize the app once when the module is loaded.
 const adminApp = initializeAdminApp();
