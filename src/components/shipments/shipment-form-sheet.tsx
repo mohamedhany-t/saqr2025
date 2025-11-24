@@ -127,7 +127,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           assignedCourierId: "",
           shipmentCode: `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
         };
-        form.reset(defaultValues);
+        form.reset(defaultValues as any);
       }
     }
   }, [open, shipment, isEditing, form, role]);
@@ -324,7 +324,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />
-                    {isCourier && (selectedStatus === 'Partially Delivered' || selectedStatus === 'Refused (Paid)') && (
+                    {(isCourier || isAdmin) && (selectedStatus === 'Partially Delivered' || selectedStatus === 'Refused (Paid)') && (
                         <FormField
                             control={form.control}
                             name="collectedAmount"
