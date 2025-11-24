@@ -312,9 +312,9 @@ const MobileShipmentsView = ({
       switch (activeTab) {
         case "pending": return getShipmentsByStatus('Pending');
         case "in-transit": return getShipmentsByStatus('In-Transit');
-        case "delivered": return getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']);
+        case "delivered": return getShipmentsByStatus('Delivered');
         case "postponed": return getShipmentsByStatus('Postponed');
-        case "returned": return getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)']);
+        case "returned": return getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Returned to Warehouse', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']);
         case "returned-to-sender": return getShipmentsByStatus('Returned to Sender');
         case "archived": return archivedShipments;
         case "all-shipments":
@@ -409,9 +409,9 @@ const MobileShipmentsView = ({
             <TabsContent value="all-shipments">{renderShipmentList(filteredShipments)}</TabsContent>
             <TabsContent value="pending">{renderShipmentList(getShipmentsByStatus('Pending'))}</TabsContent>
             <TabsContent value="in-transit">{renderShipmentList(getShipmentsByStatus('In-Transit'))}</TabsContent>
-            <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
+            <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus('Delivered'))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentList(getShipmentsByStatus('Postponed'))}</TabsContent>
-            <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Returned to Warehouse']))}</TabsContent>
+            <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Returned to Warehouse', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentList(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
             <TabsContent value="archived">{renderShipmentList(archivedShipments)}</TabsContent>
             {selectedCount > 0 && (
@@ -505,9 +505,9 @@ const DesktopShipmentsView = ({
             <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments)}</TabsContent>
             <TabsContent value="pending">{renderShipmentTable(getShipmentsByStatus('Pending'))}</TabsContent>
             <TabsContent value="in-transit">{renderShipmentTable(getShipmentsByStatus('In-Transit'))}</TabsContent>
-            <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
+            <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus('Delivered'))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
-            <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Returned to Warehouse']))}</TabsContent>
+            <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Returned to Warehouse', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentTable(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
             <TabsContent value="archived">{renderShipmentTable(archivedShipments)}</TabsContent>
         </Tabs>
