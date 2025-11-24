@@ -306,8 +306,8 @@ const MobileShipmentsView = ({
                 governorateName={governorates?.find(g => g.id === shipment.governorateId)?.name || ''}
                 companyName={companies?.find(c => c.id === shipment.companyId)?.name || ''}
                 onEdit={() => onEdit(shipment)}
-                onDelete={() => onDelete(shipment)}
-                onPrint={() => onPrint(shipment)}
+                onDelete={onDelete}
+                onPrint={onPrint}
                 isSelected={!!mobileRowSelection[shipment.id]}
                 onSelectToggle={(id) => {
                     setMobileRowSelection(prev => ({
@@ -708,7 +708,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                   deliveryDate: deliveryDate || new Date(),
                   updatedAt: serverTimestamp(),
                   isArchived: false,
-                  companyId: foundCompany ? foundCompany.id : user.uid,
+                  companyId: foundCompany ? foundCompany.id : user.id,
               };
 
               const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
@@ -806,7 +806,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     } else {
       const shipmentsCollection = collection(firestore, 'shipments');
       const docRef = doc(shipmentsCollection);
-      const dataToAdd = { ...cleanShipmentData, id: docRef.id, companyId: shipment.companyId || user.uid, isArchived: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+      const dataToAdd = { ...cleanShipmentData, id: docRef.id, companyId: shipment.companyId || user.id, isArchived: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
       
       setDoc(docRef, dataToAdd)
         .then(async () => {
