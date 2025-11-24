@@ -4,11 +4,12 @@ import React, { useState } from 'react';
 import type { Shipment, Company, User, Governorate, CourierPayment, CompanyPayment, ShipmentStatus } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../ui/card';
 import { Button } from '../ui/button';
-import { FileUp, Loader2 } from 'lucide-react';
+import { FileUp, Loader2, ChevronDown } from 'lucide-react';
 import { exportToExcel } from '@/lib/export';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { statusText } from '../dashboard/shipments-table';
 import { useToast } from '@/hooks/use-toast';
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface ReportsPageProps {
     shipments: Shipment[];
@@ -19,8 +20,6 @@ interface ReportsPageProps {
     companyPayments: CompanyPayment[];
     isLoading: boolean;
 }
-
-type ReportStatusFilter = 'all' | ShipmentStatus;
 
 export function ReportsPage({
     shipments,
@@ -33,8 +32,8 @@ export function ReportsPage({
 }: ReportsPageProps) {
     const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
     const [selectedCourierId, setSelectedCourierId] = useState<string | null>(null);
-    const [companyReportStatus, setCompanyReportStatus] = useState<ReportStatusFilter>('all');
-    const [courierReportStatus, setCourierReportStatus] = useState<ReportStatusFilter>('all');
+    const [companyReportStatuses, setCompanyReportStatuses] = useState<ShipmentStatus[]>([]);
+    const [courierReportStatuses, setCourierReportStatuses] = useState<ShipmentStatus[]>([]);
     const { toast } = useToast();
 
     if (isLoading) {
@@ -155,11 +154,11 @@ export function ReportsPage({
         { title: "التقرير المالي للشركات", description: "ملخص مالي لجميع الشركات.", data: companyFinancials, type: 'company_financials', fileName: 'company_financials' },
     ]
 
-    const filterShipmentsByStatus = (shipments: Shipment[], statusFilter: ReportStatusFilter): Shipment[] => {
-        if (statusFilter === 'all') {
+    const filterShipmentsByStatus = (shipments: Shipment[], statusFilters: ShipmentStatus[]): Shipment[] => {
+        if (statusFilters.length === 0) {
             return shipments;
         }
-        return shipments.filter(s => s.status === statusFilter);
+        return shipments.filter(s => statusFilters.includes(s.status));
     };
 
     const handleExportCompanyReport = () => {
@@ -167,8 +166,8 @@ export function ReportsPage({
         const company = companies.find(c => c.id === selectedCompanyId);
         if (!company) return;
         const companyShipments = shipments.filter(s => s.companyId === selectedCompanyId);
-        const filteredData = filterShipmentsByStatus(companyShipments, companyReportStatus);
-        handleExport(filteredData, 'company_shipments', `shipments_${company.name.replace(/\s/g, '_')}_${companyReportStatus}`);
+        const filteredData = filterShipmentsByStatus(companyShipments, companyReportStatuses);
+        handleExport(filteredData, 'company_shipments', `shipments_${company.name.replace(/\s/g, '_')}`);
     };
 
     const handleExportCourierReport = () => {
@@ -176,8 +175,8 @@ export function ReportsPage({
         const courier = couriers.find(c => c.id === selectedCourierId);
         if (!courier) return;
         const courierShipments = shipments.filter(s => s.assignedCourierId === selectedCourierId);
-        const filteredData = filterShipmentsByStatus(courierShipments, courierReportStatus);
-        handleExport(filteredData, 'courier_shipments', `shipments_${courier.name?.replace(/\s/g, '_')}_${courierReportStatus}`);
+        const filteredData = filterShipmentsByStatus(courierShipments, courierReportStatuses);
+        handleExport(filteredData, 'courier_shipments', `shipments_${courier.name?.replace(/\s/g, '_')}`);
     };
 
     return (
@@ -229,17 +228,36 @@ export function ReportsPage({
                                  </div>
                                  <div>
                                      <label className="text-sm font-medium mb-2 block">فلترة حسب الحالة</label>
-                                     <Select dir="rtl" onValueChange={(value) => setCompanyReportStatus(value as ReportStatusFilter)} value={companyReportStatus}>
-                                         <SelectTrigger>
-                                             <SelectValue placeholder="اختر الحالة..." />
-                                         </SelectTrigger>
-                                         <SelectContent>
-                                             <SelectItem value="all">الكل</SelectItem>
-                                             {Object.entries(statusText).map(([statusValue, statusLabel]) => (
-                                                <SelectItem key={statusValue} value={statusValue}>{statusLabel}</SelectItem>
-                                             ))}
-                                         </SelectContent>
-                                     </Select>
+                                     <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="outline" className="w-full justify-between">
+                                                <span>
+                                                    {companyReportStatuses.length === 0
+                                                        ? "اختر الحالة..."
+                                                        : companyReportStatuses.length === 1
+                                                        ? statusText[companyReportStatuses[0]]
+                                                        : `الحالة (${companyReportStatuses.length})`}
+                                                </span>
+                                                <ChevronDown className="h-4 w-4 opacity-50" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent className="w-56">
+                                            {Object.entries(statusText).map(([statusValue, statusLabel]) => (
+                                                <DropdownMenuCheckboxItem
+                                                    key={statusValue}
+                                                    checked={companyReportStatuses.includes(statusValue as ShipmentStatus)}
+                                                    onCheckedChange={(checked) => {
+                                                        const status = statusValue as ShipmentStatus;
+                                                        setCompanyReportStatuses(prev => 
+                                                            checked ? [...prev, status] : prev.filter(s => s !== status)
+                                                        );
+                                                    }}
+                                                >
+                                                    {statusLabel}
+                                                </DropdownMenuCheckboxItem>
+                                            ))}
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                  </div>
                                  <Button onClick={handleExportCompanyReport} disabled={!selectedCompanyId}>
                                      <FileUp className="me-2 h-4 w-4" />
@@ -273,17 +291,36 @@ export function ReportsPage({
                                   </div>
                                    <div>
                                      <label className="text-sm font-medium mb-2 block">فلترة حسب الحالة</label>
-                                     <Select dir="rtl" onValueChange={(value) => setCourierReportStatus(value as ReportStatusFilter)} value={courierReportStatus}>
-                                         <SelectTrigger>
-                                             <SelectValue placeholder="اختر الحالة..." />
-                                         </SelectTrigger>
-                                         <SelectContent>
-                                            <SelectItem value="all">الكل</SelectItem>
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="outline" className="w-full justify-between">
+                                                <span>
+                                                    {courierReportStatuses.length === 0
+                                                        ? "اختر الحالة..."
+                                                        : courierReportStatuses.length === 1
+                                                        ? statusText[courierReportStatuses[0]]
+                                                        : `الحالة (${courierReportStatuses.length})`}
+                                                </span>
+                                                <ChevronDown className="h-4 w-4 opacity-50" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent className="w-56">
                                             {Object.entries(statusText).map(([statusValue, statusLabel]) => (
-                                               <SelectItem key={statusValue} value={statusValue}>{statusLabel}</SelectItem>
+                                                <DropdownMenuCheckboxItem
+                                                    key={statusValue}
+                                                    checked={courierReportStatuses.includes(statusValue as ShipmentStatus)}
+                                                    onCheckedChange={(checked) => {
+                                                        const status = statusValue as ShipmentStatus;
+                                                        setCourierReportStatuses(prev => 
+                                                            checked ? [...prev, status] : prev.filter(s => s !== status)
+                                                        );
+                                                    }}
+                                                >
+                                                    {statusLabel}
+                                                </DropdownMenuCheckboxItem>
                                             ))}
-                                         </SelectContent>
-                                     </Select>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                  </div>
                                   <Button onClick={handleExportCourierReport} disabled={!selectedCourierId}>
                                       <FileUp className="me-2 h-4 w-4" />
