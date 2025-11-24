@@ -17,14 +17,14 @@ export function CourierAccountsPage({ role }: CourierAccountsPageProps) {
 
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'shipments'), where("assignedCourierId", "==", user.id));
+    return query(collection(firestore, 'shipments'), where("assignedCourierId", "==", user.uid));
   }, [firestore, user]);
   
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'courier_payments'), where("courierId", "==", user.id));
+    return query(collection(firestore, 'courier_payments'), where("courierId", "==", user.uid));
   }, [firestore, user]);
 
   const { data: payments, isLoading: paymentsLoading } = useCollection<CourierPayment>(paymentsQuery);
