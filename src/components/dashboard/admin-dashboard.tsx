@@ -3,7 +3,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -312,7 +312,7 @@ const MobileShipmentsView = ({
       switch (activeTab) {
         case "pending": return getShipmentsByStatus('Pending');
         case "in-transit": return getShipmentsByStatus('In-Transit');
-        case "delivered": return getShipmentsByStatus('Delivered');
+        case "delivered": return getShipmentsByStatus(['Delivered']);
         case "postponed": return getShipmentsByStatus('Postponed');
         case "returned": return getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Returned to Warehouse', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']);
         case "returned-to-sender": return getShipmentsByStatus('Returned to Sender');
@@ -409,7 +409,7 @@ const MobileShipmentsView = ({
             <TabsContent value="all-shipments">{renderShipmentList(filteredShipments)}</TabsContent>
             <TabsContent value="pending">{renderShipmentList(getShipmentsByStatus('Pending'))}</TabsContent>
             <TabsContent value="in-transit">{renderShipmentList(getShipmentsByStatus('In-Transit'))}</TabsContent>
-            <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus('Delivered'))}</TabsContent>
+            <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentList(getShipmentsByStatus('Postponed'))}</TabsContent>
             <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Returned to Warehouse', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentList(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
@@ -436,6 +436,12 @@ const MobileShipmentsView = ({
                         <FileUp className="me-2 h-4 w-4" />
                         تصدير
                     </Button>
+                    {activeTab === 'archived' &&
+                        <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isArchived: false })}>
+                            <ArchiveRestore className="me-2 h-4 w-4" />
+                            إلغاء الأرشفة
+                        </Button>
+                    }
                     <Button variant="destructive" size="icon" onClick={handleMobileBulkDelete}>
                         <Trash2 className="h-4 w-4" />
                     </Button>
@@ -474,7 +480,7 @@ const DesktopShipmentsView = ({
     columnFilters: ColumnFiltersState,
     setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
   }) => {
-    const renderShipmentTable = (shipmentList: Shipment[]) => (
+    const renderShipmentTable = (shipmentList: Shipment[], isArchivedTab = false) => (
         <ShipmentsTable 
           shipments={shipmentList} 
           isLoading={listIsLoading}
@@ -487,6 +493,7 @@ const DesktopShipmentsView = ({
           onBulkDelete={handleBulkDelete}
           filters={columnFilters}
           onFiltersChange={setColumnFilters}
+          isArchivedTab={isArchivedTab}
         />
     );
 
@@ -505,11 +512,11 @@ const DesktopShipmentsView = ({
             <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments)}</TabsContent>
             <TabsContent value="pending">{renderShipmentTable(getShipmentsByStatus('Pending'))}</TabsContent>
             <TabsContent value="in-transit">{renderShipmentTable(getShipmentsByStatus('In-Transit'))}</TabsContent>
-            <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus('Delivered'))}</TabsContent>
+            <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
             <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Returned to Warehouse', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentTable(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
-            <TabsContent value="archived">{renderShipmentTable(archivedShipments)}</TabsContent>
+            <TabsContent value="archived">{renderShipmentTable(archivedShipments, true)}</TabsContent>
         </Tabs>
     )
   }
@@ -1283,7 +1290,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
       const batch = writeBatch(firestore);
 
-      const courierShipments = shipments?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchived) || [];
+      const courierShipments = shipments?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchived && s.status !== 'Postponed') || [];
       courierShipments.forEach(shipment => {
           const shipmentRef = doc(firestore, 'shipments', shipment.id);
           batch.update(shipmentRef, { isArchived: true });
@@ -1293,7 +1300,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       
       await batch.commit()
           .then(() => {
-              toast({ title: "اكتملت الأرشفة بنجاح!", description: `تمت أرشفة جميع شحنات ${courierToArchive.name}.` });
+              toast({ title: "اكتملت الأرشفة بنجاح!", description: `تمت أرشفة جميع شحنات ${courierToArchive.name} عدا المؤجلة.` });
           })
           .catch(serverError => {
               if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
@@ -2023,7 +2030,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           <AlertDialogHeader>
             <AlertDialogTitle>أرشفة وتسوية حساب {courierToArchive?.name}؟</AlertDialogTitle>
             <AlertDialogDescription>
-              سيؤدي هذا الإجراء إلى أرشفة جميع الشحنات الحالية للمندوب. سيتم تصفير حسابه ليبدأ دورة عمل جديدة. لا يمكن التراجع عن هذا الإجراء.
+              سيؤدي هذا الإجراء إلى أرشفة جميع الشحنات الحالية للمندوب (عدا المؤجلة). سيتم تصفير حسابه ليبدأ دورة عمل جديدة. لا يمكن التراجع عن هذا الإجراء.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

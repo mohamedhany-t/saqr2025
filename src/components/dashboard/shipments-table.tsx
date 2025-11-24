@@ -393,6 +393,7 @@ export function ShipmentsTable({
     onBulkDelete,
     filters,
     onFiltersChange,
+    isArchivedTab = false,
 }: { 
     shipments: Shipment[], 
     isLoading: boolean, 
@@ -405,6 +406,7 @@ export function ShipmentsTable({
     onBulkDelete?: (selectedRows: Shipment[]) => void,
     filters?: ColumnFiltersState,
     onFiltersChange?: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
+    isArchivedTab?: boolean,
 }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -672,6 +674,12 @@ export function ShipmentsTable({
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
+                    {isArchivedTab && role === 'admin' && (
+                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isArchived: false })}>
+                            <ArchiveRestore className="h-3.5 w-3.5" />
+                            <span className="sr-only sm:not-sr-only">إلغاء الأرشفة</span>
+                        </Button>
+                    )}
                     {role === 'admin' && (
                         <>
                             <DropdownMenu>
@@ -689,10 +697,10 @@ export function ShipmentsTable({
                                     ))}
                                 </DropdownMenuContent>
                             </DropdownMenu>
-                            <Button variant="destructive" size="sm" className="h-8 gap-1" onClick={handleBulkDeleteInternal}>
+                            {!isArchivedTab && <Button variant="destructive" size="sm" className="h-8 gap-1" onClick={handleBulkDeleteInternal}>
                                 <Trash2 className="h-3.5 w-3.5" />
                                 <span className="sr-only sm:not-sr-only">حذف</span>
-                            </Button>
+                            </Button>}
                         </>
                     )}
                     {(role === 'admin' || role === 'company') && (
