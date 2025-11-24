@@ -456,8 +456,7 @@ export function ShipmentsTable({
       toast({ title: "لا توجد بيانات للتصدير", variant: "destructive" });
       return;
     }
-    const couriersForExport = couriers.map(c => ({ id: c.id, name: c.name || '', commissionRate: c.commissionRate }));
-    exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates, companies, couriersForExport);
+    exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates, companies, couriers);
   }
 
   const handleBulkPrint = () => {
