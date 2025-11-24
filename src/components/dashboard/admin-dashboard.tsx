@@ -3,9 +3,9 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
 import type { Role, Shipment, Company, Governorate, Courier, User, CourierPayment, Chat, CompanyPayment, ShipmentStatus } from "@/lib/types";
@@ -43,6 +43,7 @@ import AutoAssignPage from "../ai/auto-assign-page";
 import { statusText } from './shipments-table';
 import { exportToExcel } from "@/lib/export";
 import { getColumns as getShipmentColumns } from './shipments-table';
+import { differenceInDays, differenceInHours } from "date-fns";
 
 
 interface AdminDashboardProps {
@@ -486,6 +487,42 @@ const DesktopUsersView = ({ listIsLoading, users, onEdit, onDelete }: { listIsLo
     <UsersTable users={users || []} isLoading={listIsLoading} onEdit={onEdit} onDelete={onDelete}/>
 )
 
+// Helper component for the Problem Inbox
+const ProblemShipmentList = ({ title, shipments, onEdit, governorates, companies }: { title: string, shipments: Shipment[], onEdit: (s: Shipment) => void, governorates: Governorate[], companies: Company[] }) => {
+  if (shipments.length === 0) {
+    return null; // Don't render the card if there are no shipments
+  }
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-destructive" />
+          {title} ({shipments.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {shipments.map(s => {
+            const companyName = companies.find(c => c.id === s.companyId)?.name || "N/A";
+            const govName = governorates.find(g => g.id === s.governorateId)?.name || "N/A";
+            const lastUpdate = s.updatedAt?.toDate ? differenceInDays(new Date(), s.updatedAt.toDate()) : 0;
+            return (
+              <div key={s.id} className="border p-3 rounded-lg flex justify-between items-center bg-muted/30">
+                <div>
+                  <p className="font-bold">{s.recipientName} - <span className="text-primary">{companyName}</span></p>
+                  <p className="text-sm text-muted-foreground">{s.address}, {govName}</p>
+                   {title.includes("المؤجلة") && <p className="text-xs text-amber-600">مؤجلة منذ {lastUpdate} أيام</p>}
+                   {title.includes("المتأخرة") && <p className="text-xs text-red-600">لم يتم تحديثها منذ أكثر من 24 ساعة</p>}
+                </div>
+                <Button variant="secondary" size="sm" onClick={() => onEdit(s)}>مراجعة</Button>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
 export default function AdminDashboard({ user, role, searchTerm }: AdminDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
@@ -801,6 +838,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         }
       })
       .catch(serverError => {
+        // Only emit permission error if it's a Firestore error
         if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
             const permissionError = new FirestorePermissionError({
                 path: `shipments/${id || ''}`,
@@ -809,11 +847,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             });
             errorEmitter.emit('permission-error', permissionError);
         } else {
-            toast({
-                title: "حدث خطأ",
-                description: "لم نتمكن من حفظ الشحنة. يرجى المحاولة مرة أخرى.",
-                variant: "destructive"
-            });
+             // For other errors (like notification failure), log it but don't show a destructive toast
+            console.error("Error during save operation (possibly non-Firestore):", serverError);
         }
       });
   };
@@ -1301,6 +1336,70 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     })
   }, [companies, shipments, companyPayments]);
 
+  // --- Start: Smart Notifications & Problem Inbox Logic ---
+
+  // Use a ref to track which notifications have already been shown to avoid spamming the user
+  const shownNotificationsRef = React.useRef<Set<string>>(new Set());
+
+  // Problem Inbox Shipments
+  const returnedShipmentsNeedingAction = React.useMemo(() => shipments?.filter(s => s.status === 'Returned') || [], [shipments]);
+  const longPostponedShipments = React.useMemo(() => shipments?.filter(s => s.status === 'Postponed' && s.updatedAt && differenceInDays(new Date(), s.updatedAt.toDate()) > 3) || [], [shipments]);
+  const staleInTransitShipments = React.useMemo(() => shipments?.filter(s => s.status === 'In-Transit' && s.updatedAt && differenceInHours(new Date(), s.updatedAt.toDate()) > 24) || [], [shipments]);
+  const problemCount = returnedShipmentsNeedingAction.length + longPostponedShipments.length + staleInTransitShipments.length;
+
+  React.useEffect(() => {
+    if (usersLoading || shipmentsLoading || companiesLoading) return;
+  
+    // Check for high courier dues
+    courierDues.forEach(courier => {
+      const notificationId = `due_${courier.id}`;
+      if (courier.netDue > 5000 && !shownNotificationsRef.current.has(notificationId)) {
+        toast({
+          title: "تنبيه: ديون مندوب مرتفعة",
+          description: `المبلغ المستحق على ${courier.name} هو ${courier.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}.`,
+          variant: "destructive",
+        });
+        shownNotificationsRef.current.add(notificationId);
+      }
+    });
+
+    // Check for overloaded couriers
+    courierUsers.forEach(courier => {
+        const activeShipmentCount = shipments?.filter(s => s.assignedCourierId === courier.id && !s.isArchived).length || 0;
+        const notificationId = `overload_${courier.id}`;
+        if (activeShipmentCount > 20 && !shownNotificationsRef.current.has(notificationId)) {
+            toast({
+                title: "تنبيه: ضغط عمل على مندوب",
+                description: `لدى ${courier.name} حاليًا ${activeShipmentCount} شحنة نشطة.`,
+            });
+            shownNotificationsRef.current.add(notificationId);
+        }
+    });
+
+    // Check for high return rates per company for the day
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    companies?.forEach(company => {
+      const notificationId = `returns_${company.id}_${today}`;
+      const todaysReturns = shipments?.filter(s => {
+        if (s.companyId !== company.id || (s.status !== 'Returned' && s.status !== 'Refused (Unpaid)')) return false;
+        const updatedAt = s.updatedAt?.toDate();
+        return updatedAt && updatedAt.toISOString().split('T')[0] === today;
+      }).length || 0;
+
+      if (todaysReturns > 5 && !shownNotificationsRef.current.has(notificationId)) {
+        toast({
+            title: "تنبيه: مرتجعات شركة مرتفعة",
+            description: `تم تسجيل ${todaysReturns} مرتجعات اليوم من شركة ${company.name}.`,
+            variant: "destructive",
+        });
+        shownNotificationsRef.current.add(notificationId);
+      }
+    });
+
+  }, [courierDues, courierUsers, shipments, companies, toast, usersLoading, shipmentsLoading, companiesLoading]);
+  
+  // --- End: Smart Notifications & Problem Inbox Logic ---
+
   const currentCourierNetDue = courierDues.find(c => c.id === payingCourier?.id)?.netDue;
   const currentCompanyNetDue = companyDues.find(c => c.id === payingCompany?.id)?.netDue;
   
@@ -1362,6 +1461,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         <div className="flex items-center">
             <TabsList className="flex-nowrap overflow-x-auto justify-start">
             <TabsTrigger value="shipments">الشحنات</TabsTrigger>
+            <TabsTrigger value="problem-inbox" className="relative">
+              صندوق المشاكل
+              {problemCount > 0 && (
+                <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 justify-center p-0">{problemCount}</Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="courier-management">إدارة المناديب</TabsTrigger>
             <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
             <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
@@ -1431,6 +1536,38 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     setColumnFilters={setColumnFilters}
                 />
             }
+        </TabsContent>
+         <TabsContent value="problem-inbox">
+          <div className="mt-4 space-y-6">
+            <ProblemShipmentList 
+              title="مرتجعات بحاجة لقرار" 
+              shipments={returnedShipmentsNeedingAction} 
+              onEdit={openShipmentForm}
+              governorates={governorates || []}
+              companies={companies || []}
+            />
+            <ProblemShipmentList 
+              title="شحنات مؤجلة لفترة طويلة" 
+              shipments={longPostponedShipments}
+              onEdit={openShipmentForm}
+              governorates={governorates || []}
+              companies={companies || []}
+            />
+            <ProblemShipmentList 
+              title="شحنات متأخرة عند المناديب" 
+              shipments={staleInTransitShipments}
+              onEdit={openShipmentForm}
+              governorates={governorates || []}
+              companies={companies || []}
+            />
+            {problemCount === 0 && (
+              <div className="flex flex-col items-center justify-center text-center py-16 bg-muted/40 rounded-lg">
+                <CheckSquare className="h-16 w-16 text-green-500 mb-4" />
+                <h3 className="text-2xl font-bold">لا توجد مشاكل حاليًا</h3>
+                <p className="text-muted-foreground mt-2">صندوق المشاكل فارغ. كل الأمور تسير على ما يرام!</p>
+              </div>
+            )}
+          </div>
         </TabsContent>
         <TabsContent value="courier-management">
              <div className="mt-8">
