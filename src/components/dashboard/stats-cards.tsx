@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Truck, CheckCircle2, CircleDollarSign, Building, Wallet, BadgeDollarSign, Archive, HandCoins } from "lucide-react";
 import type { Shipment, Role, CourierPayment } from "@/lib/types";
+import React from 'react';
 
 interface StatsCardsProps {
     shipments: Shipment[];
@@ -42,7 +43,7 @@ export function StatsCards({ shipments, payments, role }: StatsCardsProps) {
         { title: "صافي المبلغ المستحق", value: `${netDueForCourier.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: Wallet, description: "الصافي المستحق عليك تسليمه للشركة." },
     ];
     
-    let statsToDisplay;
+    let statsToDisplay: { title: string; value: string; icon: React.ElementType; description: string; }[];
     switch(role) {
         case 'admin':
             statsToDisplay = adminStats;
