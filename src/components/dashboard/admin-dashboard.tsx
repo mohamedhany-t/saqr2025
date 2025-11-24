@@ -739,12 +739,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           }
           
           await batch.commit().catch(serverError => {
-            const permissionError = new FirestorePermissionError({
-                path: 'shipments',
-                operation: 'write',
-                requestResourceData: {note: "Batch import operation failed"}
-            });
-            errorEmitter.emit('permission-error', permissionError);
+            if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+                const permissionError = new FirestorePermissionError({
+                    path: 'shipments',
+                    operation: 'write',
+                    requestResourceData: {note: "Batch import operation failed"}
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            }
           });
           
           setImportProgress(prev => prev ? { ...prev, processing: false } : null);
@@ -752,12 +754,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         } catch (error: any) {
             console.error("Error importing file:", error);
              setImportProgress(prev => prev ? { ...prev, processing: false, error: "حدث خطأ أثناء معالجة الملف. يرجى التحقق من تنسيق الملف والمحاولة مرة أخرى." } : null);
-            const permissionError = new FirestorePermissionError({
-                path: 'shipments',
-                operation: 'write',
-                requestResourceData: {note: "Batch import operation failed due to client-side error"}
-            });
-            errorEmitter.emit('permission-error', permissionError);
         } finally {
             if (fileInputRef.current) {
                 fileInputRef.current.value = "";
@@ -777,65 +773,49 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     
     const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
 
-    if (id) {
-      const docRef = doc(firestore, 'shipments', id);
-      const dataToUpdate = { ...cleanShipmentData, updatedAt: serverTimestamp() };
-      
-      updateDoc(docRef, dataToUpdate)
-        .then(async () => {
-          if (shipment.assignedCourierId) {
-             await sendPushNotification({
-                recipientId: shipment.assignedCourierId,
-                title: 'شحنة جديدة',
-                body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
-                url: notificationUrl,
-            });
-          }
-          toast({
-            title: "تم تحديث الشحنة",
-            description: `تم تحديث الشحنة بنجاح`,
+    const savePromise = id
+        ? updateDoc(doc(firestore, 'shipments', id), { ...cleanShipmentData, updatedAt: serverTimestamp() })
+        : setDoc(doc(collection(firestore, 'shipments')), { 
+            ...cleanShipmentData, 
+            companyId: shipment.companyId || user.id, 
+            isArchived: false, 
+            createdAt: serverTimestamp(), 
+            updatedAt: serverTimestamp() 
           });
-          handleSheetOpenChange(false);
-        })
-        .catch(serverError => {
-          const permissionError = new FirestorePermissionError({
-            path: docRef.path,
-            operation: 'update',
-            requestResourceData: dataToUpdate
-          });
-          errorEmitter.emit('permission-error', permissionError);
-        });
 
-    } else {
-      const shipmentsCollection = collection(firestore, 'shipments');
-      const docRef = doc(shipmentsCollection);
-      const dataToAdd = { ...cleanShipmentData, id: docRef.id, companyId: shipment.companyId || user.id, isArchived: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
-      
-      setDoc(docRef, dataToAdd)
-        .then(async () => {
-          if (shipment.assignedCourierId) {
-             await sendPushNotification({
-                recipientId: shipment.assignedCourierId,
-                title: 'شحنة جديدة',
-                body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
-                url: notificationUrl,
-            });
-          }
-          toast({
-            title: "تم حفظ الشحنة",
-            description: `تم إنشاء الشحنة بنجاح`,
-          });
-          handleSheetOpenChange(false);
-        })
-        .catch(serverError => {
-          const permissionError = new FirestorePermissionError({
-            path: shipmentsCollection.path,
-            operation: 'create',
-            requestResourceData: dataToAdd
-          });
-          errorEmitter.emit('permission-error', permissionError);
+    savePromise
+      .then(() => {
+        toast({
+          title: id ? "تم تحديث الشحنة" : "تم حفظ الشحنة",
+          description: `تمت العملية بنجاح`,
         });
-    }
+        handleSheetOpenChange(false);
+        // Send notification after successful save, don't block UI for it
+        if (shipment.assignedCourierId) {
+          sendPushNotification({
+            recipientId: shipment.assignedCourierId,
+            title: 'شحنة جديدة',
+            body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
+            url: notificationUrl,
+          }).catch(console.error); // Log notification error but don't bother user
+        }
+      })
+      .catch(serverError => {
+        if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+                path: `shipments/${id || ''}`,
+                operation: id ? 'update' : 'create',
+                requestResourceData: cleanShipmentData
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        } else {
+            toast({
+                title: "حدث خطأ",
+                description: "لم نتمكن من حفظ الشحنة. يرجى المحاولة مرة أخرى.",
+                variant: "destructive"
+            });
+        }
+      });
   };
 
   const handleDeleteShipment = (shipmentsToDelete: Shipment[]) => {
@@ -852,11 +832,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             toast({ title: `تم حذف ${shipmentsToDelete.length} شحنة بنجاح` });
         })
         .catch((err) => {
-            toast({ title: 'خطأ', description: 'حدث خطأ أثناء حذف الشحنات', variant: 'destructive' });
-             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: 'shipments',
-                operation: 'delete'
-            }));
+             if (err instanceof Error && 'code' in err && err.code === 'permission-denied') {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: 'shipments',
+                    operation: 'delete'
+                }));
+             } else {
+                toast({ title: 'خطأ', description: 'حدث خطأ أثناء حذف الشحنات', variant: 'destructive' });
+             }
         })
         .finally(() => {
             setShipmentToDelete(null); // Assuming single deletion state, might need adjustment for bulk
@@ -906,12 +889,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 toast({ title: "تم تحديث المستخدم بنجاح!", description: `تم تحديث بيانات ${data.name}.` });
             })
             .catch(serverError => {
-                const permissionError = new FirestorePermissionError({
-                    path: 'batch_write (users, etc.)',
-                    operation: 'update',
-                    requestResourceData: { note: `Batch update for user ${userId} failed.` }
-                });
-                errorEmitter.emit('permission-error', permissionError);
+                if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+                    const permissionError = new FirestorePermissionError({
+                        path: 'batch_write (users, etc.)',
+                        operation: 'update',
+                        requestResourceData: { note: `Batch update for user ${userId} failed.` }
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                }
             });
 
     } else { // --- CREATE LOGIC ---
@@ -971,12 +956,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 });
             })
             .catch(serverError => {
-                const permissionError = new FirestorePermissionError({
-                    path: 'batch_write (users, roles, etc.)',
-                    operation: 'write',
-                    requestResourceData: { note: `Batch create for user ${data.email} failed.` }
-                });
-                errorEmitter.emit('permission-error', permissionError);
+                if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+                    const permissionError = new FirestorePermissionError({
+                        path: 'batch_write (users, roles, etc.)',
+                        operation: 'write',
+                        requestResourceData: { note: `Batch create for user ${data.email} failed.` }
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                }
             });
     }
   };
@@ -1015,12 +1002,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       setUserToDelete(null);
     }).catch(serverError => {
       toast({ variant: "destructive", title: "فشل حذف بيانات المستخدم", description: "تم حذف الحساب ولكن فشلت إزالة بياناته من قاعدة البيانات."});
-      const permissionError = new FirestorePermissionError({
-        path: `batch_delete`,
-        operation: 'delete',
-        requestResourceData: { note: `Batch delete for user ${userToDelete.id} failed.` }
-      });
-      errorEmitter.emit('permission-error', permissionError);
+      if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+        const permissionError = new FirestorePermissionError({
+            path: `batch_delete`,
+            operation: 'delete',
+            requestResourceData: { note: `Batch delete for user ${userToDelete.id} failed.` }
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      }
       setUserToDelete(null);
     });
   };
@@ -1040,12 +1029,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           });
         })
         .catch(serverError => {
-          const permissionError = new FirestorePermissionError({
-              path: paymentDocRef.path,
-              operation: 'update',
-              requestResourceData: dataToUpdate,
-          });
-          errorEmitter.emit('permission-error', permissionError);
+          if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+                path: paymentDocRef.path,
+                operation: 'update',
+                requestResourceData: dataToUpdate,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+          }
         });
 
     } else { // Create new payment
@@ -1068,12 +1059,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           });
         })
         .catch(serverError => {
-          const permissionError = new FirestorePermissionError({
-              path: paymentDocRef.path,
-              operation: 'create',
-              requestResourceData: newPayment,
-          });
-          errorEmitter.emit('permission-error', permissionError);
+          if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+                path: paymentDocRef.path,
+                operation: 'create',
+                requestResourceData: newPayment,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+          }
         });
     }
     setIsCourierPaymentSheetOpen(false);
@@ -1089,8 +1082,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       const dataToUpdate = { ...paymentData, updatedAt: serverTimestamp() };
       updateDoc(paymentDocRef, dataToUpdate)
         .catch(serverError => {
-          const permissionError = new FirestorePermissionError({ path: paymentDocRef.path, operation: 'update', requestResourceData: dataToUpdate });
-          errorEmitter.emit('permission-error', permissionError);
+          if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({ path: paymentDocRef.path, operation: 'update', requestResourceData: dataToUpdate });
+            errorEmitter.emit('permission-error', permissionError);
+          }
         });
 
     } else { // Create new payment
@@ -1106,8 +1101,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       };
       setDoc(paymentDocRef, newPayment)
         .catch(serverError => {
-          const permissionError = new FirestorePermissionError({ path: paymentDocRef.path, operation: 'create', requestResourceData: newPayment });
-          errorEmitter.emit('permission-error', permissionError);
+          if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({ path: paymentDocRef.path, operation: 'create', requestResourceData: newPayment });
+            errorEmitter.emit('permission-error', permissionError);
+          }
         });
     }
     setIsCompanyPaymentSheetOpen(false);
@@ -1124,8 +1121,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         toast({ title: "تم حذف الدفعة", description: "تم حذف سجل الدفعة بنجاح." });
       })
       .catch(serverError => {
-        const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'delete' });
-        errorEmitter.emit('permission-error', permissionError);
+        if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'delete' });
+            errorEmitter.emit('permission-error', permissionError);
+        }
       })
       .finally(() => setCourierPaymentToDelete(null));
   };
@@ -1136,8 +1135,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     const docRef = doc(firestore, 'company_payments', companyPaymentToDelete.id);
     deleteDoc(docRef)
       .catch(serverError => {
-        const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'delete' });
-        errorEmitter.emit('permission-error', permissionError);
+        if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'delete' });
+            errorEmitter.emit('permission-error', permissionError);
+        }
       })
       .finally(() => setCompanyPaymentToDelete(null));
   };
@@ -1162,8 +1163,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
               toast({ title: "اكتملت الأرشفة بنجاح!", description: `تمت أرشفة جميع شحنات ${courierToArchive.name}.` });
           })
           .catch(serverError => {
-              const permissionError = new FirestorePermissionError({ path: `batch_archive`, operation: 'update', requestResourceData: { note: `Batch archive for courier ${courierToArchive.id} failed.` }});
-              errorEmitter.emit('permission-error', permissionError);
+              if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+                const permissionError = new FirestorePermissionError({ path: `batch_archive`, operation: 'update', requestResourceData: { note: `Batch archive for courier ${courierToArchive.id} failed.` }});
+                errorEmitter.emit('permission-error', permissionError);
+              }
           })
           .finally(() => setCourierToArchive(null));
   };
@@ -1191,8 +1194,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
               toast({ title: "اكتملت الأرشفة بنجاح!", description: `تمت أرشفة جميع شحنات ودفعات ${companyToArchive.name}.` });
           })
           .catch(serverError => {
-              const permissionError = new FirestorePermissionError({ path: `batch_archive`, operation: 'update', requestResourceData: { note: `Batch archive for company ${companyToArchive.id} failed.` }});
-              errorEmitter.emit('permission-error', permissionError);
+            if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+                const permissionError = new FirestorePermissionError({ path: `batch_archive`, operation: 'update', requestResourceData: { note: `Batch archive for company ${companyToArchive.id} failed.` }});
+                errorEmitter.emit('permission-error', permissionError);
+            }
           })
           .finally(() => setCompanyToArchive(null));
   };
@@ -1330,12 +1335,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
         toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
     } catch (serverError) {
-        const permissionError = new FirestorePermissionError({
-            path: 'shipments',
-            operation: 'update',
-            requestResourceData: { update, note: `Bulk update of ${selectedRows.length} documents.` }
-        });
-        errorEmitter.emit('permission-error', permissionError);
+        if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+                path: 'shipments',
+                operation: 'update',
+                requestResourceData: { update, note: `Bulk update of ${selectedRows.length} documents.` }
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        }
     }
   }
 

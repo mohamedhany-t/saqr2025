@@ -220,12 +220,14 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
           }
           
           await batch.commit().catch(serverError => {
-            const permissionError = new FirestorePermissionError({
-                path: 'shipments',
-                operation: 'write',
-                requestResourceData: {note: "Batch import operation failed"}
-            });
-            errorEmitter.emit('permission-error', permissionError);
+            if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+                const permissionError = new FirestorePermissionError({
+                    path: 'shipments',
+                    operation: 'write',
+                    requestResourceData: {note: "Batch import operation failed"}
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            }
           });
           
           setImportProgress(prev => prev ? { ...prev, processing: false } : null);
@@ -233,12 +235,6 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
         } catch (error: any) {
             console.error("Error importing file:", error);
             setImportProgress(prev => prev ? { ...prev, processing: false, error: "حدث خطأ أثناء معالجة الملف. يرجى التحقق من تنسيق الملف والمحاولة مرة أخرى." } : null);
-            const permissionError = new FirestorePermissionError({
-                path: 'shipments',
-                operation: 'write',
-                requestResourceData: {note: "Batch import operation failed due to client-side error"}
-            });
-            errorEmitter.emit('permission-error', permissionError);
         } finally {
             if (fileInputRef.current) {
                 fileInputRef.current.value = "";
@@ -257,65 +253,48 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
     );
     const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
 
-    if (id) {
-      const docRef = doc(firestore, 'shipments', id);
-      const dataToUpdate = { ...cleanShipmentData, updatedAt: serverTimestamp() };
-      
-      updateDoc(docRef, dataToUpdate)
-        .then(async () => {
-          if (shipment.assignedCourierId) {
-             await sendPushNotification({
-                recipientId: shipment.assignedCourierId,
-                title: 'شحنة جديدة',
-                body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
-                url: notificationUrl,
-            });
-          }
-          toast({
-            title: "تم تحديث الشحنة",
-            description: `تم تحديث الشحنة بنجاح`,
+    const savePromise = id
+        ? updateDoc(doc(firestore, 'shipments', id), { ...cleanShipmentData, updatedAt: serverTimestamp() })
+        : setDoc(doc(collection(firestore, 'shipments')), { 
+            ...cleanShipmentData, 
+            companyId: user.id, 
+            isArchived: false, 
+            createdAt: serverTimestamp(), 
+            updatedAt: serverTimestamp() 
           });
-          handleSheetOpenChange(false);
-        })
-        .catch(serverError => {
-          const permissionError = new FirestorePermissionError({
-            path: docRef.path,
-            operation: 'update',
-            requestResourceData: dataToUpdate
-          });
-          errorEmitter.emit('permission-error', permissionError);
-        });
 
-    } else {
-      const shipmentsCollection = collection(firestore, 'shipments');
-      const docRef = doc(shipmentsCollection);
-      const dataToAdd = { ...cleanShipmentData, id: docRef.id, companyId: user.id, isArchived: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
-      
-      setDoc(docRef, dataToAdd)
-        .then(async () => {
-          if (shipment.assignedCourierId) {
-             await sendPushNotification({
-                recipientId: shipment.assignedCourierId,
-                title: 'شحنة جديدة',
-                body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
-                url: notificationUrl,
-            });
-          }
-          toast({
-            title: "تم حفظ الشحنة",
-            description: `تم إنشاء الشحنة بنجاح`,
-          });
-          handleSheetOpenChange(false);
-        })
-        .catch(serverError => {
-          const permissionError = new FirestorePermissionError({
-            path: shipmentsCollection.path,
-            operation: 'create',
-            requestResourceData: dataToAdd
-          });
-          errorEmitter.emit('permission-error', permissionError);
+    savePromise
+      .then(() => {
+        toast({
+          title: id ? "تم تحديث الشحنة" : "تم حفظ الشحنة",
+          description: `تمت العملية بنجاح`,
         });
-    }
+        handleSheetOpenChange(false);
+        if (shipment.assignedCourierId) {
+          sendPushNotification({
+            recipientId: shipment.assignedCourierId,
+            title: 'شحنة جديدة',
+            body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
+            url: notificationUrl,
+          }).catch(console.error);
+        }
+      })
+      .catch(serverError => {
+        if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+                path: `shipments/${id || ''}`,
+                operation: id ? 'update' : 'create',
+                requestResourceData: cleanShipmentData
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        } else {
+            toast({
+                title: "حدث خطأ",
+                description: "لم نتمكن من حفظ الشحنة. يرجى المحاولة مرة أخرى.",
+                variant: "destructive"
+            });
+        }
+      });
   };
   
   const filteredShipments = React.useMemo(() => {
@@ -361,12 +340,14 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
 
         toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
     } catch (serverError) {
-        const permissionError = new FirestorePermissionError({
-            path: 'shipments',
-            operation: 'update',
-            requestResourceData: { update, note: `Bulk update of ${selectedRows.length} documents.` }
-        });
-        errorEmitter.emit('permission-error', permissionError);
+        if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+                path: 'shipments',
+                operation: 'update',
+                requestResourceData: { update, note: `Bulk update of ${selectedRows.length} documents.` }
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        }
     }
   }
   

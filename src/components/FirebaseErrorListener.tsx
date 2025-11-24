@@ -18,21 +18,26 @@ export function FirebaseErrorListener() {
   const { toast } = useToast();
 
   useEffect(() => {
-    const handleError = (error: FirestorePermissionError) => {
-      console.error('Firestore Permission Error caught by listener:', error);
-
-      // In development, we want the rich Next.js error overlay.
-      // Throwing the error here accomplishes that.
+    const handleError = (error: Error) => {
+      // In development, always throw to get the rich overlay
       if (process.env.NODE_ENV === 'development') {
+        console.error('Firebase/Permission Error caught by listener (DEV):', error);
         throw error;
       }
-
-      // In production, show a generic, user-friendly toast notification.
-      toast({
-        variant: 'destructive',
-        title: 'حدث خطأ في الصلاحيات',
-        description: 'ليس لديك الإذن الكافي لتنفيذ هذا الإجراء. يرجى التواصل مع المسؤول.',
-      });
+      
+      // In production, only show toast for actual FirestorePermissionError
+      if (error instanceof FirestorePermissionError) {
+        console.error('Firestore Permission Error caught by listener (PROD):', error);
+        toast({
+          variant: 'destructive',
+          title: 'حدث خطأ في الصلاحيات',
+          description: 'ليس لديك الإذن الكافي لتنفيذ هذا الإجراء. يرجى التواصل مع المسؤول.',
+        });
+      } else {
+        // For other generic errors in production, just log them without showing a toast.
+        // This prevents showing a scary permission error toast for non-permission issues.
+        console.error('Generic Error caught by listener (PROD):', error);
+      }
     };
 
     // Subscribe to the 'permission-error' event.
