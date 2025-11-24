@@ -52,6 +52,68 @@ interface AdminDashboardProps {
   searchTerm: string;
 }
 
+const calculateCommissionAndPaidAmount = (
+    status: ShipmentStatus,
+    totalAmount: number,
+    collectedAmount: number,
+    courierCommissionRate: number,
+    companyCommission: number,
+) => {
+    const update: { paidAmount?: number; courierCommission?: number; companyCommission?: number; collectedAmount?: number } = {};
+    
+    const safeTotalAmount = totalAmount || 0;
+    const safeCollectedAmount = collectedAmount || 0;
+    const safeCourierCommissionRate = courierCommissionRate || 0;
+    const safeCompanyCommission = companyCommission || 0;
+    
+
+    switch (status) {
+        case 'Delivered':
+            update.courierCommission = safeCourierCommissionRate;
+            update.paidAmount = safeTotalAmount;
+            update.collectedAmount = safeTotalAmount;
+            update.companyCommission = safeCompanyCommission;
+            break;
+
+        case 'Partially Delivered':
+        case 'Refused (Paid)':
+            update.courierCommission = safeCourierCommissionRate;
+            update.paidAmount = safeCollectedAmount;
+            update.companyCommission = safeCompanyCommission;
+            break;
+
+        case 'Evasion (Delivery Attempt)':
+        case 'Refused (Unpaid)':
+            update.courierCommission = safeCourierCommissionRate;
+            update.paidAmount = 0;
+            update.collectedAmount = 0;
+            update.companyCommission = 0; 
+            break;
+            
+        case 'Evasion (Phone)':
+        case 'Returned':
+        case 'Returned to Warehouse':
+        case 'Cancelled':
+        case 'Postponed':
+        case 'Returned to Sender':
+            update.courierCommission = 0;
+            update.paidAmount = 0;
+            update.collectedAmount = 0;
+            update.companyCommission = 0;
+            break;
+
+        default: // Includes 'Pending', 'In-Transit', and any other status
+            update.paidAmount = 0;
+            update.courierCommission = 0;
+            update.companyCommission = 0;
+            update.collectedAmount = 0;
+            break;
+    }
+
+    return update;
+}
+
+
 const Filters = ({
   governorates,
   companies,
@@ -800,23 +862,60 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     }
   };
 
-  const handleSaveShipment = (shipment: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
-    if (!firestore || !user) return;
+  const handleSaveShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
+    if (!firestore || !user || !companies || !users) return;
 
-    const cleanShipmentData: { [key: string]: any } = Object.fromEntries(
-      Object.entries(shipment).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+    let dataToSave: { [key: string]: any } = Object.fromEntries(
+        Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== '')
     );
     
+    dataToSave.updatedAt = serverTimestamp();
+
+    let originalShipment: Shipment | undefined;
+    if (id) {
+        const docSnap = await getDoc(doc(firestore, 'shipments', id));
+        if (docSnap.exists()) {
+            originalShipment = docSnap.data() as Shipment;
+        }
+    }
+    
+    // Determine the courier and company for commission calculation
+    const courierId = dataToSave.assignedCourierId || originalShipment?.assignedCourierId;
+    const companyId = dataToSave.companyId || originalShipment?.companyId;
+    const governorateId = dataToSave.governorateId || originalShipment?.governorateId;
+    const newStatus = dataToSave.status || originalShipment?.status;
+
+    if (courierId && newStatus) {
+        const courierUser = users.find(u => u.id === courierId && u.role === 'courier');
+        const company = companies.find(c => c.id === companyId);
+        
+        if (courierUser && company && governorateId) {
+            const courierCommissionRate = courierUser.commissionRate || 0;
+            const companyGovernorateCommission = company.governorateCommissions?.[governorateId] || 0;
+            const totalAmount = dataToSave.totalAmount ?? originalShipment?.totalAmount ?? 0;
+            const collectedAmount = dataToSave.collectedAmount ?? originalShipment?.collectedAmount ?? 0;
+
+            const calculatedFields = calculateCommissionAndPaidAmount(
+                newStatus,
+                totalAmount,
+                collectedAmount,
+                courierCommissionRate,
+                companyGovernorateCommission
+            );
+            dataToSave = { ...dataToSave, ...calculatedFields };
+        }
+    }
+
+
     const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
 
     const savePromise = id
-        ? updateDoc(doc(firestore, 'shipments', id), { ...cleanShipmentData, updatedAt: serverTimestamp() })
+        ? updateDoc(doc(firestore, 'shipments', id), dataToSave)
         : setDoc(doc(collection(firestore, 'shipments')), { 
-            ...cleanShipmentData, 
-            companyId: shipment.companyId || user.id, 
+            ...dataToSave, 
+            companyId: dataToSave.companyId || user.id, 
             isArchived: false, 
-            createdAt: serverTimestamp(), 
-            updatedAt: serverTimestamp() 
+            createdAt: serverTimestamp()
           });
 
     savePromise
@@ -827,11 +926,11 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         });
         handleSheetOpenChange(false);
         // Send notification after successful save, don't block UI for it
-        if (shipment.assignedCourierId) {
+        if (shipmentData.assignedCourierId && shipmentData.assignedCourierId !== originalShipment?.assignedCourierId) {
           sendPushNotification({
-            recipientId: shipment.assignedCourierId,
+            recipientId: shipmentData.assignedCourierId,
             title: 'شحنة جديدة',
-            body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
+            body: `تم تعيين شحنة جديدة لك: ${shipmentData.recipientName}`,
             url: notificationUrl,
           }).catch(console.error); // Log notification error but don't bother user
         }
@@ -842,7 +941,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             const permissionError = new FirestorePermissionError({
                 path: `shipments/${id || ''}`,
                 operation: id ? 'update' : 'create',
-                requestResourceData: cleanShipmentData
+                requestResourceData: dataToSave
             });
             errorEmitter.emit('permission-error', permissionError);
         } else {
@@ -1403,7 +1502,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const currentCompanyNetDue = companyDues.find(c => c.id === payingCompany?.id)?.netDue;
   
   const handleGenericBulkUpdate = async (selectedRows: Shipment[], update: Partial<Shipment>) => {
-    if (!firestore) return;
+    if (!firestore || !users || !companies) return;
     if (selectedRows.length === 0) {
         toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
         return;
@@ -1411,11 +1510,32 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     
     const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
 
-    // Generic handler primarily for admin
     const batch = writeBatch(firestore);
     selectedRows.forEach(row => {
         const docRef = doc(firestore, "shipments", row.id);
-        const finalUpdate: { [key: string]: any } = { ...update, updatedAt: serverTimestamp() };
+        
+        let finalUpdate: { [key: string]: any } = { ...update, updatedAt: serverTimestamp() };
+
+        // If status is updated, re-calculate commissions
+        if (update.status && row.assignedCourierId) {
+            const courierUser = users.find(u => u.id === row.assignedCourierId);
+            const company = companies.find(c => c.id === row.companyId);
+
+            if (courierUser && company) {
+                const courierCommissionRate = courierUser.commissionRate || 0;
+                const companyGovernorateCommission = company.governorateCommissions?.[row.governorateId || ''] || 0;
+
+                const calculatedFields = calculateCommissionAndPaidAmount(
+                    update.status as ShipmentStatus,
+                    row.totalAmount,
+                    row.collectedAmount || 0,
+                    courierCommissionRate,
+                    companyGovernorateCommission
+                );
+                finalUpdate = { ...finalUpdate, ...calculatedFields };
+            }
+        }
+        
         batch.update(docRef, finalUpdate);
     });
 
