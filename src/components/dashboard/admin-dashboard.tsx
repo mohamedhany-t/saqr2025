@@ -924,7 +924,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             ...dataToSave, 
             companyId: dataToSave.companyId || user.id, 
             isArchived: false, 
-            createdAt: serverTimestamp()
+            createdAt: serverTimestamp() 
           });
 
     savePromise
@@ -1423,7 +1423,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     
     return companies.map(company => {
         const activeShipments = shipments?.filter(s => s.companyId === company.id && !s.isArchived) || [];
-        const activePayments = companyPayments?.filter(p => p.companyId === company.id && !s.isArchived) || [];
+        const activePayments = companyPayments?.filter(p => p.companyId === company.id && !p.isArchived) || [];
         
         const totalRevenue = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
         const totalCompanyCommission = activeShipments.reduce((acc, s) => acc + (s.companyCommission || 0), 0);
@@ -2094,5 +2094,3 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
-
-    
