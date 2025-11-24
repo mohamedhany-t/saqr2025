@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -20,10 +21,10 @@ const InfoLine = ({ label, value, valueClass = '' }: { label: string; value: str
 );
 
 export function ShipmentLabel({ shipment, governorateName, companyName, editUrl }: ShipmentLabelProps) {
-  // Style for the main container, fitting the 100mm x 150mm size
+  // Style for the main container, fitting the 100mm x 100mm size
   const labelStyle: React.CSSProperties = {
     width: '100mm',
-    height: '150mm',
+    height: '100mm',
     boxSizing: 'border-box',
     fontFamily: 'Cairo, sans-serif'
   };
