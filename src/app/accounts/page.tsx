@@ -26,13 +26,17 @@ interface AccountStatementsPageProps {
 type Transaction = {
     date: Date;
     description: string;
-    for: number; // Amount for the entity (e.g., commissions, payments made)
-    against: number; // Amount against the entity (e.g., cash collected)
+    totalAmount?: number;
+    paidAmount?: number;
+    courierCommission?: number;
+    companyCommission?: number;
+    netDue: number; // Positive if courier/company owes money, negative if they are owed money.
     balance: number;
     relatedId: string; // Shipment or Payment ID
 };
 
-const formatCurrency = (amount: number) => {
+const formatCurrency = (amount: number | undefined) => {
+    if (amount === undefined) return 'N/A';
     return new Intl.NumberFormat("ar-EG", {
         style: "currency",
         currency: "EGP",
@@ -46,85 +50,74 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
     const transactions = useMemo((): Transaction[] => {
         if (!selectedId) return [];
 
-        let rawTransactions: { date: Date, type: string, data: any }[] = [];
+        let rawTransactions: { date: Date, type: 'shipment' | 'payment', data: any }[] = [];
+        let entityShipments: Shipment[];
+        let entityPayments: (CourierPayment | CompanyPayment)[];
 
         if (entityType === 'courier') {
-            // ONLY include shipments where an amount has been paid
-            const courierShipments = shipments.filter(s => s.assignedCourierId === selectedId && (s.paidAmount || 0) > 0);
-            const payments = courierPayments.filter(p => p.courierId === selectedId);
-
-            courierShipments.forEach(s => {
-                rawTransactions.push({ date: s.updatedAt?.toDate() || new Date(), type: 'shipment', data: s });
-            });
-            payments.forEach(p => {
-                rawTransactions.push({ date: p.paymentDate?.toDate() || new Date(), type: 'payment', data: p });
-            });
+            entityShipments = shipments.filter(s => s.assignedCourierId === selectedId && (s.paidAmount || 0) > 0);
+            entityPayments = courierPayments.filter(p => p.courierId === selectedId);
         } else { // company
-            // ONLY include shipments where an amount has been paid
-            const companyShipments = shipments.filter(s => s.companyId === selectedId && (s.paidAmount || 0) > 0);
-            const payments = companyPayments.filter(p => p.companyId === selectedId);
-            
-            companyShipments.forEach(s => {
-                rawTransactions.push({ date: s.updatedAt?.toDate() || new Date(), type: 'shipment', data: s });
-            });
-            payments.forEach(p => {
-                 rawTransactions.push({ date: p.paymentDate?.toDate() || new Date(), type: 'payment', data: p });
-            });
+            entityShipments = shipments.filter(s => s.companyId === selectedId && (s.paidAmount || 0) > 0);
+            entityPayments = companyPayments.filter(p => p.companyId === selectedId);
         }
+        
+        entityShipments.forEach(s => {
+            rawTransactions.push({ date: s.updatedAt?.toDate() || new Date(), type: 'shipment', data: s });
+        });
+        entityPayments.forEach(p => {
+            rawTransactions.push({ date: p.paymentDate?.toDate() || new Date(), type: 'payment', data: p });
+        });
 
-        rawTransactions.sort((a, b) => a.date.getTime() - b.date.getTime()); // Sort oldest to newest
+        rawTransactions.sort((a, b) => a.date.getTime() - b.date.getTime());
 
         let runningBalance = 0;
         const processedTransactions: Transaction[] = [];
         
         for (const rawTx of rawTransactions) {
-            let amountFor = 0;
-            let amountAgainst = 0;
-            let description = '';
-            let relatedId = '';
+            let tx: Partial<Transaction> = {
+                date: rawTx.date,
+                relatedId: rawTx.data.id,
+            };
 
             if (entityType === 'courier') {
                 if (rawTx.type === 'shipment') {
                     const s = rawTx.data as Shipment;
-                    // The courier owes the collected amount
-                    amountAgainst = s.paidAmount || 0;
-                    // The courier earns their commission
-                    amountFor = s.courierCommission || 0;
-                    runningBalance = runningBalance + amountAgainst - amountFor;
-                    description = `تسليم شحنة ${s.recipientName} (رقم: ${s.trackingNumber})`;
-                    relatedId = s.id;
+                    tx.description = `شحنة: ${s.recipientName} (${s.trackingNumber})`;
+                    tx.totalAmount = s.totalAmount || 0;
+                    tx.paidAmount = s.paidAmount || 0;
+                    tx.courierCommission = s.courierCommission || 0;
+                    // Net due for THIS shipment is what the courier collected minus their commission.
+                    tx.netDue = tx.paidAmount - tx.courierCommission;
+                    runningBalance += tx.netDue;
                 } else { // payment
                     const p = rawTx.data as CourierPayment;
-                    // The courier paid money, so it's a credit for them (reduces their due amount)
-                    amountFor = p.amount;
-                    amountAgainst = 0;
-                    runningBalance = runningBalance - amountFor;
-                    description = `دفعة مُسددة${p.notes ? ` (${p.notes})` : ''}`;
-                    relatedId = p.id;
+                    tx.description = `دفعة مُسددة ${p.notes ? `(${p.notes})` : ''}`;
+                    // The courier paid money, so it reduces their due amount.
+                    tx.netDue = -p.amount;
+                    runningBalance += tx.netDue;
                 }
             } else { // company
                  if (rawTx.type === 'shipment') {
                     const s = rawTx.data as Shipment;
-                    // The company earns the shipment revenue
-                    amountFor = s.paidAmount || 0;
-                    // The system's commission is a debit from the company's balance
-                    amountAgainst = s.companyCommission || 0;
-                    runningBalance = runningBalance + amountFor - amountAgainst;
-                    description = `إيراد شحنة ${s.recipientName} (رقم: ${s.trackingNumber})`;
-                    relatedId = s.id;
+                    tx.description = `شحنة: ${s.recipientName} (${s.trackingNumber})`;
+                    tx.totalAmount = s.totalAmount || 0;
+                    tx.paidAmount = s.paidAmount || 0;
+                    tx.companyCommission = s.companyCommission || 0;
+                    // Net due for THIS shipment is the revenue for the company minus the system's commission.
+                    tx.netDue = tx.paidAmount - tx.companyCommission;
+                    runningBalance += tx.netDue;
                  } else { // payment
                     const p = rawTx.data as CompanyPayment;
-                    // Admin paid the company, so it's a debit from the balance due to them
-                    amountFor = 0;
-                    amountAgainst = p.amount;
-                    runningBalance = runningBalance - amountAgainst;
-                    description = `دفعة مُستلمة من الإدارة${p.notes ? ` (${p.notes})` : ''}`;
-                    relatedId = p.id;
+                    tx.description = `دفعة مُستلمة ${p.notes ? `(${p.notes})` : ''}`;
+                    // Admin paid the company, so it reduces the balance owed TO them.
+                    tx.netDue = -p.amount;
+                    runningBalance += tx.netDue;
                  }
             }
-             processedTransactions.push({ date: rawTx.date, description, for: amountFor, against: amountAgainst, balance: runningBalance, relatedId });
+            tx.balance = runningBalance;
+            processedTransactions.push(tx as Transaction);
         }
-
 
         return processedTransactions.reverse(); // Display newest first
 
@@ -142,26 +135,33 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
         const reportColumns = [
           { accessorKey: "date", header: "التاريخ" },
           { accessorKey: "description", header: "البيان" },
-          { accessorKey: "against", header: "عليه (مطالبات)" },
-          { accessorKey: "for", header: "له (مستحقات)" },
-          { accessorKey: "balance", header: "الرصيد" },
+          { accessorKey: "totalAmount", header: "إجمالي الشحنة" },
+          { accessorKey: "paidAmount", header: "المبلغ المحصَّل" },
+          { accessorKey: "courierCommission", header: `عمولة ${entityType === 'courier' ? 'المندوب' : 'الشركة'}` },
+          { accessorKey: "netDue", header: "صافي المستحق" },
+          { accessorKey: "balance", header: "الرصيد التراكمي" },
         ];
         
         const dataToExport = transactions.map(tx => ({
-            ...tx,
             date: format(tx.date, 'PPpp', { locale: ar }),
-            against: formatCurrency(tx.against),
-            for: formatCurrency(tx.for),
-            balance: formatCurrency(tx.balance),
+            description: tx.description,
+            totalAmount: tx.totalAmount !== undefined ? formatCurrency(tx.totalAmount) : '-',
+            paidAmount: tx.paidAmount !== undefined ? formatCurrency(tx.paidAmount) : '-',
+            courierCommission: tx.courierCommission !== undefined ? formatCurrency(tx.courierCommission) : '-',
+            netDue: formatCurrency(tx.netDue),
+            balance: formatCurrency(tx.balance)
         }));
 
         exportToExcel(dataToExport, reportColumns, `kashf_hisab_${selectedEntity.name?.replace(/\s/g, '_')}`, governorates, companies, couriers);
     }
 
     const finalBalance = transactions[0]?.balance || 0;
-    const balanceDescription = entityType === 'courier' 
-        ? (finalBalance >= 0 ? 'مستحق على المندوب' : 'مستحق للمندوب') 
-        : (finalBalance >= 0 ? 'مستحق للشركة' : 'مستحق على الشركة');
+    let balanceDescription = '';
+    if (entityType === 'courier') {
+        balanceDescription = finalBalance > 0 ? 'مستحق على المندوب' : (finalBalance < 0 ? 'مستحق للمندوب' : 'الحساب مُسوى');
+    } else { // company
+        balanceDescription = finalBalance > 0 ? 'مستحق للشركة' : (finalBalance < 0 ? 'مستحق على الشركة' : 'الحساب مُسوى');
+    }
 
     return (
         <div className="p-4 sm:p-6 md:p-8">
@@ -226,25 +226,29 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
                                 <TableRow>
                                     <TableHead>التاريخ</TableHead>
                                     <TableHead>البيان</TableHead>
-                                    <TableHead className="text-center text-destructive">عليه (مطالبات)</TableHead>
-                                    <TableHead className="text-center text-green-600">له (مستحقات)</TableHead>
+                                    <TableHead className="text-center">إجمالي الشحنة</TableHead>
+                                    <TableHead className="text-center">المبلغ المحصَّل</TableHead>
+                                    <TableHead className="text-center">العمولة</TableHead>
+                                    <TableHead className="text-center font-bold">صافي المستحق</TableHead>
                                     <TableHead className="text-center">الرصيد</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {transactions.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
+                                        <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
                                             لا توجد حركات مالية لعرضها لهذا الحساب.
                                         </TableCell>
                                     </TableRow>
                                 )}
                                 {transactions.map((tx, index) => (
                                     <TableRow key={`${tx.relatedId}-${index}`}>
-                                        <TableCell>{format(tx.date, 'PPpp', { locale: ar })}</TableCell>
+                                        <TableCell>{format(tx.date, 'PP', { locale: ar })}</TableCell>
                                         <TableCell className="max-w-xs truncate">{tx.description}</TableCell>
-                                        <TableCell className="text-center font-mono">{formatCurrency(tx.against)}</TableCell>
-                                        <TableCell className="text-center font-mono">{formatCurrency(tx.for)}</TableCell>
+                                        <TableCell className="text-center font-mono">{formatCurrency(tx.totalAmount)}</TableCell>
+                                        <TableCell className="text-center font-mono">{formatCurrency(tx.paidAmount)}</TableCell>
+                                        <TableCell className="text-center font-mono">{formatCurrency(entityType === 'courier' ? tx.courierCommission : tx.companyCommission)}</TableCell>
+                                        <TableCell className={`text-center font-mono font-bold ${tx.netDue > 0 ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(tx.netDue)}</TableCell>
                                         <TableCell className="text-center font-mono font-bold">{formatCurrency(tx.balance)}</TableCell>
                                     </TableRow>
                                 ))}
