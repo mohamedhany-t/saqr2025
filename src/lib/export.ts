@@ -1,5 +1,4 @@
 
-
 import type { ColumnDef } from '@tanstack/react-table';
 import { Workbook } from 'exceljs';
 import jsPDF from 'jspdf';
@@ -46,7 +45,26 @@ const getCellValue = (
     if (row.netDue !== undefined && accessorKey === 'netDue') {
         return row.netDue;
     }
-    
+     if (row.totalCollected !== undefined && accessorKey === 'totalCollected') {
+        return row.totalCollected;
+    }
+     if (row.totalRevenue !== undefined && accessorKey === 'totalRevenue') {
+        return row.totalRevenue;
+    }
+      if (row.totalCommission !== undefined && accessorKey === 'totalCommission') {
+        return row.totalCommission;
+    }
+    if (row.totalCompanyCommission !== undefined && accessorKey === 'totalCompanyCommission') {
+        return row.totalCompanyCommission;
+    }
+    if (row.totalPaidToCompany !== undefined && accessorKey === 'totalPaidToCompany') {
+        return row.totalPaidToCompany;
+    }
+    if (row.totalPaidByAdmin !== undefined && accessorKey === 'totalPaidByAdmin') {
+        return row.totalPaidByAdmin;
+    }
+
+
     const value = (row as any)[accessorKey];
 
     switch (accessorKey) {
@@ -122,7 +140,7 @@ export const exportToExcel = (
   // Adjust width for specific columns
   excelColumns.forEach(col => {
       if (col.key === 'address') col.width = 40;
-      if (col.key && ['totalAmount', 'paidAmount', 'courierCommission', 'companyCommission', 'netDue', 'totalCollected', 'totalRevenue'].includes(col.key)) {
+      if (col.key && ['totalAmount', 'paidAmount', 'courierCommission', 'companyCommission', 'netDue', 'totalCollected', 'totalRevenue', 'totalCommission', 'totalCompanyCommission', 'totalPaidToCompany', 'totalPaidByAdmin'].includes(col.key)) {
           col.style = { numFmt: '#,##0.00' };
           col.width = 18;
       }
@@ -204,5 +222,3 @@ export const exportToPDF = (
 
     doc.save('shipments_report.pdf');
 };
-
-    

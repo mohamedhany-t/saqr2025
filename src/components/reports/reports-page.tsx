@@ -1,5 +1,4 @@
 
-
 "use client";
 import React, { useState } from 'react';
 import type { Shipment, Company, User, Governorate, CourierPayment, CompanyPayment, ShipmentStatus } from '@/lib/types';
@@ -335,5 +334,3 @@ export function ReportsPage({
         </div>
     )
 }
-
-    
