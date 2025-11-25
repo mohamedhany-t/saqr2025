@@ -1301,11 +1301,35 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
 
   const handleArchiveCourierData = async () => {
-      if (!firestore || !courierToArchive) return;
-      toast({ title: `جاري أرشفة بيانات ${courierToArchive.name}...` });
-
+      if (!firestore || !courierToArchive || !user) return;
+      toast({ title: `جاري أرشفة وتسوية حساب ${courierToArchive.name}...` });
+      
+      const courierDueData = courierDues.find(d => d.id === courierToArchive.id);
+      if (!courierDueData) {
+          toast({ title: "خطأ", description: "لم يتم العثور على البيانات المالية للمندوب.", variant: "destructive"});
+          setCourierToArchive(null);
+          return;
+      }
+      
+      const netDue = courierDueData.netDue;
       const batch = writeBatch(firestore);
 
+      // Step 1: Create a payment record for the settlement if there's an amount due
+      if (netDue > 0) {
+          const paymentsCollection = collection(firestore, 'courier_payments');
+          const paymentDocRef = doc(paymentsCollection);
+          const newPayment: CourierPayment = {
+              id: paymentDocRef.id,
+              courierId: courierToArchive.id,
+              amount: netDue,
+              paymentDate: serverTimestamp(),
+              recordedById: user.id,
+              notes: "تسوية وحفظ تلقائي للحساب",
+          };
+          batch.set(paymentDocRef, newPayment);
+      }
+
+      // Step 2: Archive the finished shipments
       const statusesToExclude: ShipmentStatus[] = ['Pending', 'In-Transit', 'Postponed'];
       const courierShipments = shipments?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchived && !statusesToExclude.includes(s.status)) || [];
 
@@ -1314,15 +1338,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           batch.update(shipmentRef, { isArchived: true });
       });
 
-      // Do not archive payments, keep them as history
-      
+      // Commit all changes
       await batch.commit()
           .then(() => {
-              toast({ title: "اكتملت الأرشفة بنجاح!", description: `تمت أرشفة جميع شحنات ${courierToArchive.name} المنتهية.` });
+              toast({ title: "اكتملت التسوية بنجاح!", description: `تمت تسوية حساب ${courierToArchive.name} وأرشفة الشحنات المنتهية.` });
           })
           .catch(serverError => {
               if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
-                const permissionError = new FirestorePermissionError({ path: `batch_archive`, operation: 'update', requestResourceData: { note: `Batch archive for courier ${courierToArchive.id} failed.` }});
+                const permissionError = new FirestorePermissionError({ path: `batch_archive_settle`, operation: 'write', requestResourceData: { note: `Batch archive/settle for courier ${courierToArchive.id} failed.` }});
                 errorEmitter.emit('permission-error', permissionError);
               }
           })
@@ -2060,7 +2083,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           <AlertDialogHeader>
             <AlertDialogTitle>أرشفة وتسوية حساب {courierToArchive?.name}؟</AlertDialogTitle>
             <AlertDialogDescription>
-              سيؤدي هذا الإجراء إلى أرشفة جميع الشحنات المنتهية للمندوب. الشحنات النشطة (قيد الانتظار، قيد التوصيل، مؤجلة) لن يتم أرشفتها. لا يمكن التراجع عن هذا الإجراء.
+             سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ المستحق على المندوب حاليًا، ثم أرشفة جميع الشحنات المنتهية. لا يمكن التراجع عن هذا الإجراء.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
