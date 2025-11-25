@@ -66,7 +66,6 @@ const calculateCommissionAndPaidAmount = (
             
         case 'Evasion (Phone)':
         case 'Returned':
-        case 'Returned to Warehouse':
         case 'Cancelled':
         case 'Postponed':
         case 'Returned to Sender':
@@ -405,7 +404,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   );
   
   const inTransitCount = filteredActiveShipments.filter(s => s.status === 'In-Transit').length;
-  const returnedCount = filteredActiveShipments.filter(s => ['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Returned to Warehouse', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)).length;
+  const returnedCount = filteredActiveShipments.filter(s => ['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)).length;
   const postponedCount = filteredActiveShipments.filter(s => s.status === 'Postponed').length;
 
   return (
@@ -444,7 +443,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
                   {isMobile ? renderShipmentList(filteredActiveShipments.filter(s => s.status === 'Postponed')) : renderDesktopTable(filteredActiveShipments.filter(s => s.status === 'Postponed'))}
                 </TabsContent>
                 <TabsContent value="returned" className="mt-4">
-                  {isMobile ? renderShipmentList(filteredActiveShipments.filter(s => ['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Returned to Warehouse', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status))) : renderDesktopTable(filteredActiveShipments.filter(s => ['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Returned to Warehouse', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)))}
+                  {isMobile ? renderShipmentList(filteredActiveShipments.filter(s => ['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status))) : renderDesktopTable(filteredActiveShipments.filter(s => ['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)))}
                 </TabsContent>
                 <TabsContent value="finished" className="mt-4">
                   {isMobile ? renderShipmentList(filteredFinishedShipments) : renderDesktopTable(filteredFinishedShipments)}

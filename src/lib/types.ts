@@ -28,8 +28,8 @@ export type ShipmentStatus =
   | "Postponed"
   | "Returned to Sender"
   | "Refused (Paid)"
-  | "Refused (Unpaid)"
-  | "Returned to Warehouse";
+  | "Refused (Unpaid)";
+  // | "Returned to Warehouse"; // This is now a boolean flag
 
 export type Shipment = {
   id: string;
@@ -54,6 +54,7 @@ export type Shipment = {
   createdAt: any; // Can be Date or Firebase Timestamp
   updatedAt: any; // Can be Date or Firebase Timestamp
   isArchived?: boolean; // For settling courier accounts
+  isWarehouseReturn?: boolean; // To mark if the item is physically in the warehouse
 };
 
 export interface Company {

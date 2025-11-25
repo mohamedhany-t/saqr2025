@@ -71,6 +71,7 @@ import { doc, writeBatch, serverTimestamp } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { sendPushNotification } from "@/lib/actions"
+import { cn } from "@/lib/utils"
 
 export const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
     Pending: <Hourglass className="h-4 w-4 text-yellow-500" />,
@@ -81,7 +82,6 @@ export const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
     "Evasion (Delivery Attempt)": <AlertTriangle className="h-4 w-4 text-purple-600" />,
     Cancelled: <XCircle className="h-4 w-4 text-red-500" />,
     Returned: <Archive className="h-4 w-4 text-orange-500" />,
-    "Returned to Warehouse": <Warehouse className="h-4 w-4 text-orange-600" />,
     Postponed: <CalendarClock className="h-4 w-4 text-gray-500" />,
     "Returned to Sender": <Archive className="h-4 w-4 text-orange-700" />,
     "Refused (Paid)": <HandCoins className="h-4 w-4 text-green-500" />,
@@ -97,7 +97,6 @@ export const statusVariants: Record<ShipmentStatus, "default" | "secondary" | "d
     "Evasion (Delivery Attempt)": "secondary",
     Cancelled: "destructive",
     Returned: "secondary",
-    "Returned to Warehouse": "secondary",
     Postponed: "outline",
     "Returned to Sender": "secondary",
     "Refused (Paid)": "default",
@@ -113,7 +112,6 @@ export const statusText: Record<string, string> = {
     'Evasion (Delivery Attempt)': 'تهرب بعد الوصول',
     Cancelled: 'تم الإلغاء',
     Returned: 'مرتجع',
-    'Returned to Warehouse': 'تم الرجوع للمخزن',
     Postponed: 'مؤجل',
     'Returned to Sender': 'تم الرجوع للراسل',
     'Refused (Paid)': 'رفض ودفع الشحن',
@@ -165,8 +163,8 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, onBulkUpdate, rol
       window.open(`whatsapp://send?text=${encodedMessage}`, '_blank');
   };
   
-    const handleReturnToWarehouse = () => {
-      onBulkUpdate([shipment], { status: 'Returned to Warehouse' });
+    const handleToggleWarehouseReturn = () => {
+      onBulkUpdate([shipment], { isWarehouseReturn: !shipment.isWarehouseReturn });
     };
 
 
@@ -184,8 +182,9 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, onBulkUpdate, rol
           <Pencil className="ms-2 h-4 w-4" /> تعديل
         </DropdownMenuItem>
         {role === 'admin' && (
-          <DropdownMenuItem onClick={handleReturnToWarehouse}>
-            <Warehouse className="ms-2 h-4 w-4" /> نقل إلى المخزن
+          <DropdownMenuItem onClick={handleToggleWarehouseReturn}>
+            <Warehouse className="ms-2 h-4 w-4" /> 
+            {shipment.isWarehouseReturn ? 'إزالة من المخزن' : 'تحديد كمرتجع للمخزن'}
           </DropdownMenuItem>
         )}
         <DropdownMenuItem onClick={handleShare}>
@@ -336,11 +335,17 @@ export const getColumns = ({
     header: "حالة الأوردر",
     cell: ({ row }) => {
         const statusKey = row.getValue("status") as ShipmentStatus;
+        const shipment = row.original;
         return (
+          <div className="flex items-center gap-2">
             <Badge variant={statusVariants[statusKey]} className="capitalize flex gap-2">
                 {statusIcons[statusKey]}
                 <span>{statusText[statusKey] || statusKey}</span>
             </Badge>
+            {shipment.isWarehouseReturn && (
+              <Warehouse className="h-4 w-4 text-muted-foreground" title="الشحنة في المخزن"/>
+            )}
+          </div>
         )
     },
     filterFn: (row, id, value) => {
@@ -771,7 +776,7 @@ export function ShipmentsTable({
                   data-state={row.getIsSelected() && "selected"}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="text-right">
+                    <TableCell key={cell.id} className={cn("text-right", cell.column.id === 'status' && 'min-w-[180px]')}>
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()

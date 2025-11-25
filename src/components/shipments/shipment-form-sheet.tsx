@@ -27,6 +27,8 @@ import { z } from "zod"
 import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Role, User } from '@/lib/types';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '../ui/textarea';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
 
 const shipmentStatusEnum = z.enum([
     "Pending",
@@ -41,7 +43,6 @@ const shipmentStatusEnum = z.enum([
     "Returned to Sender",
     "Refused (Paid)",
     "Refused (Unpaid)",
-    "Returned to Warehouse",
 ]);
 
 const shipmentSchema = z.object({
@@ -63,6 +64,7 @@ const shipmentSchema = z.object({
   collectedAmount: z.coerce.number().optional(),
   courierCommission: z.coerce.number().optional(),
   companyCommission: z.coerce.number().optional(),
+  isWarehouseReturn: z.boolean().optional(),
 }).superRefine((data, ctx) => {
     if ((data.status === "Partially Delivered" || data.status === "Refused (Paid)") && (data.collectedAmount === undefined || data.collectedAmount <= 0)) {
         ctx.addIssue({
@@ -108,6 +110,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           totalAmount: shipment.totalAmount ?? 0,
           reason: shipment.reason ?? '',
           assignedCourierId: shipment.assignedCourierId ?? '',
+          isWarehouseReturn: shipment.isWarehouseReturn ?? false,
         };
         form.reset(defaultValues as any);
       } else {
@@ -125,6 +128,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           reason: "",
           collectedAmount: 0,
           assignedCourierId: "",
+          isWarehouseReturn: false,
           shipmentCode: `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
         };
         form.reset(defaultValues as any);
@@ -311,7 +315,6 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                         <SelectItem value="Partially Delivered">تم التسليم جزئياً</SelectItem>
                                         <SelectItem value="Postponed">مؤجل</SelectItem>
                                         <SelectItem value="Returned">مرتجع</SelectItem>
-                                        <SelectItem value="Returned to Warehouse">تم الرجوع للمخزن</SelectItem>
                                         <SelectItem value="Returned to Sender">تم الرجوع للراسل</SelectItem>
                                         <SelectItem value="Refused (Paid)">رفض ودفع مصاريف شحن</SelectItem>
                                         <SelectItem value="Refused (Unpaid)">رفض ولم يدفع مصاريف شحن</SelectItem>
@@ -347,6 +350,23 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                 <FormLabel className="text-right">السبب</FormLabel>
                                 <FormControl className="col-span-3">
                                     <Textarea {...field} />
+                                </FormControl>
+                                <FormMessage className="col-span-4" />
+                            </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="isWarehouseReturn"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="isWarehouseReturn" className="text-right">في المخزن؟</Label>
+                                <FormControl className="col-span-3">
+                                   <Checkbox
+                                        id="isWarehouseReturn"
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                    />
                                 </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
