@@ -33,7 +33,6 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ChatInterface from "@/components/chat/chat-interface";
 import { Badge } from "../ui/badge";
-import { ReportsPage } from "../reports/reports-page";
 import AccountStatementsPage from "@/app/accounts/page";
 import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotification } from "@/lib/actions";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -831,7 +830,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                   governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
                   address: String(row['العنوان'] || 'N/A'),
                   totalAmount: parseFloat(String(totalAmountValue).replace(/[^0-9.]/g, '')),
-                  paidAmount: parseFloat(String(row['المدفوع'] || '0').replace(/[^0--9.]/g, '')),
+                  paidAmount: parseFloat(String(row['المدفوع'] || '0').replace(/[^0-9.]/g, '')),
                   status: row['حالة الأوردر'] || 'Pending',
                   reason: String(row['السبب'] || ''),
                   deliveryDate: deliveryDate || new Date(),
