@@ -298,6 +298,12 @@ const MobileShipmentsView = ({
         onBulkDelete(selectedShipments);
         setMobileRowSelection({});
     };
+    
+    const handleGenericBulkUpdate = (selectedRows: Shipment[], update: Partial<Shipment>) => {
+        // This is a placeholder or needs to be passed down if specific logic is needed
+        onBulkUpdate(selectedRows, update);
+    };
+
 
     const handleExport = () => {
         if (selectedShipments.length === 0) {
@@ -1338,9 +1344,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
 
       // Step 3: Archive the finished shipments
-      const courierShipments = shipments?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchived) || [];
+      const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Returned', 'Cancelled', 'Evasion (Phone)', 'Evasion (Delivery Attempt)', 'Refused (Paid)', 'Refused (Unpaid)', 'Returned to Sender'];
+      const courierShipmentsToArchive = shipments?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchived && finishedStatuses.includes(s.status)) || [];
 
-      courierShipments.forEach(shipment => {
+      courierShipmentsToArchive.forEach(shipment => {
           const shipmentRef = doc(firestore, 'shipments', shipment.id);
           batch.update(shipmentRef, { isArchived: true });
       });
