@@ -1321,7 +1321,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       const netDue = courierDueData.netDue;
       const batch = writeBatch(firestore);
 
-      // Step 1: Create a payment record for the settlement if there's an amount due
+      // Step 1: Create a settlement payment record if there's an amount due
       if (netDue > 0) {
           const paymentsCollection = collection(firestore, 'courier_payments');
           const paymentDocRef = doc(paymentsCollection);
@@ -1337,18 +1337,16 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           batch.set(paymentDocRef, newPayment);
       }
 
-      // Step 2: Archive all currently active (non-archived) payments for this courier.
+      // Step 2: Archive all currently active payments for this courier.
       const activePayments = courierPayments?.filter(p => p.courierId === courierToArchive.id && !p.isArchived) || [];
       activePayments.forEach(payment => {
           const paymentRef = doc(firestore, 'courier_payments', payment.id);
           batch.update(paymentRef, { isArchived: true });
       });
 
-
-      // Step 3: Archive the finished shipments
+      // Step 3: Archive finished shipments
       const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Returned', 'Cancelled', 'Evasion (Phone)', 'Evasion (Delivery Attempt)', 'Refused (Paid)', 'Refused (Unpaid)', 'Returned to Sender'];
       const courierShipmentsToArchive = shipments?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchived && finishedStatuses.includes(s.status)) || [];
-
       courierShipmentsToArchive.forEach(shipment => {
           const shipmentRef = doc(firestore, 'shipments', shipment.id);
           batch.update(shipmentRef, { isArchived: true });
@@ -1980,14 +1978,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 </div>
         </TabsContent>
         <TabsContent value="account-statements">
-            <AccountStatementsPage 
-                 couriers={courierUsers}
-                 companies={companies || []}
-                 shipments={shipments || []}
-                 courierPayments={courierPayments || []}
-                 companyPayments={companyPayments || []}
-                 governorates={governorates || []}
-            />
+            <AccountStatementsPage />
         </TabsContent>
         <TabsContent value="user-management">
             <div className="mt-8">

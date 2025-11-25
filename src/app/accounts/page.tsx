@@ -13,15 +13,8 @@ import { FileUp, Loader2 } from "lucide-react";
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { exportToExcel } from "@/lib/export";
-
-interface AccountStatementsPageProps {
-    couriers: User[];
-    companies: Company[];
-    shipments: Shipment[];
-    courierPayments: CourierPayment[];
-    companyPayments: CompanyPayment[];
-    governorates: Governorate[];
-}
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { collection, query } from "firebase/firestore";
 
 type Transaction = {
     date: Date;
@@ -30,9 +23,9 @@ type Transaction = {
     paidAmount?: number;
     courierCommission?: number;
     companyCommission?: number;
-    netDue: number; // Positive if courier/company owes money, negative if they are owed money.
+    netDue: number; 
     balance: number;
-    relatedId: string; // Shipment or Payment ID
+    relatedId: string; 
 };
 
 const formatCurrency = (amount: number | undefined) => {
@@ -43,12 +36,25 @@ const formatCurrency = (amount: number | undefined) => {
     }).format(amount);
 };
 
-export default function AccountStatementsPage({ couriers, companies, shipments, courierPayments, companyPayments, governorates }: AccountStatementsPageProps) {
+function AccountStatementsPage() {
+    const firestore = useFirestore();
+
+    const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(useMemoFirebase(() => firestore ? query(collection(firestore, 'shipments')) : null, [firestore]));
+    const { data: governorates, isLoading: governoratesLoading } = useCollection<Governorate>(useMemoFirebase(() => firestore ? query(collection(firestore, 'governorates')) : null, [firestore]));
+    const { data: companies, isLoading: companiesLoading } = useCollection<Company>(useMemoFirebase(() => firestore ? query(collection(firestore, 'companies')) : null, [firestore]));
+    const { data: users, isLoading: usersLoading } = useCollection<User>(useMemoFirebase(() => firestore ? query(collection(firestore, 'users')) : null, [firestore]));
+    const { data: courierPayments, isLoading: courierPaymentsLoading } = useCollection<CourierPayment>(useMemoFirebase(() => firestore ? query(collection(firestore, 'courier_payments')) : null, [firestore]));
+    const { data: companyPayments, isLoading: companyPaymentsLoading } = useCollection<CompanyPayment>(useMemoFirebase(() => firestore ? query(collection(firestore, 'company_payments')) : null, [firestore]));
+    
+    const couriers = useMemo(() => users?.filter(u => u.role === 'courier') || [], [users]);
+
+    const isLoading = shipmentsLoading || governoratesLoading || companiesLoading || usersLoading || courierPaymentsLoading || companyPaymentsLoading;
+    
     const [entityType, setEntityType] = useState<"courier" | "company">("courier");
     const [selectedId, setSelectedId] = useState<string | null>(null);
 
     const transactions = useMemo((): Transaction[] => {
-        if (!selectedId) return [];
+        if (!selectedId || !shipments || !courierPayments || !companyPayments) return [];
 
         let rawTransactions: { date: Date, type: 'shipment' | 'payment', data: any }[] = [];
         let entityShipments: Shipment[];
@@ -129,7 +135,7 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
 
     const selectedEntity = entityType === 'courier' 
         ? couriers.find(c => c.id === selectedId)
-        : companies.find(c => c.id === selectedId);
+        : companies?.find(c => c.id === selectedId);
 
     const handleExport = () => {
         if (!transactions || transactions.length === 0 || !selectedEntity) {
@@ -157,7 +163,7 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
             balance: formatCurrency(tx.balance)
         }));
 
-        exportToExcel(dataToExport, reportColumns, `kashf_hisab_${selectedEntity.name?.replace(/\s/g, '_')}`, governorates, companies, couriers);
+        exportToExcel(dataToExport, reportColumns, `kashf_hisab_${selectedEntity.name?.replace(/\s/g, '_')}`, governorates || [], companies || [], couriers);
     }
 
     const finalBalance = transactions[0]?.balance || 0;
@@ -166,6 +172,14 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
         balanceDescription = finalBalance > 0 ? 'مستحق على المندوب' : (finalBalance < 0 ? 'مستحق للمندوب' : 'الحساب مُسوى');
     } else { // company
         balanceDescription = finalBalance > 0 ? 'مستحق للشركة' : (finalBalance < 0 ? 'مستحق على الشركة' : 'الحساب مُسوى');
+    }
+
+    if (isLoading) {
+        return (
+            <div className="flex h-screen w-full items-center justify-center">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+        )
     }
 
     return (
@@ -202,7 +216,7 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
                             <SelectContent>
                                 {entityType === 'courier' ?
                                     couriers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>) :
-                                    companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
+                                    companies?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
                                 }
                             </SelectContent>
                         </Select>
@@ -264,4 +278,9 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
             )}
         </div>
     );
+}
+
+// The default export now wraps the main component, satisfying Next.js page requirements.
+export default function Page() {
+    return <AccountStatementsPage />;
 }
