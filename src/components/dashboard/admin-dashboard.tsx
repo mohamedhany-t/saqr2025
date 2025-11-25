@@ -831,7 +831,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                   governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
                   address: String(row['العنوان'] || 'N/A'),
                   totalAmount: parseFloat(String(totalAmountValue).replace(/[^0-9.]/g, '')),
-                  paidAmount: parseFloat(String(row['المدفوع'] || '0').replace(/[^0-9.]/g, '')),
+                  paidAmount: parseFloat(String(row['المدفوع'] || '0').replace(/[^0--9.]/g, '')),
                   status: row['حالة الأوردر'] || 'Pending',
                   reason: String(row['السبب'] || ''),
                   deliveryDate: deliveryDate || new Date(),
