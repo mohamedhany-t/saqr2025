@@ -1,7 +1,7 @@
 
 "use client";
 import React, { useState, useMemo } from "react";
-import type { Shipment, User, Company, CourierPayment, CompanyPayment } from "@/lib/types";
+import type { Shipment, User, Company, CourierPayment, CompanyPayment, Governorate } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -20,7 +20,7 @@ interface AccountStatementsPageProps {
     shipments: Shipment[];
     courierPayments: CourierPayment[];
     companyPayments: CompanyPayment[];
-    governorates: any[];
+    governorates: Governorate[];
 }
 
 type Transaction = {
@@ -63,10 +63,14 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
         }
         
         entityShipments.forEach(s => {
-            rawTransactions.push({ date: s.updatedAt?.toDate() || new Date(), type: 'shipment', data: s });
+            if (s.updatedAt?.toDate) {
+                rawTransactions.push({ date: s.updatedAt.toDate(), type: 'shipment', data: s });
+            }
         });
         entityPayments.forEach(p => {
-            rawTransactions.push({ date: p.paymentDate?.toDate() || new Date(), type: 'payment', data: p });
+             if (p.paymentDate?.toDate) {
+                rawTransactions.push({ date: p.paymentDate.toDate(), type: 'payment', data: p });
+             }
         });
 
         rawTransactions.sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -148,6 +152,7 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
             totalAmount: tx.totalAmount !== undefined ? formatCurrency(tx.totalAmount) : '-',
             paidAmount: tx.paidAmount !== undefined ? formatCurrency(tx.paidAmount) : '-',
             courierCommission: tx.courierCommission !== undefined ? formatCurrency(tx.courierCommission) : '-',
+            companyCommission: tx.companyCommission !== undefined ? formatCurrency(tx.companyCommission) : '-',
             netDue: formatCurrency(tx.netDue),
             balance: formatCurrency(tx.balance)
         }));
