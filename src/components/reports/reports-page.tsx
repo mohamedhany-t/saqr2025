@@ -108,7 +108,7 @@ export function ReportsPage({
     }
 
     const deliveredShipmentStatuses: ShipmentStatus[] = ['Delivered'];
-    const returnedShipmentStatuses: ShipmentStatus[] = ['Returned', 'Cancelled', 'Returned to Sender', 'Evasion (Phone)', 'Refused (Unpaid)', 'Returned to Warehouse', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'];
+    const returnedShipmentStatuses: ShipmentStatus[] = ['Returned', 'Cancelled', 'Returned to Sender', 'Evasion (Phone)', 'Refused (Unpaid)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'];
 
     const deliveredShipments = shipments.filter(s => deliveredShipmentStatuses.includes(s.status));
     const returnedShipments = shipments.filter(s => returnedShipmentStatuses.includes(s.status));
@@ -335,3 +335,5 @@ export function ReportsPage({
         </div>
     )
 }
+
+    
