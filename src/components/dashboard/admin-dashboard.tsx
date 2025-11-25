@@ -909,12 +909,13 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         }
     }
     
-    // Determine the courier and company for commission calculation
     const courierId = dataToSave.assignedCourierId || originalShipment?.assignedCourierId;
     const companyId = dataToSave.companyId || originalShipment?.companyId;
     const governorateId = dataToSave.governorateId || originalShipment?.governorateId;
     const newStatus = dataToSave.status || originalShipment?.status;
-
+    
+    // Always recalculate commission if a status is being set (even if it's the same)
+    // and there is a courier assigned.
     if (courierId && newStatus) {
         const courierUser = users.find(u => u.id === courierId && u.role === 'courier');
         const company = companies.find(c => c.id === companyId);
@@ -922,6 +923,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         if (courierUser && company && governorateId) {
             const courierCommissionRate = courierUser.commissionRate || 0;
             const companyGovernorateCommission = company.governorateCommissions?.[governorateId] || 0;
+            
             const totalAmount = dataToSave.totalAmount ?? originalShipment?.totalAmount ?? 0;
             const collectedAmount = dataToSave.collectedAmount ?? originalShipment?.collectedAmount ?? 0;
 
@@ -1574,7 +1576,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const currentCompanyNetDue = companyDues.find(c => c.id === payingCompany?.id)?.netDue;
   
   const handleGenericBulkUpdate = async (selectedRows: Shipment[], update: Partial<Shipment>) => {
-    if (!firestore || !users || !companies) return;
+    if (!firestore || !users || !companies || !governorates) return;
     if (selectedRows.length === 0) {
         toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
         return;
@@ -1589,8 +1591,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         let finalUpdate: { [key: string]: any } = { ...update, updatedAt: serverTimestamp() };
 
         // If status is updated, re-calculate commissions
-        if (update.status && row.assignedCourierId) {
-            const courierUser = users.find(u => u.id === row.assignedCourierId);
+        if (update.status) {
+            const courierId = row.assignedCourierId;
+            const courierUser = users.find(u => u.id === courierId);
             const company = companies.find(c => c.id === row.companyId);
 
             if (courierUser && company) {
@@ -1600,7 +1603,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 const calculatedFields = calculateCommissionAndPaidAmount(
                     update.status as ShipmentStatus,
                     row.totalAmount,
-                    row.collectedAmount || 0,
+                    row.collectedAmount || 0, // Assume not changed in bulk, use existing
                     courierCommissionRate,
                     companyGovernorateCommission
                 );
@@ -2164,3 +2167,5 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
+
+    
