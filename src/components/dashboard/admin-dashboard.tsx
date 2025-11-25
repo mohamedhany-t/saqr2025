@@ -304,7 +304,7 @@ const MobileShipmentsView = ({
           toast({ title: "لا توجد بيانات للتصدير", description: "الرجاء تحديد شحنة واحدة على الأقل.", variant: "destructive" });
           return;
         }
-        const shipmentColumns = getShipmentColumns({ onEdit, onBulkUpdate, role, governorates, companies, couriers: courierUsers });
+        const shipmentColumns = getShipmentColumns({ onEdit, onBulkUpdate: handleGenericBulkUpdate, role, governorates, companies, couriers: courierUsers });
         exportToExcel(selectedShipments, shipmentColumns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates || [], companies || [], courierUsers);
         setMobileRowSelection({});
     }
@@ -1329,9 +1329,16 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           batch.set(paymentDocRef, newPayment);
       }
 
-      // Step 2: Archive the finished shipments
-      const statusesToExclude: ShipmentStatus[] = ['Pending', 'In-Transit', 'Postponed'];
-      const courierShipments = shipments?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchived && !statusesToExclude.includes(s.status)) || [];
+      // Step 2: Archive all currently active (non-archived) payments for this courier.
+      const activePayments = courierPayments?.filter(p => p.courierId === courierToArchive.id && !p.isArchived) || [];
+      activePayments.forEach(payment => {
+          const paymentRef = doc(firestore, 'courier_payments', payment.id);
+          batch.update(paymentRef, { isArchived: true });
+      });
+
+
+      // Step 3: Archive the finished shipments
+      const courierShipments = shipments?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchived) || [];
 
       courierShipments.forEach(shipment => {
           const shipmentRef = doc(firestore, 'shipments', shipment.id);
@@ -1341,7 +1348,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       // Commit all changes
       await batch.commit()
           .then(() => {
-              toast({ title: "اكتملت التسوية بنجاح!", description: `تمت تسوية حساب ${courierToArchive.name} وأرشفة الشحنات المنتهية.` });
+              toast({ title: "اكتملت التسوية بنجاح!", description: `تمت تسوية حساب ${courierToArchive.name} وأرشفة الشحنات والدفعات.` });
           })
           .catch(serverError => {
               if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
@@ -2083,7 +2090,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           <AlertDialogHeader>
             <AlertDialogTitle>أرشفة وتسوية حساب {courierToArchive?.name}؟</AlertDialogTitle>
             <AlertDialogDescription>
-             سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ المستحق على المندوب حاليًا، ثم أرشفة جميع الشحنات المنتهية. لا يمكن التراجع عن هذا الإجراء.
+             سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ المستحق على المندوب حاليًا، ثم أرشفة جميع الشحنات والدفعات الحالية. لا يمكن التراجع عن هذا الإجراء.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
