@@ -343,7 +343,7 @@ export const getColumns = ({
                 <span>{statusText[statusKey] || statusKey}</span>
             </Badge>
             {shipment.isWarehouseReturn && (
-              <Warehouse className="h-4 w-4 text-muted-foreground" title="الشحنة في المخزن"/>
+              <Warehouse className="h-4 w-4 text-muted-foreground" />
             )}
           </div>
         )
