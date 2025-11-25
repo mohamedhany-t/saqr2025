@@ -208,9 +208,10 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
                      <CardHeader className="flex flex-row items-start justify-between">
                         <div>
                             <CardTitle>كشف حساب: {selectedEntity?.name}</CardTitle>
-                            <CardDescription>
-                                الرصيد النهائي {balanceDescription} هو <Badge variant={finalBalance > 0 ? 'destructive' : 'default'} className="mx-1">{formatCurrency(Math.abs(finalBalance))}</Badge>
-                            </CardDescription>
+                            <div className="text-sm text-muted-foreground">
+                                <span>الرصيد النهائي {balanceDescription} هو </span>
+                                <Badge variant={finalBalance > 0 ? 'destructive' : 'default'} className="mx-1">{formatCurrency(Math.abs(finalBalance))}</Badge>
+                            </div>
                         </div>
                         <Button variant="outline" onClick={handleExport} disabled={transactions.length === 0}>
                             <FileUp className="me-2 h-4 w-4" />
