@@ -8,8 +8,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { FileUp, Loader2 } from "lucide-react";
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import { exportToExcel } from "@/lib/export";
 
 interface AccountStatementsPageProps {
     couriers: User[];
@@ -17,13 +20,14 @@ interface AccountStatementsPageProps {
     shipments: Shipment[];
     courierPayments: CourierPayment[];
     companyPayments: CompanyPayment[];
+    governorates: any[];
 }
 
 type Transaction = {
     date: Date;
     description: string;
-    debit: number; // For the entity (courier/company)
-    credit: number; // For the entity (courier/company)
+    for: number; // Amount for the entity (e.g., commissions, payments made)
+    against: number; // Amount against the entity (e.g., cash collected)
     balance: number;
     relatedId: string; // Shipment or Payment ID
 };
@@ -35,7 +39,7 @@ const formatCurrency = (amount: number) => {
     }).format(amount);
 };
 
-export default function AccountStatementsPage({ couriers, companies, shipments, courierPayments, companyPayments }: AccountStatementsPageProps) {
+export default function AccountStatementsPage({ couriers, companies, shipments, courierPayments, companyPayments, governorates }: AccountStatementsPageProps) {
     const [entityType, setEntityType] = useState<"courier" | "company">("courier");
     const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -66,65 +70,96 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
             });
         }
 
-        rawTransactions.sort((a, b) => b.date.getTime() - a.date.getTime());
+        rawTransactions.sort((a, b) => a.date.getTime() - b.date.getTime()); // Sort oldest to newest
 
         let runningBalance = 0;
         const processedTransactions: Transaction[] = [];
-
-        // We process in reverse (oldest to newest) to calculate running balance correctly
-        // but will display newest to oldest. So we build the list and then reverse it.
-        const reversedRaw = [...rawTransactions].reverse();
         
-        for (const rawTx of reversedRaw) {
-            let debit = 0;
-            let credit = 0;
+        for (const rawTx of rawTransactions) {
+            let amountFor = 0;
+            let amountAgainst = 0;
             let description = '';
             let relatedId = '';
 
             if (entityType === 'courier') {
                 if (rawTx.type === 'shipment') {
                     const s = rawTx.data as Shipment;
-                    debit = s.paidAmount || 0; // Courier collected money, so it's a debit for them
-                    credit = s.courierCommission || 0; // Commission is a credit for the courier
-                    runningBalance = runningBalance + debit - credit;
+                    // The courier owes the collected amount
+                    amountAgainst = s.paidAmount || 0;
+                    // The courier earns their commission
+                    amountFor = s.courierCommission || 0;
+                    runningBalance = runningBalance + amountAgainst - amountFor;
                     description = `تسليم شحنة ${s.recipientName} (رقم: ${s.trackingNumber})`;
                     relatedId = s.id;
                 } else { // payment
                     const p = rawTx.data as CourierPayment;
-                    debit = 0;
-                    credit = p.amount; // Courier paid money, so it's a credit for them
-                    runningBalance = runningBalance - credit;
-                    description = `دفعة مسجلة${p.notes ? ` (${p.notes})` : ''}`;
+                    // The courier paid money, so it's a credit for them (reduces their due amount)
+                    amountFor = p.amount;
+                    amountAgainst = 0;
+                    runningBalance = runningBalance - amountFor;
+                    description = `دفعة مُسددة${p.notes ? ` (${p.notes})` : ''}`;
                     relatedId = p.id;
                 }
             } else { // company
                  if (rawTx.type === 'shipment') {
                     const s = rawTx.data as Shipment;
-                    debit = s.companyCommission || 0; // The company's commission is a debit from the system's perspective
-                    credit = s.paidAmount || 0; // The revenue from the shipment is a credit to the company
-                    runningBalance = runningBalance + credit - debit;
+                    // The company earns the shipment revenue
+                    amountFor = s.paidAmount || 0;
+                    // The system's commission is a debit from the company's balance
+                    amountAgainst = s.companyCommission || 0;
+                    runningBalance = runningBalance + amountFor - amountAgainst;
                     description = `إيراد شحنة ${s.recipientName} (رقم: ${s.trackingNumber})`;
                     relatedId = s.id;
                  } else { // payment
                     const p = rawTx.data as CompanyPayment;
-                    debit = p.amount; // Admin paid the company, so it's a debit from their balance
-                    credit = 0;
-                    runningBalance = runningBalance - debit;
-                    description = `دفعة مسجلة من الإدارة${p.notes ? ` (${p.notes})` : ''}`;
+                    // Admin paid the company, so it's a debit from the balance due to them
+                    amountFor = 0;
+                    amountAgainst = p.amount;
+                    runningBalance = runningBalance - amountAgainst;
+                    description = `دفعة مُستلمة من الإدارة${p.notes ? ` (${p.notes})` : ''}`;
                     relatedId = p.id;
                  }
             }
-             processedTransactions.push({ date: rawTx.date, description, debit, credit, balance: runningBalance, relatedId });
+             processedTransactions.push({ date: rawTx.date, description, for: amountFor, against: amountAgainst, balance: runningBalance, relatedId });
         }
 
 
-        return processedTransactions.reverse();
+        return processedTransactions.reverse(); // Display newest first
 
     }, [selectedId, entityType, shipments, courierPayments, companyPayments]);
 
     const selectedEntity = entityType === 'courier' 
         ? couriers.find(c => c.id === selectedId)
         : companies.find(c => c.id === selectedId);
+
+    const handleExport = () => {
+        if (!transactions || transactions.length === 0 || !selectedEntity) {
+            return;
+        }
+
+        const reportColumns = [
+          { accessorKey: "date", header: "التاريخ" },
+          { accessorKey: "description", header: "البيان" },
+          { accessorKey: "against", header: "عليه (مطالبات)" },
+          { accessorKey: "for", header: "له (مستحقات)" },
+          { accessorKey: "balance", header: "الرصيد" },
+        ];
+        
+        const dataToExport = transactions.map(tx => ({
+            ...tx,
+            date: format(tx.date, 'PPpp', { locale: ar }),
+            against: formatCurrency(tx.against),
+            for: formatCurrency(tx.for),
+            balance: formatCurrency(tx.balance),
+        }));
+
+        exportToExcel(dataToExport, reportColumns, `kashf_hisab_${selectedEntity.name?.replace(/\s/g, '_')}`, governorates, companies, couriers);
+    }
+
+    const finalBalance = transactions[0]?.balance || 0;
+    const balanceDescription = entityType === 'courier' 
+        ? (finalBalance >= 0 ? 'مستحق على المندوب' : 'مستحق للمندوب') 
+        : (finalBalance >= 0 ? 'مستحق للشركة' : 'مستحق على الشركة');
 
     return (
         <div className="p-4 sm:p-6 md:p-8">
@@ -170,11 +205,17 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
 
             {selectedId && (
                  <Card className="mt-8">
-                     <CardHeader>
-                         <CardTitle>كشف حساب: {selectedEntity?.name}</CardTitle>
-                         <CardDescription>
-                             الرصيد النهائي المستحق {entityType === 'courier' ? 'على المندوب' : 'للشركة'} هو <Badge variant={transactions[0]?.balance > 0 ? 'destructive' : 'default'} className="mx-1">{formatCurrency(transactions[0]?.balance || 0)}</Badge>
-                         </CardDescription>
+                     <CardHeader className="flex flex-row items-start justify-between">
+                        <div>
+                            <CardTitle>كشف حساب: {selectedEntity?.name}</CardTitle>
+                            <CardDescription>
+                                الرصيد النهائي {balanceDescription} هو <Badge variant={finalBalance > 0 ? 'destructive' : 'default'} className="mx-1">{formatCurrency(Math.abs(finalBalance))}</Badge>
+                            </CardDescription>
+                        </div>
+                        <Button variant="outline" onClick={handleExport} disabled={transactions.length === 0}>
+                            <FileUp className="me-2 h-4 w-4" />
+                            تصدير إلى Excel
+                        </Button>
                      </CardHeader>
                      <CardContent>
                         <Table>
@@ -182,8 +223,8 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
                                 <TableRow>
                                     <TableHead>التاريخ</TableHead>
                                     <TableHead>البيان</TableHead>
-                                    <TableHead className="text-center text-destructive">مدين</TableHead>
-                                    <TableHead className="text-center text-green-600">دائن</TableHead>
+                                    <TableHead className="text-center text-destructive">عليه (مطالبات)</TableHead>
+                                    <TableHead className="text-center text-green-600">له (مستحقات)</TableHead>
                                     <TableHead className="text-center">الرصيد</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -199,8 +240,8 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
                                     <TableRow key={`${tx.relatedId}-${index}`}>
                                         <TableCell>{format(tx.date, 'PPpp', { locale: ar })}</TableCell>
                                         <TableCell className="max-w-xs truncate">{tx.description}</TableCell>
-                                        <TableCell className="text-center font-mono">{formatCurrency(tx.debit)}</TableCell>
-                                        <TableCell className="text-center font-mono">{formatCurrency(tx.credit)}</TableCell>
+                                        <TableCell className="text-center font-mono">{formatCurrency(tx.against)}</TableCell>
+                                        <TableCell className="text-center font-mono">{formatCurrency(tx.for)}</TableCell>
                                         <TableCell className="text-center font-mono font-bold">{formatCurrency(tx.balance)}</TableCell>
                                     </TableRow>
                                 ))}
@@ -212,5 +253,3 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
         </div>
     );
 }
-
-    

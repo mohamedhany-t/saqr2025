@@ -1986,6 +1986,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                  shipments={shipments || []}
                  courierPayments={courierPayments || []}
                  companyPayments={companyPayments || []}
+                 governorates={governorates || []}
             />
         </TabsContent>
         <TabsContent value="user-management">
@@ -2172,5 +2173,3 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
-
-    
