@@ -3,7 +3,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -242,6 +242,7 @@ const MobileShipmentsView = ({
     shipments,
     archivedShipments,
     filteredShipments,
+    recentlyUpdatedShipments,
     listIsLoading,
     governorates,
     companies,
@@ -258,6 +259,7 @@ const MobileShipmentsView = ({
     shipments: Shipment[];
     archivedShipments: Shipment[];
     filteredShipments: Shipment[];
+    recentlyUpdatedShipments: Shipment[];
     listIsLoading: boolean;
     governorates: Governorate[];
     companies: Company[];
@@ -302,13 +304,14 @@ const MobileShipmentsView = ({
           toast({ title: "لا توجد بيانات للتصدير", description: "الرجاء تحديد شحنة واحدة على الأقل.", variant: "destructive" });
           return;
         }
-        const shipmentColumns = getShipmentColumns({ onEdit, role, governorates, companies, couriers: courierUsers, onBulkUpdate: onBulkUpdate });
+        const shipmentColumns = getShipmentColumns({ onEdit, onBulkUpdate, role, governorates, companies, couriers: courierUsers });
         exportToExcel(selectedShipments, shipmentColumns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates || [], companies || [], courierUsers);
         setMobileRowSelection({});
     }
 
     const getCurrentShipmentList = () => {
       switch (activeTab) {
+        case "recently-updated": return recentlyUpdatedShipments;
         case "pending": return getShipmentsByStatus('Pending');
         case "in-transit": return getShipmentsByStatus('In-Transit');
         case "delivered": return getShipmentsByStatus(['Delivered']);
@@ -385,15 +388,19 @@ const MobileShipmentsView = ({
       return (
         <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
             <div className="flex flex-col gap-4 mt-4">
-                <TabsList className="grid grid-cols-3 h-auto">
+                <TabsList className="grid grid-cols-4 h-auto">
                     <TabsTrigger value="all-shipments">الكل</TabsTrigger>
+                    <TabsTrigger value="recently-updated">
+                        <RefreshCw className="h-4 w-4 me-1" />
+                        المُحدَّثة
+                    </TabsTrigger>
                     <TabsTrigger value="pending">قيد الانتظار</TabsTrigger>
                     <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
                     <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
                     <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
                     <TabsTrigger value="returned">مرتجعات</TabsTrigger>
                     <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
-                    <TabsTrigger value="archived" className="col-span-3">المؤرشفة</TabsTrigger>
+                    <TabsTrigger value="archived" className="col-span-4">المؤرشفة</TabsTrigger>
                 </TabsList>
                 <div className="flex items-center gap-4">
                     <Filters governorates={governorates || []} companies={companies || []} courierUsers={courierUsers} onFiltersChange={setColumnFilters} />
@@ -406,6 +413,7 @@ const MobileShipmentsView = ({
                 </div>
             </div>
             <TabsContent value="all-shipments">{renderShipmentList(filteredShipments)}</TabsContent>
+            <TabsContent value="recently-updated">{renderShipmentList(recentlyUpdatedShipments)}</TabsContent>
             <TabsContent value="pending">{renderShipmentList(getShipmentsByStatus('Pending'))}</TabsContent>
             <TabsContent value="in-transit">{renderShipmentList(getShipmentsByStatus('In-Transit'))}</TabsContent>
             <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered']))}</TabsContent>
@@ -456,6 +464,7 @@ const DesktopShipmentsView = ({
     filteredShipments,
     getShipmentsByStatus,
     archivedShipments,
+    recentlyUpdatedShipments,
     governorates,
     companies,
     courierUsers,
@@ -470,6 +479,7 @@ const DesktopShipmentsView = ({
     filteredShipments: Shipment[];
     getShipmentsByStatus: (status: ShipmentStatus | ShipmentStatus[]) => Shipment[];
     archivedShipments: Shipment[];
+    recentlyUpdatedShipments: Shipment[];
     governorates: Governorate[];
     companies: Company[];
     courierUsers: User[];
@@ -500,6 +510,10 @@ const DesktopShipmentsView = ({
         <Tabs defaultValue="all-shipments">
             <TabsList className="flex-nowrap overflow-x-auto justify-start mt-4">
                 <TabsTrigger value="all-shipments">الكل</TabsTrigger>
+                <TabsTrigger value="recently-updated">
+                    <RefreshCw className="h-4 w-4 me-1" />
+                    المُحدَّثة مؤخراً
+                </TabsTrigger>
                 <TabsTrigger value="pending">قيد الانتظار</TabsTrigger>
                 <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
                 <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
@@ -509,6 +523,7 @@ const DesktopShipmentsView = ({
                 <TabsTrigger value="archived">المؤرشفة</TabsTrigger>
             </TabsList>
             <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments)}</TabsContent>
+            <TabsContent value="recently-updated">{renderShipmentTable(recentlyUpdatedShipments)}</TabsContent>
             <TabsContent value="pending">{renderShipmentTable(getShipmentsByStatus('Pending'))}</TabsContent>
             <TabsContent value="in-transit">{renderShipmentTable(getShipmentsByStatus('In-Transit'))}</TabsContent>
             <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered']))}</TabsContent>
@@ -1388,6 +1403,16 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     );
   }, [shipments, searchTerm]);
 
+  const recentlyUpdatedShipments = React.useMemo(() => {
+    const activeShipments = shipments?.filter(shipment => !shipment.isArchived) || [];
+    return activeShipments.sort((a, b) => {
+        const timeA = a.updatedAt?.toDate?.()?.getTime() || 0;
+        const timeB = b.updatedAt?.toDate?.()?.getTime() || 0;
+        return timeB - timeA;
+    }).slice(0, 50); // Get the last 50 updated shipments
+}, [shipments]);
+
+
   const courierDues = React.useMemo(() => {
     if (!users || !shipments) return [];
     
@@ -1428,7 +1453,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         const totalCompanyCommission = activeShipments.reduce((acc, s) => acc + (s.companyCommission || 0), 0);
         const totalPaidToCompany = activePayments.reduce((acc, p) => acc + p.amount, 0);
         
-        const netDue = totalRevenue - totalCompanyCommission - totalPaidToCompany;
+        const netDue = (totalRevenue - totalCompanyCommission) - totalPaidToCompany;
         
         const allPayments = companyPayments?.filter(p => p.companyId === company.id) || [];
 
@@ -1450,9 +1475,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const shownNotificationsRef = React.useRef<Set<string>>(new Set());
 
   // Problem Inbox Shipments
-  const returnedShipmentsNeedingAction = React.useMemo(() => shipments?.filter(s => s.status === 'Returned') || [], [shipments]);
-  const longPostponedShipments = React.useMemo(() => shipments?.filter(s => s.status === 'Postponed' && s.updatedAt && differenceInDays(new Date(), s.updatedAt.toDate()) > 3) || [], [shipments]);
-  const staleInTransitShipments = React.useMemo(() => shipments?.filter(s => s.status === 'In-Transit' && s.updatedAt && differenceInHours(new Date(), s.updatedAt.toDate()) > 24) || [], [shipments]);
+  const returnedShipmentsNeedingAction = React.useMemo(() => shipments?.filter(s => s.status === 'Returned' && !s.isArchived) || [], [shipments]);
+  const longPostponedShipments = React.useMemo(() => shipments?.filter(s => s.status === 'Postponed' && s.updatedAt && differenceInDays(new Date(), s.updatedAt.toDate()) > 3 && !s.isArchived) || [], [shipments]);
+  const staleInTransitShipments = React.useMemo(() => shipments?.filter(s => s.status === 'In-Transit' && s.updatedAt && differenceInHours(new Date(), s.updatedAt.toDate()) > 24 && !s.isArchived) || [], [shipments]);
   const problemCount = returnedShipmentsNeedingAction.length + longPostponedShipments.length + staleInTransitShipments.length;
 
   React.useEffect(() => {
@@ -1637,6 +1662,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     shipments={shipments || []}
                     archivedShipments={archivedShipments}
                     filteredShipments={filteredShipments}
+                    recentlyUpdatedShipments={recentlyUpdatedShipments}
                     listIsLoading={listIsLoading}
                     governorates={governorates || []}
                     companies={companies || []}
@@ -1656,6 +1682,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     filteredShipments={filteredShipments}
                     getShipmentsByStatus={getShipmentsByStatus}
                     archivedShipments={archivedShipments}
+                    recentlyUpdatedShipments={recentlyUpdatedShipments}
                     governorates={governorates || []}
                     companies={companies || []}
                     courierUsers={courierUsers}
