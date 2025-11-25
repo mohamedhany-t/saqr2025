@@ -1451,7 +1451,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
 
   const courierDues = React.useMemo(() => {
-    if (!users || !shipments) return [];
+    if (!users || !shipments || !courierPayments) return [];
     
     return courierUsers.map(courier => {
         const activeShipments = shipments?.filter(s => s.assignedCourierId === courier.id && !s.isArchived) || [];
@@ -1463,7 +1463,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
         const netDue = (totalCollected - totalCommission) - totalPaidByCourier;
         
-        const allPayments = courierPayments?.filter(p => p.courierId === courier.id) || [];
+        const allPaymentsForCourier = courierPayments?.filter(p => p.courierId === courier.id) || [];
 
         return {
             ...courier,
@@ -1474,7 +1474,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             totalCommission,
             totalPaidByCourier,
             netDue,
-            paymentHistory: allPayments.sort((a, b) => (b.paymentDate?.toDate?.() || 0) - (a.paymentDate?.toDate?.() || 0)),
+            paymentHistory: allPaymentsForCourier.sort((a, b) => (b.paymentDate?.toDate?.() || 0) - (a.paymentDate?.toDate?.() || 0)),
         }
     })
   }, [users, shipments, courierUsers, courierPayments]);
@@ -1483,7 +1483,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     if (!companies || !shipments || !companyPayments) return [];
     
     return companies.map(company => {
-        const activeShipments = shipments?.filter(s => s.companyId === company.id && !s.isArchived) || [];
+        const activeShipments = shipments?.filter(c => c.companyId === company.id && !c.isArchived) || [];
         const activePayments = companyPayments?.filter(p => p.companyId === company.id && !p.isArchived) || [];
         
         const totalRevenue = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
@@ -1492,7 +1492,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         
         const netDue = (totalRevenue - totalCompanyCommission) - totalPaidToCompany;
         
-        const allPayments = companyPayments?.filter(p => p.companyId === company.id) || [];
+        const allPaymentsForCompany = companyPayments?.filter(p => p.companyId === company.id) || [];
 
         return {
             ...company,
@@ -1501,7 +1501,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             totalCompanyCommission,
             totalPaidToCompany,
             netDue,
-            paymentHistory: allPayments.sort((a, b) => (b.paymentDate?.toDate?.() || 0) - (a.paymentDate?.toDate?.() || 0)),
+            paymentHistory: allPaymentsForCompany.sort((a, b) => (b.paymentDate?.toDate?.() || 0) - (a.paymentDate?.toDate?.() || 0)),
         }
     })
   }, [companies, shipments, companyPayments]);
