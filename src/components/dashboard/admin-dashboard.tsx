@@ -44,6 +44,7 @@ import { statusText } from './shipments-table';
 import { exportToExcel } from "@/lib/export";
 import { getColumns as getShipmentColumns } from './shipments-table';
 import { differenceInDays, differenceInHours } from "date-fns";
+import { ReportsPage } from "@/components/reports/reports-page";
 
 
 interface AdminDashboardProps {
