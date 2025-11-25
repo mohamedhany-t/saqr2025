@@ -3,7 +3,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -34,6 +34,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import ChatInterface from "@/components/chat/chat-interface";
 import { Badge } from "../ui/badge";
 import { ReportsPage } from "../reports/reports-page";
+import AccountStatementsPage from "@/app/accounts/page";
 import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotification } from "@/lib/actions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "../shipments/shipment-card";
@@ -1331,6 +1332,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
               paymentDate: serverTimestamp(),
               recordedById: user.id,
               notes: "تسوية وحفظ تلقائي للحساب",
+              isArchived: true, // Archive this settlement payment immediately
           };
           batch.set(paymentDocRef, newPayment);
       }
@@ -1483,7 +1485,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     if (!companies || !shipments || !companyPayments) return [];
     
     return companies.map(company => {
-        const activeShipments = shipments?.filter(c => c.companyId === company.id && !c.isArchived) || [];
+        const activeShipments = shipments?.filter(s => s.companyId === company.id && !s.isArchived) || [];
         const activePayments = companyPayments?.filter(p => p.companyId === company.id && !p.isArchived) || [];
         
         const totalRevenue = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
@@ -1661,6 +1663,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             </TabsTrigger>
             <TabsTrigger value="courier-management">إدارة المناديب</TabsTrigger>
             <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
+            <TabsTrigger value="account-statements">
+              <FileSpreadsheet className="w-4 h-4 me-2"/>
+              كشوفات الحسابات
+            </TabsTrigger>
             <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
             <TabsTrigger value="reports">التقارير</TabsTrigger>
             <TabsTrigger value="ai-tools">
@@ -1973,6 +1979,15 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     </div>
                 </div>
         </TabsContent>
+        <TabsContent value="account-statements">
+            <AccountStatementsPage 
+                 couriers={courierUsers}
+                 companies={companies || []}
+                 shipments={shipments || []}
+                 courierPayments={courierPayments || []}
+                 companyPayments={companyPayments || []}
+            />
+        </TabsContent>
         <TabsContent value="user-management">
             <div className="mt-8">
                 <div className="flex justify-between items-center mb-4">
@@ -2157,3 +2172,5 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
+
+    
