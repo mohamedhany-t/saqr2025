@@ -49,7 +49,8 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
         let rawTransactions: { date: Date, type: string, data: any }[] = [];
 
         if (entityType === 'courier') {
-            const courierShipments = shipments.filter(s => s.assignedCourierId === selectedId && s.paidAmount > 0);
+            // ONLY include shipments where an amount has been paid
+            const courierShipments = shipments.filter(s => s.assignedCourierId === selectedId && (s.paidAmount || 0) > 0);
             const payments = courierPayments.filter(p => p.courierId === selectedId);
 
             courierShipments.forEach(s => {
@@ -59,7 +60,8 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
                 rawTransactions.push({ date: p.paymentDate?.toDate() || new Date(), type: 'payment', data: p });
             });
         } else { // company
-            const companyShipments = shipments.filter(s => s.companyId === selectedId && s.paidAmount > 0);
+            // ONLY include shipments where an amount has been paid
+            const companyShipments = shipments.filter(s => s.companyId === selectedId && (s.paidAmount || 0) > 0);
             const payments = companyPayments.filter(p => p.companyId === selectedId);
             
             companyShipments.forEach(s => {
@@ -208,7 +210,7 @@ export default function AccountStatementsPage({ couriers, companies, shipments, 
                      <CardHeader className="flex flex-row items-start justify-between">
                         <div>
                             <CardTitle>كشف حساب: {selectedEntity?.name}</CardTitle>
-                            <div className="text-sm text-muted-foreground">
+                             <div className="text-sm text-muted-foreground">
                                 <span>الرصيد النهائي {balanceDescription} هو </span>
                                 <Badge variant={finalBalance > 0 ? 'destructive' : 'default'} className="mx-1">{formatCurrency(Math.abs(finalBalance))}</Badge>
                             </div>
