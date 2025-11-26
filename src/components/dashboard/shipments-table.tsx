@@ -558,6 +558,7 @@ export function ShipmentsTable({
   const governorateFilterValue = currentFilters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
   const companyFilterValue = currentFilters.find(f => f.id === 'companyId')?.value as string[] | undefined;
   const courierFilterValue = currentFilters.find(f => f.id === 'assignedCourierId')?.value as string[] | undefined;
+  const statusFilterValue = currentFilters.find(f => f.id === 'status')?.value as string[] | undefined;
   
   const handleSetFilter = (id: string, value: any) => {
     if (onFiltersChange) {
@@ -584,6 +585,34 @@ export function ShipmentsTable({
                         تصدير
                     </span>
                 </Button>}
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8 gap-1">
+                            <ChevronDown className="h-3.5 w-3.5 ms-1" />
+                            <span>
+                                الحالة
+                                {statusFilterValue && statusFilterValue.length > 0 && ` (${statusFilterValue.length})`}
+                            </span>
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                        {Object.entries(statusText).map(([value, label]) => (
+                            <DropdownMenuCheckboxItem
+                                key={value}
+                                checked={statusFilterValue?.includes(value)}
+                                onCheckedChange={(checked) => {
+                                    const current = statusFilterValue || [];
+                                    const newFilter = checked
+                                        ? [...current, value]
+                                        : current.filter((id) => id !== value);
+                                    handleSetFilter("status", newFilter.length ? newFilter : undefined);
+                                }}
+                            >
+                                {label}
+                            </DropdownMenuCheckboxItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="sm" className="h-8 gap-1">

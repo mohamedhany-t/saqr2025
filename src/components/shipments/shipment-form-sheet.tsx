@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import * as React from 'react';
@@ -94,8 +95,17 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   const isAdmin = role === 'admin';
   const isCompany = role === 'company';
 
-  const form = useForm<z.infer<typeof shipmentSchema>>({
-    resolver: zodResolver(shipmentSchema),
+  const formSchema = shipmentSchema.superRefine((data, ctx) => {
+    if (isCourier) return; // Skip validation for courier
+    if (!data.recipientPhone || !/^(01[0-2,5])\d{8}$/.test(data.recipientPhone)) {
+        // We're making phone optional, so this validation is removed for now
+        // or could be made conditional. For now, we allow saving without it.
+    }
+  });
+
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
     defaultValues: {},
   });
   
@@ -137,7 +147,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   }, [open, shipment, isEditing, form, role]);
 
 
-  const onSubmit = (values: z.infer<typeof shipmentSchema>) => {
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
     onSave(values, shipment?.id);
   };
   

@@ -138,6 +138,8 @@ const Filters = ({
     const governorateFilterValue = localFilters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
     const companyFilterValue = localFilters.find(f => f.id === 'companyId')?.value as string[] | undefined;
     const courierFilterValue = localFilters.find(f => f.id === 'assignedCourierId')?.value as string[] | undefined;
+    const statusFilterValue = localFilters.find(f => f.id === 'status')?.value as string[] | undefined;
+
 
     const setFilter = (id: string, value: any) => {
         setLocalFilters(prev => {
@@ -151,6 +153,34 @@ const Filters = ({
 
     return (
         <div className="flex items-center gap-2 flex-wrap">
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-1">
+                        <ChevronDown className="h-3.5 w-3.5 ms-1" />
+                        <span>
+                            الحالة
+                            {statusFilterValue && statusFilterValue.length > 0 && ` (${statusFilterValue.length})`}
+                        </span>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                    {Object.entries(statusText).map(([value, label]) => (
+                        <DropdownMenuCheckboxItem
+                            key={value}
+                            checked={statusFilterValue?.includes(value)}
+                            onCheckedChange={(checked) => {
+                                const current = statusFilterValue || [];
+                                const newFilter = checked
+                                    ? [...current, value]
+                                    : current.filter((id) => id !== value);
+                                setFilter("status", newFilter.length ? newFilter : undefined);
+                            }}
+                        >
+                            {label}
+                        </DropdownMenuCheckboxItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="h-8 gap-1">
@@ -242,6 +272,7 @@ const Filters = ({
 const MobileShipmentsView = ({
     shipments,
     archivedShipments,
+    inWarehouseShipments,
     filteredShipments,
     recentlyUpdatedShipments,
     listIsLoading,
@@ -259,6 +290,7 @@ const MobileShipmentsView = ({
   }: {
     shipments: Shipment[];
     archivedShipments: Shipment[];
+    inWarehouseShipments: Shipment[];
     filteredShipments: Shipment[];
     recentlyUpdatedShipments: Shipment[];
     listIsLoading: boolean;
@@ -325,6 +357,7 @@ const MobileShipmentsView = ({
         case "postponed": return getShipmentsByStatus('Postponed');
         case "returned": return getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']);
         case "returned-to-sender": return getShipmentsByStatus('Returned to Sender');
+        case "in-warehouse": return inWarehouseShipments;
         case "archived": return archivedShipments;
         case "all-shipments":
         default: return filteredShipments;
@@ -406,8 +439,9 @@ const MobileShipmentsView = ({
                     <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
                     <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
                     <TabsTrigger value="returned">مرتجعات</TabsTrigger>
+                    <TabsTrigger value="in-warehouse"><Warehouse className="h-4 w-4 me-1" /> في المخزن</TabsTrigger>
                     <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
-                    <TabsTrigger value="archived" className="col-span-4">المؤرشفة</TabsTrigger>
+                    <TabsTrigger value="archived" className="col-span-2">المؤرشفة</TabsTrigger>
                 </TabsList>
                 <div className="flex items-center gap-4">
                     <Filters governorates={governorates || []} companies={companies || []} courierUsers={courierUsers} onFiltersChange={setColumnFilters} />
@@ -426,6 +460,7 @@ const MobileShipmentsView = ({
             <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentList(getShipmentsByStatus('Postponed'))}</TabsContent>
             <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
+            <TabsContent value="in-warehouse">{renderShipmentList(inWarehouseShipments)}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentList(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
             <TabsContent value="archived">{renderShipmentList(archivedShipments)}</TabsContent>
             {selectedCount > 0 && (
@@ -471,6 +506,7 @@ const DesktopShipmentsView = ({
     filteredShipments,
     getShipmentsByStatus,
     archivedShipments,
+    inWarehouseShipments,
     recentlyUpdatedShipments,
     governorates,
     companies,
@@ -486,6 +522,7 @@ const DesktopShipmentsView = ({
     filteredShipments: Shipment[];
     getShipmentsByStatus: (status: ShipmentStatus | ShipmentStatus[]) => Shipment[];
     archivedShipments: Shipment[];
+    inWarehouseShipments: Shipment[];
     recentlyUpdatedShipments: Shipment[];
     governorates: Governorate[];
     companies: Company[];
@@ -526,6 +563,7 @@ const DesktopShipmentsView = ({
                 <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
                 <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
                 <TabsTrigger value="returned">مرتجعات</TabsTrigger>
+                <TabsTrigger value="in-warehouse"><Warehouse className="h-4 w-4 me-1" /> في المخزن</TabsTrigger>
                 <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
                 <TabsTrigger value="archived">المؤرشفة</TabsTrigger>
             </TabsList>
@@ -536,6 +574,7 @@ const DesktopShipmentsView = ({
             <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
             <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
+            <TabsContent value="in-warehouse">{renderShipmentTable(inWarehouseShipments)}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentTable(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
             <TabsContent value="archived">{renderShipmentTable(archivedShipments, true)}</TabsContent>
         </Tabs>
@@ -1346,7 +1385,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           batch.update(paymentRef, { isArchived: true });
       });
 
-      // Step 3: Archive finished shipments
+      // Step 3: Archive finished shipments for this courier
       const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Returned', 'Cancelled', 'Evasion (Phone)', 'Evasion (Delivery Attempt)', 'Refused (Paid)', 'Refused (Unpaid)', 'Returned to Sender'];
       const courierShipmentsToArchive = shipments?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchived && finishedStatuses.includes(s.status)) || [];
       courierShipmentsToArchive.forEach(shipment => {
@@ -1373,9 +1412,11 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       toast({ title: `جاري أرشفة بيانات ${companyToArchive.name}...` });
 
       const batch = writeBatch(firestore);
-
-      const companyShipments = shipments?.filter(s => s.companyId === companyToArchive.id && !s.isArchived) || [];
-      companyShipments.forEach(shipment => {
+      
+      // Archive finished shipments for this company
+      const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Returned', 'Cancelled', 'Evasion (Phone)', 'Evasion (Delivery Attempt)', 'Refused (Paid)', 'Refused (Unpaid)', 'Returned to Sender'];
+      const companyShipmentsToArchive = shipments?.filter(s => s.companyId === companyToArchive.id && !s.isArchived && finishedStatuses.includes(s.status)) || [];
+      companyShipmentsToArchive.forEach(shipment => {
           const shipmentRef = doc(firestore, 'shipments', shipment.id);
           batch.update(shipmentRef, { isArchived: true });
       });
@@ -1388,7 +1429,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       
       await batch.commit()
           .then(() => {
-              toast({ title: "اكتملت الأرشفة بنجاح!", description: `تمت أرشفة جميع شحنات ودفعات ${companyToArchive.name}.` });
+              toast({ title: "اكتملت الأرشفة بنجاح!", description: `تمت أرشفة جميع شحنات ودفعات ${companyToArchive.name} المنتهية.` });
           })
           .catch(serverError => {
             if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
@@ -1408,9 +1449,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         baseShipments = baseShipments.filter(shipment => {
             return columnFilters.every(filter => {
                 const value = (shipment as any)[filter.id];
-                if (!value) return false;
                 const filterValue = filter.value as string[];
-                return filterValue.includes(value);
+                if (!value && filter.id !== 'status') return false; // Status can be a valid filter even if shipment.status is not set
+                if (Array.isArray(filterValue) && filterValue.length > 0) {
+                  return filterValue.includes(value);
+                }
+                return true;
             });
         });
     }
@@ -1450,6 +1494,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         return timeB - timeA;
     }).slice(0, 50); // Get the last 50 updated shipments
 }, [shipments]);
+
+  const inWarehouseShipments = React.useMemo(() => {
+    return shipments?.filter(shipment => shipment.isWarehouseReturn && !shipment.isArchived) || [];
+  }, [shipments]);
 
 
   const courierDues = React.useMemo(() => {
@@ -1705,6 +1753,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 <MobileShipmentsView 
                     shipments={shipments || []}
                     archivedShipments={archivedShipments}
+                    inWarehouseShipments={inWarehouseShipments}
                     filteredShipments={filteredShipments}
                     recentlyUpdatedShipments={recentlyUpdatedShipments}
                     listIsLoading={listIsLoading}
@@ -1726,6 +1775,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     filteredShipments={filteredShipments}
                     getShipmentsByStatus={getShipmentsByStatus}
                     archivedShipments={archivedShipments}
+                    inWarehouseShipments={inWarehouseShipments}
                     recentlyUpdatedShipments={recentlyUpdatedShipments}
                     governorates={governorates || []}
                     companies={companies || []}
@@ -2107,7 +2157,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           <AlertDialogHeader>
             <AlertDialogTitle>أرشفة وتسوية حساب {courierToArchive?.name}؟</AlertDialogTitle>
             <AlertDialogDescription>
-             سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ المستحق على المندوب حاليًا، ثم أرشفة جميع الشحنات والدفعات الحالية. لا يمكن التراجع عن هذا الإجراء.
+             سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ المستحق على المندوب حاليًا، ثم أرشفة جميع الشحنات المنتهية والدفعات الحالية للمندوب. لا يمكن التراجع عن هذا الإجراء.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2121,7 +2171,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           <AlertDialogHeader>
             <AlertDialogTitle>أرشفة وتسوية حساب {companyToArchive?.name}؟</AlertDialogTitle>
             <AlertDialogDescription>
-              سيؤدي هذا الإجراء إلى أرشفة جميع الشحنات والدفعات الحالية للشركة. سيتم تصفير حسابها لتبدأ دورة عمل جديدة. لا يمكن التراجع عن هذا الإجراء.
+              سيؤدي هذا الإجراء إلى أرشفة جميع الشحنات المنتهية والدفعات الحالية للشركة. سيتم تصفير حسابها لتبدأ دورة عمل جديدة. لا يمكن التراجع عن هذا الإجراء.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
