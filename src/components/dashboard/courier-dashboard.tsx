@@ -46,25 +46,23 @@ const calculateCommissionAndPaidAmount = (
 
     switch (status) {
         case 'Delivered':
-            update.courierCommission = safeCourierCommissionRate;
-            update.companyCommission = safeCompanyCommission;
             update.paidAmount = safeTotalAmount;
             update.collectedAmount = safeTotalAmount;
+            update.courierCommission = safeCourierCommissionRate;
+            update.companyCommission = safeCompanyCommission;
             break;
 
         case 'Partially Delivered':
         case 'Refused (Paid)':
-            update.courierCommission = safeCourierCommissionRate;
-            update.companyCommission = safeCompanyCommission;
-            // The collected amount IS the paid amount in these cases.
             update.paidAmount = safeCollectedAmount;
             update.collectedAmount = safeCollectedAmount;
+            update.courierCommission = safeCourierCommissionRate;
+            update.companyCommission = safeCompanyCommission;
             break;
 
         case 'Evasion (Delivery Attempt)':
         case 'Refused (Unpaid)':
             update.courierCommission = safeCourierCommissionRate;
-            // No money was collected, so paidAmount and companyCommission are zero.
             update.paidAmount = 0;
             update.collectedAmount = 0;
             update.companyCommission = 0; 

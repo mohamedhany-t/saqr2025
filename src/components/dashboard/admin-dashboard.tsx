@@ -74,25 +74,23 @@ const calculateCommissionAndPaidAmount = (
 
     switch (status) {
         case 'Delivered':
-            update.courierCommission = safeCourierCommissionRate;
-            update.companyCommission = safeCompanyCommission;
             update.paidAmount = safeTotalAmount;
             update.collectedAmount = safeTotalAmount;
+            update.courierCommission = safeCourierCommissionRate;
+            update.companyCommission = safeCompanyCommission;
             break;
 
         case 'Partially Delivered':
         case 'Refused (Paid)':
-            update.courierCommission = safeCourierCommissionRate;
-            update.companyCommission = safeCompanyCommission;
-            // The collected amount IS the paid amount in these cases.
             update.paidAmount = safeCollectedAmount;
             update.collectedAmount = safeCollectedAmount;
+            update.courierCommission = safeCourierCommissionRate;
+            update.companyCommission = safeCompanyCommission;
             break;
 
         case 'Evasion (Delivery Attempt)':
         case 'Refused (Unpaid)':
             update.courierCommission = safeCourierCommissionRate;
-            // No money was collected, so paidAmount and companyCommission are zero.
             update.paidAmount = 0;
             update.collectedAmount = 0;
             update.companyCommission = 0;
@@ -707,9 +705,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     return chats.reduce((sum, chat) => sum + (chat.unreadCounts?.[user.id] || 0), 0);
   }, [chats, user?.id]);
 
-  // State for handling shipment editing via URL
-  const [editingShipmentFromUrl, setEditingShipmentFromUrl] = React.useState<Shipment | null>(null);
-
   // Effect to fetch shipment data if 'edit' param is in the URL
   React.useEffect(() => {
     const editShipmentId = searchParams.get('edit');
@@ -934,6 +929,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const handleSaveShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
     if (!firestore || !user || !companies || !users) return;
 
+    // Use the passed ID. If editing via URL, editingShipment.id will be used.
+    const shipmentId = id || editingShipment?.id;
+
     let dataToSave: { [key: string]: any } = Object.fromEntries(
         Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== '')
     );
@@ -941,8 +939,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     dataToSave.updatedAt = serverTimestamp();
 
     let originalShipment: Shipment | undefined;
-    if (id) {
-        const docSnap = await getDoc(doc(firestore, 'shipments', id));
+    if (shipmentId) {
+        const docSnap = await getDoc(doc(firestore, 'shipments', shipmentId));
         if (docSnap.exists()) {
             originalShipment = docSnap.data() as Shipment;
         } else {
@@ -957,11 +955,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     const governorateId = dataToSave.governorateId || originalShipment?.governorateId;
     const newStatus = dataToSave.status || originalShipment?.status;
     
-    if (newStatus && courierId && companyId && governorateId) {
+    if (newStatus && (courierId || companyId || governorateId)) {
         const courierUser = users.find(u => u.id === courierId && u.role === 'courier');
         const company = companies.find(c => c.id === companyId);
         
-        if (courierUser && company) {
+        // Ensure we have the necessary data for calculations
+        if (courierUser && company && governorateId) {
             const courierCommissionRate = courierUser.commissionRate || 0;
             const companyGovernorateCommission = company.governorateCommissions?.[governorateId] || 0;
             
@@ -977,19 +976,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             );
 
             dataToSave = { ...dataToSave, ...calculatedFields };
-
-            // IMPORTANT: If admin manually set paidAmount, let it override the calculation.
-            if (shipmentData.paidAmount !== undefined && role === 'admin') {
-                dataToSave.paidAmount = shipmentData.paidAmount;
-            }
         }
     }
 
 
     const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
 
-    const savePromise = id
-        ? updateDoc(doc(firestore, 'shipments', id), dataToSave)
+    const savePromise = shipmentId
+        ? updateDoc(doc(firestore, 'shipments', shipmentId), dataToSave)
         : setDoc(doc(collection(firestore, 'shipments')), { 
             ...dataToSave, 
             companyId: dataToSave.companyId || user.id, 
@@ -1000,7 +994,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     savePromise
       .then(() => {
         toast({
-          title: id ? "تم تحديث الشحنة" : "تم حفظ الشحنة",
+          title: shipmentId ? "تم تحديث الشحنة" : "تم حفظ الشحنة",
           description: `تمت العملية بنجاح`,
         });
         handleSheetOpenChange(false);
@@ -1018,8 +1012,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         // Only emit permission error if it's a Firestore error
         if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
             const permissionError = new FirestorePermissionError({
-                path: `shipments/${id || ''}`,
-                operation: id ? 'update' : 'create',
+                path: `shipments/${shipmentId || ''}`,
+                operation: shipmentId ? 'update' : 'create',
                 requestResourceData: dataToSave
             });
             errorEmitter.emit('permission-error', permissionError);
