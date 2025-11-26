@@ -44,7 +44,8 @@ const createMockShipment = (i: number): Shipment => {
     assignedCourierId: generateId(seed + 100),
     createdAt,
     updatedAt: new Date(createdAt.getTime() + (seed * 1000) % (new Date('2024-07-28T00:00:00.000Z').getTime() - createdAt.getTime())),
-    isArchived: false
+    isArchivedForCourier: false,
+    isArchivedForCompany: false,
   };
 };
 
