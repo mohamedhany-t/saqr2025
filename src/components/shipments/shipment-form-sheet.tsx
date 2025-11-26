@@ -51,7 +51,7 @@ const shipmentSchema = z.object({
   orderNumber: z.string().optional(),
   trackingNumber: z.string().optional(),
   recipientName: z.string().min(1, "اسم المرسل إليه مطلوب"),
-  recipientPhone: z.string().min(10, "رقم هاتف المستلم غير صحيح"),
+  recipientPhone: z.string().optional(), // Made optional
   governorateId: z.string().optional(),
   address: z.string().min(1, "العنوان مطلوب"),
   totalAmount: z.coerce.number().min(0, "المبلغ يجب أن يكون إيجابي"),
@@ -256,6 +256,21 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />
+                    {isAdmin && (
+                        <FormField
+                            control={form.control}
+                            name="paidAmount"
+                            render={({ field }) => (
+                                <FormItem className="grid grid-cols-4 items-center gap-4">
+                                    <FormLabel className="text-right">المدفوع</FormLabel>
+                                    <FormControl className="col-span-3">
+                                        <Input type="number" {...field} value={field.value ?? 0} />
+                                    </FormControl>
+                                    <FormMessage className="col-span-4" />
+                                </FormItem>
+                            )}
+                        />
+                    )}
                     {isAdmin && companies && companies.length > 0 && <FormField
                         control={form.control}
                         name="companyId"
