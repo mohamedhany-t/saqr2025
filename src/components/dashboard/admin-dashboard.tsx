@@ -75,22 +75,24 @@ const calculateCommissionAndPaidAmount = (
     switch (status) {
         case 'Delivered':
             update.courierCommission = safeCourierCommissionRate;
+            update.companyCommission = safeCompanyCommission;
             update.paidAmount = safeTotalAmount;
             update.collectedAmount = safeTotalAmount;
-            update.companyCommission = safeCompanyCommission;
             break;
 
         case 'Partially Delivered':
         case 'Refused (Paid)':
             update.courierCommission = safeCourierCommissionRate;
+            update.companyCommission = safeCompanyCommission;
+            // The collected amount IS the paid amount in these cases.
             update.paidAmount = safeCollectedAmount;
             update.collectedAmount = safeCollectedAmount;
-            update.companyCommission = safeCompanyCommission;
             break;
 
         case 'Evasion (Delivery Attempt)':
         case 'Refused (Unpaid)':
             update.courierCommission = safeCourierCommissionRate;
+            // No money was collected, so paidAmount and companyCommission are zero.
             update.paidAmount = 0;
             update.collectedAmount = 0;
             update.companyCommission = 0;
@@ -940,7 +942,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
     let originalShipment: Shipment | undefined;
     if (id) {
-        // Fetch fresh data to ensure calculations are based on the latest state
         const docSnap = await getDoc(doc(firestore, 'shipments', id));
         if (docSnap.exists()) {
             originalShipment = docSnap.data() as Shipment;
@@ -956,8 +957,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     const governorateId = dataToSave.governorateId || originalShipment?.governorateId;
     const newStatus = dataToSave.status || originalShipment?.status;
     
-    // Always recalculate financial fields if the status is present in the update
-    if (newStatus && (courierId && companyId && governorateId)) {
+    if (newStatus && courierId && companyId && governorateId) {
         const courierUser = users.find(u => u.id === courierId && u.role === 'courier');
         const company = companies.find(c => c.id === companyId);
         
@@ -976,7 +976,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 companyGovernorateCommission
             );
 
-            // Merge calculated fields. This will reset paidAmount and commissions correctly.
             dataToSave = { ...dataToSave, ...calculatedFields };
 
             // IMPORTANT: If admin manually set paidAmount, let it override the calculation.
