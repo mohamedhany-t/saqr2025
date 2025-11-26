@@ -91,9 +91,9 @@ const calculateCommissionAndPaidAmount = (
         case 'Evasion (Delivery Attempt)':
         case 'Refused (Unpaid)':
             update.courierCommission = safeCourierCommissionRate;
+            update.companyCommission = 0; // No revenue, so no company commission
             update.paidAmount = 0;
             update.collectedAmount = 0;
-            update.companyCommission = 0;
             break;
             
         case 'Evasion (Phone)':
