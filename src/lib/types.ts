@@ -8,6 +8,7 @@ export type User = {
   id: string; // This will be the Firebase Auth UID
   name?: string;
   email: string;
+  phone?: string;
   role: Role;
   companyId?: string; // For company users, this is their own ID. For couriers, it's optional.
   companyName?: string; // For company users

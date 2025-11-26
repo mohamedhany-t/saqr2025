@@ -1079,7 +1079,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         
         const batch = writeBatch(firestore);
         const userDocRef = doc(firestore, 'users', userId);
-        const userUpdatePayload: any = { name: data.name, updatedAt: serverTimestamp() };
+        const userUpdatePayload: any = { name: data.name, phone: data.phone, updatedAt: serverTimestamp() };
 
         if (data.role === 'courier') {
             userUpdatePayload.commissionRate = data.commissionRate;
@@ -1133,6 +1133,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             email: data.email,
             name: data.name,
             role: data.role,
+            phone: data.phone,
             createdAt: serverTimestamp(),
         };
 
@@ -1412,36 +1413,62 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   };
   
   const handleArchiveCompanyData = async () => {
-      if (!firestore || !companyToArchive) return;
-      toast({ title: `جاري أرشفة بيانات ${companyToArchive.name}...` });
-
-      const batch = writeBatch(firestore);
-      
-      // Archive finished shipments for this company
-      const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Returned', 'Cancelled', 'Evasion (Phone)', 'Evasion (Delivery Attempt)', 'Refused (Paid)', 'Refused (Unpaid)', 'Returned to Sender'];
-      const companyShipmentsToArchive = shipments?.filter(s => s.companyId === companyToArchive.id && !s.isArchivedForCompany && finishedStatuses.includes(s.status)) || [];
-      companyShipmentsToArchive.forEach(shipment => {
-          const shipmentRef = doc(firestore, 'shipments', shipment.id);
-          batch.update(shipmentRef, { isArchivedForCompany: true });
-      });
-      
-      const companyPaymentsToArchive = companyPayments?.filter(p => p.companyId === companyToArchive.id && !p.isArchived) || [];
-      companyPaymentsToArchive.forEach(payment => {
-          const paymentRef = doc(firestore, 'company_payments', payment.id);
-          batch.update(paymentRef, { isArchived: true });
-      });
-      
-      await batch.commit()
-          .then(() => {
-              toast({ title: "اكتملت الأرشفة بنجاح!", description: `تمت أرشفة جميع شحنات ودفعات ${companyToArchive.name} المنتهية.` });
-          })
-          .catch(serverError => {
-            if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
-                const permissionError = new FirestorePermissionError({ path: `batch_archive`, operation: 'update', requestResourceData: { note: `Batch archive for company ${companyToArchive.id} failed.` }});
-                errorEmitter.emit('permission-error', permissionError);
-            }
-          })
-          .finally(() => setCompanyToArchive(null));
+    if (!firestore || !companyToArchive || !user) return;
+    toast({ title: `جاري أرشفة وتسوية حساب ${companyToArchive.name}...` });
+    
+    const companyDueData = companyDues.find(d => d.id === companyToArchive.id);
+    if (!companyDueData) {
+        toast({ title: "خطأ", description: "لم يتم العثور على البيانات المالية للشركة.", variant: "destructive" });
+        setCompanyToArchive(null);
+        return;
+    }
+  
+    const netDue = companyDueData.netDue;
+    const batch = writeBatch(firestore);
+  
+    // Step 1: Create a settlement payment if there's a positive balance (owed TO the company)
+    if (netDue > 0) {
+      const paymentsCollection = collection(firestore, 'company_payments');
+      const paymentDocRef = doc(paymentsCollection);
+      const newPayment: CompanyPayment = {
+        id: paymentDocRef.id,
+        companyId: companyToArchive.id,
+        amount: netDue,
+        paymentDate: serverTimestamp(),
+        recordedById: user.id,
+        notes: "تسوية وحفظ تلقائي للحساب",
+        isArchived: true, // Archive this settlement payment immediately
+      };
+      batch.set(paymentDocRef, newPayment);
+    }
+  
+    // Step 2: Archive all currently active payments for this company.
+    const activePayments = companyPayments?.filter(p => p.companyId === companyToArchive.id && !p.isArchived) || [];
+    activePayments.forEach(payment => {
+      const paymentRef = doc(firestore, 'company_payments', payment.id);
+      batch.update(paymentRef, { isArchived: true });
+    });
+  
+    // Step 3: Archive finished shipments for this company
+    const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Returned', 'Cancelled', 'Evasion (Phone)', 'Evasion (Delivery Attempt)', 'Refused (Paid)', 'Refused (Unpaid)', 'Returned to Sender'];
+    const companyShipmentsToArchive = shipments?.filter(s => s.companyId === companyToArchive.id && !s.isArchivedForCompany && finishedStatuses.includes(s.status)) || [];
+    companyShipmentsToArchive.forEach(shipment => {
+      const shipmentRef = doc(firestore, 'shipments', shipment.id);
+      batch.update(shipmentRef, { isArchivedForCompany: true });
+    });
+  
+    // Commit all changes
+    await batch.commit()
+      .then(() => {
+        toast({ title: "اكتملت التسوية والأرشفة بنجاح!", description: `تمت تسوية حساب ${companyToArchive.name} وأرشفة جميع الشحنات والدفعات المنتهية.` });
+      })
+      .catch(serverError => {
+        if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({ path: `batch_archive_settle`, operation: 'write', requestResourceData: { note: `Batch archive/settle for company ${companyToArchive.id} failed.` } });
+          errorEmitter.emit('permission-error', permissionError);
+        }
+      })
+      .finally(() => setCompanyToArchive(null));
   };
 
 

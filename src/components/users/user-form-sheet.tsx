@@ -35,6 +35,7 @@ import { collection } from 'firebase/firestore';
 const baseUserSchema = z.object({
   name: z.string().min(1, "الاسم مطلوب"),
   email: z.string().email("بريد إلكتروني غير صالح"),
+  phone: z.string().optional(),
   password: z.string().optional(),
   role: z.enum(["courier", "admin", "company"], { required_error: "الدور مطلوب" }),
   commissionRate: z.coerce.number().optional(),
@@ -92,6 +93,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
     defaultValues: {
       name: "",
       email: "",
+      phone: "",
       password: "",
       role: 'courier',
       commissionRate: 0,
@@ -106,6 +108,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
         form.reset({
           name: user.name ?? '',
           email: user.email ?? '',
+          phone: user.phone ?? '',
           role: user.role ?? 'courier',
           password: "", // Always reset password field
           commissionRate: user.commissionRate ?? 0,
@@ -115,6 +118,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
         form.reset({
           name: "",
           email: "",
+          phone: "",
           password: "",
           role: 'courier',
           commissionRate: 0,
@@ -178,6 +182,19 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
 
                                 <FormControl className="col-span-3">
                                     <Input type="email" {...field} disabled={isEditing}/>
+                                </FormControl>
+                                <FormMessage className="col-span-4" />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="phone"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">رقم الهاتف</FormLabel>
+                                <FormControl className="col-span-3">
+                                    <Input type="tel" {...field} />
                                 </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
@@ -276,5 +293,3 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
     </Sheet>
   )
 }
-
-    
