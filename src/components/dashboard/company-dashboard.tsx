@@ -105,7 +105,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
 
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'shipments'), where("companyId", "==", user.id), where("isArchived", "==", false));
+    return query(collection(firestore, 'shipments'), where("companyId", "==", user.id), where("isArchivedForCompany", "==", false));
   }, [firestore, user]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
@@ -191,7 +191,8 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                   reason: row['السبب'] || '',
                   deliveryDate: deliveryDate || new Date(),
                   updatedAt: serverTimestamp(),
-                  isArchived: false,
+                  isArchivedForCompany: false,
+                  isArchivedForCourier: false,
                   companyId: user.id, // Shipment belongs to the current company user
               };
 
@@ -260,7 +261,8 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
         : setDoc(doc(collection(firestore, 'shipments')), { 
             ...cleanShipmentData, 
             companyId: user.id, 
-            isArchived: false, 
+            isArchivedForCourier: false,
+            isArchivedForCompany: false,
             createdAt: serverTimestamp(), 
             updatedAt: serverTimestamp() 
           });

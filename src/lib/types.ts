@@ -53,7 +53,8 @@ export type Shipment = {
   assignedCourierId?: string; // Corresponds to a document ID in /couriers
   createdAt: any; // Can be Date or Firebase Timestamp
   updatedAt: any; // Can be Date or Firebase Timestamp
-  isArchived?: boolean; // For settling courier accounts
+  isArchivedForCourier?: boolean; // For settling courier accounts
+  isArchivedForCompany?: boolean; // For settling company accounts
   isWarehouseReturn?: boolean; // To mark if the item is physically in the warehouse
 };
 

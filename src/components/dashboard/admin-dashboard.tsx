@@ -484,7 +484,7 @@ const MobileShipmentsView = ({
                         تصدير
                     </Button>
                     {activeTab === 'archived' &&
-                        <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isArchived: false })}>
+                        <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isArchivedForCourier: false, isArchivedForCompany: false })}>
                             <ArchiveRestore className="me-2 h-4 w-4" />
                             إلغاء الأرشفة
                         </Button>
@@ -870,7 +870,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                   reason: String(row['السبب'] || ''),
                   deliveryDate: deliveryDate || new Date(),
                   updatedAt: serverTimestamp(),
-                  isArchived: false,
+                  isArchivedForCompany: false,
+                  isArchivedForCourier: false,
                   companyId: foundCompany ? foundCompany.id : authUser.uid,
               };
 
@@ -987,7 +988,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         : setDoc(doc(collection(firestore, 'shipments')), { 
             ...dataToSave, 
             companyId: dataToSave.companyId || user.id, 
-            isArchived: false, 
+            isArchivedForCourier: false,
+            isArchivedForCompany: false,
             createdAt: serverTimestamp() 
           });
 
@@ -1389,10 +1391,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
       // Step 3: Archive finished shipments for this courier
       const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Returned', 'Cancelled', 'Evasion (Phone)', 'Evasion (Delivery Attempt)', 'Refused (Paid)', 'Refused (Unpaid)', 'Returned to Sender'];
-      const courierShipmentsToArchive = shipments?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchived && finishedStatuses.includes(s.status)) || [];
+      const courierShipmentsToArchive = shipments?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchivedForCourier && finishedStatuses.includes(s.status)) || [];
       courierShipmentsToArchive.forEach(shipment => {
           const shipmentRef = doc(firestore, 'shipments', shipment.id);
-          batch.update(shipmentRef, { isArchived: true });
+          batch.update(shipmentRef, { isArchivedForCourier: true });
       });
 
       // Commit all changes
@@ -1417,10 +1419,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       
       // Archive finished shipments for this company
       const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Returned', 'Cancelled', 'Evasion (Phone)', 'Evasion (Delivery Attempt)', 'Refused (Paid)', 'Refused (Unpaid)', 'Returned to Sender'];
-      const companyShipmentsToArchive = shipments?.filter(s => s.companyId === companyToArchive.id && !s.isArchived && finishedStatuses.includes(s.status)) || [];
+      const companyShipmentsToArchive = shipments?.filter(s => s.companyId === companyToArchive.id && !s.isArchivedForCompany && finishedStatuses.includes(s.status)) || [];
       companyShipmentsToArchive.forEach(shipment => {
           const shipmentRef = doc(firestore, 'shipments', shipment.id);
-          batch.update(shipmentRef, { isArchived: true });
+          batch.update(shipmentRef, { isArchivedForCompany: true });
       });
       
       const companyPaymentsToArchive = companyPayments?.filter(p => p.companyId === companyToArchive.id && !p.isArchived) || [];
@@ -1444,7 +1446,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
 
   const filteredShipments = React.useMemo(() => {
-    let baseShipments = shipments?.filter(shipment => !shipment.isArchived) || [];
+    let baseShipments = shipments?.filter(shipment => !shipment.isArchivedForCompany && !shipment.isArchivedForCourier) || [];
 
     // Apply column filters
     if (columnFilters.length > 0) {
@@ -1475,7 +1477,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   }, [shipments, searchTerm, columnFilters]);
   
   const archivedShipments = React.useMemo(() => {
-    const archived = shipments?.filter(shipment => shipment.isArchived) || [];
+    const archived = shipments?.filter(shipment => shipment.isArchivedForCompany || shipment.isArchivedForCourier) || [];
      if (!searchTerm) return archived;
     const lowercasedTerm = searchTerm.toLowerCase();
     return archived.filter(shipment => 
@@ -1489,7 +1491,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   }, [shipments, searchTerm]);
 
   const recentlyUpdatedShipments = React.useMemo(() => {
-    const activeShipments = shipments?.filter(shipment => !shipment.isArchived) || [];
+    const activeShipments = shipments?.filter(shipment => !shipment.isArchivedForCompany && !shipment.isArchivedForCourier) || [];
     return activeShipments.sort((a, b) => {
         const timeA = a.updatedAt?.toDate?.()?.getTime() || 0;
         const timeB = b.updatedAt?.toDate?.()?.getTime() || 0;
@@ -1498,7 +1500,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 }, [shipments]);
 
   const inWarehouseShipments = React.useMemo(() => {
-    return shipments?.filter(shipment => shipment.isWarehouseReturn && !shipment.isArchived) || [];
+    return shipments?.filter(shipment => shipment.isWarehouseReturn && !shipment.isArchivedForCompany && !shipment.isArchivedForCourier) || [];
   }, [shipments]);
 
 
@@ -1506,7 +1508,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     if (!users || !shipments || !courierPayments) return [];
     
     return courierUsers.map(courier => {
-        const activeShipments = shipments?.filter(s => s.assignedCourierId === courier.id && !s.isArchived) || [];
+        const activeShipments = shipments?.filter(s => s.assignedCourierId === courier.id && !s.isArchivedForCourier) || [];
         const activePayments = courierPayments?.filter(p => p.courierId === courier.id && !p.isArchived) || [];
         
         const totalCollected = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
@@ -1535,7 +1537,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     if (!companies || !shipments || !companyPayments) return [];
     
     return companies.map(company => {
-        const activeShipments = shipments?.filter(s => s.companyId === company.id && !s.isArchived) || [];
+        const activeShipments = shipments?.filter(s => s.companyId === company.id && !s.isArchivedForCompany) || [];
         const activePayments = companyPayments?.filter(p => p.companyId === company.id && !p.isArchived) || [];
         
         const totalRevenue = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
@@ -1564,9 +1566,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const shownNotificationsRef = React.useRef<Set<string>>(new Set());
 
   // Problem Inbox Shipments
-  const returnedShipmentsNeedingAction = React.useMemo(() => shipments?.filter(s => s.status === 'Returned' && !s.isArchived) || [], [shipments]);
-  const longPostponedShipments = React.useMemo(() => shipments?.filter(s => s.status === 'Postponed' && s.updatedAt && differenceInDays(new Date(), s.updatedAt.toDate()) > 3 && !s.isArchived) || [], [shipments]);
-  const staleInTransitShipments = React.useMemo(() => shipments?.filter(s => s.status === 'In-Transit' && s.updatedAt && differenceInHours(new Date(), s.updatedAt.toDate()) > 24 && !s.isArchived) || [], [shipments]);
+  const returnedShipmentsNeedingAction = React.useMemo(() => shipments?.filter(s => s.status === 'Returned' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
+  const longPostponedShipments = React.useMemo(() => shipments?.filter(s => s.status === 'Postponed' && s.updatedAt && differenceInDays(new Date(), s.updatedAt.toDate()) > 3 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
+  const staleInTransitShipments = React.useMemo(() => shipments?.filter(s => s.status === 'In-Transit' && s.updatedAt && differenceInHours(new Date(), s.updatedAt.toDate()) > 24 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
   const problemCount = returnedShipmentsNeedingAction.length + longPostponedShipments.length + staleInTransitShipments.length;
 
   React.useEffect(() => {
@@ -1587,7 +1589,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
     // Check for overloaded couriers
     courierUsers.forEach(courier => {
-        const activeShipmentCount = shipments?.filter(s => s.assignedCourierId === courier.id && !s.isArchived).length || 0;
+        const activeShipmentCount = shipments?.filter(s => s.assignedCourierId === courier.id && !s.isArchivedForCourier).length || 0;
         const notificationId = `overload_${courier.id}`;
         if (activeShipmentCount > 20 && !shownNotificationsRef.current.has(notificationId)) {
             toast({
@@ -1709,7 +1711,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   }
   
   const unassignedShipments = React.useMemo(() => {
-    return shipments?.filter(s => !s.assignedCourierId && !s.isArchived) || [];
+    return shipments?.filter(s => !s.assignedCourierId && !s.isArchivedForCompany && !s.isArchivedForCourier) || [];
   }, [shipments]);
 
   const listIsLoading = shipmentsLoading || governoratesLoading || companiesLoading || usersLoading;
@@ -1763,7 +1765,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 </Button>
             </div>
         </div>
-        <StatsCards shipments={shipments?.filter(s => !s.isArchived) || []} role={role} />
+        <StatsCards shipments={shipments?.filter(s => !s.isArchivedForCompany) || []} role={role} />
         <TabsContent value="shipments" className={isMobile ? "pb-20" : ""}>
             {isMobile ? 
                 <MobileShipmentsView 

@@ -38,7 +38,7 @@ const AutoAssignPage: React.FC<AutoAssignPageProps> = ({ shipments, unassignedSh
 
   const couriersWithStats = couriers.map(courier => {
       // Calculate the number of active shipments for each courier from the main list
-      const activeShipments = shipments.filter(s => s.assignedCourierId === courier.id && !s.isArchived).length;
+      const activeShipments = shipments.filter(s => s.assignedCourierId === courier.id && !s.isArchivedForCourier).length;
       return { ...courier, activeShipments };
   });
 

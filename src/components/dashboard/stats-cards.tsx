@@ -18,7 +18,7 @@ export function StatsCards({ shipments, payments, role }: StatsCardsProps) {
 
     // For Courier Dashboard
     const totalCourierCommission = shipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
-    const totalPaidByCourier = payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+    const totalPaidByCourier = payments?.filter(p => !p.isArchived).reduce((acc, p) => acc + p.amount, 0) || 0;
     const netDueForCourier = (totalRevenue - totalCourierCommission) - totalPaidByCourier;
 
 
@@ -79,5 +79,3 @@ export function StatsCards({ shipments, payments, role }: StatsCardsProps) {
         </div>
     );
 }
-
-    
