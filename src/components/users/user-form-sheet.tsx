@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import * as React from 'react';
@@ -102,25 +103,23 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
   React.useEffect(() => {
     if (open) {
       if (isEditing && user) {
-        const defaultValues: Partial<z.infer<typeof formSchemaForMode>> = {
-          name: user.name || '',
-          email: user.email,
-          role: user.role,
-          commissionRate: user.commissionRate || 0,
+        form.reset({
+          name: user.name ?? '',
+          email: user.email ?? '',
+          role: user.role ?? 'courier',
           password: "", // Always reset password field
-          governorateCommissions: companyDetails?.governorateCommissions || {},
-        };
-        form.reset(defaultValues);
+          commissionRate: user.commissionRate ?? 0,
+          governorateCommissions: companyDetails?.governorateCommissions ?? {},
+        });
       } else {
-        const defaultValues: Partial<z.infer<typeof formSchemaForMode>> = {
+        form.reset({
           name: "",
           email: "",
           password: "",
           role: 'courier',
           commissionRate: 0,
           governorateCommissions: {},
-        };
-        form.reset(defaultValues);
+        });
       }
     }
   }, [open, user, isEditing, form, companyDetails]);
@@ -164,7 +163,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">{selectedRole === 'company' ? 'اسم الشركة' : 'الاسم'}</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input {...field} value={field.value ?? ''} />
+                                    <Input {...field} />
                                 </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
@@ -178,7 +177,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
                                 <FormLabel className="text-right">البريد الإلكتروني</FormLabel>
 
                                 <FormControl className="col-span-3">
-                                    <Input type="email" {...field} disabled={isEditing} value={field.value ?? ''}/>
+                                    <Input type="email" {...field} disabled={isEditing}/>
                                 </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
@@ -191,7 +190,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">{isEditing ? "كلمة المرور الجديدة" : "كلمة المرور"}</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input type="password" {...field} value={field.value ?? ''} placeholder={isEditing ? 'اتركه فارغاً لعدم التغيير' : ''} />
+                                    <Input type="password" {...field} placeholder={isEditing ? 'اتركه فارغاً لعدم التغيير' : ''} />
                                 </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
@@ -227,7 +226,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
                                 <FormItem className="grid grid-cols-4 items-center gap-4">
                                     <FormLabel className="text-right">عمولة التوصيل</FormLabel>
                                     <FormControl className="col-span-3">
-                                        <Input type="number" {...field} placeholder="عمولة ثابتة لكل توصيلة" value={field.value ?? 0} />
+                                        <Input type="number" {...field} placeholder="عمولة ثابتة لكل توصيلة" />
                                     </FormControl>
                                     <FormMessage className="col-span-4" />
                                 </FormItem>
@@ -277,3 +276,5 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
     </Sheet>
   )
 }
+
+    

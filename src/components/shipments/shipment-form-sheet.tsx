@@ -95,9 +95,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   const isAdmin = role === 'admin';
   const isCompany = role === 'company';
 
-  const formSchema = shipmentSchema.superRefine((data, ctx) => {
-    // No phone validation for anyone anymore
-  });
+  const formSchema = shipmentSchema;
 
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -108,19 +106,31 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   React.useEffect(() => {
     if (open) {
       if (isEditing && shipment) {
-        const defaultValues: Partial<Shipment> = {
+        form.reset({
           ...shipment,
-          deliveryDate: shipment.deliveryDate ? (shipment.deliveryDate as any).toDate() : undefined,
-          collectedAmount: shipment.collectedAmount ?? 0,
-          paidAmount: shipment.paidAmount ?? 0,
+          shipmentCode: shipment.shipmentCode ?? '',
+          senderName: shipment.senderName ?? '',
+          orderNumber: shipment.orderNumber ?? '',
+          trackingNumber: shipment.trackingNumber ?? '',
+          recipientName: shipment.recipientName ?? '',
+          recipientPhone: shipment.recipientPhone ?? '',
+          governorateId: shipment.governorateId ?? '',
+          address: shipment.address ?? '',
           totalAmount: shipment.totalAmount ?? 0,
+          paidAmount: shipment.paidAmount ?? 0,
+          status: shipment.status ?? 'Pending',
           reason: shipment.reason ?? '',
+          deliveryDate: shipment.deliveryDate ? (shipment.deliveryDate as any).toDate() : undefined,
           assignedCourierId: shipment.assignedCourierId ?? '',
+          companyId: shipment.companyId ?? '',
+          collectedAmount: shipment.collectedAmount ?? 0,
+          courierCommission: shipment.courierCommission ?? 0,
+          companyCommission: shipment.companyCommission ?? 0,
           isWarehouseReturn: shipment.isWarehouseReturn ?? false,
-        };
-        form.reset(defaultValues as any);
+        });
       } else {
-        const defaultValues: Partial<Shipment> = {
+        form.reset({
+          shipmentCode: `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
           senderName: "",
           orderNumber: "",
           trackingNumber: "",
@@ -132,12 +142,12 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           paidAmount: 0,
           status: "Pending",
           reason: "",
-          collectedAmount: 0,
+          deliveryDate: undefined,
           assignedCourierId: "",
+          companyId: "",
+          collectedAmount: 0,
           isWarehouseReturn: false,
-          shipmentCode: `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
-        };
-        form.reset(defaultValues as any);
+        });
       }
     }
   }, [open, shipment, isEditing, form, role]);
@@ -270,7 +280,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                 <FormItem className="grid grid-cols-4 items-center gap-4">
                                     <FormLabel className="text-right">المدفوع</FormLabel>
                                     <FormControl className="col-span-3">
-                                        <Input type="number" {...field} value={field.value ?? 0} />
+                                        <Input type="number" {...field} />
                                     </FormControl>
                                     <FormMessage className="col-span-4" />
                                 </FormItem>
@@ -303,7 +313,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">المندوب</FormLabel>
-                                <Select dir="rtl" onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
                                     <FormControl className="col-span-3">
                                         <SelectTrigger>
                                             <SelectValue placeholder="اختر المندوب" />
@@ -356,7 +366,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                 <FormItem className="grid grid-cols-4 items-center gap-4">
                                     <FormLabel className="text-right">المبلغ المحصّل</FormLabel>
                                     <FormControl className="col-span-3">
-                                        <Input type="number" {...field} placeholder="أدخل المبلغ المحصل" value={field.value ?? 0} />
+                                        <Input type="number" {...field} placeholder="أدخل المبلغ المحصل" />
                                     </FormControl>
                                     <FormMessage className="col-span-4" />
                                 </FormItem>
@@ -432,3 +442,5 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
     </Sheet>
   )
 }
+
+    

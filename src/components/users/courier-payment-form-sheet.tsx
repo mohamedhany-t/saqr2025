@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import * as React from 'react';
@@ -61,8 +62,8 @@ export function CourierPaymentFormSheet({ children, open, onOpenChange, courier,
     if (open) {
       if(isEditing && payment) {
         form.reset({
-          amount: payment.amount || 0,
-          notes: payment.notes || "",
+          amount: payment.amount ?? 0,
+          notes: payment.notes ?? "",
         });
       } else {
         form.reset({
@@ -108,7 +109,7 @@ export function CourierPaymentFormSheet({ children, open, onOpenChange, courier,
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">المبلغ المدفوع</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input type="number" {...field} placeholder="0.00" />
+                                    <Input type="number" {...field} />
                                 </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
@@ -140,3 +141,5 @@ export function CourierPaymentFormSheet({ children, open, onOpenChange, courier,
     </Sheet>
   )
 }
+
+    
