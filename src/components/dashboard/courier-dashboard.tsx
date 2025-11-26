@@ -187,12 +187,6 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     return collection(firestore, 'companies');
   }, [firestore, user]);
   const { data: companies, isLoading: companiesLoading } = useCollection<Company>(companiesQuery);
-  
-  const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'users'));
-  }, [firestore, user]);
-  const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
 
   const openShipmentForm = (shipment?: Shipment) => {
     setEditingShipment(shipment);
@@ -407,7 +401,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
       isLoading={shipmentsLoading || companiesLoading}
       governorates={governorates || []}
       companies={companies || []}
-      couriers={users?.filter(u => u.role === 'courier') || []}
+      couriers={[]}
       onEdit={openShipmentForm}
       onBulkUpdate={handleBulkUpdateShipments}
       role={role}
@@ -487,7 +481,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         onOpenChange={handleSheetOpenChange}
         shipment={editingShipment}
         governorates={governorates || []}
-        couriers={users?.filter(u => u.role === 'courier') || []}
+        couriers={[]}
         role={role}
         onSave={handleSaveShipment}
       >
