@@ -60,13 +60,17 @@ const calculateCommissionAndPaidAmount = (
     courierCommissionRate: number,
     companyCommission: number,
 ) => {
-    const update: { paidAmount?: number; courierCommission?: number; companyCommission?: number; collectedAmount?: number } = {};
+    const update: { paidAmount: number; courierCommission: number; companyCommission: number; collectedAmount: number } = {
+        paidAmount: 0,
+        courierCommission: 0,
+        companyCommission: 0,
+        collectedAmount: 0,
+    };
     
     const safeTotalAmount = totalAmount || 0;
     const safeCollectedAmount = collectedAmount || 0;
     const safeCourierCommissionRate = courierCommissionRate || 0;
     const safeCompanyCommission = companyCommission || 0;
-    
 
     switch (status) {
         case 'Delivered':
@@ -80,15 +84,14 @@ const calculateCommissionAndPaidAmount = (
         case 'Refused (Paid)':
             update.courierCommission = safeCourierCommissionRate;
             update.paidAmount = safeCollectedAmount;
+            update.collectedAmount = safeCollectedAmount; // Ensure collectedAmount is also set
             update.companyCommission = safeCompanyCommission;
             break;
 
         case 'Evasion (Delivery Attempt)':
         case 'Refused (Unpaid)':
             update.courierCommission = safeCourierCommissionRate;
-            update.paidAmount = 0;
-            update.collectedAmount = 0;
-            update.companyCommission = 0; 
+            // All other financial fields remain 0
             break;
             
         case 'Evasion (Phone)':
@@ -96,17 +99,10 @@ const calculateCommissionAndPaidAmount = (
         case 'Cancelled':
         case 'Postponed':
         case 'Returned to Sender':
-            update.courierCommission = 0;
-            update.paidAmount = 0;
-            update.collectedAmount = 0;
-            update.companyCommission = 0;
-            break;
-
-        default: // Includes 'Pending', 'In-Transit', and any other status
-            update.paidAmount = 0;
-            update.courierCommission = 0;
-            update.companyCommission = 0;
-            update.collectedAmount = 0;
+        case 'Pending':
+        case 'In-Transit':
+        default:
+            // All financial fields are reset to 0 for these statuses
             break;
     }
 
@@ -940,12 +936,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     
     dataToSave.updatedAt = serverTimestamp();
 
-    // Fetch the full original shipment data to ensure calculations are correct
     let originalShipment: Shipment | undefined;
     if (id) {
-        // Use the main shipments list if available, otherwise fetch
-        originalShipment = shipments?.find(s => s.id === id);
-        if (!originalShipment) {
+        const fullShipmentData = shipments?.find(s => s.id === id);
+        if (fullShipmentData) {
+            originalShipment = fullShipmentData;
+        } else {
             const docSnap = await getDoc(doc(firestore, 'shipments', id));
             if (docSnap.exists()) {
                 originalShipment = docSnap.data() as Shipment;
@@ -958,9 +954,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     const governorateId = dataToSave.governorateId || originalShipment?.governorateId;
     const newStatus = dataToSave.status || originalShipment?.status;
     
-    // Always recalculate commission if a status is being set (even if it's the same)
-    // and there is a courier assigned.
-    if (courierId && newStatus) {
+    if (newStatus) { // Always recalculate if status is being set, even if unchanged
         const courierUser = users.find(u => u.id === courierId && u.role === 'courier');
         const company = companies.find(c => c.id === companyId);
         
@@ -969,11 +963,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             const companyGovernorateCommission = company.governorateCommissions?.[governorateId] || 0;
             
             const totalAmount = dataToSave.totalAmount ?? originalShipment?.totalAmount ?? 0;
+            
+            // Start with submitted collected amount, fall back to original, then 0
             const collectedAmount = dataToSave.collectedAmount ?? originalShipment?.collectedAmount ?? 0;
             
-            // If the user manually sets paidAmount, use it, otherwise calculate it.
-             const manualPaidAmount = dataToSave.paidAmount;
-
             const calculatedFields = calculateCommissionAndPaidAmount(
                 newStatus,
                 totalAmount,
@@ -982,11 +975,16 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 companyGovernorateCommission
             );
 
-            // Merge calculated fields, but respect manual paidAmount if provided
+            // Merge calculated fields. This will reset paidAmount and commissions correctly.
             dataToSave = { ...dataToSave, ...calculatedFields };
-            if (manualPaidAmount !== undefined) {
-                dataToSave.paidAmount = manualPaidAmount;
+
+            // IMPORTANT: If admin manually set paidAmount, let it override the calculation.
+            if (shipmentData.paidAmount !== undefined) {
+                dataToSave.paidAmount = shipmentData.paidAmount;
             }
+        } else {
+            // If we can't find courier/company, reset financial fields for safety.
+             Object.assign(dataToSave, calculateCommissionAndPaidAmount(newStatus, 0, 0, 0, 0));
         }
     }
 
@@ -1646,12 +1644,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
 
     const batch = writeBatch(firestore);
-    // Use Promise.all to fetch full data for all selected rows first
     const fullSelectedRows = await Promise.all(
         selectedRows.map(async (row) => {
             const fullRow = shipments?.find(s => s.id === row.id);
             if (fullRow) return fullRow;
-            // Fallback to fetching if not in the local list (e.g., due to pagination)
             const docSnap = await getDoc(doc(firestore, "shipments", row.id));
             return docSnap.exists() ? docSnap.data() as Shipment : null;
         })
@@ -1664,7 +1660,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         
         let finalUpdate: { [key: string]: any } = { ...update, updatedAt: serverTimestamp() };
 
-        // If status is updated, re-calculate commissions
         if (update.status) {
             const courierId = row.assignedCourierId;
             const courierUser = users.find(u => u.id === courierId);
@@ -1677,7 +1672,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 const calculatedFields = calculateCommissionAndPaidAmount(
                     update.status as ShipmentStatus,
                     row.totalAmount,
-                    row.collectedAmount || 0, // Assume not changed in bulk, use existing
+                    row.collectedAmount || 0,
                     courierCommissionRate,
                     companyGovernorateCommission
                 );
