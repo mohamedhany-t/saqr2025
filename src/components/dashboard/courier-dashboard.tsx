@@ -158,7 +158,12 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
 
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'shipments'), where("assignedCourierId", "==", user.id), where("isArchivedForCourier", "==", false));
+    return query(
+        collection(firestore, 'shipments'), 
+        where("assignedCourierId", "==", user.id), 
+        where("isArchivedForCourier", "==", false),
+        where("isWarehouseReturn", "==", false)
+    );
   }, [firestore, user]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
 
@@ -488,3 +493,5 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     </>
   );
 }
+
+    
