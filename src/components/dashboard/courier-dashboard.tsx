@@ -160,11 +160,14 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     if (!firestore || !user) return null;
     return query(
         collection(firestore, 'shipments'), 
-        where("assignedCourierId", "==", user.id), 
-        where("isArchivedForCourier", "==", false)
+        where("assignedCourierId", "==", user.id)
     );
   }, [firestore, user]);
-  const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
+  const { data: allShipmentsForCourier, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
+  
+  const shipments = React.useMemo(() => {
+    return allShipmentsForCourier?.filter(s => !s.isArchivedForCourier) || [];
+  }, [allShipmentsForCourier]);
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
