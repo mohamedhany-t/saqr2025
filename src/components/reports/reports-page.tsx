@@ -115,8 +115,8 @@ export function ReportsPage({
     const returnedShipments = shipments.filter(s => returnedShipmentStatuses.includes(s.status));
 
     const courierFinancials = couriers.map(courier => {
-        const courierShipments = shipments.filter(s => s.assignedCourierId === courier.id);
-        const payments = courierPayments.filter(p => p.courierId === courier.id);
+        const courierShipments = shipments.filter(s => s.assignedCourierId === courier.id && !s.isArchivedForCourier);
+        const payments = courierPayments.filter(p => p.courierId === courier.id && !p.isArchived);
         const totalCollected = courierShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
         const totalCommission = courierShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
         const totalPaidToCompany = payments.reduce((acc, p) => acc + p.amount, 0);
@@ -132,8 +132,8 @@ export function ReportsPage({
     });
     
     const companyFinancials = companies.map(company => {
-        const companyShipments = shipments.filter(s => s.companyId === company.id);
-        const payments = companyPayments.filter(p => p.companyId === company.id);
+        const companyShipments = shipments.filter(s => s.companyId === company.id && !s.isArchivedForCompany);
+        const payments = companyPayments.filter(p => p.companyId === company.id && !p.isArchived);
         const totalRevenue = companyShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
         const totalCompanyCommission = companyShipments.reduce((acc, s) => acc + (s.companyCommission || 0), 0);
         const totalPaidByAdmin = payments.reduce((acc, p) => acc + p.amount, 0);
@@ -166,10 +166,8 @@ export function ReportsPage({
     const getEnhancedShipmentData = (shipment: Shipment, context: 'company' | 'courier') => {
         let netDue = 0;
         if (context === 'company') {
-            // Net due for company is what they get after the system takes its commission
             netDue = (shipment.paidAmount || 0) - (shipment.companyCommission || 0);
         } else { // courier
-            // Net due for courier is what they need to remit after taking their commission
             netDue = (shipment.paidAmount || 0) - (shipment.courierCommission || 0);
         }
         return { ...shipment, netDue };
@@ -179,7 +177,7 @@ export function ReportsPage({
         if (!selectedCompanyId) return;
         const company = companies.find(c => c.id === selectedCompanyId);
         if (!company) return;
-        const companyShipments = shipments.filter(s => s.companyId === selectedCompanyId);
+        const companyShipments = shipments.filter(s => s.companyId === selectedCompanyId && !s.isArchivedForCompany);
         const filteredData = filterShipmentsByStatus(companyShipments, companyReportStatuses);
         
         const dataToExport = filteredData.map(shipment => getEnhancedShipmentData(shipment, 'company'));
@@ -195,7 +193,7 @@ export function ReportsPage({
         if (!selectedCourierId) return;
         const courier = couriers.find(c => c.id === selectedCourierId);
         if (!courier) return;
-        const courierShipments = shipments.filter(s => s.assignedCourierId === selectedCourierId);
+        const courierShipments = shipments.filter(s => s.assignedCourierId === selectedCourierId && !s.isArchivedForCourier);
         const filteredData = filterShipmentsByStatus(courierShipments, courierReportStatuses);
         
         const dataToExport = filteredData.map(shipment => getEnhancedShipmentData(shipment, 'courier'));
