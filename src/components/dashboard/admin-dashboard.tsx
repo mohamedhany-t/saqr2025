@@ -940,11 +940,16 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     
     dataToSave.updatedAt = serverTimestamp();
 
+    // Fetch the full original shipment data to ensure calculations are correct
     let originalShipment: Shipment | undefined;
     if (id) {
-        const docSnap = await getDoc(doc(firestore, 'shipments', id));
-        if (docSnap.exists()) {
-            originalShipment = docSnap.data() as Shipment;
+        // Use the main shipments list if available, otherwise fetch
+        originalShipment = shipments?.find(s => s.id === id);
+        if (!originalShipment) {
+            const docSnap = await getDoc(doc(firestore, 'shipments', id));
+            if (docSnap.exists()) {
+                originalShipment = docSnap.data() as Shipment;
+            }
         }
     }
     
@@ -965,6 +970,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             
             const totalAmount = dataToSave.totalAmount ?? originalShipment?.totalAmount ?? 0;
             const collectedAmount = dataToSave.collectedAmount ?? originalShipment?.collectedAmount ?? 0;
+            
+            // If the user manually sets paidAmount, use it, otherwise calculate it.
+             const manualPaidAmount = dataToSave.paidAmount;
 
             const calculatedFields = calculateCommissionAndPaidAmount(
                 newStatus,
@@ -973,7 +981,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 courierCommissionRate,
                 companyGovernorateCommission
             );
+
+            // Merge calculated fields, but respect manual paidAmount if provided
             dataToSave = { ...dataToSave, ...calculatedFields };
+            if (manualPaidAmount !== undefined) {
+                dataToSave.paidAmount = manualPaidAmount;
+            }
         }
     }
 
@@ -1633,7 +1646,20 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
 
     const batch = writeBatch(firestore);
-    selectedRows.forEach(row => {
+    // Use Promise.all to fetch full data for all selected rows first
+    const fullSelectedRows = await Promise.all(
+        selectedRows.map(async (row) => {
+            const fullRow = shipments?.find(s => s.id === row.id);
+            if (fullRow) return fullRow;
+            // Fallback to fetching if not in the local list (e.g., due to pagination)
+            const docSnap = await getDoc(doc(firestore, "shipments", row.id));
+            return docSnap.exists() ? docSnap.data() as Shipment : null;
+        })
+    );
+
+    const validRows = fullSelectedRows.filter((row): row is Shipment => row !== null);
+
+    validRows.forEach(row => {
         const docRef = doc(firestore, "shipments", row.id);
         
         let finalUpdate: { [key: string]: any } = { ...update, updatedAt: serverTimestamp() };
