@@ -348,7 +348,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />
-                    {(isCourier || isAdmin) && (selectedStatus === 'Partially Delivered' || selectedStatus === 'Refused (Paid)') && (
+                    {(selectedStatus === 'Partially Delivered' || selectedStatus === 'Refused (Paid)') && (
                         <FormField
                             control={form.control}
                             name="collectedAmount"

@@ -32,15 +32,18 @@ const calculateCommissionAndPaidAmount = (
     courierCommissionRate: number,
     companyCommission: number,
 ) => {
-    const update: { paidAmount?: number; courierCommission?: number; companyCommission?: number; collectedAmount?: number } = {};
+    const update: { paidAmount: number; courierCommission: number; companyCommission: number; collectedAmount: number } = {
+        paidAmount: 0,
+        courierCommission: 0,
+        companyCommission: 0,
+        collectedAmount: 0,
+    };
     
-    // Ensure inputs are numbers
     const safeTotalAmount = totalAmount || 0;
     const safeCollectedAmount = collectedAmount || 0;
     const safeCourierCommissionRate = courierCommissionRate || 0;
     const safeCompanyCommission = companyCommission || 0;
     
-
     switch (status) {
         case 'Delivered':
             update.courierCommission = safeCourierCommissionRate;
@@ -52,7 +55,8 @@ const calculateCommissionAndPaidAmount = (
         case 'Partially Delivered':
         case 'Refused (Paid)':
             update.courierCommission = safeCourierCommissionRate;
-            update.paidAmount = safeCollectedAmount;
+            update.paidAmount = safeCollectedAmount; // The amount paid is what was collected
+            update.collectedAmount = safeCollectedAmount; // Ensure collectedAmount is also set
             update.companyCommission = safeCompanyCommission;
             break;
 
@@ -69,17 +73,11 @@ const calculateCommissionAndPaidAmount = (
         case 'Cancelled':
         case 'Postponed':
         case 'Returned to Sender':
-            update.courierCommission = 0;
-            update.paidAmount = 0;
-            update.collectedAmount = 0;
-            update.companyCommission = 0;
-            break;
-
         default: // Includes 'Pending', 'In-Transit', and any other status
-            update.paidAmount = 0;
             update.courierCommission = 0;
-            update.companyCommission = 0;
+            update.paidAmount = 0;
             update.collectedAmount = 0;
+            update.companyCommission = 0;
             break;
     }
 
