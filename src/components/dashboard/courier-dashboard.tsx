@@ -55,8 +55,8 @@ const calculateCommissionAndPaidAmount = (
         case 'Partially Delivered':
         case 'Refused (Paid)':
             update.courierCommission = safeCourierCommissionRate;
-            update.paidAmount = safeCollectedAmount; // The amount paid is what was collected
-            update.collectedAmount = safeCollectedAmount; // Ensure collectedAmount is also set
+            update.paidAmount = safeCollectedAmount;
+            update.collectedAmount = safeCollectedAmount;
             update.companyCommission = safeCompanyCommission;
             break;
 
@@ -73,6 +73,8 @@ const calculateCommissionAndPaidAmount = (
         case 'Cancelled':
         case 'Postponed':
         case 'Returned to Sender':
+        case 'Pending':
+        case 'In-Transit':
         default: // Includes 'Pending', 'In-Transit', and any other status
             update.courierCommission = 0;
             update.paidAmount = 0;
@@ -260,7 +262,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
       });
   };
 
-  const handleBulkUpdateShipments = (selectedRows: Shipment[], update: Partial<Shipment>) => {
+  const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Partial<Shipment>) => {
     if (!firestore || !user || !companies) return;
     if (selectedRows.length === 0) {
         toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
@@ -276,35 +278,41 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     const courierCommissionRate = courierUser.commissionRate || 0;
     const batch = writeBatch(firestore);
 
-    selectedRows.forEach(row => {
-        const docRef = doc(firestore, "shipments", row.id);
+    // To ensure correct calculations, we need the full, fresh data for each row.
+    const fullSelectedRowsData = await Promise.all(
+      selectedRows.map(row => getDoc(doc(firestore, "shipments", row.id)))
+    );
+
+    fullSelectedRowsData.forEach(docSnap => {
+      if (!docSnap.exists()) return;
+      const row = docSnap.data() as Shipment;
+      const docRef = docSnap.ref;
         
-        let finalUpdate: { [key: string]: any } = { updatedAt: serverTimestamp() };
+      let finalUpdate: { [key: string]: any } = { updatedAt: serverTimestamp() };
         
-        const allowedUpdates: Partial<Shipment> = {};
-        if (update.status) allowedUpdates.status = update.status;
-        if (update.reason) allowedUpdates.reason = update.reason;
+      const allowedUpdates: Partial<Shipment> = {};
+      if (update.status) allowedUpdates.status = update.status;
+      if (update.reason) allowedUpdates.reason = update.reason;
 
-        if (Object.keys(allowedUpdates).length === 0) {
-            return;
-        }
+      if (Object.keys(allowedUpdates).length === 0) {
+          return;
+      }
 
-        const newStatus = (allowedUpdates.status || row.status) as ShipmentStatus;
-        const shipmentCompany = companies.find(c => c.id === row.companyId);
-        const companyGovernorateCommission = (shipmentCompany?.governorateCommissions?.[row.governorateId || ''] || 0);
+      const newStatus = (allowedUpdates.status || row.status) as ShipmentStatus;
+      const shipmentCompany = companies.find(c => c.id === row.companyId);
+      const companyGovernorateCommission = (shipmentCompany?.governorateCommissions?.[row.governorateId || ''] || 0);
 
-        // Use the centralized calculation function
-        const calculatedFields = calculateCommissionAndPaidAmount(
-            newStatus,
-            row.totalAmount,
-            row.collectedAmount || 0, // Assume collectedAmount isn't changed in bulk, use existing
-            courierCommissionRate,
-            companyGovernorateCommission,
-        );
+      const calculatedFields = calculateCommissionAndPaidAmount(
+          newStatus,
+          row.totalAmount,
+          row.collectedAmount || 0, // Assume collectedAmount isn't changed in bulk, use existing
+          courierCommissionRate,
+          companyGovernorateCommission,
+      );
 
-        Object.assign(finalUpdate, allowedUpdates, calculatedFields);
+      Object.assign(finalUpdate, allowedUpdates, calculatedFields);
         
-        batch.update(docRef, finalUpdate);
+      batch.update(docRef, finalUpdate);
     });
 
     batch.commit().then(() => {

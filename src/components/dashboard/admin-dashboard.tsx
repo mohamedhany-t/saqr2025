@@ -83,15 +83,17 @@ const calculateCommissionAndPaidAmount = (
         case 'Partially Delivered':
         case 'Refused (Paid)':
             update.courierCommission = safeCourierCommissionRate;
-            update.paidAmount = safeCollectedAmount; // The amount paid is what was collected
-            update.collectedAmount = safeCollectedAmount; // Ensure collectedAmount is also set
+            update.paidAmount = safeCollectedAmount;
+            update.collectedAmount = safeCollectedAmount;
             update.companyCommission = safeCompanyCommission;
             break;
 
         case 'Evasion (Delivery Attempt)':
         case 'Refused (Unpaid)':
             update.courierCommission = safeCourierCommissionRate;
-            // All other financial fields remain 0
+            update.paidAmount = 0;
+            update.collectedAmount = 0;
+            update.companyCommission = 0;
             break;
             
         case 'Evasion (Phone)':
@@ -938,15 +940,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
     let originalShipment: Shipment | undefined;
     if (id) {
-        // Use local data first for speed
-        const fullShipmentData = shipments?.find(s => s.id === id);
-        if (fullShipmentData) {
-            originalShipment = fullShipmentData;
-        } else { // Fallback to DB if not found locally
-            const docSnap = await getDoc(doc(firestore, 'shipments', id));
-            if (docSnap.exists()) {
-                originalShipment = docSnap.data() as Shipment;
-            }
+        // Fetch fresh data to ensure calculations are based on the latest state
+        const docSnap = await getDoc(doc(firestore, 'shipments', id));
+        if (docSnap.exists()) {
+            originalShipment = docSnap.data() as Shipment;
+        } else {
+            console.error("Shipment to update not found in database.");
+            toast({ title: "خطأ", description: "لم يتم العثور على الشحنة المطلوب تحديثها.", variant: "destructive" });
+            return;
         }
     }
     
@@ -978,7 +979,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             // Merge calculated fields. This will reset paidAmount and commissions correctly.
             dataToSave = { ...dataToSave, ...calculatedFields };
 
-            // IMPORTANT: If admin manually set paidAmount, let it override the calculation from collectedAmount.
+            // IMPORTANT: If admin manually set paidAmount, let it override the calculation.
             if (shipmentData.paidAmount !== undefined && role === 'admin') {
                 dataToSave.paidAmount = shipmentData.paidAmount;
             }
@@ -1639,27 +1640,25 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     }
     
     const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
-
     const batch = writeBatch(firestore);
     
-    // Fetch full data for selected rows to ensure calculations are correct
-    const fullSelectedRows = await Promise.all(
+    const fullSelectedRowsData = await Promise.all(
         selectedRows.map(async (row) => {
-            const fullRow = shipments?.find(s => s.id === row.id);
-            if (fullRow) return fullRow;
+            const fullRowData = shipments?.find(s => s.id === row.id) || null;
+            if (fullRowData) return fullRowData;
+            // Fallback to DB if not found in local state
             const docSnap = await getDoc(doc(firestore, "shipments", row.id));
             return docSnap.exists() ? docSnap.data() as Shipment : null;
         })
     );
 
-    const validRows = fullSelectedRows.filter((row): row is Shipment => row !== null);
+    const validRows = fullSelectedRowsData.filter((row): row is Shipment => row !== null);
 
     validRows.forEach(row => {
         const docRef = doc(firestore, "shipments", row.id);
         
         let finalUpdate: { [key: string]: any } = { ...update, updatedAt: serverTimestamp() };
 
-        // If status is being updated, recalculate financial fields
         if (update.status) {
             const courierId = update.assignedCourierId || row.assignedCourierId;
             const companyId = update.companyId || row.companyId;
@@ -1672,11 +1671,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 const courierCommissionRate = courierUser.commissionRate || 0;
                 const companyGovernorateCommission = company.governorateCommissions?.[governorateId] || 0;
 
-                // For bulk updates, `collectedAmount` isn't specified, so use the existing one or 0.
                 const calculatedFields = calculateCommissionAndPaidAmount(
-                    update.status as ShipmentStatus,
+                    update.status!,
                     row.totalAmount,
-                    row.collectedAmount || 0,
+                    row.collectedAmount || 0, // In bulk, assume collectedAmount is not changed
                     courierCommissionRate,
                     companyGovernorateCommission
                 );
