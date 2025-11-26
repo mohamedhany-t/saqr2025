@@ -1597,7 +1597,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         const activePayments = companyPayments?.filter(p => p.companyId === company.id && !p.isArchived) || [];
         
         const totalRevenue = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
-        // Correct Calculation: Net due to company is revenue minus *their* commission.
         const totalCompanyCommission = activeShipments.reduce((acc, s) => acc + (s.companyCommission || 0), 0);
         const totalPaidToCompany = activePayments.reduce((acc, p) => acc + p.amount, 0);
         
