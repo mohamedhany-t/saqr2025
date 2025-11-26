@@ -96,11 +96,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   const isCompany = role === 'company';
 
   const formSchema = shipmentSchema.superRefine((data, ctx) => {
-    if (isCourier) return; // Skip validation for courier
-    if (!data.recipientPhone || !/^(01[0-2,5])\d{8}$/.test(data.recipientPhone)) {
-        // We're making phone optional, so this validation is removed for now
-        // or could be made conditional. For now, we allow saving without it.
-    }
+    // No phone validation for anyone anymore
   });
 
 
