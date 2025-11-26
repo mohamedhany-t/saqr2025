@@ -8,10 +8,11 @@ import type { Shipment } from "@/lib/types";
 import { Pencil, MessageSquare, Package, CalendarDays, Phone, Share2, Trash2, Printer } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { useUser, useFirestore } from "@/firebase";
+import { useUser } from "@/firebase";
 import { Checkbox } from "../ui/checkbox";
 import { cn } from "@/lib/utils";
-import React, { useEffect, useState } from "react";
+import React from "react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ShipmentCardProps {
     shipment: Shipment;
@@ -50,9 +51,11 @@ export function ShipmentCard({
     } = shipment;
 
     const isAdmin = authUser?.email === 'mhanyt21@gmail.com'; // Simple admin check
+    const hasPhoneNumber = !!recipientPhone;
 
     const handleWhatsApp = (e: React.MouseEvent) => {
         e.stopPropagation();
+        if (!hasPhoneNumber) return;
         
         const courierName = authUser?.displayName || "مندوب شركة الصقر";
         const formattedAmount = totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
@@ -82,7 +85,7 @@ export function ShipmentCard({
             `*الشركة (العميل الرئيسي):* ${companyName}`,
             `*الراسل (العميل الفرعي):* ${senderName || 'غير محدد'}`,
             `*المرسل إليه:* ${recipientName}`,
-            `*الهاتف:* ${recipientPhone}`,
+            `*الهاتف:* ${recipientPhone || 'غير متوفر'}`,
             `*العنوان:* ${address}, ${governorateName}`,
             `*المبلغ الإجمالي:* ${totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`,
             `*الحالة الحالية:* ${statusText[status.toString()] || status}`,
@@ -96,6 +99,7 @@ export function ShipmentCard({
 
     const handlePhoneCall = (e: React.MouseEvent) => {
         e.stopPropagation();
+        if (!hasPhoneNumber) return;
         window.open(`tel:${recipientPhone}`);
     };
     
@@ -213,14 +217,26 @@ export function ShipmentCard({
                         </div>
                     ) : (
                         <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="icon" className="h-9 w-9 text-blue-600" onClick={handlePhoneCall}>
-                                <Phone className="h-5 w-5" />
-                                <span className="sr-only">اتصال</span>
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-9 w-9 text-green-600" onClick={handleWhatsApp}>
-                                <MessageSquare className="h-5 w-5" />
-                                <span className="sr-only">واتساب</span>
-                            </Button>
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-9 w-9 text-blue-600" onClick={handlePhoneCall} disabled={!hasPhoneNumber}>
+                                            <Phone className="h-5 w-5" />
+                                            <span className="sr-only">اتصال</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    {!hasPhoneNumber && <TooltipContent><p>لا يوجد رقم هاتف</p></TooltipContent>}
+                                </Tooltip>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-9 w-9 text-green-600" onClick={handleWhatsApp} disabled={!hasPhoneNumber}>
+                                            <MessageSquare className="h-5 w-5" />
+                                            <span className="sr-only">واتساب</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    {!hasPhoneNumber && <TooltipContent><p>لا يوجد رقم هاتف</p></TooltipContent>}
+                                </Tooltip>
+                            </TooltipProvider>
                         </div>
                     )}
                 </div>
