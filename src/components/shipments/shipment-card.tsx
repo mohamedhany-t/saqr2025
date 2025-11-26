@@ -8,7 +8,7 @@ import type { Shipment } from "@/lib/types";
 import { Pencil, MessageSquare, Package, CalendarDays, Phone, Share2, Trash2, Printer } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { useUser } from "@/firebase";
+import { useUser, useUserProfile } from "@/firebase";
 import { Checkbox } from "../ui/checkbox";
 import { cn } from "@/lib/utils";
 import React from "react";
@@ -35,7 +35,7 @@ export function ShipmentCard({
     isSelected,
     onSelectToggle
 }: ShipmentCardProps) {
-    const { user: authUser } = useUser();
+    const { userProfile } = useUserProfile();
 
     const { 
         id,
@@ -50,23 +50,23 @@ export function ShipmentCard({
         senderName
     } = shipment;
 
-    const isAdmin = authUser?.email === 'mhanyt21@gmail.com'; // Simple admin check
+    const isAdmin = userProfile?.role === 'admin';
     const hasPhoneNumber = !!recipientPhone;
 
     const handleWhatsApp = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (!hasPhoneNumber) return;
         
-        const courierName = authUser?.displayName || "مندوب شركة الصقر";
+        const courierName = userProfile?.name || "مندوب شركة الصقر";
         const formattedAmount = totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
         const fullAddress = `${address}, ${governorateName}`;
         
         const message = [
             `أهلاً، معك ${courierName} من شركة الصقر.`,
             `لديك أوردر بمبلغ ${formattedAmount}، وعنوان التسليم هو: ${fullAddress}.`,
-            `برجاء تأكيد إذا كنت ترغب في الاستلام – التأجيل – أو إلغاء الأوردر.`,
-            `شكرًا لك 🌸`
-        ].join('\n\n');
+            `\nبرجاء تأكيد إذا كنت ترغب في الاستلام – التأجيل – أو إلغاء الأوردر.`,
+            `\nشكرًا لك 🌸`
+        ].join('\n');
 
         const encodedMessage = encodeURIComponent(message);
         const whatsappNumber = recipientPhone.replace(/\D/g, '').replace(/^0/, '20');
@@ -76,7 +76,7 @@ export function ShipmentCard({
     const handleShareToAdmin = (e: React.MouseEvent) => {
         e.stopPropagation();
 
-        const courierName = authUser?.displayName || "مندوب";
+        const courierName = userProfile?.name || "مندوب";
         
         const shipmentDetails = [
             `*تقرير شحنة من ${courierName}*`,
