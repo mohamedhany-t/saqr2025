@@ -1,4 +1,5 @@
 
+
 import type { ColumnDef } from '@tanstack/react-table';
 import { Workbook } from 'exceljs';
 import jsPDF from 'jspdf';
@@ -24,6 +25,7 @@ const getHeader = (columnDef: ColumnDef<any, any>): string => {
             case 'paidAmount': return 'المدفوع';
             case 'courierCommission': return 'عمولة المندوب';
             case 'companyCommission': return 'عمولة الشركة';
+            case 'netDue': return 'صافي المستحق';
             default:
                 const result = key.replace(/([A-Z])/g, " $1");
                 return result.charAt(0).toUpperCase() + result.slice(1);
@@ -42,28 +44,9 @@ const getCellValue = (
     if (!accessorKey) return '';
     
     // Handle special calculation for financial reports
-    if (row.netDue !== undefined && accessorKey === 'netDue') {
-        return row.netDue;
+    if (row[accessorKey] !== undefined && ['netDue', 'totalCollected', 'totalRevenue', 'totalCommission', 'totalCompanyCommission', 'totalPaidToCompany', 'totalPaidByAdmin'].includes(accessorKey)) {
+        return row[accessorKey];
     }
-     if (row.totalCollected !== undefined && accessorKey === 'totalCollected') {
-        return row.totalCollected;
-    }
-     if (row.totalRevenue !== undefined && accessorKey === 'totalRevenue') {
-        return row.totalRevenue;
-    }
-      if (row.totalCommission !== undefined && accessorKey === 'totalCommission') {
-        return row.totalCommission;
-    }
-    if (row.totalCompanyCommission !== undefined && accessorKey === 'totalCompanyCommission') {
-        return row.totalCompanyCommission;
-    }
-    if (row.totalPaidToCompany !== undefined && accessorKey === 'totalPaidToCompany') {
-        return row.totalPaidToCompany;
-    }
-    if (row.totalPaidByAdmin !== undefined && accessorKey === 'totalPaidByAdmin') {
-        return row.totalPaidByAdmin;
-    }
-
 
     const value = (row as any)[accessorKey];
 

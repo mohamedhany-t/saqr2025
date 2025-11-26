@@ -169,7 +169,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
           const shipmentsCollection = collection(firestore, 'shipments');
 
           for (const [index, row] of json.entries()) {
-              const trackingNumber = row['رقم الشحنة']?.toString();
+              const trackingNumber = row['رقم الشحنة']?.toString() || `TRK-${Date.now()}-${index}`;
               if (!trackingNumber) continue;
 
               const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
@@ -177,6 +177,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
               const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
               const senderNameValue = row['الراسل'] || row['العميل الفرعي'];
               const orderNumberValue = row['رقم الطلب']?.toString() || `ORD-${Date.now()}-${index}`;
+              const shipmentCodeValue = row['كود الشحنة']?.toString() || `SH-${Date.now()}-${index}`;
 
               const shipmentData: Partial<Shipment> = {
                   senderName: senderNameValue,
@@ -207,7 +208,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                       ...cleanShipmentData, 
                       id: docRef.id,
                       trackingNumber, 
-                      shipmentCode: row['رقم الشحنة']?.toString() || `SH-${Date.now()}-${addedCount}`,
+                      shipmentCode: shipmentCodeValue,
                       createdAt: creationDate || serverTimestamp()
                   });
                   addedCount++;
@@ -481,5 +482,3 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
     </div>
   );
 }
-
-    

@@ -1,4 +1,5 @@
 
+
 "use client";
 import React, { useState } from 'react';
 import type { Shipment, Company, User, Governorate, CourierPayment, CompanyPayment, ShipmentStatus } from '@/lib/types';
@@ -65,6 +66,7 @@ export function ReportsPage({
           { accessorKey: "senderName", header: "الراسل" },
           { accessorKey: "createdAt", header: "التاريخ" },
           { accessorKey: "recipientName", header: "المرسل اليه" },
+          { accessorKey: "recipientPhone", header: "هاتف المستلم" },
           { accessorKey: "governorateId", header: "المحافظة" },
           { accessorKey: "address", header: "العنوان" },
           { accessorKey: "assignedCourierId", header: "المندوب"},
@@ -76,9 +78,9 @@ export function ReportsPage({
         
         switch(type) {
             case 'company_shipments':
-                return [...baseShipmentCols, { accessorKey: "companyCommission", header: "عمولة الشركة" }];
+                return [...baseShipmentCols, { accessorKey: "companyCommission", header: "عمولة الشركة" }, { accessorKey: "netDue", header: "صافي المستحق" }];
             case 'courier_shipments':
-                return [...baseShipmentCols, { accessorKey: "courierCommission", header: "عمولة المندوب" }];
+                return [...baseShipmentCols, { accessorKey: "courierCommission", header: "عمولة المندوب" }, { accessorKey: "netDue", header: "صافي المستحق" }];
             case 'delivered_shipments':
             case 'returned_shipments':
             case 'all_shipments':
@@ -161,13 +163,25 @@ export function ReportsPage({
         return shipments.filter(s => statusFilters.includes(s.status));
     };
 
+    const getEnhancedShipmentData = (shipment: Shipment) => {
+        const netDue = (shipment.paidAmount || 0) - (shipment.courierCommission || 0) - (shipment.companyCommission || 0);
+        return { ...shipment, netDue };
+    }
+
     const handleExportCompanyReport = () => {
         if (!selectedCompanyId) return;
         const company = companies.find(c => c.id === selectedCompanyId);
         if (!company) return;
         const companyShipments = shipments.filter(s => s.companyId === selectedCompanyId);
         const filteredData = filterShipmentsByStatus(companyShipments, companyReportStatuses);
-        handleExport(filteredData, 'company_shipments', `shipments_${company.name.replace(/\s/g, '_')}`);
+        
+        const dataToExport = filteredData.map(getEnhancedShipmentData);
+
+        const statusString = companyReportStatuses.length > 0 ? companyReportStatuses.map(s => statusText[s]).join('_') : 'All';
+        const dateString = new Date().toISOString().split('T')[0];
+        const fileName = `Shipments_${company.name.replace(/\s/g, '_')}_${statusString}_${dateString}`;
+        
+        handleExport(dataToExport, 'company_shipments', fileName);
     };
 
     const handleExportCourierReport = () => {
@@ -176,7 +190,14 @@ export function ReportsPage({
         if (!courier) return;
         const courierShipments = shipments.filter(s => s.assignedCourierId === selectedCourierId);
         const filteredData = filterShipmentsByStatus(courierShipments, courierReportStatuses);
-        handleExport(filteredData, 'courier_shipments', `shipments_${courier.name?.replace(/\s/g, '_')}`);
+        
+        const dataToExport = filteredData.map(getEnhancedShipmentData);
+        
+        const statusString = courierReportStatuses.length > 0 ? courierReportStatuses.map(s => statusText[s]).join('_') : 'All';
+        const dateString = new Date().toISOString().split('T')[0];
+        const fileName = `Shipments_${courier.name?.replace(/\s/g, '_')}_${statusString}_${dateString}`;
+
+        handleExport(dataToExport, 'courier_shipments', fileName);
     };
 
     return (

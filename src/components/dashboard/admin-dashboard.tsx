@@ -844,7 +844,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           const shipmentsCollection = collection(firestore, 'shipments');
 
           for (const [index, row] of json.entries()) {
-              const trackingNumber = row['رقم الشحنة']?.toString();
+              const trackingNumber = row['رقم الشحنة']?.toString() || `TRK-${Date.now()}-${index}`;
               if (!trackingNumber) continue;
 
               const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
@@ -852,10 +852,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
               const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
               const senderNameValue = row['الراسل'] || row['العميل الفرعي'];
               const orderNumberValue = row['رقم الطلب']?.toString() || `ORD-${Date.now()}-${index}`;
+              const shipmentCodeValue = row['كود الشحنة']?.toString() || `SH-${Date.now()}-${index}`;
               
               const companyNameFromSheet = row['الشركة']?.toString().trim();
               const foundCompany = companies.find(c => c.name === companyNameFromSheet);
-
 
               const shipmentData: Partial<Shipment> = {
                   senderName: senderNameValue,
@@ -886,7 +886,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                       ...cleanShipmentData, 
                       id: docRef.id,
                       trackingNumber, 
-                      shipmentCode: row['رقم الشحنة']?.toString() || `SH-${Date.now()}-${addedCount}`,
+                      shipmentCode: shipmentCodeValue,
                       createdAt: creationDate || serverTimestamp()
                   });
                   addedCount++;
@@ -2216,7 +2216,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           <AlertDialogHeader>
             <AlertDialogTitle>أرشفة وتسوية حساب {companyToArchive?.name}؟</AlertDialogTitle>
             <AlertDialogDescription>
-              سيؤدي هذا الإجراء إلى أرشفة جميع الشحنات المنتهية والدفعات الحالية للشركة. سيتم تصفير حسابها لتبدأ دورة عمل جديدة. لا يمكن التراجع عن هذا الإجراء.
+              سيؤدي هذا الإجراء إلى أرشفة جميع الشحنات المنتهية والدفعات الحالية للشركة. سيتم تصفير حسابها لتبدأ دورة عمل جديدة.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
