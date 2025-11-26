@@ -161,8 +161,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     return query(
         collection(firestore, 'shipments'), 
         where("assignedCourierId", "==", user.id), 
-        where("isArchivedForCourier", "==", false),
-        where("isWarehouseReturn", "==", false)
+        where("isArchivedForCourier", "==", false)
     );
   }, [firestore, user]);
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
@@ -331,10 +330,11 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
 
   
   const { activeShipments, finishedShipments } = React.useMemo(() => {
-    if (!shipments) return { activeShipments: [], finishedShipments: [] };
+    const allShipments = shipments?.filter(s => !s.isWarehouseReturn) || [];
+    if (!allShipments) return { activeShipments: [], finishedShipments: [] };
     const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Returned to Sender'];
-    const active = shipments.filter(s => !finishedStatuses.includes(s.status));
-    const finished = shipments.filter(s => finishedStatuses.includes(s.status));
+    const active = allShipments.filter(s => !finishedStatuses.includes(s.status));
+    const finished = allShipments.filter(s => finishedStatuses.includes(s.status));
     return { activeShipments: active, finishedShipments: finished };
   }, [shipments]);
 
@@ -493,5 +493,3 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     </>
   );
 }
-
-    
