@@ -53,10 +53,19 @@ export function ShipmentCard({
 
     const handleWhatsApp = (e: React.MouseEvent) => {
         e.stopPropagation();
-        // WhatsApp logic removed as it depended on settings that were removed.
-        // A simpler message can be constructed here if needed.
-        const defaultMessage = `أهلاً ${recipientName}, بخصوص شحنتك رقم ${trackingNumber || shipment.shipmentCode}.`;
-        const encodedMessage = encodeURIComponent(defaultMessage);
+        
+        const courierName = authUser?.displayName || "مندوب شركة الصقر";
+        const formattedAmount = totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
+        const fullAddress = `${address}, ${governorateName}`;
+        
+        const message = [
+            `أهلاً، معك ${courierName} من شركة الصقر.`,
+            `لديك أوردر بمبلغ ${formattedAmount}، وعنوان التسليم هو: ${fullAddress}.`,
+            `برجاء تأكيد إذا كنت ترغب في الاستلام – التأجيل – أو إلغاء الأوردر.`,
+            `شكرًا لك 🌸`
+        ].join('\n\n');
+
+        const encodedMessage = encodeURIComponent(message);
         const whatsappNumber = recipientPhone.replace(/\D/g, '').replace(/^0/, '20');
         window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');
     };
