@@ -268,8 +268,8 @@ const Filters = ({
 };
 
 const MobileShipmentsView = ({
-    shipments,
-    archivedShipments,
+    archivedShipmentsCompany,
+    archivedShipmentsCourier,
     inWarehouseShipments,
     filteredShipments,
     recentlyUpdatedShipments,
@@ -286,8 +286,8 @@ const MobileShipmentsView = ({
     setColumnFilters,
     role,
   }: {
-    shipments: Shipment[];
-    archivedShipments: Shipment[];
+    archivedShipmentsCompany: Shipment[];
+    archivedShipmentsCourier: Shipment[];
     inWarehouseShipments: Shipment[];
     filteredShipments: Shipment[];
     recentlyUpdatedShipments: Shipment[];
@@ -310,15 +310,35 @@ const MobileShipmentsView = ({
     const { toast } = useToast();
 
     const selectedCount = Object.values(mobileRowSelection).filter(Boolean).length;
-    const selectedShipments = React.useMemo(() => {
-        const selectedIds = Object.keys(mobileRowSelection).filter(id => mobileRowSelection[id]);
-        return shipments?.filter(s => selectedIds.includes(s.id)) || [];
-    }, [mobileRowSelection, shipments]);
-
+    
     const getShipmentsByStatus = (status: ShipmentStatus | ShipmentStatus[]) => {
         const statuses = Array.isArray(status) ? status : [status];
         return filteredShipments.filter(s => statuses.includes(s.status));
     }
+
+    const getCurrentShipmentList = () => {
+      switch (activeTab) {
+        case "recently-updated": return recentlyUpdatedShipments;
+        case "pending": return getShipmentsByStatus('Pending');
+        case "in-transit": return getShipmentsByStatus('In-Transit');
+        case "delivered": return getShipmentsByStatus(['Delivered']);
+        case "postponed": return getShipmentsByStatus('Postponed');
+        case "returned": return getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']);
+        case "returned-to-sender": return getShipmentsByStatus('Returned to Sender');
+        case "in-warehouse": return inWarehouseShipments;
+        case "archived-company": return archivedShipmentsCompany;
+        case "archived-courier": return archivedShipmentsCourier;
+        case "all-shipments":
+        default: return filteredShipments;
+      }
+    };
+    
+    const currentList = getCurrentShipmentList();
+
+    const selectedShipments = React.useMemo(() => {
+        const selectedIds = Object.keys(mobileRowSelection).filter(id => mobileRowSelection[id]);
+        return currentList?.filter(s => selectedIds.includes(s.id)) || [];
+    }, [mobileRowSelection, currentList]);
 
     const handleMobileBulkUpdate = (update: Partial<Shipment>) => {
         onBulkUpdate(selectedShipments, update);
@@ -346,23 +366,6 @@ const MobileShipmentsView = ({
         setMobileRowSelection({});
     }
 
-    const getCurrentShipmentList = () => {
-      switch (activeTab) {
-        case "recently-updated": return recentlyUpdatedShipments;
-        case "pending": return getShipmentsByStatus('Pending');
-        case "in-transit": return getShipmentsByStatus('In-Transit');
-        case "delivered": return getShipmentsByStatus(['Delivered']);
-        case "postponed": return getShipmentsByStatus('Postponed');
-        case "returned": return getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']);
-        case "returned-to-sender": return getShipmentsByStatus('Returned to Sender');
-        case "in-warehouse": return inWarehouseShipments;
-        case "archived": return archivedShipments;
-        case "all-shipments":
-        default: return filteredShipments;
-      }
-    };
-
-    const currentList = getCurrentShipmentList();
     const areAllSelected = currentList.length > 0 && currentList.every(s => mobileRowSelection[s.id]);
 
     const handleSelectAll = () => {
@@ -439,7 +442,8 @@ const MobileShipmentsView = ({
                     <TabsTrigger value="returned">مرتجعات</TabsTrigger>
                     <TabsTrigger value="in-warehouse"><Warehouse className="h-4 w-4 me-1" /> في المخزن</TabsTrigger>
                     <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
-                    <TabsTrigger value="archived" className="col-span-2">المؤرشفة</TabsTrigger>
+                    <TabsTrigger value="archived-company">مؤرشف الشركات</TabsTrigger>
+                    <TabsTrigger value="archived-courier">مؤرشف المناديب</TabsTrigger>
                 </TabsList>
                 <div className="flex items-center gap-4">
                     <Filters governorates={governorates || []} companies={companies || []} courierUsers={courierUsers} onFiltersChange={setColumnFilters} />
@@ -460,7 +464,8 @@ const MobileShipmentsView = ({
             <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
             <TabsContent value="in-warehouse">{renderShipmentList(inWarehouseShipments)}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentList(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
-            <TabsContent value="archived">{renderShipmentList(archivedShipments)}</TabsContent>
+            <TabsContent value="archived-company">{renderShipmentList(archivedShipmentsCompany)}</TabsContent>
+            <TabsContent value="archived-courier">{renderShipmentList(archivedShipmentsCourier)}</TabsContent>
             {selectedCount > 0 && (
                 <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-2 shadow-lg flex items-center justify-around gap-2 z-40">
                      <span className="text-sm font-medium">{selectedCount} شحنات محددة</span>
@@ -483,10 +488,16 @@ const MobileShipmentsView = ({
                         <FileUp className="me-2 h-4 w-4" />
                         تصدير
                     </Button>
-                    {activeTab === 'archived' &&
-                        <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isArchivedForCourier: false, isArchivedForCompany: false })}>
+                    {activeTab === 'archived-company' &&
+                        <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isArchivedForCompany: false })}>
                             <ArchiveRestore className="me-2 h-4 w-4" />
-                            إلغاء الأرشفة
+                            إلغاء أرشفة الشركة
+                        </Button>
+                    }
+                    {activeTab === 'archived-courier' &&
+                        <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isArchivedForCourier: false })}>
+                            <ArchiveRestore className="me-2 h-4 w-4" />
+                            إلغاء أرشفة المندوب
                         </Button>
                     }
                     <Button variant="destructive" size="icon" onClick={handleMobileBulkDelete}>
@@ -503,7 +514,8 @@ const DesktopShipmentsView = ({
     role,
     filteredShipments,
     getShipmentsByStatus,
-    archivedShipments,
+    archivedShipmentsCompany,
+    archivedShipmentsCourier,
     inWarehouseShipments,
     recentlyUpdatedShipments,
     governorates,
@@ -519,7 +531,8 @@ const DesktopShipmentsView = ({
     role: Role | null;
     filteredShipments: Shipment[];
     getShipmentsByStatus: (status: ShipmentStatus | ShipmentStatus[]) => Shipment[];
-    archivedShipments: Shipment[];
+    archivedShipmentsCompany: Shipment[];
+    archivedShipmentsCourier: Shipment[];
     inWarehouseShipments: Shipment[];
     recentlyUpdatedShipments: Shipment[];
     governorates: Governorate[];
@@ -531,7 +544,7 @@ const DesktopShipmentsView = ({
     columnFilters: ColumnFiltersState,
     setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
   }) => {
-    const renderShipmentTable = (shipmentList: Shipment[], isArchivedTab = false) => (
+    const renderShipmentTable = (shipmentList: Shipment[], isArchivedTab: 'none' | 'company' | 'courier' = 'none') => (
         <ShipmentsTable 
           shipments={shipmentList} 
           isLoading={listIsLoading}
@@ -563,7 +576,8 @@ const DesktopShipmentsView = ({
                 <TabsTrigger value="returned">مرتجعات</TabsTrigger>
                 <TabsTrigger value="in-warehouse"><Warehouse className="h-4 w-4 me-1" /> في المخزن</TabsTrigger>
                 <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
-                <TabsTrigger value="archived">المؤرشفة</TabsTrigger>
+                <TabsTrigger value="archived-company">مؤرشفة الشركات</TabsTrigger>
+                <TabsTrigger value="archived-courier">مؤرشفة المناديب</TabsTrigger>
             </TabsList>
             <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments)}</TabsContent>
             <TabsContent value="recently-updated">{renderShipmentTable(recentlyUpdatedShipments)}</TabsContent>
@@ -574,7 +588,8 @@ const DesktopShipmentsView = ({
             <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
             <TabsContent value="in-warehouse">{renderShipmentTable(inWarehouseShipments)}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentTable(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
-            <TabsContent value="archived">{renderShipmentTable(archivedShipments, true)}</TabsContent>
+            <TabsContent value="archived-company">{renderShipmentTable(archivedShipmentsCompany, 'company')}</TabsContent>
+            <TabsContent value="archived-courier">{renderShipmentTable(archivedShipmentsCourier, 'courier')}</TabsContent>
         </Tabs>
     )
   }
@@ -1503,19 +1518,33 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     );
   }, [shipments, searchTerm, columnFilters]);
   
-  const archivedShipments = React.useMemo(() => {
-    const archived = shipments?.filter(shipment => shipment.isArchivedForCompany || shipment.isArchivedForCourier) || [];
-     if (!searchTerm) return archived;
-    const lowercasedTerm = searchTerm.toLowerCase();
-    return archived.filter(shipment => 
-        String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.trackingNumber || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
-    );
-  }, [shipments, searchTerm]);
+    const archivedShipmentsCompany = React.useMemo(() => {
+        const archived = shipments?.filter(s => s.isArchivedForCompany) || [];
+        if (!searchTerm) return archived;
+        const lowercasedTerm = searchTerm.toLowerCase();
+        return archived.filter(shipment =>
+            String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.trackingNumber || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
+        );
+    }, [shipments, searchTerm]);
+
+    const archivedShipmentsCourier = React.useMemo(() => {
+        const archived = shipments?.filter(s => s.isArchivedForCourier) || [];
+        if (!searchTerm) return archived;
+        const lowercasedTerm = searchTerm.toLowerCase();
+        return archived.filter(shipment =>
+            String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.trackingNumber || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
+        );
+    }, [shipments, searchTerm]);
 
   const recentlyUpdatedShipments = React.useMemo(() => {
     const activeShipments = shipments?.filter(shipment => !shipment.isArchivedForCompany && !shipment.isArchivedForCourier) || [];
@@ -1568,9 +1597,11 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         const activePayments = companyPayments?.filter(p => p.companyId === company.id && !p.isArchived) || [];
         
         const totalRevenue = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
+        // Correct Calculation: Net due to company is revenue minus *their* commission.
         const totalCompanyCommission = activeShipments.reduce((acc, s) => acc + (s.companyCommission || 0), 0);
         const totalPaidToCompany = activePayments.reduce((acc, p) => acc + p.amount, 0);
         
+        // This is the amount owed TO the company
         const netDue = (totalRevenue - totalCompanyCommission) - totalPaidToCompany;
         
         const allPaymentsForCompany = companyPayments?.filter(p => p.companyId === company.id) || [];
@@ -1796,8 +1827,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         <TabsContent value="shipments" className={isMobile ? "pb-20" : ""}>
             {isMobile ? 
                 <MobileShipmentsView 
-                    shipments={shipments || []}
-                    archivedShipments={archivedShipments}
+                    archivedShipmentsCompany={archivedShipmentsCompany}
+                    archivedShipmentsCourier={archivedShipmentsCourier}
                     inWarehouseShipments={inWarehouseShipments}
                     filteredShipments={filteredShipments}
                     recentlyUpdatedShipments={recentlyUpdatedShipments}
@@ -1819,7 +1850,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     role={role}
                     filteredShipments={filteredShipments}
                     getShipmentsByStatus={getShipmentsByStatus}
-                    archivedShipments={archivedShipments}
+                    archivedShipmentsCompany={archivedShipmentsCompany}
+                    archivedShipmentsCourier={archivedShipmentsCourier}
                     inWarehouseShipments={inWarehouseShipments}
                     recentlyUpdatedShipments={recentlyUpdatedShipments}
                     governorates={governorates || []}

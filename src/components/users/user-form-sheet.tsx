@@ -167,7 +167,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">{selectedRole === 'company' ? 'اسم الشركة' : 'الاسم'}</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input {...field} />
+                                    <Input {...field} value={field.value ?? ''}/>
                                 </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
@@ -181,7 +181,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
                                 <FormLabel className="text-right">البريد الإلكتروني</FormLabel>
 
                                 <FormControl className="col-span-3">
-                                    <Input type="email" {...field} disabled={isEditing}/>
+                                    <Input type="email" {...field} disabled={isEditing} value={field.value ?? ''}/>
                                 </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
@@ -194,7 +194,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">رقم الهاتف</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input type="tel" {...field} />
+                                    <Input type="tel" {...field} value={field.value ?? ''} />
                                 </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
@@ -207,7 +207,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">{isEditing ? "كلمة المرور الجديدة" : "كلمة المرور"}</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input type="password" {...field} placeholder={isEditing ? 'اتركه فارغاً لعدم التغيير' : ''} />
+                                    <Input type="password" {...field} placeholder={isEditing ? 'اتركه فارغاً لعدم التغيير' : ''} value={field.value ?? ''}/>
                                 </FormControl>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
@@ -243,7 +243,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
                                 <FormItem className="grid grid-cols-4 items-center gap-4">
                                     <FormLabel className="text-right">عمولة التوصيل</FormLabel>
                                     <FormControl className="col-span-3">
-                                        <Input type="number" {...field} placeholder="عمولة ثابتة لكل توصيلة" />
+                                        <Input type="number" {...field} placeholder="عمولة ثابتة لكل توصيلة" value={field.value ?? 0}/>
                                     </FormControl>
                                     <FormMessage className="col-span-4" />
                                 </FormItem>
