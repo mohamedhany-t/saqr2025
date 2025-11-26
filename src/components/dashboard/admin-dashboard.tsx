@@ -484,10 +484,22 @@ const MobileShipmentsView = ({
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <Button variant="outline" size="sm" onClick={handleExport}>
-                        <FileUp className="me-2 h-4 w-4" />
-                        تصدير
-                    </Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-8 gap-1">
+                                <Archive className="h-3.5 w-3.5" />
+                                <span>أرشفة</span>
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => handleMobileBulkUpdate({ isArchivedForCompany: true })}>
+                                <Building className="ms-2 h-4 w-4" /> أرشفة للشركة
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => handleMobileBulkUpdate({ isArchivedForCourier: true })}>
+                                <UserIcon className="ms-2 h-4 w-4" /> أرشفة للمندوب
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                     {activeTab === 'archived-company' &&
                         <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isArchivedForCompany: false })}>
                             <ArchiveRestore className="me-2 h-4 w-4" />
@@ -1601,7 +1613,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         const totalPaidToCompany = activePayments.reduce((acc, p) => acc + p.amount, 0);
         
         // This is the amount owed TO the company
-        const netDue = (totalRevenue - totalCompanyCommission) - totalPaidToCompany;
+        const netDue = totalRevenue - totalCompanyCommission - totalPaidToCompany;
         
         const allPaymentsForCompany = companyPayments?.filter(p => p.companyId === company.id) || [];
 

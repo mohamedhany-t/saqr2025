@@ -1,4 +1,5 @@
 
+
 "use client"
 import * as React from "react"
 import type {
@@ -182,10 +183,20 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, onBulkUpdate, rol
           <Pencil className="ms-2 h-4 w-4" /> تعديل
         </DropdownMenuItem>
         {role === 'admin' && (
-          <DropdownMenuItem onClick={handleToggleWarehouseReturn}>
-            <Warehouse className="ms-2 h-4 w-4" /> 
-            {shipment.isWarehouseReturn ? 'إزالة من المخزن' : 'تحديد كمرتجع للمخزن'}
-          </DropdownMenuItem>
+            <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onBulkUpdate([shipment], { isArchivedForCompany: true })}>
+                    <Building className="ms-2 h-4 w-4 text-blue-500" /> أرشفة للشركة
+                </DropdownMenuItem>
+                 <DropdownMenuItem onClick={() => onBulkUpdate([shipment], { isArchivedForCourier: true })}>
+                    <UserIcon className="ms-2 h-4 w-4 text-green-500" /> أرشفة للمندوب
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleToggleWarehouseReturn}>
+                    <Warehouse className="ms-2 h-4 w-4" /> 
+                    {shipment.isWarehouseReturn ? 'إزالة من المخزن' : 'تحديد كمرتجع للمخزن'}
+                </DropdownMenuItem>
+            </>
         )}
         <DropdownMenuItem onClick={handleShare}>
             <Share2 className="ms-2 h-4 w-4" /> مشاركة عبر واتساب
@@ -722,6 +733,24 @@ export function ShipmentsTable({
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
+                    {role === 'admin' && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm" className="h-8 gap-1">
+                                    <Archive className="h-3.5 w-3.5" />
+                                    <span className="sr-only sm:not-sr-only">أرشفة</span>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onSelect={() => handleGenericBulkUpdate({ isArchivedForCompany: true })}>
+                                    <Building className="ms-2 h-4 w-4" /> أرشفة للشركة
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => handleGenericBulkUpdate({ isArchivedForCourier: true })}>
+                                    <UserIcon className="ms-2 h-4 w-4" /> أرشفة للمندوب
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
                     {isArchivedTab === 'company' && role === 'admin' && (
                         <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isArchivedForCompany: false })}>
                             <ArchiveRestore className="h-3.5 w-3.5" />
