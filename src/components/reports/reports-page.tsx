@@ -163,8 +163,15 @@ export function ReportsPage({
         return shipments.filter(s => statusFilters.includes(s.status));
     };
 
-    const getEnhancedShipmentData = (shipment: Shipment) => {
-        const netDue = (shipment.paidAmount || 0) - (shipment.courierCommission || 0) - (shipment.companyCommission || 0);
+    const getEnhancedShipmentData = (shipment: Shipment, context: 'company' | 'courier') => {
+        let netDue = 0;
+        if (context === 'company') {
+            // Net due for company is what they get after the system takes its commission
+            netDue = (shipment.paidAmount || 0) - (shipment.companyCommission || 0);
+        } else { // courier
+            // Net due for courier is what they need to remit after taking their commission
+            netDue = (shipment.paidAmount || 0) - (shipment.courierCommission || 0);
+        }
         return { ...shipment, netDue };
     }
 
@@ -175,7 +182,7 @@ export function ReportsPage({
         const companyShipments = shipments.filter(s => s.companyId === selectedCompanyId);
         const filteredData = filterShipmentsByStatus(companyShipments, companyReportStatuses);
         
-        const dataToExport = filteredData.map(getEnhancedShipmentData);
+        const dataToExport = filteredData.map(shipment => getEnhancedShipmentData(shipment, 'company'));
 
         const statusString = companyReportStatuses.length > 0 ? companyReportStatuses.map(s => statusText[s]).join('_') : 'All';
         const dateString = new Date().toISOString().split('T')[0];
@@ -191,7 +198,7 @@ export function ReportsPage({
         const courierShipments = shipments.filter(s => s.assignedCourierId === selectedCourierId);
         const filteredData = filterShipmentsByStatus(courierShipments, courierReportStatuses);
         
-        const dataToExport = filteredData.map(getEnhancedShipmentData);
+        const dataToExport = filteredData.map(shipment => getEnhancedShipmentData(shipment, 'courier'));
         
         const statusString = courierReportStatuses.length > 0 ? courierReportStatuses.map(s => statusText[s]).join('_') : 'All';
         const dateString = new Date().toISOString().split('T')[0];
