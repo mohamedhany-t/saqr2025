@@ -62,7 +62,7 @@ export function ShipmentCard({
         const fullAddress = `${address}, ${governorateName}`;
         
         const message = [
-            `أهلاً، معك ${courierName} من شركة الصقر.`,
+            `أهلاً أ/ ${recipientName}، معك ${courierName} من شركة الصقر.`,
             `لديك أوردر بمبلغ ${formattedAmount}، وعنوان التسليم هو: ${fullAddress}.`,
             `\nبرجاء تأكيد إذا كنت ترغب في الاستلام – التأجيل – أو إلغاء الأوردر.`,
             `\nشكرًا لك 🌸`
