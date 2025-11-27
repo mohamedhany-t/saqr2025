@@ -210,7 +210,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     const originalShipmentData = originalShipmentDocSnap.data() as Shipment;
 
     const shipmentCompany = companies.find(c => c.id === originalShipmentData.companyId);
-    const companyGovernorateCommission = (shipmentCompany?.governorateCommissions?.[originalShipmentData.governorateId || ''] || 0);
+    const companyGovernorateCommission = shipmentCompany && originalShipmentData.governorateId ? (shipmentCompany.governorateCommissions?.[originalShipmentData.governorateId] || 0) : 0;
 
     const courierCommissionRate = courierUser.commissionRate || 0;
 
@@ -298,7 +298,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
 
       const newStatus = (allowedUpdates.status || row.status) as ShipmentStatus;
       const shipmentCompany = companies.find(c => c.id === row.companyId);
-      const companyGovernorateCommission = (shipmentCompany?.governorateCommissions?.[row.governorateId || ''] || 0);
+      const companyGovernorateCommission = shipmentCompany && row.governorateId ? (shipmentCompany.governorateCommissions?.[row.governorateId] || 0) : 0;
 
       const calculatedFields = calculateCommissionAndPaidAmount(
           newStatus,

@@ -986,10 +986,11 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         const courierUser = users.find(u => u.id === courierId);
         const company = companies.find(c => c.id === companyId);
         
-        // Ensure we have all necessary data for calculation
-        if (courierUser && company && governorateId) {
+        // Ensure we have courier and company data for calculation. Governorate is optional.
+        if (courierUser && company) {
             const courierCommissionRate = courierUser.commissionRate || 0;
-            const companyGovernorateCommission = company.governorateCommissions?.[governorateId] || 0;
+            // Company commission is per-governorate, so if no governorateId, it's 0.
+            const companyGovernorateCommission = governorateId ? company.governorateCommissions?.[governorateId] || 0 : 0;
             
             const totalAmount = dataToSave.totalAmount ?? originalShipment.totalAmount;
             const collectedAmount = dataToSave.collectedAmount ?? originalShipment.collectedAmount ?? 0;
@@ -1727,9 +1728,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             const courierUser = users.find(u => u.id === courierId);
             const company = companies.find(c => c.id === companyId);
 
-            if (courierUser && company && governorateId) {
+            if (courierUser && company) {
                 const courierCommissionRate = courierUser.commissionRate || 0;
-                const companyGovernorateCommission = company.governorateCommissions?.[governorateId] || 0;
+                const companyGovernorateCommission = governorateId ? company.governorateCommissions?.[governorateId] || 0 : 0;
 
                 const calculatedFields = calculateCommissionAndPaidAmount(
                     update.status!,
