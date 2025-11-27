@@ -957,7 +957,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const handleSaveShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
     if (!firestore || !user || !companies || !users) return;
 
-    // Use the passed ID. If editing via URL, editingShipment.id will be used.
     const shipmentId = id || editingShipment?.id;
 
     let dataToSave: { [key: string]: any } = Object.fromEntries(
@@ -978,35 +977,35 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         }
     }
     
-    const courierId = dataToSave.assignedCourierId || originalShipment?.assignedCourierId;
-    const companyId = dataToSave.companyId || originalShipment?.companyId;
-    const governorateId = dataToSave.governorateId || originalShipment?.governorateId;
-    const newStatus = dataToSave.status || originalShipment?.status;
-    
-    if (newStatus && (courierId || companyId || governorateId)) {
-        const courierUser = users.find(u => u.id === courierId && u.role === 'courier');
+    // If status is being changed, we need to calculate commissions and paid amounts.
+    if (dataToSave.status && originalShipment) {
+        const courierId = dataToSave.assignedCourierId || originalShipment.assignedCourierId;
+        const companyId = dataToSave.companyId || originalShipment.companyId;
+        const governorateId = dataToSave.governorateId || originalShipment.governorateId;
+        
+        const courierUser = users.find(u => u.id === courierId);
         const company = companies.find(c => c.id === companyId);
         
-        // Ensure we have the necessary data for calculations
+        // Ensure we have all necessary data for calculation
         if (courierUser && company && governorateId) {
             const courierCommissionRate = courierUser.commissionRate || 0;
             const companyGovernorateCommission = company.governorateCommissions?.[governorateId] || 0;
             
-            const totalAmount = dataToSave.totalAmount ?? originalShipment?.totalAmount ?? 0;
-            const collectedAmount = dataToSave.collectedAmount ?? originalShipment?.collectedAmount ?? 0;
+            const totalAmount = dataToSave.totalAmount ?? originalShipment.totalAmount;
+            const collectedAmount = dataToSave.collectedAmount ?? originalShipment.collectedAmount ?? 0;
             
             const calculatedFields = calculateCommissionAndPaidAmount(
-                newStatus,
+                dataToSave.status,
                 totalAmount,
                 collectedAmount,
                 courierCommissionRate,
                 companyGovernorateCommission
             );
 
+            // Merge calculated fields into the data to be saved
             dataToSave = { ...dataToSave, ...calculatedFields };
         }
     }
-
 
     const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
 
@@ -1027,18 +1026,16 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           description: `تمت العملية بنجاح`,
         });
         handleSheetOpenChange(false);
-        // Send notification after successful save, don't block UI for it
         if (shipmentData.assignedCourierId && shipmentData.assignedCourierId !== originalShipment?.assignedCourierId) {
           sendPushNotification({
             recipientId: shipmentData.assignedCourierId,
             title: 'شحنة جديدة',
             body: `تم تعيين شحنة جديدة لك: ${shipmentData.recipientName}`,
             url: notificationUrl,
-          }).catch(console.error); // Log notification error but don't bother user
+          }).catch(console.error);
         }
       })
       .catch(serverError => {
-        // Only emit permission error if it's a Firestore error
         if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
             const permissionError = new FirestorePermissionError({
                 path: `shipments/${shipmentId || ''}`,
@@ -1047,8 +1044,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             });
             errorEmitter.emit('permission-error', permissionError);
         } else {
-             // For other errors (like notification failure), log it but don't show a destructive toast
-            console.error("Error during save operation (possibly non-Firestore):", serverError);
+            console.error("Error during save operation:", serverError);
         }
       });
   };
