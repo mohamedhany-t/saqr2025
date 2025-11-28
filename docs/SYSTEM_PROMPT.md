@@ -146,7 +146,7 @@
   - **القاعدة:** يتم تفعيل حساب العمولات فقط عند تغيير `status` الشحنة إلى حالة نهائية تؤثر على الماليات.
     - `Delivered`: `paidAmount` = `totalAmount`. يتم احتساب عمولة المندوب والشركة.
     - `Partially Delivered` / `Refused (Paid)`: `paidAmount` = `collectedAmount`. يتم احتساب عمولة المندوب والشركة.
-    - `Evasion (Delivery Attempt)` / `Refused (Unpaid)`: يتم احتساب عمولة المندوب فقط. `paidAmount` = 0.
+    - `Evasion (Delivery Attempt)` / `Refused (Unpaid)`: يتم احتساب عمولة المendوب فقط. `paidAmount` = 0.
     - أي حالة أخرى (مثل `Pending`, `Cancelled`): يتم تصفير جميع الحقول المالية (`paidAmount`, `courierCommission`, `companyCommission`) إلى 0.
 - **الأرشفة والتسوية (Rule of Archiving & Settlement):**
   - عند أرشفة حساب (مندوب أو شركة)، يقوم النظام بتسجيل دفعة تسوية تلقائية بالمبلغ المتبقي لجعل الرصيد صفرًا.
