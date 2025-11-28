@@ -413,34 +413,6 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   const returnedCount = filteredActiveShipments.filter(s => ['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)).length;
   const postponedCount = filteredActiveShipments.filter(s => s.status === 'Postponed').length;
 
-    const handleExportAllData = () => {
-    if (shipmentsLoading) {
-      toast({ title: "البيانات لا تزال قيد التحميل", description: "يرجى الانتظار حتى اكتمال تحميل البيانات قبل التصدير.", variant: "default" });
-      return;
-    }
-
-    const dataToExport = [{ name: "shipments", data: allShipmentsForCourier }];
-
-    dataToExport.forEach(collection => {
-      if (collection.data && collection.data.length > 0) {
-        const jsonString = JSON.stringify(collection.data, null, 2);
-        const blob = new Blob([jsonString], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `export_${collection.name}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      } else {
-        toast({ title: `لا توجد بيانات في مجموعة '${collection.name}' للتصدير.` });
-      }
-    });
-
-    toast({ title: "تم بدء تنزيل البيانات", description: "جاري تنزيل ملفات JSON للبيانات الحالية." });
-  };
-
 
   return (
     <>
@@ -458,12 +430,6 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         </TabsList>
          <TabsContent value="shipments">
             <div className="p-4 sm:p-0">
-                 <div className="mb-4 flex justify-end">
-                    <Button variant="secondary" size="sm" onClick={handleExportAllData}>
-                        <Database className="h-4 w-4 me-2" />
-                        <span>تصدير بياناتي</span>
-                    </Button>
-                </div>
               <Tabs defaultValue="all">
                 <div className="flex items-center">
                   <TabsList className="flex-nowrap overflow-x-auto justify-start">
@@ -526,5 +492,3 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     </>
   );
 }
-
-    

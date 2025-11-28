@@ -1782,42 +1782,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
   const listIsLoading = shipmentsLoading || governoratesLoading || companiesLoading || usersLoading;
 
-    const handleExportAllData = () => {
-    if (listIsLoading) {
-      toast({ title: "البيانات لا تزال قيد التحميل", description: "يرجى الانتظار حتى اكتمال تحميل البيانات قبل التصدير.", variant: "default" });
-      return;
-    }
-
-    const dataToExport = [
-      { name: "shipments", data: shipments },
-      { name: "users", data: users },
-      { name: "companies", data: companies },
-      { name: "governorates", data: governorates },
-      { name: "courier_payments", data: courierPayments },
-      { name: "company_payments", data: companyPayments },
-    ];
-
-    dataToExport.forEach(collection => {
-      if (collection.data && collection.data.length > 0) {
-        const jsonString = JSON.stringify(collection.data, null, 2);
-        const blob = new Blob([jsonString], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `export_${collection.name}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      } else {
-        toast({ title: `لا توجد بيانات في مجموعة '${collection.name}' للتصدير.` });
-      }
-    });
-
-    toast({ title: "تم بدء تنزيل البيانات", description: "جاري تنزيل ملفات JSON للبيانات الحالية." });
-  };
-
-
   return (
     <div className="flex flex-col w-full">
         <Tabs defaultValue="shipments">
@@ -1857,10 +1821,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     className="hidden"
                     accept=".xlsx, .xls"
                 />
-                 <Button variant="secondary" size="sm" onClick={handleExportAllData}>
-                    <Database className="h-4 w-4" />
-                    <span className="sr-only sm:not-sr-only">تصدير البيانات الحالية</span>
-                 </Button>
             <Button variant="outline" size="sm" onClick={handleImportClick}>
                 <FileUp className="h-4 w-4" />
                 <span className="sr-only sm:not-sr-only">استيراد</span>
@@ -2342,5 +2302,3 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
-
-    
