@@ -22,41 +22,61 @@ const COLLECTIONS_TO_EXPORT = [
 ];
 const EXPORT_DIR = 'firestore-export';
 const SERVICE_ACCOUNT_PATH = './serviceAccountKey.json';
+const BATCH_SIZE = 500; // Number of documents to fetch per batch to avoid quota issues.
 
 // --- Helper Functions ---
 
 /**
- * Fetches all documents from a collection and recursively fetches subcollections.
+ * Fetches all documents from a collection in batches and recursively fetches subcollections.
  * @param {import('firebase-admin/firestore').CollectionReference} collectionRef - The reference to the collection.
  * @returns {Promise<Object[]>} - A promise that resolves to an array of document data.
  */
 async function getCollectionData(collectionRef) {
   console.log(`   - Fetching documents from: ${collectionRef.path}`);
-  const snapshot = await collectionRef.get();
-  const data = [];
+  const allData = [];
+  let lastVisible = null;
+  let page = 1;
 
-  for (const doc of snapshot.docs) {
-    const docData = doc.data();
+  while (true) {
+    const query = lastVisible
+      ? collectionRef.orderBy(require('firebase-admin').firestore.FieldPath.documentId()).startAfter(lastVisible).limit(BATCH_SIZE)
+      : collectionRef.orderBy(require('firebase-admin').firestore.FieldPath.documentId()).limit(BATCH_SIZE);
+      
+    const snapshot = await query.get();
     
-    // Convert Timestamps to ISO strings for consistent JSON output
-    for (const key in docData) {
-        if (docData[key] && docData[key].toDate) { // Check if it's a Firestore Timestamp
-            docData[key] = docData[key].toDate().toISOString();
-        }
+    if (snapshot.empty) {
+      break; // No more documents to fetch
     }
+
+    console.log(`     - Processing page ${page} (${snapshot.size} documents)...`);
     
-    const subcollections = await doc.ref.listCollections();
-    if (subcollections.length > 0) {
-      docData._subcollections = {};
-      for (const subcollection of subcollections) {
-        console.log(`     - Found subcollection: ${subcollection.id}`);
-        docData._subcollections[subcollection.id] = await getCollectionData(subcollection);
+    for (const doc of snapshot.docs) {
+      const docData = doc.data();
+      
+      // Convert Timestamps to ISO strings for consistent JSON output
+      for (const key in docData) {
+          if (docData[key] && docData[key].toDate) { // Check if it's a Firestore Timestamp
+              docData[key] = docData[key].toDate().toISOString();
+          }
       }
+      
+      const subcollections = await doc.ref.listCollections();
+      if (subcollections.length > 0) {
+        docData._subcollections = {};
+        for (const subcollection of subcollections) {
+          console.log(`       - Found subcollection: ${subcollection.id} in doc ${doc.id}`);
+          docData._subcollections[subcollection.id] = await getCollectionData(subcollection); // Recursive call for subcollections
+        }
+      }
+
+      allData.push({ id: doc.id, ...docData });
     }
 
-    data.push({ id: doc.id, ...docData });
+    lastVisible = snapshot.docs[snapshot.docs.length - 1];
+    page++;
   }
-  return data;
+  
+  return allData;
 }
 
 /**
@@ -109,6 +129,9 @@ async function exportFirestoreData() {
       console.log(`[SUCCESS] Successfully exported ${collectionData.length} documents to ${filePath}`);
     } catch (error) {
       console.error(`\n[ERROR] Failed to export collection "${collectionName}":`, error.message);
+       if (error.code === 8 || error.code === 'RESOURCE_EXHAUSTED') {
+         console.error('[ADVICE] You have exceeded your Firestore read quota. Please wait for it to reset (usually daily) or upgrade your Firebase plan.');
+       }
     }
   }
 
