@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed": "node admin-seed.js"
+    "seed": "node admin-seed.js",
+    "export:data": "node export-firestore-data.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^4.1.3",
