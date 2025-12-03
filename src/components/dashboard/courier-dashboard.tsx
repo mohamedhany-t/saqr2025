@@ -14,11 +14,12 @@ import { collection, serverTimestamp, doc, query, where, updateDoc, getDoc, writ
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
 import { StatsCards } from "@/components/dashboard/stats-cards";
-import { Loader2, MessageSquare, Database } from "lucide-react";
+import { Loader2, MessageSquare, Database, Route } from "lucide-react";
 import ChatInterface from "../chat/chat-interface";
 import { sendPushNotification } from "@/lib/actions";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
 import { Button } from "../ui/button";
+import { RouteSummaryPage } from "./route-summary-page";
 
 interface CourierDashboardProps {
   user: User;
@@ -181,7 +182,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     if (!firestore || !user) return null;
     return collection(firestore, 'governorates');
   }, [firestore, user]);
-  const { data: governorates } = useCollection<Governorate>(governoratesQuery);
+  const { data: governorates, isLoading: governoratesLoading } = useCollection<Governorate>(governoratesQuery);
 
   const companiesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -417,8 +418,12 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   return (
     <>
       <Tabs defaultValue="shipments" className="w-full">
-         <TabsList className="grid w-full grid-cols-3">
+         <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="shipments">الشحنات</TabsTrigger>
+            <TabsTrigger value="route-summary">
+                <Route className="me-2 h-4 w-4" />
+                موجز الخط السير
+            </TabsTrigger>
             <TabsTrigger value="chat" className="relative">
                 <MessageSquare className="me-2 h-4 w-4" />
                 <span>الدردشة</span>
@@ -458,6 +463,13 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
               </Tabs>
             </div>
          </TabsContent>
+        <TabsContent value="route-summary">
+            <RouteSummaryPage 
+              activeShipments={activeShipments} 
+              governorates={governorates || []}
+              isLoading={shipmentsLoading || governoratesLoading}
+            />
+        </TabsContent>
         <TabsContent value="chat">
             <ChatInterface />
         </TabsContent>
