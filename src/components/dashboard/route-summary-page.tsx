@@ -9,7 +9,7 @@ import { Loader2, Map } from 'lucide-react';
 import { Button } from '../ui/button';
 
 interface RouteSummaryPageProps {
-  activeShipments: Shipment[];
+  shipments: Shipment[];
   governorates: Governorate[];
   isLoading: boolean;
 }
@@ -23,14 +23,14 @@ interface RouteGroup {
   addresses: string[];
 }
 
-export function RouteSummaryPage({ activeShipments, governorates, isLoading }: RouteSummaryPageProps) {
+export function RouteSummaryPage({ shipments, governorates, isLoading }: RouteSummaryPageProps) {
 
   const routeSummary = useMemo((): RouteGroup[] => {
-    if (!activeShipments || !governorates) return [];
+    if (!shipments || !governorates) return [];
 
     const groups: { [key: string]: { totalCount: number; deliveredCount: number; addresses: Set<string> } } = {};
 
-    for (const shipment of activeShipments) {
+    for (const shipment of shipments) {
       const govId = shipment.governorateId || 'unknown';
 
       if (!groups[govId]) {
@@ -59,7 +59,7 @@ export function RouteSummaryPage({ activeShipments, governorates, isLoading }: R
     // Sort by total count descending
     return result.sort((a, b) => b.totalCount - a.totalCount);
 
-  }, [activeShipments, governorates]);
+  }, [shipments, governorates]);
 
   const handleOpenMap = (group: RouteGroup) => {
     const baseUrl = "https://www.google.com/maps/dir/?api=1";

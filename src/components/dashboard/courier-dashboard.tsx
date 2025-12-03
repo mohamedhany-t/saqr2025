@@ -328,13 +328,18 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
 };
 
   
-  const { activeShipments, finishedShipments } = React.useMemo(() => {
+  const { activeShipments, finishedShipments, todaysRouteShipments } = React.useMemo(() => {
     const allShipments = shipments?.filter(s => !s.isWarehouseReturn) || [];
-    if (!allShipments) return { activeShipments: [], finishedShipments: [] };
+    if (!allShipments) return { activeShipments: [], finishedShipments: [], todaysRouteShipments: [] };
     const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Returned to Sender'];
     const active = allShipments.filter(s => !finishedStatuses.includes(s.status));
     const finished = allShipments.filter(s => finishedStatuses.includes(s.status));
-    return { activeShipments: active, finishedShipments: finished };
+    
+    // For Route Summary, we need all shipments that are not 'Returned to Sender'
+    // as even 'Delivered' shipments are part of the day's route completion.
+    const routeShipments = allShipments.filter(s => s.status !== 'Returned to Sender');
+    
+    return { activeShipments: active, finishedShipments: finished, todaysRouteShipments: routeShipments };
   }, [shipments]);
 
 
@@ -465,7 +470,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
          </TabsContent>
         <TabsContent value="route-summary">
             <RouteSummaryPage 
-              activeShipments={activeShipments} 
+              shipments={todaysRouteShipments} 
               governorates={governorates || []}
               isLoading={shipmentsLoading || governoratesLoading}
             />
