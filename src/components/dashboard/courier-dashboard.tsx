@@ -43,13 +43,14 @@ const calculateCommissionAndPaidAmount = (
     };
     
     const statusConfig = statusConfigs.find(s => s.id === newStatus);
-    if (!statusConfig) return update;
+    // If configs are not loaded, or the specific status is not found, do not proceed with calculation.
+    if (!statusConfig || !company) return update;
 
     const safeTotalAmount = shipment.totalAmount || 0;
     const safeCollectedAmount = collectedAmount || 0;
     const safeCourierCommissionRate = courierCommissionRate || 0;
     
-    const governorateCommission = (company && shipment.governorateId) ? (company.governorateCommissions?.[shipment.governorateId] || 0) : 0;
+    const governorateCommission = shipment.governorateId ? (company.governorateCommissions?.[shipment.governorateId] || 0) : 0;
     
     let amountForCalc = 0;
     if (statusConfig.requiresFullCollection) {
@@ -214,7 +215,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
             ...calculatedFields,
         };
 
-        await handleShipmentUpdateFn({data: payload});
+        await handleShipmentUpdateFn(payload);
         toast({ title: "تم تحديث الشحنة بنجاح" });
         handleSheetOpenChange(false);
     } catch (error: any) {
@@ -255,7 +256,7 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
             reason: update.reason || 'تحديث جماعي',
             ...calculatedFields,
         };
-        return handleShipmentUpdateFn({data: payload}).catch(error => ({
+        return handleShipmentUpdateFn(payload).catch(error => ({
             shipmentId: row.id,
             error: error.message || "فشل التحديث"
         }));
