@@ -872,13 +872,16 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           const shipmentsCollection = collection(firestore, 'shipments');
 
           for (const [index, row] of json.entries()) {
-              const trackingNumber = row['رقم الشحنة']?.toString() || row['Tracking Number']?.toString();
-              const orderNumberValue = row['رقم الطلب']?.toString();
+              const trackingNumber = row['رقم الشحنة']?.toString().trim();
+              const orderNumberValue = row['رقم الطلب']?.toString().trim();
               
               const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
               const creationDate = parseExcelDate(row['التاريخ']);
               const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
               const senderNameValue = row['الراسل'] || row['العميل الفرعي'];
+              const recipientNameValue = String(row['المرسل اليه'] || '').trim();
+              const recipientPhoneValue = String(row['التليفون']?.toString() || '').trim();
+              const addressValue = String(row['العنوان'] || 'N/A').trim();
               
               const companyNameFromSheet = row['الشركة']?.toString().trim();
               const foundCompany = companies.find(c => c.name === companyNameFromSheet);
@@ -887,10 +890,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                   senderName: senderNameValue,
                   orderNumber: orderNumberValue,
                   trackingNumber: trackingNumber,
-                  recipientName: String(row['المرسل اليه']),
-                  recipientPhone: String(row['التليفون']?.toString()),
+                  recipientName: recipientNameValue,
+                  recipientPhone: recipientPhoneValue,
                   governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
-                  address: String(row['العنوان'] || 'N/A'),
+                  address: addressValue,
                   totalAmount: parseFloat(String(totalAmountValue).replace(/[^0-9.]/g, '')),
                   status: 'Pending', // Default status for new/updated shipments from Excel
                   reason: String(row['السبب'] || ''),
@@ -902,17 +905,38 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
               const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
               
-              // Find existing shipment by trackingNumber, then by orderNumber
               let existingShipmentQuery;
               if (trackingNumber) {
                   existingShipmentQuery = query(shipmentsCollection, where("trackingNumber", "==", trackingNumber));
               } else if (orderNumberValue) {
                   existingShipmentQuery = query(shipmentsCollection, where("orderNumber", "==", orderNumberValue), where("companyId", "==", cleanShipmentData.companyId));
+              } else if (recipientNameValue && recipientPhoneValue && addressValue) {
+                  existingShipmentQuery = query(
+                      shipmentsCollection,
+                      where("recipientName", "==", recipientNameValue),
+                      where("recipientPhone", "==", recipientPhoneValue),
+                      where("address", "==", addressValue),
+                      where("companyId", "==", cleanShipmentData.companyId)
+                  );
               }
 
               let querySnapshot;
               if(existingShipmentQuery) {
-                querySnapshot = await getDocs(existingShipmentQuery);
+                try {
+                  querySnapshot = await getDocs(existingShipmentQuery);
+                } catch (err: any) {
+                    if (err.code === 'failed-precondition') {
+                        toast({
+                            title: "فهرس مطلوب",
+                            description: "تحتاج قاعدة البيانات إلى فهرس جديد لتنفيذ هذا الاستيراد. يرجى مراجعة أدوات المطور (console) للحصول على رابط الإنشاء.",
+                            variant: "destructive",
+                            duration: 10000,
+                        });
+                        console.error("Firestore index required. Please create the index using this link:", err.message.match(/https:\/\/[^\s]+/)?.[0]);
+                    }
+                     setImportProgress(prev => prev ? { ...prev, processing: false, error: "فشل الاستيراد بسبب فهرس مطلوب. راجع الـ console." } : null);
+                     return; // Stop the import process
+                }
               }
 
               if (!querySnapshot || querySnapshot.empty) {
@@ -931,7 +955,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
                   let updateData: Partial<Shipment> = { ...cleanShipmentData, updatedAt: serverTimestamp() };
                   
-                  // CRITICAL: If a courier is assigned, do NOT update the status or courier assignment.
                   if (existingShipment.assignedCourierId) {
                       delete updateData.status;
                       delete updateData.assignedCourierId;
@@ -992,24 +1015,20 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         }
     }
     
-    // If status is being changed, we need to calculate commissions and paid amounts.
     if (dataToSave.status && (originalShipment || !shipmentId)) {
-        const baseShipment = originalShipment || ({} as Partial<Shipment>);
-        const courierId = dataToSave.assignedCourierId || baseShipment.assignedCourierId;
-        const companyId = dataToSave.companyId || baseShipment.companyId;
-        const governorateId = dataToSave.governorateId || baseShipment.governorateId;
+        const courierId = dataToSave.assignedCourierId || originalShipment?.assignedCourierId;
+        const companyId = dataToSave.companyId || originalShipment?.companyId;
+        const governorateId = dataToSave.governorateId || originalShipment?.governorateId;
         
         const courierUser = users.find(u => u.id === courierId);
         const company = companies.find(c => c.id === companyId);
         
-        // Courier and company data must exist for calculation for commission.
         if (courierUser && company) {
             const courierCommissionRate = courierUser.commissionRate || 0;
-            // Company commission is per-governorate, if no governorateId, commission is 0.
             const companyGovernorateCommission = governorateId ? company.governorateCommissions?.[governorateId] || 0 : 0;
             
-            const totalAmount = dataToSave.totalAmount ?? baseShipment.totalAmount ?? 0;
-            const collectedAmount = dataToSave.collectedAmount ?? baseShipment.collectedAmount ?? 0;
+            const totalAmount = dataToSave.totalAmount ?? originalShipment?.totalAmount ?? 0;
+            const collectedAmount = dataToSave.collectedAmount ?? originalShipment?.collectedAmount ?? 0;
             
             const calculatedFields = calculateCommissionAndPaidAmount(
                 dataToSave.status,
