@@ -1,4 +1,54 @@
-// This file is no longer used for file uploads as per the user's request to avoid Firebase Storage.
-// The logic has been moved to chat-window.tsx to use Base64 encoding and store images in Firestore directly.
-// You can leave this file as is or remove it. For now, we will keep it empty to avoid any confusion.
-export {};
+
+'use client';
+
+import { getStorage, ref, uploadBytesResumable, getDownloadURL, type UploadTask } from "firebase/storage";
+import { useFirebase } from "./provider";
+
+/**
+ * Custom hook to get an file uploader function.
+ * @returns A function to upload a file and get progress and download URL.
+ */
+export function useUploader() {
+    const { storage } = useFirebase();
+
+    /**
+     * Uploads a file to a specified path in Firebase Storage.
+     * @param filePath The full path in storage where the file should be saved (e.g., 'user-avatars/userId.jpg').
+     * @param file The file object to upload.
+     * @param onProgress Callback to report upload progress (0-100).
+     * @returns A promise that resolves with the public download URL of the uploaded file.
+     */
+    const uploadFile = (
+        filePath: string,
+        file: File,
+        onProgress: (progress: number) => void
+    ): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const storageRef = ref(storage, filePath);
+            const uploadTask: UploadTask = uploadBytesResumable(storageRef, file);
+
+            uploadTask.on(
+                'state_changed',
+                (snapshot) => {
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    onProgress(progress);
+                },
+                (error) => {
+                    console.error("Upload failed:", error);
+                    reject(error);
+                },
+                async () => {
+                    try {
+                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                        resolve(downloadURL);
+                    } catch (error) {
+                        console.error("Failed to get download URL:", error);
+                        reject(error);
+                    }
+                }
+            );
+        });
+    };
+
+    return { uploadFile };
+}

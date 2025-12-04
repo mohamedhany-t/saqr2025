@@ -33,15 +33,17 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage }) 
             )}
 
             {message.fileUrl && (
-                <div className="mt-2 flex items-center gap-2 p-2 rounded-lg bg-background/20">
+                <a 
+                    href={message.fileUrl} 
+                    download={message.fileName} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="mt-2 flex items-center gap-2 p-2 rounded-lg bg-background/20 hover:bg-background/40 transition-colors"
+                >
                     <File className="h-6 w-6 flex-shrink-0" />
                     <span className="text-sm truncate flex-1">{message.fileName}</span>
-                     <a href={message.fileUrl} download={message.fileName} target="_blank" rel="noopener noreferrer">
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <Download className="h-4 w-4" />
-                        </Button>
-                    </a>
-                </div>
+                    <Download className="h-4 w-4" />
+                </a>
             )}
         </div>
         <span className="text-xs text-muted-foreground mt-1 px-1">{time}</span>
@@ -50,5 +52,3 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage }) 
 };
 
 export default MessageBubble;
-
-    
