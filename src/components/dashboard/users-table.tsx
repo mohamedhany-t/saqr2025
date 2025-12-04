@@ -8,7 +8,7 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from "@tanstack/react-table"
-import { MoreHorizontal, User as UserIcon, Building, Truck, Pencil, Trash2, BadgeDollarSign } from "lucide-react"
+import { MoreHorizontal, User as UserIcon, Building, Truck, Pencil, Trash2, BadgeDollarSign, ShieldQuestion } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -40,18 +40,21 @@ const roleIcons: Record<Role, React.ReactNode> = {
     admin: <UserIcon className="h-4 w-4 text-red-500" />,
     company: <Building className="h-4 w-4 text-blue-500" />,
     courier: <Truck className="h-4 w-4 text-green-500" />,
+    "customer-service": <ShieldQuestion className="h-4 w-4 text-indigo-500" />,
 }
 
 const roleText: Record<Role, string> = {
     admin: "مسؤول",
     company: "شركة شحن",
     courier: "مندوب",
+    "customer-service": "خدمة عملاء",
 }
 
 const roleVariants: Record<Role, "default" | "secondary" | "destructive" | "outline"> = {
     admin: "destructive",
     company: "secondary",
     courier: "outline",
+    "customer-service": "default",
 }
 
 

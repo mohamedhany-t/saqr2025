@@ -1,7 +1,7 @@
 
 import type { User as AuthUser } from 'firebase/auth';
 
-export type Role = "admin" | "company" | "courier";
+export type Role = "admin" | "company" | "courier" | "customer-service";
 
 export type User = {
   id: string; // This will be the Firebase Auth UID

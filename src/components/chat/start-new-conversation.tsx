@@ -25,8 +25,14 @@ const StartNewConversation: React.FC<StartNewConversationProps> = ({ currentUser
     // Fetch potential chat partners based on role
     const usersQuery = useMemoFirebase(() => {
         if (!firestore) return null;
-        // Admins can chat with couriers. Couriers can only chat with admins.
-        const rolesToChatWith = currentUser.role === 'admin' ? ['courier', 'company'] : ['admin'];
+        let rolesToChatWith: string[] = [];
+        if (currentUser.role === 'admin') {
+            rolesToChatWith = ['courier', 'company', 'customer-service'];
+        } else if (currentUser.role === 'customer-service') {
+            rolesToChatWith = ['courier', 'company', 'admin'];
+        } else { // Courier and Company can only chat with Admin
+             rolesToChatWith = ['admin'];
+        }
         return query(collection(firestore, 'users'), where('role', 'in', rolesToChatWith));
     }, [firestore, currentUser.role]);
 
@@ -130,7 +136,7 @@ const StartNewConversation: React.FC<StartNewConversationProps> = ({ currentUser
                             <CommandEmpty>لم يتم العثور على مستخدمين.</CommandEmpty>
                             <CommandGroup>
                                 {isLoading ? (<CommandItem>جاري التحميل...</CommandItem>)
-                                 : (users?.map(user => (
+                                 : (users?.filter(u => u.id !== currentUser.id).map(user => (
                                     <CommandItem
                                         key={user.id}
                                         value={user.id}
@@ -161,5 +167,3 @@ const StartNewConversation: React.FC<StartNewConversationProps> = ({ currentUser
 };
 
 export default StartNewConversation;
-
-    

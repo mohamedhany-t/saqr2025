@@ -1,3 +1,4 @@
+
 "use client";
 import React, { Suspense } from "react";
 import { useRouter } from "next/navigation";
@@ -7,6 +8,7 @@ import { useUser, useUserProfile } from "@/firebase";
 import AdminDashboard from "@/components/dashboard/admin-dashboard";
 import CourierDashboard from "@/components/dashboard/courier-dashboard";
 import CompanyDashboard from "@/components/dashboard/company-dashboard";
+import CustomerServiceDashboard from "@/components/dashboard/customer-service-dashboard";
 import { Header } from "@/components/dashboard/header";
 import { PwaAndNotificationHandler } from "@/components/pwa-and-notification-handler";
 
@@ -55,6 +57,8 @@ function PageContent() {
         return <CompanyDashboard user={userProfile} role={role} searchTerm={searchTerm} />;
       case "courier":
         return <CourierDashboard user={userProfile} role={role} searchTerm={searchTerm} />;
+      case "customer-service":
+        return <CustomerServiceDashboard user={userProfile} role={role} searchTerm={searchTerm} />;
       default:
          return (
              <div className="flex min-h-screen w-full items-center justify-center bg-muted/30">

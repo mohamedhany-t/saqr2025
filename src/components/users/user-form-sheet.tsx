@@ -37,7 +37,7 @@ const baseUserSchema = z.object({
   email: z.string().email("بريد إلكتروني غير صالح"),
   phone: z.string().optional(),
   password: z.string().optional(),
-  role: z.enum(["courier", "admin", "company"], { required_error: "الدور مطلوب" }),
+  role: z.enum(["courier", "admin", "company", "customer-service"], { required_error: "الدور مطلوب" }),
   commissionRate: z.coerce.number().optional(),
   governorateCommissions: z.record(z.coerce.number().optional()).optional(),
 });
@@ -228,6 +228,7 @@ export function UserFormSheet({ children, open, onOpenChange, onSave, user, comp
                                     <SelectContent>
                                         <SelectItem value="courier">مندوب</SelectItem>
                                         <SelectItem value="company">شركة شحن</SelectItem>
+                                        <SelectItem value="customer-service">خدمة عملاء</SelectItem>
                                         <SelectItem value="admin">مسؤول</SelectItem>
                                     </SelectContent>
                                 </Select>
