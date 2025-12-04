@@ -1714,7 +1714,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const currentCompanyNetDue = companyDues.find(c => c.id === payingCompany?.id)?.netDue;
   
   const handleGenericBulkUpdate = async (selectedRows: Shipment[], update: Partial<Shipment>) => {
-    if (!firestore || !users || !companies || !governorates) return;
+    if (!firestore || !user || !users || !companies || !governorates) return;
     if (selectedRows.length === 0) {
         toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
         return;
@@ -1727,7 +1727,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         selectedRows.map(async (row) => {
             const fullRowData = shipments?.find(s => s.id === row.id) || null;
             if (fullRowData) return fullRowData;
-            // Fallback to DB if not found in local state
             const docSnap = await getDoc(doc(firestore, "shipments", row.id));
             return docSnap.exists() ? docSnap.data() as Shipment : null;
         })
@@ -1755,11 +1754,24 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 const calculatedFields = calculateCommissionAndPaidAmount(
                     update.status!,
                     row.totalAmount,
-                    row.collectedAmount || 0, // In bulk, assume collectedAmount is not changed
+                    row.collectedAmount || 0,
                     courierCommissionRate,
                     companyGovernorateCommission
                 );
                 finalUpdate = { ...finalUpdate, ...calculatedFields };
+            }
+
+            // Add history entry for status change
+            if (update.status !== row.status) {
+                const historyRef = doc(collection(docRef, 'history'));
+                const historyEntry: Omit<ShipmentHistory, 'id'> = {
+                    status: update.status,
+                    reason: update.reason || 'تحديث جماعي',
+                    updatedAt: serverTimestamp(),
+                    updatedBy: user.name || user.email,
+                    userId: user.id,
+                };
+                batch.set(historyRef, historyEntry);
             }
         }
         
