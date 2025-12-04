@@ -873,13 +873,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
           for (const [index, row] of json.entries()) {
               const trackingNumber = row['رقم الشحنة']?.toString() || row['Tracking Number']?.toString();
-              if (!trackingNumber) continue;
-
+              const orderNumberValue = row['رقم الطلب']?.toString();
+              
               const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
               const creationDate = parseExcelDate(row['التاريخ']);
               const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
               const senderNameValue = row['الراسل'] || row['العميل الفرعي'];
-              const orderNumberValue = row['رقم الطلب']?.toString();
               
               const companyNameFromSheet = row['الشركة']?.toString().trim();
               const foundCompany = companies.find(c => c.name === companyNameFromSheet);
@@ -887,6 +886,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
               const shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>> = {
                   senderName: senderNameValue,
                   orderNumber: orderNumberValue,
+                  trackingNumber: trackingNumber,
                   recipientName: String(row['المرسل اليه']),
                   recipientPhone: String(row['التليفون']?.toString()),
                   governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
@@ -902,15 +902,24 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
               const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
               
-              const q = query(shipmentsCollection, where("trackingNumber", "==", trackingNumber));
-              const querySnapshot = await getDocs(q);
+              // Find existing shipment by trackingNumber, then by orderNumber
+              let existingShipmentQuery;
+              if (trackingNumber) {
+                  existingShipmentQuery = query(shipmentsCollection, where("trackingNumber", "==", trackingNumber));
+              } else if (orderNumberValue) {
+                  existingShipmentQuery = query(shipmentsCollection, where("orderNumber", "==", orderNumberValue), where("companyId", "==", cleanShipmentData.companyId));
+              }
 
-              if (querySnapshot.empty) {
+              let querySnapshot;
+              if(existingShipmentQuery) {
+                querySnapshot = await getDocs(existingShipmentQuery);
+              }
+
+              if (!querySnapshot || querySnapshot.empty) {
                   const docRef = doc(shipmentsCollection);
                   batch.set(docRef, { 
                       ...cleanShipmentData, 
                       id: docRef.id,
-                      trackingNumber, 
                       createdAt: creationDate || serverTimestamp(),
                       updatedAt: serverTimestamp(),
                   });
