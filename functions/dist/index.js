@@ -32,13 +32,30 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateShipmentStatus = exports.getDashboardStats = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const zod_1 = require("zod");
+const cors_1 = __importDefault(require("cors"));
 admin.initializeApp();
 const db = admin.firestore();
+// Initialize cors middleware
+const corsHandler = (0, cors_1.default)({ origin: true });
 /**
  * A callable function to get aggregated dashboard statistics for an admin.
  */
@@ -96,91 +113,74 @@ const updateShipmentStatusSchema = zod_1.z.object({
     shipmentId: zod_1.z.string(),
     status: zod_1.z.string(),
     reason: zod_1.z.string().optional(),
-    collectedAmount: zod_1.z.number().optional(),
+    collectedAmount: zod_1.z.number(),
+    paidAmount: zod_1.z.number(),
+    courierCommission: zod_1.z.number(),
+    companyCommission: zod_1.z.number(),
 });
-exports.updateShipmentStatus = functions.https.onCall(async (data, context) => {
-    if (!context.auth) {
-        throw new functions.https.HttpsError("unauthenticated", "You must be authenticated to update a shipment.");
-    }
-    const { uid: courierId, token } = context.auth;
-    const validation = updateShipmentStatusSchema.safeParse(data);
-    if (!validation.success) {
-        throw new functions.https.HttpsError("invalid-argument", "The data provided is invalid.");
-    }
-    const { shipmentId, status, reason, collectedAmount } = validation.data;
-    const shipmentRef = db.collection('shipments').doc(shipmentId);
-    try {
-        return await db.runTransaction(async (transaction) => {
-            var _a;
-            const shipmentDoc = await transaction.get(shipmentRef);
-            if (!shipmentDoc.exists) {
-                throw new functions.https.HttpsError("not-found", "Shipment not found.");
-            }
-            const shipmentData = shipmentDoc.data();
-            // Security Check: Ensure the caller is the assigned courier
-            if (shipmentData.assignedCourierId !== courierId) {
-                throw new functions.https.HttpsError("permission-denied", "You are not assigned to this shipment.");
-            }
-            // Fetch necessary data for commission calculation
-            const [courierDoc, companyDoc, statusesSnapshot] = await Promise.all([
-                db.collection('users').doc(courierId).get(),
-                db.collection('companies').doc(shipmentData.companyId).get(),
-                db.collection('shipment_statuses').get()
-            ]);
-            if (!courierDoc.exists || !companyDoc.exists) {
-                throw new functions.https.HttpsError("failed-precondition", "Courier or company data is missing.");
-            }
-            const courierData = courierDoc.data();
-            const companyData = companyDoc.data();
-            // Correctly find the status config using the document ID
-            const statusConfigDoc = statusesSnapshot.docs.find(doc => doc.id === status);
-            if (!statusConfigDoc) {
-                throw new functions.https.HttpsError("invalid-argument", "Invalid status provided.");
-            }
-            const statusConfig = statusConfigDoc.data();
-            const courierCommissionRate = courierData.commissionRate || 0;
-            const companyGovernorateCommission = ((_a = companyData.governorateCommissions) === null || _a === void 0 ? void 0 : _a[shipmentData.governorateId]) || 0;
-            // --- Commission Calculation Logic ---
-            const updatePayload = { paidAmount: 0, courierCommission: 0, companyCommission: 0, collectedAmount: 0 };
-            let amountForCalc = 0;
-            if (statusConfig.requiresFullCollection) {
-                amountForCalc = shipmentData.totalAmount || 0;
-            }
-            else if (statusConfig.requiresPartialCollection) {
-                amountForCalc = collectedAmount || 0;
-            }
-            updatePayload.paidAmount = amountForCalc;
-            updatePayload.collectedAmount = amountForCalc;
-            if (amountForCalc > 0 && statusConfig.affectsCompanyBalance) {
-                updatePayload.companyCommission = companyGovernorateCommission;
-            }
-            if (statusConfig.affectsCourierBalance) {
-                updatePayload.courierCommission = courierCommissionRate;
-            }
-            // --- End Commission Calculation Logic ---
-            // Prepare the final update object for the shipment
-            const finalShipmentUpdate = Object.assign(Object.assign({}, updatePayload), { status: status, reason: reason || "", updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-            // Prepare history entry
-            const historyRef = shipmentRef.collection('history').doc();
-            const historyEntry = {
-                status: status,
-                reason: reason || '',
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                updatedBy: token.name || token.email,
-                userId: courierId,
-            };
-            // Perform writes in the transaction
-            transaction.update(shipmentRef, finalShipmentUpdate);
-            transaction.set(historyRef, historyEntry);
-            return { success: true, message: "Shipment updated successfully." };
-        });
-    }
-    catch (error) {
-        console.error("Error updating shipment status:", error);
-        if (error instanceof functions.https.HttpsError) {
-            throw error; // Re-throw HttpsError
+exports.updateShipmentStatus = functions.https.onRequest((req, res) => {
+    corsHandler(req, res, async () => {
+        var _a;
+        // Manually handle callable function logic for CORS compatibility
+        if (req.method !== 'POST') {
+            res.status(405).send('Method Not Allowed');
+            return;
         }
-        throw new functions.https.HttpsError("internal", "An internal error occurred while updating the shipment.");
-    }
+        const data = req.body.data;
+        const context = {};
+        if ((_a = req.headers.authorization) === null || _a === void 0 ? void 0 : _a.startsWith('Bearer ')) {
+            const idToken = req.headers.authorization.split('Bearer ')[1];
+            try {
+                const decodedToken = await admin.auth().verifyIdToken(idToken);
+                context.auth = decodedToken;
+            }
+            catch (error) {
+                console.error('Error verifying token:', error);
+                res.status(401).send({ error: { status: 'UNAUTHENTICATED' } });
+                return;
+            }
+        }
+        if (!context.auth) {
+            res.status(401).send({ error: { status: 'UNAUTHENTICATED' } });
+            return;
+        }
+        const { uid: courierId, token } = context.auth;
+        const validation = updateShipmentStatusSchema.safeParse(data);
+        if (!validation.success) {
+            res.status(400).send({ error: { status: 'INVALID_ARGUMENT', message: 'The data provided is invalid.' } });
+            return;
+        }
+        const _b = validation.data, { shipmentId, status, reason } = _b, financials = __rest(_b, ["shipmentId", "status", "reason"]);
+        const shipmentRef = db.collection('shipments').doc(shipmentId);
+        try {
+            const result = await db.runTransaction(async (transaction) => {
+                const shipmentDoc = await transaction.get(shipmentRef);
+                if (!shipmentDoc.exists) {
+                    throw new functions.https.HttpsError("not-found", "Shipment not found.");
+                }
+                const shipmentData = shipmentDoc.data();
+                if (shipmentData.assignedCourierId !== courierId) {
+                    throw new functions.https.HttpsError("permission-denied", "You are not assigned to this shipment.");
+                }
+                const finalShipmentUpdate = Object.assign(Object.assign({}, financials), { status: status, reason: reason || "", updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+                const historyRef = shipmentRef.collection('history').doc();
+                const historyEntry = {
+                    status: status,
+                    reason: reason || '',
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    updatedBy: token.name || token.email,
+                    userId: courierId,
+                };
+                transaction.update(shipmentRef, finalShipmentUpdate);
+                transaction.set(historyRef, historyEntry);
+                return { success: true, message: "Shipment updated successfully." };
+            });
+            res.status(200).send({ result });
+        }
+        catch (error) {
+            console.error("Error updating shipment status:", error);
+            res.status(500).send({ error: { status: 'INTERNAL', message: error.message } });
+        }
+    });
 });
 //# sourceMappingURL=index.js.map
