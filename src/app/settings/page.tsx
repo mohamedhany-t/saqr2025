@@ -47,6 +47,7 @@ export default function SettingsPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [statusToToggle, setStatusToToggle] = useState<ShipmentStatusConfig | null>(null);
     const [statusToDelete, setStatusToDelete] = useState<ShipmentStatusConfig | null>(null);
+    const [originalIds, setOriginalIds] = useState<Map<string, string>>(new Map());
 
     useEffect(() => {
         const seedDefaultStatuses = async () => {
@@ -115,7 +116,7 @@ export default function SettingsPage() {
         try {
             await deleteDoc(doc(firestore, 'shipment_statuses', statusToDelete.id));
             toast({ title: 'تم حذف الحالة بنجاح' });
-            // This will trigger a re-fetch from useCollection which updates the state
+            // The useCollection hook will automatically re-fetch and update the UI
         } catch (error) {
             console.error("Error deleting status:", error);
             toast({ title: 'حدث خطأ أثناء الحذف', variant: 'destructive' });
@@ -130,21 +131,9 @@ export default function SettingsPage() {
         const batch = writeBatch(firestore);
 
         localStatuses.forEach(status => {
-            const sanitizedId = status.id.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_.-]/g, '');
-             if (!sanitizedId) {
-                toast({ title: 'خطأ في الحفظ', description: `المفتاح للحالة "${status.label}" غير صالح.`, variant: 'destructive'});
-                setIsSaving(false); // Early exit if validation fails
-                return;
-            }
-            
-            // Create a doc ref with the possibly updated ID
-            const docRef = doc(firestore, 'shipment_statuses', sanitizedId);
-            
-            // Create the object to save, ensuring the ID in the document matches the document's ID
-            const dataToSave = { ...status, id: sanitizedId };
-            
-            // Set the document. This works for both creating new and overwriting existing docs.
-            batch.set(docRef, dataToSave);
+            const docRef = doc(firestore, 'shipment_statuses', status.id);
+            // We save the status object as is, using its original/new ID as the document ID.
+            batch.set(docRef, status);
         });
 
         try {
