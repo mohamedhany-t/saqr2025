@@ -980,7 +980,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     
     // If status is being changed, we need to calculate commissions and paid amounts.
     if (dataToSave.status && (originalShipment || !shipmentId)) {
-        const baseShipment = originalShipment || {};
+        const baseShipment = originalShipment || ({} as Partial<Shipment>);
         const courierId = dataToSave.assignedCourierId || baseShipment.assignedCourierId;
         const companyId = dataToSave.companyId || baseShipment.companyId;
         const governorateId = dataToSave.governorateId || baseShipment.governorateId;
