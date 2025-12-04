@@ -1,16 +1,17 @@
 
 "use client";
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Paperclip, Send, X, File as FileIcon, Loader2 } from 'lucide-react';
-import { useFirestore, useCollection, useMemoFirebase, useUploader } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUploader, useFirebaseApp } from '@/firebase';
 import { collection, serverTimestamp, query, orderBy, writeBatch, doc, getDoc, increment } from 'firebase/firestore';
 import type { ChatMessage, User, Chat } from '@/lib/types';
 import MessageBubble from './message-bubble';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '../ui/progress';
 import { sendPushNotification } from '@/lib/actions';
+import { getStorage } from 'firebase/storage';
 
 interface ChatWindowProps {
   chatId: string;
@@ -23,7 +24,7 @@ interface FileUpload {
     error?: string;
 }
 
-const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
+const ChatWindowContent: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
   const [newMessage, setNewMessage] = useState('');
   const [fileUpload, setFileUpload] = useState<FileUpload | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -49,7 +50,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
   }, [messages]);
 
   useEffect(() => {
-    if (firestore && chatId && currentUser) {
+    if (firestore && chatId && currentUser?.id && messages) {
       const chatDocRef = doc(firestore, 'chats', chatId);
       const unreadCountKey = `unreadCounts.${currentUser.id}`;
       
@@ -57,22 +58,24 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
       batch.update(chatDocRef, { [unreadCountKey]: 0 });
       batch.commit().catch(console.error);
     }
-  }, [firestore, chatId, currentUser, messages]);
+  }, [firestore, chatId, currentUser?.id, messages]);
 
   const handleSendMessage = async () => {
     if (!firestore || (!newMessage.trim() && !fileUpload?.file)) return;
     setIsSending(true);
 
-    const chatDocRef = doc(firestore, 'chats', chatId);
-    const messagesCollection = collection(firestore, 'chats', chatId, 'messages');
-    let filePayload: Partial<ChatMessage> = {};
-
-    let lastMessageText = newMessage.trim();
-
     try {
+        const chatDocRef = doc(firestore, 'chats', chatId);
+        const messagesCollection = collection(firestore, 'chats', chatId, 'messages');
+        const filePayload: Partial<ChatMessage> = {};
+
+        let lastMessageText = newMessage.trim();
+
+        // 1. Handle File Upload if it exists
         if (fileUpload && fileUpload.file) {
             const file = fileUpload.file;
             const filePath = `chat-uploads/${chatId}/${Date.now()}_${file.name}`;
+            
             const downloadURL = await uploadFile(filePath, file, (progress) => {
                 setFileUpload(prev => prev ? { ...prev, progress } : null);
             });
@@ -87,6 +90,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
             }
         }
         
+        // 2. Prepare message and chat update payloads
         const messagePayload: Omit<ChatMessage, 'id'> = {
             senderId: currentUser.id,
             timestamp: serverTimestamp(),
@@ -101,11 +105,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
         const chatData = chatSnap.data() as Chat;
         const otherParticipantId = chatData.participants.find(p => p !== currentUser.id);
 
-        const batch = writeBatch(firestore);
-        
-        const newMessageRef = doc(messagesCollection);
-        batch.set(newMessageRef, messagePayload);
-
         const chatUpdatePayload: any = {
             lastMessage: lastMessageText,
             lastMessageTimestamp: serverTimestamp(),
@@ -113,13 +112,15 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
         if (otherParticipantId) {
             chatUpdatePayload[`unreadCounts.${otherParticipantId}`] = increment(1);
         }
-        batch.update(chatDocRef, chatUpdatePayload);
 
+        // 3. Commit to Firestore
+        const batch = writeBatch(firestore);
+        const newMessageRef = doc(messagesCollection);
+        batch.set(newMessageRef, messagePayload);
+        batch.update(chatDocRef, chatUpdatePayload);
         await batch.commit();
 
-        setNewMessage('');
-        setFileUpload(null);
-        
+        // 4. Send Push Notification
         if (otherParticipantId) {
             const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
             await sendPushNotification({
@@ -129,18 +130,25 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
                 url: notificationUrl,
             });
         }
+        
+        // 5. Clean up state
+        setNewMessage('');
+        setFileUpload(null);
+
     } catch (error) {
         console.error("Error sending message:", error);
         toast({
             title: "فشل إرسال الرسالة",
-            description: "حدث خطأ أثناء محاولة إرسال الرسالة.",
+            description: "حدث خطأ أثناء محاولة إرسال الرسالة. يرجى المحاولة مرة أخرى.",
             variant: "destructive"
         });
         setFileUpload(prev => prev ? { ...prev, error: "فشل الرفع" } : null);
     } finally {
-         setIsSending(false);
+        // ALWAYS reset the sending state, regardless of success or failure
+        setIsSending(false);
     }
   };
+
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -153,7 +161,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
     }
   };
 
-  if (isLoading || !firestore) {
+  if (isLoading) {
     return <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
 
@@ -192,7 +200,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
               className="hidden" 
               onChange={handleFileSelect}
               accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              disabled={isSending}
+              disabled={isSending || !!fileUpload}
             />
           <Input
             value={newMessage}
@@ -211,5 +219,18 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
     </div>
   );
 };
+
+
+const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
+    const firestore = useFirestore();
+
+    // The parent component now only worries about making sure firestore is ready.
+    // This ensures all firebase services are initialized before the content, including storage, is used.
+    if (!firestore) {
+      return <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+    }
+
+    return <ChatWindowContent chatId={chatId} currentUser={currentUser} />
+}
 
 export default ChatWindow;

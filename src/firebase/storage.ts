@@ -10,8 +10,7 @@ import { useFirebaseApp } from "./provider";
  */
 export function useUploader() {
     const app = useFirebaseApp();
-    const storage = getStorage(app);
-
+    
     /**
      * Uploads a file to a specified path in Firebase Storage.
      * @param filePath The full path in storage where the file should be saved (e.g., 'user-avatars/userId.jpg').
@@ -25,6 +24,8 @@ export function useUploader() {
         onProgress: (progress: number) => void
     ): Promise<string> => {
         return new Promise((resolve, reject) => {
+            // Get storage instance directly here to ensure it's initialized
+            const storage = getStorage(app);
             const storageRef = ref(storage, filePath);
             const uploadTask: UploadTask = uploadBytesResumable(storageRef, file);
 
