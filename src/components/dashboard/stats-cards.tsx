@@ -1,7 +1,10 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, Truck, CheckCircle2, CircleDollarSign, Building, Wallet, BadgeDollarSign, Archive, HandCoins } from "lucide-react";
+import { Package, Truck, CheckCircle2, CircleDollarSign, Building, Wallet, BadgeDollarSign, Archive, HandCoins, Loader2 } from "lucide-react";
 import type { Shipment, Role, CourierPayment } from "@/lib/types";
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { useFirebaseApp } from "@/firebase";
 
 interface StatsCardsProps {
     shipments: Shipment[];
@@ -9,7 +12,56 @@ interface StatsCardsProps {
     role: Role | null;
 }
 
+interface AdminStatsData {
+    totalRevenue: number;
+    inTransit: number;
+    delivered: number;
+    returned: number;
+    totalShipments: number;
+}
+
 export function StatsCards({ shipments, payments, role }: StatsCardsProps) {
+    const [adminStats, setAdminStats] = useState<AdminStatsData | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const app = useFirebaseApp();
+
+    useEffect(() => {
+        if (role === 'admin') {
+            setIsLoading(true);
+            const functions = getFunctions(app);
+            const getDashboardStats = httpsCallable(functions, 'getDashboardStats');
+            
+            getDashboardStats()
+                .then((result) => {
+                    setAdminStats(result.data as AdminStatsData);
+                })
+                .catch((error) => {
+                    console.error("Error fetching dashboard stats:", error);
+                })
+                .finally(() => {
+                    setIsLoading(false);
+                });
+        }
+    }, [role, app]);
+    
+    if (isLoading) {
+        return (
+            <div className="my-6 grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
+                {Array.from({length: 4}).map((_, i) => (
+                    <Card key={i}>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                             <div className="h-5 w-24 bg-muted rounded animate-pulse" />
+                        </CardHeader>
+                        <CardContent>
+                             <div className="h-8 w-32 bg-muted rounded animate-pulse" />
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+        )
+    }
+
+    // Client-side calculations for non-admin roles
     const totalRevenue = shipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
     const inTransit = shipments.filter(s => s.status === 'In-Transit').length;
     const delivered = shipments.filter(s => s.status === 'Delivered').length;
@@ -21,13 +73,12 @@ export function StatsCards({ shipments, payments, role }: StatsCardsProps) {
     const totalPaidByCourier = payments?.filter(p => !p.isArchived).reduce((acc, p) => acc + p.amount, 0) || 0;
     const netDueForCourier = (totalRevenue - totalCourierCommission) - totalPaidByCourier;
 
-
-    const adminStats = [
-        { title: "إجمالي الإيرادات", value: `${totalRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: CircleDollarSign, description: "" },
-        { title: "قيد التوصيل", value: `+${inTransit}`, icon: Truck, description: "" },
-        { title: "تم التسليم", value: `+${delivered}`, icon: CheckCircle2, description: "" },
-        { title: "المرتجعات", value: `${returned}`, icon: Archive, description: "" },
-    ];
+    const adminStatsList = adminStats ? [
+        { title: "إجمالي الإيرادات", value: `${adminStats.totalRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: CircleDollarSign, description: "" },
+        { title: "قيد التوصيل", value: `+${adminStats.inTransit}`, icon: Truck, description: "" },
+        { title: "تم التسليم", value: `+${adminStats.delivered}`, icon: CheckCircle2, description: "" },
+        { title: "المرتجعات", value: `${adminStats.returned}`, icon: Archive, description: "" },
+    ] : [];
     
     const companyStats = [
         { title: "إجمالي الإيرادات", value: `${totalRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: CircleDollarSign, description: "إجمالي الإيرادات من الشحنات المسلمة." },
@@ -46,7 +97,7 @@ export function StatsCards({ shipments, payments, role }: StatsCardsProps) {
     let statsToDisplay: { title: string; value: string; icon: React.ElementType; description: string; }[];
     switch(role) {
         case 'admin':
-            statsToDisplay = adminStats;
+            statsToDisplay = adminStatsList;
             break;
         case 'company':
             statsToDisplay = companyStats;
