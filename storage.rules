@@ -1,17 +1,17 @@
-
 rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Default deny all
+    // Default rule: Deny all reads and writes
     match /{allPaths=**} {
       allow read, write: if false;
     }
-
-    // Allow users to upload chat attachments if they are authenticated.
-    // The path is structured as 'chat_attachments/{chatId}/{fileName}'
-    match /chat_attachments/{chatId}/{fileName} {
-      allow read, write: if request.auth != null;
+    
+    // Allow authenticated users to upload chat files up to 5MB
+    match /chat-uploads/{chatId}/{allPaths=**} {
+      allow write: if request.auth != null 
+                      && request.resource.size < 5 * 1024 * 1024;
+      allow read: if request.auth != null; // Allow authenticated users to read images/files
     }
   }
 }
