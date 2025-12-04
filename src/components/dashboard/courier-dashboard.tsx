@@ -48,6 +48,7 @@ const calculateCommissionAndPaidAmount = (
     const safeTotalAmount = shipment.totalAmount || 0;
     const safeCollectedAmount = collectedAmount || 0;
     const safeCourierCommissionRate = courierCommissionRate || 0;
+    
     const governorateCommission = (company && shipment.governorateId) ? (company.governorateCommissions?.[shipment.governorateId] || 0) : 0;
     
     let amountForCalc = 0;
@@ -210,7 +211,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
             shipmentId: id,
             status: shipmentData.status,
             reason: shipmentData.reason || "",
-            ...calculatedFields
+            ...calculatedFields,
         };
 
         await handleShipmentUpdateFn({data: payload});
