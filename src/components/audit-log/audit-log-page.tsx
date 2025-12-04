@@ -221,7 +221,7 @@ export function AuditLogPage({ users, shipments, companies, governorates, isLoad
                   </TableCell>
                   <TableCell className="text-muted-foreground max-w-xs truncate">{log.reason || '-'}</TableCell>
                   <TableCell>{log.updatedBy}</TableCell>
-                  <TableCell>{format(log.updatedAt.toDate(), 'PPpp', { locale: ar })}</TableCell>
+                  <TableCell>{log.updatedAt?.toDate ? format(log.updatedAt.toDate(), 'PPpp', { locale: ar }) : 'الآن...'}</TableCell>
                   <TableCell>
                     {log.shipment && (
                       <div className="flex items-center gap-2">
