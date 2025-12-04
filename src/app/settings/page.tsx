@@ -66,9 +66,14 @@ export default function SettingsPage() {
             if (serverStatuses.length === 0) {
                 seedDefaultStatuses();
             } else {
-                // Deep copy to avoid direct state mutation issues
                 const sortedStatuses = [...serverStatuses].sort((a, b) => a.label.localeCompare(b.label));
-                setLocalStatuses(JSON.parse(JSON.stringify(sortedStatuses)));
+                 // Ensure boolean fields are not undefined
+                const initializedStatuses = sortedStatuses.map(s => ({
+                    ...s,
+                    requiresFullCollection: !!s.requiresFullCollection,
+                    requiresPartialCollection: !!s.requiresPartialCollection,
+                }));
+                setLocalStatuses(initializedStatuses);
             }
         }
     }, [serverStatuses, isLoading, firestore, toast]);
@@ -123,23 +128,23 @@ export default function SettingsPage() {
         if (!firestore) return;
         setIsSaving(true);
         const batch = writeBatch(firestore);
-        
-        const originalIds = new Set(serverStatuses?.map(s => s.id));
 
         localStatuses.forEach(status => {
-            const sanitizedId = status.id.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_().-]/g, '');
+            const sanitizedId = status.id.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_.-]/g, '');
              if (!sanitizedId) {
                 toast({ title: 'خطأ في الحفظ', description: `المفتاح للحالة "${status.label}" غير صالح.`, variant: 'destructive'});
-                setIsSaving(false);
+                setIsSaving(false); // Early exit if validation fails
                 return;
             }
             
+            // Create a doc ref with the possibly updated ID
             const docRef = doc(firestore, 'shipment_statuses', sanitizedId);
             
-            // Check if it's a new status or an existing one being saved.
-            if (originalIds.has(sanitizedId) || status.id.startsWith('custom_')) {
-                 batch.set(docRef, { ...status, id: sanitizedId });
-            }
+            // Create the object to save, ensuring the ID in the document matches the document's ID
+            const dataToSave = { ...status, id: sanitizedId };
+            
+            // Set the document. This works for both creating new and overwriting existing docs.
+            batch.set(docRef, dataToSave);
         });
 
         try {
