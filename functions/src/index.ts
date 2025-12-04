@@ -97,7 +97,7 @@ export const updateShipmentStatus = functions.https.onCall(async (data, context)
                 db.collection('shipment_statuses').get()
             ]);
             
-            if (!courierDoc.exists() || !companyDoc.exists()) {
+            if (!courierDoc.exists || !companyDoc.exists) {
                 throw new functions.https.HttpsError("failed-precondition", "Courier or company data is missing.");
             }
 

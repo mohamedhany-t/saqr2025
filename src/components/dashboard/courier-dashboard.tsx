@@ -140,7 +140,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   };
   
   const handleSaveShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
-    if (!id) return;
+    if (!id || !app) return;
     const functions = getFunctions(app);
     const updateShipmentStatusFn = httpsCallable(functions, 'updateShipmentStatus');
 
@@ -191,7 +191,7 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
     });
 
     const results = await Promise.all(updatePromises);
-    const failedUpdates = results.filter(res => res.error);
+    const failedUpdates = results.filter(res => res && 'error' in res);
 
     if (failedUpdates.length > 0) {
         toast({
