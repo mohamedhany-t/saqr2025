@@ -2,14 +2,14 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, writeBatch } from 'firebase/firestore';
+import { collection, doc, writeBatch, deleteDoc } from 'firebase/firestore';
 import type { ShipmentStatusConfig } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, PlusCircle, Save } from 'lucide-react';
+import { Loader2, PlusCircle, Save, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -46,6 +46,7 @@ export default function SettingsPage() {
     const [localStatuses, setLocalStatuses] = useState<ShipmentStatusConfig[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [statusToToggle, setStatusToToggle] = useState<ShipmentStatusConfig | null>(null);
+    const [statusToDelete, setStatusToDelete] = useState<ShipmentStatusConfig | null>(null);
 
     useEffect(() => {
         const seedDefaultStatuses = async () => {
@@ -93,6 +94,29 @@ export default function SettingsPage() {
         handleFieldChange(statusToToggle.id, 'enabled', !statusToToggle.enabled);
         setStatusToToggle(null);
     };
+
+    const confirmDeleteStatus = async () => {
+        if (!statusToDelete || !firestore) return;
+
+        // Prevent deletion of core statuses
+        if (isCoreStatus(statusToDelete.id)) {
+            toast({ title: 'لا يمكن حذف الحالات الأساسية', variant: 'destructive'});
+            setStatusToDelete(null);
+            return;
+        }
+
+        try {
+            await deleteDoc(doc(firestore, 'shipment_statuses', statusToDelete.id));
+            toast({ title: 'تم حذف الحالة بنجاح' });
+            // This will trigger a re-fetch from useCollection which updates the state
+        } catch (error) {
+            console.error("Error deleting status:", error);
+            toast({ title: 'حدث خطأ أثناء الحذف', variant: 'destructive' });
+        } finally {
+            setStatusToDelete(null);
+        }
+    }
+
 
     const handleSave = async () => {
         if (!firestore) return;
@@ -165,6 +189,7 @@ export default function SettingsPage() {
                                 <TableHead>تعتبر "مسلمة"</TableHead>
                                 <TableHead>تعتبر "مرتجع"</TableHead>
                                 <TableHead>مفعلة</TableHead>
+                                <TableHead>إجراءات</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -215,6 +240,13 @@ export default function SettingsPage() {
                                             disabled={isCoreStatus(status.id) && status.id === 'Delivered'}
                                         />
                                     </TableCell>
+                                     <TableCell className="text-center">
+                                        {!isCoreStatus(status.id) && (
+                                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setStatusToDelete(status)}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        )}
+                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -237,6 +269,21 @@ export default function SettingsPage() {
                     <AlertDialogFooter>
                         <AlertDialogCancel onClick={() => setStatusToToggle(null)}>إلغاء</AlertDialogCancel>
                         <AlertDialogAction onClick={confirmToggleStatus}>نعم، قم بالتغيير</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            
+             <AlertDialog open={!!statusToDelete} onOpenChange={() => setStatusToDelete(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>هل أنت متأكد من الحذف؟</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           سيتم حذف الحالة "{statusToDelete?.label}" بشكل نهائي. لا يمكن التراجع عن هذا الإجراء.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setStatusToDelete(null)}>إلغاء</AlertDialogCancel>
+                        <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={confirmDeleteStatus}>حذف</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>

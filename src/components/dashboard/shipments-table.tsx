@@ -64,7 +64,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Role, User } from "@/lib/types"
+import type { Shipment, ShipmentStatus, Governorate, Company, Role, User, ShipmentStatusConfig } from "@/lib/types"
 import { exportToExcel, exportToPDF } from "@/lib/export"
 import { useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase"
 import { doc, writeBatch, serverTimestamp } from "firebase/firestore"
@@ -74,7 +74,7 @@ import { sendPushNotification } from "@/lib/actions"
 import { cn, formatToCairoTime } from "@/lib/utils"
 import { ShipmentDetailsDialog } from "../shipments/shipment-details-dialog"
 
-export const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
+export const statusIcons: Record<string, React.ReactNode> = {
     Pending: <Hourglass className="h-4 w-4 text-yellow-500" />,
     "In-Transit": <Truck className="h-4 w-4 text-blue-500" />,
     Delivered: <CheckCircle2 className="h-4 w-4 text-green-500" />,
@@ -89,7 +89,7 @@ export const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
     "Refused (Unpaid)": <ThumbsDown className="h-4 w-4 text-red-500" />,
 }
 
-export const statusVariants: Record<ShipmentStatus, "default" | "secondary" | "destructive" | "outline"> = {
+export const statusVariants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
     Pending: "outline",
     "In-Transit": "secondary",
     Delivered: "default",
@@ -119,9 +119,6 @@ export const statusText: Record<string, string> = {
     'Refused (Unpaid)': 'رفض ولم يدفع',
 };
 
-const mapStatus = (status: string): ShipmentStatus => {
-    return status as ShipmentStatus;
-}
 
 type ActionCellProps = {
   row: Row<Shipment>;
@@ -229,6 +226,7 @@ interface GetColumnsProps {
     governorates: Governorate[];
     companies: Company[];
     couriers: User[];
+    statuses: ShipmentStatusConfig[];
     onEdit: (shipment: Shipment) => void;
     onBulkUpdate: (selectedRows: Shipment[], update: Partial<Shipment>) => void;
     role: Role | null;
@@ -238,6 +236,7 @@ export const getColumns = ({
     governorates,
     companies,
     couriers,
+    statuses,
     onEdit,
     onBulkUpdate,
     role,
@@ -355,13 +354,14 @@ export const getColumns = ({
     accessorKey: "status",
     header: "حالة الأوردر",
     cell: ({ row }) => {
-        const statusKey = row.getValue("status") as ShipmentStatus;
+        const statusKey = row.getValue("status") as string;
         const shipment = row.original;
+        const statusLabel = statuses.find(s => s.id === statusKey)?.label || statusText[statusKey] || statusKey;
         return (
           <div className="flex items-center gap-2">
             <Badge variant={statusVariants[statusKey]} className="capitalize flex gap-2">
                 {statusIcons[statusKey]}
-                <span>{statusText[statusKey] || statusKey}</span>
+                <span>{statusLabel}</span>
             </Badge>
             {shipment.isWarehouseReturn && (
               <Warehouse className="h-4 w-4 text-muted-foreground" />
@@ -427,7 +427,8 @@ export function ShipmentsTable({
     isLoading, 
     governorates, 
     companies, 
-    couriers, 
+    couriers,
+    statuses,
     onEdit, 
     role, 
     onBulkUpdate,
@@ -441,6 +442,7 @@ export function ShipmentsTable({
     governorates: Governorate[], 
     companies: Company[], 
     couriers: User[], 
+    statuses: ShipmentStatusConfig[],
     onEdit: (shipment: Shipment) => void, 
     role: Role | null, 
     onBulkUpdate?: (selectedRows: Shipment[], update: Partial<Shipment>) => void,
@@ -459,7 +461,7 @@ export function ShipmentsTable({
   const { toast } = useToast()
   const firestore = useFirestore();
   
-  const columns = React.useMemo(() => getColumns({ governorates, companies, couriers, onEdit, onBulkUpdate: onBulkUpdate!, role }), [governorates, companies, couriers, onEdit, onBulkUpdate, role]);
+  const columns = React.useMemo(() => getColumns({ governorates, companies, couriers, statuses, onEdit, onBulkUpdate: onBulkUpdate!, role }), [governorates, companies, couriers, statuses, onEdit, onBulkUpdate, role]);
   
   const table = useReactTable({
     data: shipments,
@@ -618,19 +620,19 @@ export function ShipmentsTable({
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">
-                        {Object.entries(statusText).map(([value, label]) => (
+                        {statuses.filter(s => s.enabled).map((status) => (
                             <DropdownMenuCheckboxItem
-                                key={value}
-                                checked={statusFilterValue?.includes(value)}
+                                key={status.id}
+                                checked={statusFilterValue?.includes(status.id)}
                                 onCheckedChange={(checked) => {
                                     const current = statusFilterValue || [];
                                     const newFilter = checked
-                                        ? [...current, value]
-                                        : current.filter((id) => id !== value);
+                                        ? [...current, status.id]
+                                        : current.filter((id) => id !== status.id);
                                     handleSetFilter("status", newFilter.length ? newFilter : undefined);
                                 }}
                             >
-                                {label}
+                                {status.label}
                             </DropdownMenuCheckboxItem>
                         ))}
                     </DropdownMenuContent>
@@ -737,9 +739,9 @@ export function ShipmentsTable({
                              </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                            {Object.entries(statusText).map(([statusValue, statusLabel]) => (
-                                 <DropdownMenuItem key={statusValue} onSelect={() => handleGenericBulkUpdate({ status: statusValue as ShipmentStatus })}>
-                                     {statusLabel}
+                            {statuses.filter(s => s.enabled).map((status) => (
+                                 <DropdownMenuItem key={status.id} onSelect={() => handleGenericBulkUpdate({ status: status.id })}>
+                                     {status.label}
                                  </DropdownMenuItem>
                             ))}
                         </DropdownMenuContent>
