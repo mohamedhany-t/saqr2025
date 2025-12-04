@@ -1,4 +1,3 @@
-
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 
@@ -10,7 +9,7 @@ const db = admin.firestore();
  * This offloads the calculation from the client.
  */
 export const getDashboardStats = functions.https.onCall(async (data, context) => {
-  // Enforce authentication and admin role.
+  // Enforce authentication.
   if (!context.auth) {
     throw new functions.https.HttpsError(
       "unauthenticated",
@@ -18,12 +17,13 @@ export const getDashboardStats = functions.https.onCall(async (data, context) =>
     );
   }
 
+  // Enforce admin role.
   const adminDoc = await db.collection("roles_admin").doc(context.auth.uid).get();
   if (!adminDoc.exists) {
-      throw new functions.https.HttpsError(
-          "permission-denied",
-          "The function must be called by an admin user."
-      );
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "The function must be called by an admin user."
+    );
   }
   
   try {
