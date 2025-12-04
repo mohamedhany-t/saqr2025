@@ -3,8 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { statusText } from "@/components/dashboard/shipments-table";
-import type { Shipment } from "@/lib/types";
+import type { Shipment, ShipmentStatusConfig } from "@/lib/types";
 import { Pencil, MessageSquare, Package, CalendarDays, Phone, Share2, Trash2, Printer } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -16,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 interface ShipmentCardProps {
     shipment: Shipment;
+    statusConfig?: ShipmentStatusConfig;
     governorateName: string;
     companyName: string;
     onEdit: (shipment: Shipment) => void;
@@ -27,6 +27,7 @@ interface ShipmentCardProps {
 
 export function ShipmentCard({ 
     shipment, 
+    statusConfig,
     governorateName, 
     companyName, 
     onEdit, 
@@ -88,7 +89,7 @@ export function ShipmentCard({
             `*الهاتف:* ${recipientPhone || 'غير متوفر'}`,
             `*العنوان:* ${address}, ${governorateName}`,
             `*المبلغ الإجمالي:* ${totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`,
-            `*الحالة الحالية:* ${statusText[status.toString()] || status}`,
+            `*الحالة الحالية:* ${statusConfig?.label || status}`,
             `*ملاحظات المندوب:* ${reason || 'لا يوجد'}`,
         ].join('\n');
 
@@ -188,7 +189,7 @@ export function ShipmentCard({
                         </div>
                         {/* Status */}
                         <div className="flex justify-end items-center gap-2">
-                            <Badge variant="outline">{statusText[status.toString()] || status}</Badge>
+                            <Badge variant="outline">{statusConfig?.label || status}</Badge>
                         </div>
                      </div>
                 </div>

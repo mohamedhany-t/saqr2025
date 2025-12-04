@@ -419,7 +419,6 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
           <ShipmentCard 
             key={shipment.id}
             shipment={shipment}
-            statusConfig={statuses?.find(s => s.id === shipment.status)}
             governorateName={governorates?.find(g => g.id === shipment.governorateId)?.name || ''}
             companyName={companies?.find(c => c.id === shipment.companyId)?.name || ''}
             onEdit={() => openShipmentForm(shipment)}

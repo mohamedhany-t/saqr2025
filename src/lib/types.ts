@@ -1,5 +1,4 @@
 
-
 import type { User as AuthUser } from 'firebase/auth';
 
 export type Role = "admin" | "company" | "courier";
