@@ -3,9 +3,9 @@
 
 import React, { useState, useMemo } from 'react';
 import type { Shipment, ShipmentHistory, User, Company, Governorate } from '@/lib/types';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collectionGroup, query, orderBy, where, Timestamp, getDoc, doc } from 'firebase/firestore';
-import { Loader2, Filter, Pencil, FileText } from 'lucide-react';
+import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { collectionGroup, query, orderBy, where, Timestamp, getDoc, doc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { Loader2, Filter, Pencil, FileText, Trash2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,17 @@ import type { DateRange } from 'react-day-picker';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { statusText, statusIcons } from '../dashboard/shipments-table';
 import { ShipmentDetailsDialog } from '../shipments/shipment-details-dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { useToast } from '@/hooks/use-toast';
 
 
 interface ExtendedShipmentHistory extends ShipmentHistory {
@@ -38,6 +49,8 @@ export function AuditLogPage({ users, shipments, companies, governorates, isLoad
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [detailsShipment, setDetailsShipment] = useState<Shipment | null>(null);
+  const [shipmentToDelete, setShipmentToDelete] = useState<Shipment | null>(null);
+  const { toast } = useToast();
 
   const router = useRouter();
   const pathname = usePathname();
@@ -88,6 +101,28 @@ export function AuditLogPage({ users, shipments, companies, governorates, isLoad
 
   const handleShowDetails = async (shipment: Shipment) => {
     setDetailsShipment(shipment);
+  };
+
+   const handleDeleteShipment = () => {
+    if (!firestore || !shipmentToDelete) return;
+    const docRef = doc(firestore, 'shipments', shipmentToDelete.id);
+    deleteDoc(docRef)
+        .then(() => {
+            toast({ title: `تم حذف الشحنة بنجاح` });
+        })
+        .catch((err) => {
+             if (err instanceof Error && 'code' in err && err.code === 'permission-denied') {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: 'shipments',
+                    operation: 'delete'
+                }));
+             } else {
+                toast({ title: 'خطأ', description: 'حدث خطأ أثناء حذف الشحنة', variant: 'destructive' });
+             }
+        })
+        .finally(() => {
+            setShipmentToDelete(null);
+        });
   };
 
   const clearFilters = () => {
@@ -199,6 +234,10 @@ export function AuditLogPage({ users, shipments, companies, governorates, isLoad
                             <Pencil className="h-4 w-4" />
                             <span className="sr-only">تعديل</span>
                           </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setShipmentToDelete(log.shipment!)}>
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">حذف</span>
+                          </Button>
                       </div>
                     )}
                   </TableCell>
@@ -218,6 +257,20 @@ export function AuditLogPage({ users, shipments, companies, governorates, isLoad
             governorate={governorates.find(g => g.id === detailsShipment.governorateId)}
         />
       )}
+       <AlertDialog open={!!shipmentToDelete} onOpenChange={(open) => !open && setShipmentToDelete(null)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>هل أنت متأكد من حذف الشحنة؟</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        سيتم حذف الشحنة ({shipmentToDelete?.recipientName}) بشكل نهائي. لا يمكن التراجع عن هذا الإجراء.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setShipmentToDelete(null)}>إلغاء</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteShipment} className="bg-destructive hover:bg-destructive/90">حذف</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     </div>
   );
 }
