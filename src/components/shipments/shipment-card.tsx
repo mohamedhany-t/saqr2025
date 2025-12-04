@@ -84,6 +84,9 @@ export function ShipmentCard({
                 .replace('{customer_name}', recipientName || '')
                 .replace('{customer_service_name}', userProfile?.name || '')
                 .replace('{shipment_code}', shipmentCode || '')
+                .replace('{company_name}', companyName || '')
+                .replace('{total_amount}', totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) || '')
+                .replace('{address}', `${address}, ${governorateName}` || '')
                 .replace('{tracking_link}', trackingUrl);
         }
 
@@ -269,3 +272,5 @@ export function ShipmentCard({
         </Card>
     );
 }
+
+    
