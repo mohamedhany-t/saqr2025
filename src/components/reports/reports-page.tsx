@@ -2,7 +2,7 @@
 
 "use client";
 import React, { useState } from 'react';
-import type { Shipment, Company, User, Governorate, CourierPayment, CompanyPayment, ShipmentStatus } from '@/lib/types';
+import type { Shipment, Company, User, Governorate, CourierPayment, CompanyPayment, ShipmentStatusKey } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../ui/card';
 import { Button } from '../ui/button';
 import { FileUp, Loader2, ChevronDown } from 'lucide-react';
@@ -33,8 +33,8 @@ export function ReportsPage({
 }: ReportsPageProps) {
     const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
     const [selectedCourierId, setSelectedCourierId] = useState<string | null>(null);
-    const [companyReportStatuses, setCompanyReportStatuses] = useState<ShipmentStatus[]>([]);
-    const [courierReportStatuses, setCourierReportStatuses] = useState<ShipmentStatus[]>([]);
+    const [companyReportStatuses, setCompanyReportStatuses] = useState<string[]>([]);
+    const [courierReportStatuses, setCourierReportStatuses] = useState<string[]>([]);
     const { toast } = useToast();
 
     if (isLoading) {
@@ -108,10 +108,10 @@ export function ReportsPage({
         }
     }
 
-    const deliveredShipmentStatuses: ShipmentStatus[] = ['Delivered'];
-    const returnedShipmentStatuses: ShipmentStatus[] = ['Returned', 'Cancelled', 'Returned to Sender', 'Evasion (Phone)', 'Refused (Unpaid)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'];
+    const deliveredShipmentStatuses: ShipmentStatusKey[] = ['Delivered'];
+    const returnedShipmentStatuses: string[] = ['Returned', 'Cancelled', 'Returned to Sender', 'Evasion (Phone)', 'Refused (Unpaid)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'];
 
-    const deliveredShipments = shipments.filter(s => deliveredShipmentStatuses.includes(s.status));
+    const deliveredShipments = shipments.filter(s => deliveredShipmentStatuses.includes(s.status as ShipmentStatusKey));
     const returnedShipments = shipments.filter(s => returnedShipmentStatuses.includes(s.status));
 
     const courierFinancials = couriers.map(courier => {
@@ -156,7 +156,7 @@ export function ReportsPage({
         { title: "التقرير المالي للشركات", description: "ملخص مالي لجميع الشركات.", data: companyFinancials, type: 'company_financials', fileName: 'company_financials' },
     ]
 
-    const filterShipmentsByStatus = (shipments: Shipment[], statusFilters: ShipmentStatus[]): Shipment[] => {
+    const filterShipmentsByStatus = (shipments: Shipment[], statusFilters: string[]): Shipment[] => {
         if (statusFilters.length === 0) {
             return shipments;
         }
@@ -182,7 +182,7 @@ export function ReportsPage({
         
         const dataToExport = filteredData.map(shipment => getEnhancedShipmentData(shipment, 'company'));
 
-        const statusString = companyReportStatuses.length > 0 ? companyReportStatuses.map(s => statusText[s]).join('_') : 'All';
+        const statusString = companyReportStatuses.length > 0 ? companyReportStatuses.map(s => statusText[s] || s).join('_') : 'All';
         const dateString = new Date().toISOString().split('T')[0];
         const fileName = `Shipments_${company.name.replace(/\s/g, '_')}_${statusString}_${dateString}`;
         
@@ -198,7 +198,7 @@ export function ReportsPage({
         
         const dataToExport = filteredData.map(shipment => getEnhancedShipmentData(shipment, 'courier'));
         
-        const statusString = courierReportStatuses.length > 0 ? courierReportStatuses.map(s => statusText[s]).join('_') : 'All';
+        const statusString = courierReportStatuses.length > 0 ? courierReportStatuses.map(s => statusText[s] || s).join('_') : 'All';
         const dateString = new Date().toISOString().split('T')[0];
         const fileName = `Shipments_${courier.name?.replace(/\s/g, '_')}_${statusString}_${dateString}`;
 
@@ -271,9 +271,9 @@ export function ReportsPage({
                                             {Object.entries(statusText).map(([statusValue, statusLabel]) => (
                                                 <DropdownMenuCheckboxItem
                                                     key={statusValue}
-                                                    checked={companyReportStatuses.includes(statusValue as ShipmentStatus)}
+                                                    checked={companyReportStatuses.includes(statusValue)}
                                                     onCheckedChange={(checked) => {
-                                                        const status = statusValue as ShipmentStatus;
+                                                        const status = statusValue;
                                                         setCompanyReportStatuses(prev => 
                                                             checked ? [...prev, status] : prev.filter(s => s !== status)
                                                         );
@@ -334,9 +334,9 @@ export function ReportsPage({
                                             {Object.entries(statusText).map(([statusValue, statusLabel]) => (
                                                 <DropdownMenuCheckboxItem
                                                     key={statusValue}
-                                                    checked={courierReportStatuses.includes(statusValue as ShipmentStatus)}
+                                                    checked={courierReportStatuses.includes(statusValue)}
                                                     onCheckedChange={(checked) => {
-                                                        const status = statusValue as ShipmentStatus;
+                                                        const status = statusValue;
                                                         setCourierReportStatuses(prev => 
                                                             checked ? [...prev, status] : prev.filter(s => s !== status)
                                                         );

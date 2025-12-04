@@ -6,7 +6,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, ShipmentStatus, User, CourierPayment, Chat, ShipmentHistory, ShipmentStatusConfig } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, ShipmentStatusKey, User, CourierPayment, Chat, ShipmentHistory, ShipmentStatusConfig } from "@/lib/types";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";

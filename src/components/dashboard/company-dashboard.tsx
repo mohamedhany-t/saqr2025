@@ -7,7 +7,7 @@ import { PlusCircle, FileUp, MessageSquare, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, User, Chat, ShipmentHistory, ShipmentStatus, ShipmentStatusConfig } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, User, Chat, ShipmentHistory, ShipmentStatusKey, ShipmentStatusConfig } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { ImportProgressDialog, type ImportProgress } from "@/components/shipments/import-progress-dialog";
@@ -302,7 +302,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
 
     const batch = writeBatch(firestore);
     const shipmentRef = id ? doc(firestore, 'shipments', id) : doc(collection(firestore, 'shipments'));
-    let oldStatus: ShipmentStatus | undefined;
+    let oldStatus: string | undefined;
     
     if (id) {
         const docSnap = await getDoc(shipmentRef);
@@ -319,7 +319,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
           });
     }
 
-    const newStatus = cleanShipmentData.status as ShipmentStatus;
+    const newStatus = cleanShipmentData.status as string;
     if (newStatus && newStatus !== oldStatus) {
         const historyRef = doc(collection(shipmentRef, 'history'));
         const historyEntry: Omit<ShipmentHistory, 'id'> = {
