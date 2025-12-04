@@ -197,7 +197,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
 
     try {
         const company = companies.find(c => c.id === editingShipment.companyId);
-
+        
         const calculatedFields = calculateCommissionAndPaidAmount(
             editingShipment,
             shipmentData.status,
