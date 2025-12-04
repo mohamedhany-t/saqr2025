@@ -872,20 +872,19 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           const shipmentsCollection = collection(firestore, 'shipments');
 
           for (const [index, row] of json.entries()) {
-              const trackingNumber = row['رقم الشحنة']?.toString() || `TRK-${Date.now()}-${index}`;
+              const trackingNumber = row['رقم الشحنة']?.toString() || row['Tracking Number']?.toString();
               if (!trackingNumber) continue;
 
               const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
               const creationDate = parseExcelDate(row['التاريخ']);
               const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
               const senderNameValue = row['الراسل'] || row['العميل الفرعي'];
-              const orderNumberValue = row['رقم الطلب']?.toString() || `ORD-${Date.now()}-${index}`;
-              const shipmentCodeValue = row['كود الشحنة']?.toString() || `SH-${Date.now()}-${index}`;
+              const orderNumberValue = row['رقم الطلب']?.toString();
               
               const companyNameFromSheet = row['الشركة']?.toString().trim();
               const foundCompany = companies.find(c => c.name === companyNameFromSheet);
 
-              const shipmentData: Partial<Shipment> = {
+              const shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>> = {
                   senderName: senderNameValue,
                   orderNumber: orderNumberValue,
                   recipientName: String(row['المرسل اليه']),
@@ -893,11 +892,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                   governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
                   address: String(row['العنوان'] || 'N/A'),
                   totalAmount: parseFloat(String(totalAmountValue).replace(/[^0-9.]/g, '')),
-                  paidAmount: parseFloat(String(row['المدفوع'] || '0').replace(/[^0-9.]/g, '')),
-                  status: row['حالة الأوردر'] || 'Pending',
+                  status: 'Pending', // Default status for new/updated shipments from Excel
                   reason: String(row['السبب'] || ''),
                   deliveryDate: deliveryDate || new Date(),
-                  updatedAt: serverTimestamp(),
                   isArchivedForCompany: false,
                   isArchivedForCourier: false,
                   companyId: foundCompany ? foundCompany.id : authUser.uid,
@@ -914,16 +911,24 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                       ...cleanShipmentData, 
                       id: docRef.id,
                       trackingNumber, 
-                      shipmentCode: shipmentCodeValue,
-                      createdAt: creationDate || serverTimestamp()
+                      createdAt: creationDate || serverTimestamp(),
+                      updatedAt: serverTimestamp(),
                   });
                   addedCount++;
                   setImportProgress(prev => prev ? { ...prev, added: addedCount } : null);
               } else {
-                  const docRef = querySnapshot.docs[0].ref;
-                  // Exclude status and assignedCourierId from updates
-                  const { status, assignedCourierId, ...updateData } = cleanShipmentData;
-                  batch.update(docRef, updateData);
+                  const existingDocRef = querySnapshot.docs[0].ref;
+                  const existingShipment = querySnapshot.docs[0].data() as Shipment;
+
+                  let updateData: Partial<Shipment> = { ...cleanShipmentData, updatedAt: serverTimestamp() };
+                  
+                  // CRITICAL: If a courier is assigned, do NOT update the status or courier assignment.
+                  if (existingShipment.assignedCourierId) {
+                      delete updateData.status;
+                      delete updateData.assignedCourierId;
+                  }
+                  
+                  batch.update(existingDocRef, updateData);
                   updatedCount++;
                   setImportProgress(prev => prev ? { ...prev, updated: updatedCount } : null);
               }
