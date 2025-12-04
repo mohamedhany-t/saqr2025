@@ -1,4 +1,4 @@
-
+require('dotenv').config();
 // This script exports data from specified Firestore collections to JSON files.
 // It requires a Firebase Admin SDK service account key.
 
@@ -21,7 +21,6 @@ const COLLECTIONS_TO_EXPORT = [
   // 'transactions',
 ];
 const EXPORT_DIR = 'firestore-export';
-const SERVICE_ACCOUNT_PATH = './serviceAccountKey.json';
 const BATCH_SIZE = 500; // Number of documents to fetch per batch to avoid quota issues.
 
 // --- Helper Functions ---
@@ -85,13 +84,14 @@ async function getCollectionData(collectionRef) {
 async function exportFirestoreData() {
   console.log('--- Starting Firestore Data Export ---');
 
-  // 1. Check for Service Account Key
-  if (!fs.existsSync(SERVICE_ACCOUNT_PATH)) {
-    console.error(`\n[ERROR] Service account key not found at: ${SERVICE_ACCOUNT_PATH}`);
-    console.error('Please download the key from your Firebase project settings and place it in the root directory.');
+  // 1. Check for Service Account Key from environment variable
+  const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  if (!serviceAccountString) {
+    console.error('\n[ERROR] FIREBASE_SERVICE_ACCOUNT_KEY environment variable not set.');
+    console.error('Please ensure the key is correctly set in your .env file.');
     return;
   }
-  const serviceAccount = require(SERVICE_ACCOUNT_PATH);
+  const serviceAccount = JSON.parse(serviceAccountString);
 
   // 2. Initialize Firebase Admin SDK
   try {
