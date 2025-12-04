@@ -23,7 +23,7 @@ interface FileUpload {
     error?: string;
 }
 
-const ChatWindowContent: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
+const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
   const [newMessage, setNewMessage] = useState('');
   const [fileUpload, setFileUpload] = useState<FileUpload | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -153,10 +153,13 @@ const ChatWindowContent: React.FC<ChatWindowProps> = ({ chatId, currentUser }) =
     }
   };
 
+  if (isLoading || !firestore) {
+    return <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {isLoading && <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>}
         {messages?.map(msg => (
           <MessageBubble key={msg.id} message={msg} isOwnMessage={msg.senderId === currentUser.id} />
         ))}
@@ -208,20 +211,5 @@ const ChatWindowContent: React.FC<ChatWindowProps> = ({ chatId, currentUser }) =
     </div>
   );
 };
-
-const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
-    const firestore = useFirestore();
-
-    if (!firestore) {
-        return (
-            <div className="flex h-full w-full items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ms-2">جارٍ تهيئة الاتصال...</p>
-            </div>
-        );
-    }
-    
-    return <ChatWindowContent chatId={chatId} currentUser={currentUser} />;
-}
 
 export default ChatWindow;

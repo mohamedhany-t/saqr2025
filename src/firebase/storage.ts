@@ -2,14 +2,15 @@
 'use client';
 
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, type UploadTask } from "firebase/storage";
-import { useFirebase } from "./provider";
+import { useFirebaseApp } from "./provider";
 
 /**
  * Custom hook to get an file uploader function.
  * @returns A function to upload a file and get progress and download URL.
  */
 export function useUploader() {
-    const { storage } = useFirebase();
+    const app = useFirebaseApp();
+    const storage = getStorage(app);
 
     /**
      * Uploads a file to a specified path in Firebase Storage.
