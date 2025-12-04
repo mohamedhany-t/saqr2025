@@ -65,7 +65,7 @@ export function PwaAndNotificationHandler() {
                 
                 const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
                 if (!vapidKey) {
-                    console.error("VAPID public key not found.");
+                    console.error("VAPID public key not found. Make sure NEXT_PUBLIC_VAPID_PUBLIC_KEY is set in your .env file.");
                     return;
                 }
 
@@ -94,7 +94,7 @@ export function PwaAndNotificationHandler() {
                 console.error('Failed to subscribe to push notifications:', error);
                 toast({
                     title: 'فشل تفعيل الإشعارات',
-                    description: 'حدث خطأ أثناء محاولة الاشتراك في الإشعارات.',
+                    description: 'حدث خطأ أثناء محاولة الاشتراك في الإشعارات. قد يكون السبب مشكلة في خدمة الإشعارات.',
                     variant: 'destructive',
                 });
             }
