@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import { ShipmentHistoryTimeline } from '@/components/shipments/shipment-history
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Logo } from '@/components/icons';
 
+// Main page component wrapped in Suspense
 export default function TrackShipmentPage() {
     return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-muted/40 p-4" dir="rtl">
@@ -23,12 +24,14 @@ export default function TrackShipmentPage() {
                     أدخل رقم الشحنة أو رقم الطلب لمعرفة حالتها الحالية.
                 </p>
             </div>
-            <TrackingComponent />
+            <Suspense fallback={<Loader2 className="h-8 w-8 animate-spin" />}>
+                <TrackingComponent />
+            </Suspense>
         </div>
     );
 }
 
-
+// This component uses client-side hooks and is now rendered within Suspense
 function TrackingComponent() {
     const searchParams = useSearchParams();
     const [trackingNumber, setTrackingNumber] = useState('');
@@ -36,14 +39,6 @@ function TrackingComponent() {
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const firestore = useFirestore();
-
-    useEffect(() => {
-        const queryParam = searchParams.get('q');
-        if (queryParam) {
-            setTrackingNumber(queryParam);
-            handleSearch(queryParam);
-        }
-    }, [searchParams]);
 
     const handleSearch = async (code?: string) => {
         const searchCode = code || trackingNumber;
@@ -88,6 +83,14 @@ function TrackingComponent() {
             setIsLoading(false);
         }
     };
+    
+    useEffect(() => {
+        const queryParam = searchParams.get('q');
+        if (queryParam) {
+            setTrackingNumber(queryParam);
+            handleSearch(queryParam);
+        }
+    }, [searchParams]);
 
     return (
         <Card className="w-full max-w-2xl">
