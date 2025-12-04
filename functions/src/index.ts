@@ -1,3 +1,4 @@
+
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 
@@ -17,7 +18,7 @@ export const getDashboardStats = functions.https.onCall(async (data, context) =>
     );
   }
 
-  // Enforce admin role.
+  // Enforce admin role by checking the roles_admin collection.
   const adminDoc = await db.collection("roles_admin").doc(context.auth.uid).get();
   if (!adminDoc.exists) {
     throw new functions.https.HttpsError(
