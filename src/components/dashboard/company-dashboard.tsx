@@ -7,7 +7,7 @@ import { PlusCircle, FileUp, MessageSquare, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, User, Chat, ShipmentHistory } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, User, Chat, ShipmentHistory, ShipmentStatus } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { ImportProgressDialog, type ImportProgress } from "@/components/shipments/import-progress-dialog";
