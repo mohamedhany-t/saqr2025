@@ -1,17 +1,23 @@
 rules_version = '2';
 
+// See: https://firebase.google.com/docs/storage/security
 service firebase.storage {
+  // The {bucket} wildcard indicates we match all buckets in the project
   match /b/{bucket}/o {
-    // Default rule: Deny all reads and writes
+    
+    // Default rule: Deny all reads and writes on any file
     match /{allPaths=**} {
       allow read, write: if false;
     }
-    
-    // Allow authenticated users to upload chat files up to 5MB
+
+    // Rule for chat uploads:
+    // - Allow any authenticated user to write (upload).
+    // - Enforce a file size limit of 5MB.
+    // - Allow anyone to read the file (so it can be displayed in the chat).
     match /chat-uploads/{chatId}/{allPaths=**} {
-      allow write: if request.auth != null 
-                      && request.resource.size < 5 * 1024 * 1024;
-      allow read: if request.auth != null; // Allow authenticated users to read images/files
+      allow write: if request.auth != null &&
+                      request.resource.size < 5 * 1024 * 1024;
+      allow read;
     }
   }
 }
