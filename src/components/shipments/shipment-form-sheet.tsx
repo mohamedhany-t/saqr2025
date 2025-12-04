@@ -25,7 +25,7 @@ import {
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Role, User, ShipmentStatusConfig } from '@/lib/types';
+import type { Shipment, Governorate, Company, Role, User, ShipmentStatusConfig } from '@/lib/types';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
@@ -75,10 +75,10 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   
   const formSchema = shipmentSchema.superRefine((data, ctx) => {
     const selectedStatusConfig = statuses.find(s => s.id === data.status);
-    if (selectedStatusConfig?.requiresPartialCollection && (data.collectedAmount === undefined || data.collectedAmount <= 0)) {
+    if (selectedStatusConfig?.requiresPartialCollection && (data.collectedAmount === undefined || data.collectedAmount < 0)) {
         ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: "المبلغ المحصّل مطلوب في هذه الحالة",
+            message: "المبلغ المحصّل مطلوب ويجب أن يكون صفراً أو أكثر في هذه الحالة",
             path: ["collectedAmount"],
         });
     }
@@ -162,32 +162,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                 </SheetDescription>
                 </SheetHeader>
                 <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6 mr-[-1.5rem] pl-6">
-                    {(isAdmin || isCompany) && <FormField
-                        control={form.control}
-                        name="shipmentCode"
-                        render={({ field }) => (
-                            <FormItem className="grid grid-cols-4 items-center gap-4">
-                                <FormLabel className="text-right">كود الشحنة</FormLabel>
-                                <FormControl className="col-span-3">
-                                    <Input {...field} disabled />
-                                </FormControl>
-                                <FormMessage className="col-span-4" />
-                            </FormItem>
-                        )}
-                    />}
-                    {(isAdmin || isCompany) && <FormField
-                        control={form.control}
-                        name="senderName"
-                        render={({ field }) => (
-                            <FormItem className="grid grid-cols-4 items-center gap-4">
-                                <FormLabel className="text-right">الراسل</FormLabel>
-                                <FormControl className="col-span-3">
-                                    <Input {...field} disabled={isCourier} />
-                                </FormControl>
-                                <FormMessage className="col-span-4" />
-                            </FormItem>
-                        )}
-                    />}
+                    {/* These fields are read-only for couriers */}
                     <FormField
                         control={form.control}
                         name="recipientName"
@@ -195,55 +170,20 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">المرسل اليه</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input {...field} disabled={isCourier} />
+                                    <Input {...field} disabled />
                                 </FormControl>
-                                <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
                     />
                     <FormField
-                        control={form.control}
-                        name="recipientPhone"
-                        render={({ field }) => (
-                            <FormItem className="grid grid-cols-4 items-center gap-4">
-                                <FormLabel className="text-right">تليفون المستلم</FormLabel>
-                                <FormControl className="col-span-3">
-                                    <Input {...field} disabled={isCourier} />
-                                </FormControl>
-                                <FormMessage className="col-span-4" />
-                            </FormItem>
-                        )}
-                    />
-                     <FormField
                         control={form.control}
                         name="address"
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">العنوان</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input {...field} disabled={isCourier} />
+                                    <Input {...field} disabled />
                                 </FormControl>
-                                <FormMessage className="col-span-4" />
-                            </FormItem>
-                        )}
-                    />
-                     <FormField
-                        control={form.control}
-                        name="governorateId"
-                        render={({ field }) => (
-                            <FormItem className="grid grid-cols-4 items-center gap-4">
-                                <FormLabel className="text-right">المحافظة</FormLabel>
-                                <Select dir="rtl" onValueChange={field.onChange} value={field.value} disabled={isCourier}>
-                                    <FormControl className="col-span-3">
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="اختر المحافظة" />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        {governorates.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                                <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
                     />
@@ -254,23 +194,81 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">الإجمالي</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input type="number" {...field} disabled={isCourier} />
+                                    <Input type="number" {...field} disabled />
                                 </FormControl>
-                                <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
                     />
+
+                    {/* These fields are hidden for couriers */}
+                    {(isAdmin || isCompany) && <>
+                      <FormField
+                        control={form.control}
+                        name="shipmentCode"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">كود الشحنة</FormLabel>
+                                <FormControl className="col-span-3">
+                                    <Input {...field} disabled />
+                                </FormControl>
+                            </FormItem>
+                        )}
+                      />
+                      <FormField
+                          control={form.control}
+                          name="senderName"
+                          render={({ field }) => (
+                              <FormItem className="grid grid-cols-4 items-center gap-4">
+                                  <FormLabel className="text-right">الراسل</FormLabel>
+                                  <FormControl className="col-span-3">
+                                      <Input {...field} />
+                                  </FormControl>
+                              </FormItem>
+                          )}
+                      />
+                       <FormField
+                          control={form.control}
+                          name="recipientPhone"
+                          render={({ field }) => (
+                              <FormItem className="grid grid-cols-4 items-center gap-4">
+                                  <FormLabel className="text-right">تليفون المستلم</FormLabel>
+                                  <FormControl className="col-span-3">
+                                      <Input {...field} />
+                                  </FormControl>
+                              </FormItem>
+                          )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="governorateId"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <FormLabel className="text-right">المحافظة</FormLabel>
+                                <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
+                                    <FormControl className="col-span-3">
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="اختر المحافظة" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {governorates.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </FormItem>
+                        )}
+                      />
+                    </>}
+
                     {isAdmin && (
                         <FormField
                             control={form.control}
                             name="paidAmount"
                             render={({ field }) => (
                                 <FormItem className="grid grid-cols-4 items-center gap-4">
-                                    <FormLabel className="text-right">المدفوع</FormLabel>
+                                    <FormLabel className="text-right">المدفوع (يدوي)</FormLabel>
                                     <FormControl className="col-span-3">
                                         <Input type="number" {...field} />
                                     </FormControl>
-                                    <FormMessage className="col-span-4" />
                                 </FormItem>
                             )}
                         />
@@ -291,7 +289,6 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                         {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
-                                <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
                     />}
@@ -311,10 +308,11 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                         {couriers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
-                                <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
                     />}
+                    
+                    {/* Fields editable by everyone */}
                     <FormField
                         control={form.control}
                         name="status"
@@ -333,10 +331,11 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                         ))}
                                     </SelectContent>
                                 </Select>
-                                <FormMessage className="col-span-4" />
+                                <FormMessage className="col-span-3 col-start-2" />
                             </FormItem>
                         )}
                     />
+
                     {selectedStatusConfig?.requiresPartialCollection && (
                         <FormField
                             control={form.control}
@@ -347,11 +346,12 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                     <FormControl className="col-span-3">
                                         <Input type="number" {...field} placeholder="أدخل المبلغ المحصل" />
                                     </FormControl>
-                                    <FormMessage className="col-span-4" />
+                                    <FormMessage className="col-span-3 col-start-2" />
                                 </FormItem>
                             )}
                         />
                     )}
+
                      <FormField
                         control={form.control}
                         name="reason"
@@ -361,16 +361,18 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                 <FormControl className="col-span-3">
                                     <Textarea {...field} />
                                 </FormControl>
-                                <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
                     />
-                     <FormField
+
+                    {/* Fields hidden for couriers */}
+                     {(isAdmin || isCompany) && <>
+                      <FormField
                         control={form.control}
                         name="isWarehouseReturn"
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="isWarehouseReturn" className="text-right">في المخزن؟</Label>
+                                <Label htmlFor="isWarehouseReturn" className="text-right">مرتجع للمخزن؟</Label>
                                 <FormControl className="col-span-3">
                                    <Checkbox
                                         id="isWarehouseReturn"
@@ -378,11 +380,10 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                         onCheckedChange={field.onChange}
                                     />
                                 </FormControl>
-                                <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
                     />
-                     {(isAdmin || isCompany) && <FormField
+                     <FormField
                         control={form.control}
                         name="orderNumber"
                         render={({ field }) => (
@@ -391,11 +392,10 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                 <FormControl className="col-span-3">
                                     <Input {...field} />
                                 </FormControl>
-                                <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
-                    />}
-                    {(isAdmin || isCompany) && <FormField
+                    />
+                    <FormField
                         control={form.control}
                         name="trackingNumber"
                         render={({ field }) => (
@@ -404,10 +404,10 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                 <FormControl className="col-span-3">
                                     <Input {...field} />
                                 </FormControl>
-                                <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
-                    />}
+                    />
+                     </>}
                 </div>
                 <SheetFooter>
                     <SheetClose asChild>
