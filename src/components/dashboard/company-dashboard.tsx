@@ -7,7 +7,7 @@ import { PlusCircle, FileUp, MessageSquare, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, User, Chat, ShipmentHistory, ShipmentStatus } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, User, Chat, ShipmentHistory, ShipmentStatus, ShipmentStatusConfig } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { ImportProgressDialog, type ImportProgress } from "@/components/shipments/import-progress-dialog";
@@ -120,6 +120,12 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
     return query(collection(firestore, 'users'), where("role", "==", "courier"));
   }, [firestore, user]);
   const { data: courierUsers } = useCollection<User>(usersQuery);
+
+  const statusesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'shipment_statuses'));
+  }, [firestore]);
+  const { data: statuses, isLoading: statusesLoading } = useCollection<ShipmentStatusConfig>(statusesQuery);
 
   const openShipmentForm = (shipment?: Shipment) => {
     setEditingShipment(shipment);
@@ -451,6 +457,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                 <ShipmentCard
                     key={s.id}
                     shipment={s}
+                    statusConfig={statuses?.find(sc => sc.id === s.status)}
                     governorateName={governorates?.find(g => g.id === s.governorateId)?.name || ''}
                     companyName={user.name || ''}
                     onEdit={openShipmentForm}
@@ -467,6 +474,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
             governorates={governorates || []}
             companies={[]}
             couriers={courierUsers || []}
+            statuses={statuses || []}
             onEdit={openShipmentForm}
             role={role}
             onBulkUpdate={handleGenericBulkUpdate}
@@ -551,6 +559,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
         governorates={governorates || []}
         couriers={courierUsers || []}
         companies={[]}
+        statuses={statuses || []}
         role={role}
       >
         <div />

@@ -35,7 +35,7 @@ import ChatInterface from "@/components/chat/chat-interface";
 import { Badge } from "../ui/badge";
 import AccountStatementsPage from "@/app/accounts/page";
 import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotification } from "@/lib/actions";
-import { useIsMobile } from "@/hooks/use-is-mobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "../shipments/shipment-card";
 import { ColumnFiltersState } from "@tanstack/react-table";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
@@ -353,7 +353,7 @@ const MobileShipmentsView = ({
           toast({ title: "لا توجد بيانات للتصدير", description: "الرجاء تحديد شحنة واحدة على الأقل.", variant: "destructive" });
           return;
         }
-        const shipmentColumns = getShipmentColumns({ onEdit, onBulkUpdate: handleGenericBulkUpdate, role, governorates, companies, couriers: courierUsers, statuses });
+        const shipmentColumns = getShipmentColumns({ onEdit, onBulkUpdate: handleGenericBulkUpdate, role, governorates, companies, couriers: courierUsers, statuses: [] });
         exportToExcel(selectedShipments, shipmentColumns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates || [], companies || [], courierUsers);
         setMobileRowSelection({});
     }
