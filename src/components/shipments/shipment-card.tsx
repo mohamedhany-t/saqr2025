@@ -67,6 +67,8 @@ export function ShipmentCard({
         if (!hasPhoneNumber) return;
         
         let message = '';
+        const trackingUrl = typeof window !== 'undefined' ? `${window.location.origin}/track?q=${trackingNumber || shipment.shipmentCode}` : '';
+
         if (isCourier) {
             const template = whatsappTemplates?.courierTemplate || '';
             message = template
@@ -74,10 +76,10 @@ export function ShipmentCard({
                 .replace('{courier_name}', userProfile?.name || '')
                 .replace('{company_name}', companyName || '')
                 .replace('{total_amount}', totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) || '')
-                .replace('{address}', `${address}, ${governorateName}` || '');
+                .replace('{address}', `${address}, ${governorateName}` || '')
+                .replace('{tracking_link}', trackingUrl);
         } else if (isCustomerService) {
             const template = whatsappTemplates?.customerServiceTemplate || '';
-            const trackingUrl = typeof window !== 'undefined' ? `${window.location.origin}/track?q=${trackingNumber || shipment.shipmentCode}` : '';
             message = template
                 .replace('{customer_name}', recipientName || '')
                 .replace('{customer_service_name}', userProfile?.name || '')

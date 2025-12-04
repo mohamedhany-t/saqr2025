@@ -26,7 +26,8 @@ const defaultTemplates: WhatsAppTemplatesForm = {
     courierTemplate: `مرحباً {customer_name}،
 معك {courier_name} مندوب شركة توصيل.
 لديكم شحنة من شركة {company_name} بمبلغ {total_amount}.
-عنوان التسليم: {address}`,
+عنوان التسليم: {address}
+يمكنك تتبع الشحنة من خلال الرابط التالي: {tracking_link}`,
     customerServiceTemplate: `مرحباً {customer_name}،
 معك {customer_service_name} من فريق المتابعة.
 نود المتابعة بخصوص شحنتكم رقم {shipment_code}.
