@@ -64,7 +64,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import type { Shipment, ShipmentStatus, Governorate, Company, Role, User, ShipmentStatusConfig } from "@/lib/types"
+import type { Shipment, ShipmentStatusKey, Governorate, Company, Role, User, ShipmentStatusConfig } from "@/lib/types"
 import { exportToExcel, exportToPDF } from "@/lib/export"
 import { useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase"
 import { doc, writeBatch, serverTimestamp } from "firebase/firestore"
