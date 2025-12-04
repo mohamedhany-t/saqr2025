@@ -103,12 +103,14 @@ export const updateShipmentStatus = functions.https.onCall(async (data, context)
 
             const courierData = courierDoc.data()!;
             const companyData = companyDoc.data()!;
-            const statusConfigs = statusesSnapshot.docs.map(doc => doc.data());
-            const statusConfig = statusConfigs.find(s => s.id === status);
             
-            if (!statusConfig) {
+            // Correctly find the status config using the document ID
+            const statusConfigDoc = statusesSnapshot.docs.find(doc => doc.id === status);
+            
+            if (!statusConfigDoc) {
                  throw new functions.https.HttpsError("invalid-argument", "Invalid status provided.");
             }
+            const statusConfig = statusConfigDoc.data();
             
             const courierCommissionRate = courierData.commissionRate || 0;
             const companyGovernorateCommission = companyData.governorateCommissions?.[shipmentData.governorateId] || 0;
