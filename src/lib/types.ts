@@ -59,6 +59,15 @@ export type Shipment = {
   isWarehouseReturn?: boolean; // To mark if the item is physically in the warehouse
 };
 
+export type ShipmentHistory = {
+  id: string;
+  status: ShipmentStatus;
+  reason?: string;
+  updatedAt: any;
+  updatedBy: string; // User's name
+  userId: string; // User's ID
+}
+
 export interface Company {
   id: string;
   name: string;

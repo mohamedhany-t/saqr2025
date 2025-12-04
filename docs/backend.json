@@ -150,6 +150,21 @@
         "companyId"
       ]
     },
+    "ShipmentHistory": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ShipmentHistory",
+      "type": "object",
+      "description": "Represents a single entry in the audit log of a shipment.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID for the history entry." },
+        "status": { "type": "string", "description": "The status the shipment was changed to." },
+        "reason": { "type": "string", "description": "The reason/note provided for this change." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Timestamp of when the change occurred." },
+        "updatedBy": { "type": "string", "description": "The name of the user who made the change." },
+        "userId": { "type": "string", "description": "The UID of the user who made the change." }
+      },
+      "required": ["id", "status", "updatedAt", "updatedBy", "userId"]
+    },
     "Company": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Company",
@@ -363,6 +378,20 @@
         }
       },
       {
+        "path": "/shipments/{shipmentId}/history/{historyId}",
+        "definition": {
+          "entityName": "ShipmentHistory",
+          "schema": {
+            "$ref": "#/backend/entities/ShipmentHistory"
+          },
+          "description": "Stores the audit trail for a single shipment.",
+          "params": [
+            { "name": "shipmentId", "description": "The ID of the parent shipment." },
+            { "name": "historyId", "description": "Unique ID for the history entry." }
+          ]
+        }
+      },
+      {
         "path": "/companies/{companyId}",
         "definition": {
           "entityName": "Company",
@@ -501,3 +530,4 @@
     "reasoning": "The Firestore structure now includes a 'company' role. Companies are users that can manage their own shipments. Couriers are independent and are assigned to shipments directly. The 'companies' collection stores public profiles for these company users. The 'shipments' collection now uses 'companyId' to link to the user UID of the owning company."
   }
 }
+

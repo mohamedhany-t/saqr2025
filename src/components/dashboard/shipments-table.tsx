@@ -73,6 +73,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { sendPushNotification } from "@/lib/actions"
 import { cn } from "@/lib/utils"
+import { ShipmentDetailsDialog } from "../shipments/shipment-details-dialog"
 
 export const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
     Pending: <Hourglass className="h-4 w-4 text-yellow-500" />,
@@ -130,11 +131,13 @@ type ActionCellProps = {
   role: Role | null;
   governorates: Governorate[];
   companies: Company[];
+  couriers: User[];
 };
 
-const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, onBulkUpdate, role, governorates, companies }) => {
+const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, onBulkUpdate, role, governorates, companies, couriers }) => {
   const shipment = row.original;
   const { toast } = useToast();
+  const [detailsOpen, setDetailsOpen] = React.useState(false);
 
   const handlePrint = () => {
     if (role === 'courier') return; // Couriers can't print
@@ -170,6 +173,7 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, onBulkUpdate, rol
 
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="h-8 w-8 p-0">
@@ -179,6 +183,9 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, onBulkUpdate, rol
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>إجراءات</DropdownMenuLabel>
+        <DropdownMenuItem onClick={() => setDetailsOpen(true)}>
+            <FileText className="ms-2 h-4 w-4" /> تفاصيل
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onEdit(shipment)}>
           <Pencil className="ms-2 h-4 w-4" /> تعديل
         </DropdownMenuItem>
@@ -204,11 +211,17 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, onBulkUpdate, rol
         {role !== 'courier' && <DropdownMenuItem onClick={handlePrint}>
           <Printer className="ms-2 h-4 w-4" /> طباعة الملصق
         </DropdownMenuItem>}
-        <DropdownMenuItem disabled>
-          <FileText className="ms-2 h-4 w-4" /> تفاصيل
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+     <ShipmentDetailsDialog 
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        shipment={shipment}
+        company={companies.find(c => c.id === shipment.companyId)}
+        courier={couriers.find(c => c.id === shipment.assignedCourierId)}
+        governorate={governorates.find(g => g.id === shipment.governorateId)}
+      />
+    </>
   );
 };
 
@@ -405,6 +418,7 @@ export const getColumns = ({
         role={role}
         governorates={governorates}
         companies={companies}
+        couriers={couriers}
       />
     ),
   },
@@ -892,3 +906,4 @@ export function ShipmentsTable({
     
 
     
+

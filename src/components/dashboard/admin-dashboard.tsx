@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, User, CourierPayment, Chat, CompanyPayment, ShipmentStatus } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, User, CourierPayment, Chat, CompanyPayment, ShipmentStatus, ShipmentHistory } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { UsersTable, UserCard } from "@/components/dashboard/users-table";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
@@ -1010,17 +1010,37 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
     const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
 
-    const savePromise = shipmentId
-        ? updateDoc(doc(firestore, 'shipments', shipmentId), dataToSave)
-        : setDoc(doc(collection(firestore, 'shipments')), { 
+    const batch = writeBatch(firestore);
+    
+    const shipmentRef = shipmentId ? doc(firestore, 'shipments', shipmentId) : doc(collection(firestore, 'shipments'));
+    if (shipmentId) {
+        batch.update(shipmentRef, dataToSave);
+    } else {
+        batch.set(shipmentRef, { 
             ...dataToSave, 
             companyId: dataToSave.companyId || user.id, 
             isArchivedForCourier: false,
             isArchivedForCompany: false,
             createdAt: serverTimestamp() 
-          });
+        });
+    }
 
-    savePromise
+    // Add to history if status has changed
+    const newStatus = dataToSave.status;
+    const oldStatus = originalShipment?.status;
+    if (newStatus && newStatus !== oldStatus) {
+        const historyRef = doc(collection(shipmentRef, 'history'));
+        const historyEntry: Omit<ShipmentHistory, 'id'> = {
+            status: newStatus,
+            reason: dataToSave.reason || '',
+            updatedAt: serverTimestamp(),
+            updatedBy: user.name || user.email,
+            userId: user.id,
+        };
+        batch.set(historyRef, historyEntry);
+    }
+    
+    batch.commit()
       .then(() => {
         toast({
           title: shipmentId ? "تم تحديث الشحنة" : "تم حفظ الشحنة",
