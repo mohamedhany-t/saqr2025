@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo } from 'react';
 import type { Shipment, ShipmentHistory, User, Company, Governorate } from '@/lib/types';
-import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, WithIdAndRef } from '@/firebase';
 import { collectionGroup, query, orderBy, where, Timestamp, getDoc, doc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { Loader2, Filter, Pencil, FileText, Trash2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -31,9 +31,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 
 
-interface ExtendedShipmentHistory extends ShipmentHistory {
+interface ExtendedShipmentHistory extends WithIdAndRef<ShipmentHistory> {
   shipmentId: string;
-  shipmentPath: string; // The full path to the shipment document
 }
 
 interface AuditLogPageProps {
@@ -49,7 +48,7 @@ export function AuditLogPage({ users, shipments, companies, governorates, isLoad
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [detailsShipment, setDetailsShipment] = useState<Shipment | null>(null);
-  const [shipmentToDelete, setShipmentToDelete] = useState<Shipment | null>(null);
+  const [historyToDelete, setHistoryToDelete] = useState<ExtendedShipmentHistory | null>(null);
   const { toast } = useToast();
 
   const router = useRouter();
@@ -76,7 +75,7 @@ export function AuditLogPage({ users, shipments, companies, governorates, isLoad
     return q;
   }, [firestore, selectedUserId, dateRange]);
 
-  const { data: history, isLoading: historyLoading } = useCollection<ExtendedShipmentHistory>(historyQuery);
+  const { data: history, isLoading: historyLoading } = useCollection<ShipmentHistory>(historyQuery);
 
   const enrichedHistory = useMemo(() => {
     if (!history || !shipments) return [];
@@ -103,25 +102,25 @@ export function AuditLogPage({ users, shipments, companies, governorates, isLoad
     setDetailsShipment(shipment);
   };
 
-   const handleDeleteShipment = () => {
-    if (!firestore || !shipmentToDelete) return;
-    const docRef = doc(firestore, 'shipments', shipmentToDelete.id);
-    deleteDoc(docRef)
+   const handleDeleteHistoryEntry = () => {
+    if (!firestore || !historyToDelete) return;
+    // The ref property is on the historyToDelete object from useCollection
+    deleteDoc(historyToDelete.ref)
         .then(() => {
-            toast({ title: `تم حذف الشحنة بنجاح` });
+            toast({ title: `تم حذف سجل التغيير بنجاح` });
         })
         .catch((err) => {
              if (err instanceof Error && 'code' in err && err.code === 'permission-denied') {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({
-                    path: 'shipments',
+                    path: historyToDelete.ref.path,
                     operation: 'delete'
                 }));
              } else {
-                toast({ title: 'خطأ', description: 'حدث خطأ أثناء حذف الشحنة', variant: 'destructive' });
+                toast({ title: 'خطأ', description: 'حدث خطأ أثناء حذف سجل التغيير', variant: 'destructive' });
              }
         })
         .finally(() => {
-            setShipmentToDelete(null);
+            setHistoryToDelete(null);
         });
   };
 
@@ -234,7 +233,7 @@ export function AuditLogPage({ users, shipments, companies, governorates, isLoad
                             <Pencil className="h-4 w-4" />
                             <span className="sr-only">تعديل</span>
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setShipmentToDelete(log.shipment!)}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setHistoryToDelete(log)}>
                             <Trash2 className="h-4 w-4" />
                             <span className="sr-only">حذف</span>
                           </Button>
@@ -257,17 +256,17 @@ export function AuditLogPage({ users, shipments, companies, governorates, isLoad
             governorate={governorates.find(g => g.id === detailsShipment.governorateId)}
         />
       )}
-       <AlertDialog open={!!shipmentToDelete} onOpenChange={(open) => !open && setShipmentToDelete(null)}>
+       <AlertDialog open={!!historyToDelete} onOpenChange={(open) => !open && setHistoryToDelete(null)}>
             <AlertDialogContent>
                 <AlertDialogHeader>
-                    <AlertDialogTitle>هل أنت متأكد من حذف الشحنة؟</AlertDialogTitle>
+                    <AlertDialogTitle>هل أنت متأكد من حذف هذا السجل؟</AlertDialogTitle>
                     <AlertDialogDescription>
-                        سيتم حذف الشحنة ({shipmentToDelete?.recipientName}) بشكل نهائي. لا يمكن التراجع عن هذا الإجراء.
+                        سيتم حذف هذا الإدخال المحدد ({historyToDelete?.status ? statusText[historyToDelete.status] : ''}) من سجل تتبع الشحنة بشكل نهائي. لا يمكن التراجع عن هذا الإجراء.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel onClick={() => setShipmentToDelete(null)}>إلغاء</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDeleteShipment} className="bg-destructive hover:bg-destructive/90">حذف</AlertDialogAction>
+                    <AlertDialogCancel onClick={() => setHistoryToDelete(null)}>إلغاء</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteHistoryEntry} className="bg-destructive hover:bg-destructive/90">حذف السجل</AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
