@@ -76,7 +76,7 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
         {/* Footer with Details & QR Code */}
         <div className="flex justify-between items-center pt-2 mt-auto">
             <div className="flex flex-col justify-center h-full">
-                <InfoLine label="رقم الشحنة" value={shipment.trackingNumber || shipment.shipmentCode} valueClass="text-base font-mono font-bold" />
+                <InfoLine label="كود الشحنة" value={shipment.shipmentCode} valueClass="text-base font-mono font-bold" />
                 <p className="text-xs mt-2">شكرًا لاختياركم الصقر للخدمات اللوجستية.</p>
             </div>
             <div className="w-24 h-24 flex-shrink-0">

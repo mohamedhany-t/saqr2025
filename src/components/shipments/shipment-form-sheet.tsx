@@ -35,7 +35,6 @@ const shipmentSchema = z.object({
   shipmentCode: z.string().optional(),
   senderName: z.string().optional(),
   orderNumber: z.string().optional(),
-  trackingNumber: z.string().optional(),
   recipientName: z.string().min(1, "اسم المرسل إليه مطلوب"),
   recipientPhone: z.string().optional(), // Made optional
   governorateId: z.string().optional(),
@@ -98,7 +97,6 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           shipmentCode: shipment.shipmentCode ?? '',
           senderName: shipment.senderName ?? '',
           orderNumber: shipment.orderNumber ?? '',
-          trackingNumber: shipment.trackingNumber ?? '',
           recipientName: shipment.recipientName ?? '',
           recipientPhone: shipment.recipientPhone ?? '',
           governorateId: shipment.governorateId ?? '',
@@ -120,7 +118,6 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           shipmentCode: `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
           senderName: "",
           orderNumber: "",
-          trackingNumber: "",
           recipientName: "",
           recipientPhone: "",
           governorateId: "",
@@ -389,18 +386,6 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">رقم الطلب</FormLabel>
-                                <FormControl className="col-span-3">
-                                    <Input {...field} />
-                                </FormControl>
-                            </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="trackingNumber"
-                        render={({ field }) => (
-                            <FormItem className="grid grid-cols-4 items-center gap-4">
-                                <FormLabel className="text-right">رقم الشحنة</FormLabel>
                                 <FormControl className="col-span-3">
                                     <Input {...field} />
                                 </FormControl>

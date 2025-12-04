@@ -148,7 +148,7 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, onBulkUpdate, rol
       const shipmentDetails = [
           `*تقرير شحنة*`,
           `--------------------------`,
-          `*كود الشحنة:* ${shipment.trackingNumber || shipment.shipmentCode}`,
+          `*كود الشحنة:* ${shipment.shipmentCode}`,
           `*الشركة (العميل الرئيسي):* ${companyName}`,
           `*الراسل (العميل الفرعي):* ${shipment.senderName || 'غير محدد'}`,
           `*المرسل إليه:* ${shipment.recipientName}`,
@@ -269,9 +269,9 @@ export const getColumns = ({
     cell: ({ row }) => <div>{row.getValue("orderNumber")}</div>,
   },
    {
-    accessorKey: "trackingNumber",
-    header: "رقم الشحنة",
-    cell: ({ row }) => <div>{row.getValue("trackingNumber")}</div>,
+    accessorKey: "shipmentCode",
+    header: "كود الشحنة",
+    cell: ({ row }) => <div>{row.getValue("shipmentCode")}</div>,
   },
    {
     accessorKey: "companyId",

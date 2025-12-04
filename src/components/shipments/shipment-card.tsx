@@ -51,7 +51,7 @@ export function ShipmentCard({
         address, 
         totalAmount, 
         status, 
-        trackingNumber, 
+        shipmentCode,
         reason,
         createdAt,
         senderName
@@ -67,7 +67,7 @@ export function ShipmentCard({
         if (!hasPhoneNumber) return;
         
         let message = '';
-        const trackingUrl = typeof window !== 'undefined' ? `${window.location.origin}/track?q=${trackingNumber || shipment.shipmentCode}` : '';
+        const trackingUrl = '';
 
         if (isCourier) {
             const template = whatsappTemplates?.courierTemplate || '';
@@ -83,7 +83,7 @@ export function ShipmentCard({
             message = template
                 .replace('{customer_name}', recipientName || '')
                 .replace('{customer_service_name}', userProfile?.name || '')
-                .replace('{shipment_code}', trackingNumber || shipment.shipmentCode || '')
+                .replace('{shipment_code}', shipmentCode || '')
                 .replace('{tracking_link}', trackingUrl);
         }
 
@@ -101,7 +101,7 @@ export function ShipmentCard({
         const shipmentDetails = [
             `*تقرير شحنة من ${senderNameText}*`,
             `--------------------------`,
-            `*كود الشحنة:* ${trackingNumber || shipment.shipmentCode}`,
+            `*كود الشحنة:* ${shipment.shipmentCode}`,
             `*الشركة (العميل الرئيسي):* ${companyName}`,
             `*الراسل (العميل الفرعي):* ${senderName || 'غير محدد'}`,
             `*المرسل إليه:* ${recipientName}`,
@@ -171,7 +171,7 @@ export function ShipmentCard({
                 <div className="bg-muted/30 px-3 py-2 flex justify-between items-center text-sm text-muted-foreground border-b">
                      <div className="flex items-center gap-2">
                         <Package className="h-4 w-4"/>
-                        <span className="font-mono">{trackingNumber || shipment.shipmentCode}</span>
+                        <span className="font-mono">{shipment.shipmentCode}</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <CalendarDays className="h-4 w-4"/>

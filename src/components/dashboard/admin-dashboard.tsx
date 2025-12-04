@@ -1,4 +1,5 @@
 
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -837,7 +838,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
           const shipmentsCollection = collection(firestore, 'shipments');
 
           for (const [index, row] of json.entries()) {
-              const trackingNumber = row['رقم الشحنة']?.toString().trim();
               const orderNumberValue = row['رقم الطلب']?.toString().trim();
               
               const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
@@ -854,7 +854,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
               const shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>> = {
                   senderName: senderNameValue,
                   orderNumber: orderNumberValue,
-                  trackingNumber: trackingNumber,
                   recipientName: recipientNameValue,
                   recipientPhone: recipientPhoneValue,
                   governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
@@ -871,9 +870,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
               const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
               
               let existingShipmentQuery;
-              if (trackingNumber) {
-                  existingShipmentQuery = query(shipmentsCollection, where("trackingNumber", "==", trackingNumber));
-              } else if (orderNumberValue) {
+              if (orderNumberValue) {
                   existingShipmentQuery = query(shipmentsCollection, where("orderNumber", "==", orderNumberValue), where("companyId", "==", cleanShipmentData.companyId));
               } else if (recipientNameValue && recipientPhoneValue && addressValue) {
                   existingShipmentQuery = query(
@@ -906,8 +903,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
               if (!querySnapshot || querySnapshot.empty) {
                   const docRef = doc(shipmentsCollection);
+                  const shipmentCode = `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`;
                   batch.set(docRef, { 
                       ...cleanShipmentData, 
+                      shipmentCode,
                       id: docRef.id,
                       createdAt: creationDate || serverTimestamp(),
                       updatedAt: serverTimestamp(),
@@ -1543,7 +1542,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.trackingNumber || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
     );
   }, [shipments, searchTerm, columnFilters]);
@@ -1557,7 +1555,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
             String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
             String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.trackingNumber || '').toLowerCase().includes(lowercasedTerm) ||
             String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
         );
     }, [shipments, searchTerm]);
@@ -1571,7 +1568,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
             String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
             String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.trackingNumber || '').toLowerCase().includes(lowercasedTerm) ||
             String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
         );
     }, [shipments, searchTerm]);

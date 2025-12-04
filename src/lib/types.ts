@@ -46,7 +46,6 @@ export type Shipment = {
   shipmentCode: string; // SH-YYYYMMDD-0001
   senderName?: string; // Sub-client
   orderNumber: string;
-  trackingNumber: string;
   recipientName: string;
   recipientPhone: string;
   governorateId?: string;

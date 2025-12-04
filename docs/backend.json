@@ -69,10 +69,6 @@
           "type": "string",
           "description": "Order number associated with the shipment."
         },
-        "trackingNumber": {
-          "type": "string",
-          "description": "Tracking number for the shipment."
-        },
         "recipientName": {
           "type": "string",
           "description": "Name of the shipment recipient."
@@ -530,4 +526,3 @@
     "reasoning": "The Firestore structure now includes a 'company' role. Companies are users that can manage their own shipments. Couriers are independent and are assigned to shipments directly. The 'companies' collection stores public profiles for these company users. The 'shipments' collection now uses 'companyId' to link to the user UID of the owning company."
   }
 }
-
