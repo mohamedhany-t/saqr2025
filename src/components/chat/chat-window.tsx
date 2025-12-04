@@ -23,15 +23,15 @@ interface FileUpload {
     error?: string;
 }
 
-const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
+const ChatWindowContent: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
   const [newMessage, setNewMessage] = useState('');
   const [fileUpload, setFileUpload] = useState<FileUpload | null>(null);
   const [isSending, setIsSending] = useState(false);
-  const firestore = useFirestore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const { uploadFile } = useUploader();
+  const firestore = useFirestore();
 
   const messagesQuery = useMemoFirebase(() => {
     if (!firestore || !chatId) return null;
@@ -208,5 +208,20 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
     </div>
   );
 };
+
+const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, currentUser }) => {
+    const firestore = useFirestore();
+
+    if (!firestore) {
+        return (
+            <div className="flex h-full w-full items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="ms-2">جارٍ تهيئة الاتصال...</p>
+            </div>
+        );
+    }
+    
+    return <ChatWindowContent chatId={chatId} currentUser={currentUser} />;
+}
 
 export default ChatWindow;
