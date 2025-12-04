@@ -9,8 +9,9 @@ import { ShipmentsTable } from "@/components/dashboard/shipments-table";
 import type { Role, Shipment, Company, Governorate, Courier, ShipmentStatusKey, User, CourierPayment, Chat, ShipmentHistory, ShipmentStatusConfig } from "@/lib/types";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { useToast } from "@/hooks/use-toast";
-import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, useUser, useFirebaseApp } from "@/firebase";
 import { collection, serverTimestamp, doc, query, where, updateDoc, getDoc, writeBatch } from "firebase/firestore";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
 import { StatsCards } from "@/components/dashboard/stats-cards";
@@ -27,54 +28,6 @@ interface CourierDashboardProps {
   searchTerm: string;
 }
 
-const calculateCommissionAndPaidAmount = (
-    status: string,
-    totalAmount: number,
-    collectedAmount: number,
-    courierCommissionRate: number,
-    companyCommission: number,
-    statusConfigs: ShipmentStatusConfig[],
-) => {
-    const update: { paidAmount: number; courierCommission: number; companyCommission: number; collectedAmount: number } = {
-        paidAmount: 0,
-        courierCommission: 0,
-        companyCommission: 0,
-        collectedAmount: 0,
-    };
-    
-    const statusConfig = statusConfigs.find(s => s.id === status);
-    if (!statusConfig) return update;
-
-    const safeTotalAmount = totalAmount || 0;
-    const safeCollectedAmount = collectedAmount || 0;
-    const safeCourierCommissionRate = courierCommissionRate || 0;
-    const safeCompanyCommission = companyCommission || 0;
-
-    let amountForCalc = 0;
-    if (statusConfig.requiresFullCollection) {
-        amountForCalc = safeTotalAmount;
-    } else if (statusConfig.requiresPartialCollection) {
-        amountForCalc = safeCollectedAmount;
-    }
-    
-    update.paidAmount = amountForCalc;
-    update.collectedAmount = amountForCalc;
-
-    if (amountForCalc > 0) { // Commissions are typically on successful collection
-        if (statusConfig.affectsCompanyBalance) {
-            update.companyCommission = safeCompanyCommission;
-        }
-    }
-
-    // Courier commission can sometimes be due even on returns
-    if (statusConfig.affectsCourierBalance) {
-        update.courierCommission = safeCourierCommissionRate;
-    }
-
-    return update;
-}
-
-
 export default function CourierDashboard({ user, role, searchTerm }: CourierDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
@@ -84,6 +37,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const app = useFirebaseApp();
   
   const chatsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.id) return null;
@@ -103,7 +57,6 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   useNotificationSound(totalUnreadCount);
 
 
-  // Effect to fetch shipment data if 'edit' param is in the URL
   React.useEffect(() => {
     const editShipmentId = searchParams.get('edit');
     if (editShipmentId && firestore) {
@@ -112,7 +65,6 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         const shipmentSnap = await getDoc(shipmentDocRef);
         if (shipmentSnap.exists()) {
            const shipmentData = { id: shipmentSnap.id, ...shipmentSnap.data() } as Shipment;
-           // Ensure courier can only edit their own assigned shipments
            if (shipmentData.assignedCourierId === user?.id) {
                setEditingShipment(shipmentData);
                setShipmentSheetOpen(true);
@@ -137,7 +89,6 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     setShipmentSheetOpen(open);
     if (!open) {
       setEditingShipment(undefined);
-      // Clean up the URL when the sheet is closed
       const newParams = new URLSearchParams(searchParams.toString());
       if (newParams.has('edit')) {
         newParams.delete('edit');
@@ -145,7 +96,6 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
       }
     }
   };
-
 
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -162,7 +112,6 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    // Fetch ALL payments for the courier, archived or not, to get the correct financial history.
     return query(collection(firestore, 'courier_payments'), where("courierId", "==", user.id));
   }, [firestore, user]);
   const { data: payments, isLoading: paymentsLoading } = useCollection<CourierPayment>(paymentsQuery);
@@ -190,168 +139,69 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     setShipmentSheetOpen(true);
   };
   
-  const handleSaveShipment = async (shipment: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
-    if (!firestore || !id || !user || !companies || !statuses) return;
-    
-    const courierUser = user;
-    if (!courierUser) {
-        toast({ title: "لم يتم العثور على بيانات المندوب", variant: "destructive" });
-        return;
-    }
+  const handleSaveShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
+    if (!id) return;
+    const functions = getFunctions(app);
+    const updateShipmentStatusFn = httpsCallable(functions, 'updateShipmentStatus');
 
-    const originalShipmentDocSnap = await getDoc(doc(firestore, 'shipments', id));
-    if (!originalShipmentDocSnap.exists()) {
-        toast({ title: "Shipment not found", variant: "destructive" });
-        return;
-    }
-    const originalShipmentData = originalShipmentDocSnap.data() as Shipment;
+    toast({ title: "جاري تحديث الحالة..." });
 
-    const shipmentCompany = companies.find(c => c.id === originalShipmentData.companyId);
-    const companyGovernorateCommission = shipmentCompany && originalShipmentData.governorateId ? (shipmentCompany.governorateCommissions?.[originalShipmentData.governorateId] || 0) : 0;
-
-    const courierCommissionRate = courierUser.commissionRate || 0;
-
-    const dataToUpdate: { [key: string]: any } = {
-        updatedAt: serverTimestamp(),
-    };
-
-    if (shipment.status !== undefined) dataToUpdate.status = shipment.status;
-    if (shipment.reason !== undefined) dataToUpdate.reason = shipment.reason;
-    const collectedAmount = shipment.collectedAmount !== undefined ? Number(shipment.collectedAmount) : originalShipmentData.collectedAmount || 0;
-    if (shipment.collectedAmount !== undefined) dataToUpdate.collectedAmount = collectedAmount;
-
-    const newStatus = (shipment.status || originalShipmentData.status) as string;
-    const oldStatus = originalShipmentData.status;
-
-    const calculatedFields = calculateCommissionAndPaidAmount(
-        newStatus,
-        originalShipmentData.totalAmount,
-        collectedAmount,
-        courierCommissionRate,
-        companyGovernorateCommission,
-        statuses
-    );
-    Object.assign(dataToUpdate, calculatedFields);
-
-    if (Object.keys(dataToUpdate).length <= 1) { // Only updatedAt
-        toast({ title: "لا توجد تغييرات للحفظ", variant: "default"});
-        handleSheetOpenChange(false);
-        return;
-    }
-
-    const batch = writeBatch(firestore);
-    const docRef = doc(firestore, 'shipments', id);
-    batch.update(docRef, dataToUpdate);
-    
-    // Add to history if status has changed
-    if (newStatus && newStatus !== oldStatus) {
-        const historyRef = doc(collection(docRef, 'history'));
-        const historyEntry: Omit<ShipmentHistory, 'id'> = {
-            status: newStatus,
-            reason: dataToUpdate.reason || '',
-            updatedAt: serverTimestamp(),
-            updatedBy: user.name || user.email,
-            userId: user.id,
+    try {
+        const payload = {
+            shipmentId: id,
+            status: shipmentData.status,
+            reason: shipmentData.reason,
+            collectedAmount: shipmentData.collectedAmount,
         };
-        batch.set(historyRef, historyEntry);
-    }
-    
-    batch.commit()
-      .then(() => {
-        toast({
-          title: "تم تحديث الشحنة",
-          description: `تم تحديث حالة الشحنة بنجاح`,
-        });
+        await updateShipmentStatusFn(payload);
+        toast({ title: "تم تحديث الشحنة بنجاح" });
         handleSheetOpenChange(false);
-      })
-      .catch(serverError => {
-        const permissionError = new FirestorePermissionError({
-          path: docRef.path,
-          operation: 'update',
-          requestResourceData: dataToUpdate
+    } catch (error: any) {
+        console.error("Error updating shipment:", error);
+        toast({
+            title: "فشل تحديث الشحنة",
+            description: error.message || "حدث خطأ أثناء الاتصال بالخادم.",
+            variant: "destructive"
         });
-        errorEmitter.emit('permission-error', permissionError);
-      });
+    }
   };
 
-  const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Partial<Shipment>) => {
-    if (!firestore || !user || !companies || !statuses) return;
+const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Partial<Shipment>) => {
     if (selectedRows.length === 0) {
         toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
         return;
     }
     
-    const courierUser = user;
-     if (!courierUser) {
-        toast({ title: "لم يتم العثور على بيانات المندوب", variant: "destructive" });
-        return;
-    }
+    toast({ title: `جاري تحديث ${selectedRows.length} شحنة...` });
 
-    const courierCommissionRate = courierUser.commissionRate || 0;
-    const batch = writeBatch(firestore);
+    const functions = getFunctions(app);
+    const updateShipmentStatusFn = httpsCallable(functions, 'updateShipmentStatus');
 
-    // To ensure correct calculations, we need the full, fresh data for each row.
-    const fullSelectedRowsData = await Promise.all(
-      selectedRows.map(row => getDoc(doc(firestore, "shipments", row.id)))
-    );
-
-    fullSelectedRowsData.forEach(docSnap => {
-      if (!docSnap.exists()) return;
-      const row = docSnap.data() as Shipment;
-      const docRef = docSnap.ref;
-        
-      let finalUpdate: { [key: string]: any } = { updatedAt: serverTimestamp() };
-        
-      const allowedUpdates: Partial<Shipment> = {};
-      if (update.status) allowedUpdates.status = update.status;
-      if (update.reason) allowedUpdates.reason = update.reason;
-
-      if (Object.keys(allowedUpdates).length === 0) {
-          return;
-      }
-
-      const newStatus = (allowedUpdates.status || row.status) as string;
-      const oldStatus = row.status;
-      
-      const shipmentCompany = companies.find(c => c.id === row.companyId);
-      const companyGovernorateCommission = shipmentCompany && row.governorateId ? (shipmentCompany.governorateCommissions?.[row.governorateId] || 0) : 0;
-
-      const calculatedFields = calculateCommissionAndPaidAmount(
-          newStatus,
-          row.totalAmount,
-          row.collectedAmount || 0, // Assume collectedAmount isn't changed in bulk, use existing
-          courierCommissionRate,
-          companyGovernorateCommission,
-          statuses
-      );
-
-      Object.assign(finalUpdate, allowedUpdates, calculatedFields);
-        
-      batch.update(docRef, finalUpdate);
-
-       if (newStatus && newStatus !== oldStatus) {
-            const historyRef = doc(collection(docRef, 'history'));
-            const historyEntry: Omit<ShipmentHistory, 'id'> = {
-                status: newStatus,
-                reason: finalUpdate.reason || '',
-                updatedAt: serverTimestamp(),
-                updatedBy: user.name || user.email,
-                userId: user.id,
-            };
-            batch.set(historyRef, historyEntry);
-        }
+    const updatePromises = selectedRows.map(row => {
+        const payload = {
+            shipmentId: row.id,
+            status: update.status,
+            reason: update.reason || 'تحديث جماعي',
+            collectedAmount: 0, // Bulk updates don't support partial collection yet
+        };
+        return updateShipmentStatusFn(payload).catch(error => ({
+            shipmentId: row.id,
+            error: error.message || "فشل التحديث"
+        }));
     });
 
-    batch.commit().then(() => {
-        toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
-    }).catch(serverError => {
-        const permissionError = new FirestorePermissionError({
-            path: 'shipments',
-            operation: 'update',
-            requestResourceData: { update, note: `Bulk update of ${selectedRows.length} documents.` }
+    const results = await Promise.all(updatePromises);
+    const failedUpdates = results.filter(res => res.error);
+
+    if (failedUpdates.length > 0) {
+        toast({
+            title: `فشل تحديث ${failedUpdates.length} شحنة`,
+            description: "بعض الشحنات لم يتم تحديثها بسبب خطأ. يرجى المحاولة مرة أخرى.",
+            variant: "destructive"
         });
-        errorEmitter.emit('permission-error', permissionError);
-    });
+    } else {
+        toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
+    }
 };
 
   
@@ -372,7 +222,6 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
         shipment.orderNumber?.toLowerCase().includes(lowercasedTerm) ||
         shipment.recipientName?.toLowerCase().includes(lowercasedTerm) ||
-        shipment.trackingNumber?.toLowerCase().includes(lowercasedTerm) ||
         shipment.address?.toLowerCase().includes(lowercasedTerm)
     );
   }, [activeShipments, searchTerm]);
@@ -385,7 +234,6 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
         shipment.orderNumber?.toLowerCase().includes(lowercasedTerm) ||
         shipment.recipientName?.toLowerCase().includes(lowercasedTerm) ||
-        shipment.trackingNumber?.toLowerCase().includes(lowercasedTerm) ||
         shipment.address?.toLowerCase().includes(lowercasedTerm)
     );
   }, [finishedShipments, searchTerm]);
