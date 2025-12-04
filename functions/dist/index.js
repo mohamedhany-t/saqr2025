@@ -121,13 +121,12 @@ const updateShipmentStatusSchema = zod_1.z.object({
 exports.updateShipmentStatus = functions.https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
         var _a;
-        // Manually handle callable function logic for CORS compatibility
         if (req.method !== 'POST') {
             res.status(405).send('Method Not Allowed');
             return;
         }
         const data = req.body.data;
-        const context = {};
+        let context = {};
         if ((_a = req.headers.authorization) === null || _a === void 0 ? void 0 : _a.startsWith('Bearer ')) {
             const idToken = req.headers.authorization.split('Bearer ')[1];
             try {
@@ -147,6 +146,7 @@ exports.updateShipmentStatus = functions.https.onRequest((req, res) => {
         const { uid: courierId, token } = context.auth;
         const validation = updateShipmentStatusSchema.safeParse(data);
         if (!validation.success) {
+            console.error("Validation failed:", validation.error);
             res.status(400).send({ error: { status: 'INVALID_ARGUMENT', message: 'The data provided is invalid.' } });
             return;
         }
@@ -175,7 +175,7 @@ exports.updateShipmentStatus = functions.https.onRequest((req, res) => {
                 transaction.set(historyRef, historyEntry);
                 return { success: true, message: "Shipment updated successfully." };
             });
-            res.status(200).send({ result });
+            res.status(200).send({ data: result });
         }
         catch (error) {
             console.error("Error updating shipment status:", error);

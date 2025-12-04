@@ -4,7 +4,15 @@ import * as admin from "firebase-admin";
 import { z } from "zod";
 import cors from "cors";
 
-admin.initializeApp();
+try {
+    admin.initializeApp();
+} catch (e) {
+    // This can happen in local dev environments
+    if (!/already exists/.test((e as Error).message)) {
+        console.error('Firebase admin initialization error', e);
+    }
+}
+
 const db = admin.firestore();
 
 // Initialize cors middleware
@@ -58,7 +66,7 @@ export const getDashboardStats = functions.https.onCall(async (data, context) =>
 
 
 /**
- * A callable function for a courier to update a shipment's status.
+ * An HTTP Request function for a courier to update a shipment's status.
  * This centralizes logic and security checks.
  */
 const updateShipmentStatusSchema = z.object({
@@ -71,15 +79,13 @@ const updateShipmentStatusSchema = z.object({
     companyCommission: z.number(),
 });
 
-export const updateShipmentStatus = functions.https.onRequest((req, res) => {
+export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
         if (req.method !== 'POST') {
-            res.status(405).send('Method Not Allowed');
+            res.status(405).send({ error: { message: 'Method Not Allowed' } });
             return;
         }
 
-        const data = req.body.data;
-        
         let context: any = {};
         if (req.headers.authorization?.startsWith('Bearer ')) {
             const idToken = req.headers.authorization.split('Bearer ')[1];
@@ -99,7 +105,7 @@ export const updateShipmentStatus = functions.https.onRequest((req, res) => {
         }
         
         const { uid: courierId, token } = context.auth;
-        const validation = updateShipmentStatusSchema.safeParse(data);
+        const validation = updateShipmentStatusSchema.safeParse(req.body.data);
 
         if (!validation.success) {
             console.error("Validation failed:", validation.error);
@@ -138,9 +144,11 @@ export const updateShipmentStatus = functions.https.onRequest((req, res) => {
                 transaction.set(historyRef, historyEntry);
                 return { success: true, message: "Shipment updated successfully." };
             });
+            // Send success response back to client
             res.status(200).send({ data: result });
         } catch (error: any) {
             console.error("Error updating shipment status:", error);
+            // Send internal error response
             res.status(500).send({ error: { status: 'INTERNAL', message: error.message } });
         }
     });

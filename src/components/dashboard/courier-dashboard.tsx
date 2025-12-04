@@ -190,7 +190,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     if (!id || !app || !shipmentData.status || !editingShipment || !statuses || !companies) return;
 
     const functions = getFunctions(app);
-    const updateShipmentStatusFn = httpsCallable(functions, 'updateShipmentStatus');
+    const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
 
     toast({ title: "جاري تحديث الحالة..." });
 
@@ -213,7 +213,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
             ...calculatedFields
         };
 
-        await updateShipmentStatusFn(payload);
+        await handleShipmentUpdateFn(payload);
         toast({ title: "تم تحديث الشحنة بنجاح" });
         handleSheetOpenChange(false);
     } catch (error: any) {
@@ -235,7 +235,7 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
     toast({ title: `جاري تحديث ${selectedRows.length} شحنة...` });
 
     const functions = getFunctions(app);
-    const updateShipmentStatusFn = httpsCallable(functions, 'updateShipmentStatus');
+    const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
 
     const updatePromises = selectedRows.map(row => {
         const company = companies.find(c => c.id === row.companyId);
@@ -254,7 +254,7 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
             reason: update.reason || 'تحديث جماعي',
             ...calculatedFields,
         };
-        return updateShipmentStatusFn(payload).catch(error => ({
+        return handleShipmentUpdateFn(payload).catch(error => ({
             shipmentId: row.id,
             error: error.message || "فشل التحديث"
         }));
