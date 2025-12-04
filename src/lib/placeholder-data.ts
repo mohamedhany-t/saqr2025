@@ -1,4 +1,5 @@
-import type { Shipment, User, Role, ShipmentStatus, Governorate } from './types';
+
+import type { Shipment, User, Role, ShipmentStatusKey, Governorate } from './types';
 
 const mockGovernorates: Partial<Governorate>[] = [
     { id: 'gov_cairo', name: "القاهرة" },
@@ -9,7 +10,7 @@ const mockGovernorates: Partial<Governorate>[] = [
 ];
 const clients = ["NextGen Store", "Electro Gadgets", "Fashion Forward"];
 const couriers = ["أحمد محمود", "محمد علي", "سارة حسين"];
-const statuses: ShipmentStatus[] = ["Pending", "In-Transit", "Delivered", "Returned", "Cancelled"];
+const statuses: ShipmentStatusKey[] = ["Pending", "In-Transit", "Delivered", "Returned", "Cancelled"];
 const reasons = ["لم يرد", "رفض الاستلام", "تأجيل", "عنوان خاطئ"];
 
 const generateId = (seed: number) => `id_${seed}`;
