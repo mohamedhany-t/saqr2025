@@ -2190,8 +2190,18 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     </div>
                 </div>
                  {isMobile ? 
-                    <MobileUsersView listIsLoading={usersLoading || companiesLoading} users={users || []} companies={companies || []} onEdit={openUserForm} onDelete={setUserToDelete} /> : 
-                    <DesktopUsersView listIsLoading={usersLoading || companiesLoading} users={users || []} onEdit={openUserForm} onDelete={setUserToDelete} />
+                     <div className="space-y-4">
+                        {(users || []).map(user => (
+                            <UserCard 
+                                key={user.id} 
+                                user={user}
+                                company={companies?.find(c => c.id === user.id)}
+                                onEdit={openUserForm}
+                                onDelete={setUserToDelete}
+                            />
+                        ))}
+                    </div> : 
+                    <UsersTable listIsLoading={usersLoading || companiesLoading} users={users || []} onEdit={openUserForm} onDelete={setUserToDelete} />
                  }
             </div>
         </TabsContent>

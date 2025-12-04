@@ -202,7 +202,7 @@ const getColumns = (onEdit: (user: User, company?: Company) => void, onDelete: (
 ]
 
 
-export function UsersTable({ users, isLoading, onEdit, onDelete }: { users: User[], isLoading: boolean, onEdit: (user: User, company?: Company) => void, onDelete: (user: User) => void }) {
+export function UsersTable({ users, listIsLoading, onEdit, onDelete }: { users: User[], listIsLoading: boolean, onEdit: (user: User, company?: Company) => void, onDelete: (user: User) => void }) {
   
   const firestore = useFirestore();
   const companiesQuery = useMemoFirebase(() => {
@@ -243,7 +243,7 @@ export function UsersTable({ users, isLoading, onEdit, onDelete }: { users: User
             ))}
           </TableHeader>
           <TableBody>
-            {isLoading || companiesLoading ? (
+            {listIsLoading || companiesLoading ? (
                 Array.from({length: 5}).map((_, i) => (
                     <TableRow key={i}>
                          {columns.map(col => <TableCell key={(col as any).id || (col as any).accessorKey}><Skeleton className="h-6 w-full" /></TableCell>)}
