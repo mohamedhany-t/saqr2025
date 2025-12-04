@@ -61,8 +61,12 @@ const updateShipmentStatusSchema = z.object({
     shipmentId: z.string(),
     status: z.string(),
     reason: z.string().optional(),
-    collectedAmount: z.number().optional(),
+    collectedAmount: z.number(),
+    paidAmount: z.number(),
+    courierCommission: z.number(),
+    companyCommission: z.number(),
 });
+
 export const updateShipmentStatus = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "You must be authenticated to update a shipment.");
@@ -70,10 +74,10 @@ export const updateShipmentStatus = functions.https.onCall(async (data, context)
     const { uid: courierId, token } = context.auth;
     const validation = updateShipmentStatusSchema.safeParse(data);
     if (!validation.success) {
-        throw new functions.https.HttpsError("invalid-argument", "The data provided is invalid.");
+        throw new functions.https.HttpsError("invalid-argument", "The data provided is invalid.", validation.error.issues);
     }
 
-    const { shipmentId, status, reason, collectedAmount } = validation.data;
+    const { shipmentId, status, reason, ...financials } = validation.data;
 
     const shipmentRef = db.collection('shipments').doc(shipmentId);
 
@@ -90,56 +94,9 @@ export const updateShipmentStatus = functions.https.onCall(async (data, context)
                 throw new functions.https.HttpsError("permission-denied", "You are not assigned to this shipment.");
             }
 
-            // Fetch necessary data for commission calculation
-            const [courierDoc, companyDoc, statusesSnapshot] = await Promise.all([
-                db.collection('users').doc(courierId).get(),
-                db.collection('companies').doc(shipmentData.companyId).get(),
-                db.collection('shipment_statuses').get()
-            ]);
-            
-            if (!courierDoc.exists || !companyDoc.exists) {
-                throw new functions.https.HttpsError("failed-precondition", "Courier or company data is missing.");
-            }
-
-            const courierData = courierDoc.data()!;
-            const companyData = companyDoc.data()!;
-            
-            // Correctly find the status config using the document ID
-            const statusConfigDoc = statusesSnapshot.docs.find(doc => doc.id === status);
-            
-            if (!statusConfigDoc) {
-                 throw new functions.https.HttpsError("invalid-argument", "Invalid status provided.");
-            }
-            const statusConfig = statusConfigDoc.data();
-            
-            const courierCommissionRate = courierData.commissionRate || 0;
-            const companyGovernorateCommission = companyData.governorateCommissions?.[shipmentData.governorateId] || 0;
-            
-            // --- Commission Calculation Logic ---
-            const updatePayload: any = { paidAmount: 0, courierCommission: 0, companyCommission: 0, collectedAmount: 0 };
-            
-            let amountForCalc = 0;
-            if (statusConfig.requiresFullCollection) {
-                amountForCalc = shipmentData.totalAmount || 0;
-            } else if (statusConfig.requiresPartialCollection) {
-                amountForCalc = collectedAmount || 0;
-            }
-            
-            updatePayload.paidAmount = amountForCalc;
-            updatePayload.collectedAmount = amountForCalc;
-            
-            if (amountForCalc > 0 && statusConfig.affectsCompanyBalance) {
-                updatePayload.companyCommission = companyGovernorateCommission;
-            }
-            
-            if (statusConfig.affectsCourierBalance) {
-                updatePayload.courierCommission = courierCommissionRate;
-            }
-            // --- End Commission Calculation Logic ---
-
             // Prepare the final update object for the shipment
             const finalShipmentUpdate = {
-                ...updatePayload,
+                ...financials,
                 status: status,
                 reason: reason || "",
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),

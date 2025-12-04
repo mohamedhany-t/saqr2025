@@ -28,6 +28,54 @@ interface CourierDashboardProps {
   searchTerm: string;
 }
 
+const calculateCommissionAndPaidAmount = (
+    shipment: Shipment,
+    newStatus: string,
+    collectedAmount: number,
+    courierCommissionRate: number,
+    company: Company | undefined,
+    statusConfigs: ShipmentStatusConfig[],
+) => {
+    const update: { paidAmount: number; courierCommission: number; companyCommission: number; collectedAmount: number } = {
+        paidAmount: 0,
+        courierCommission: 0,
+        companyCommission: 0,
+        collectedAmount: 0,
+    };
+    
+    const statusConfig = statusConfigs.find(s => s.id === newStatus);
+    if (!statusConfig) return update;
+
+    const safeTotalAmount = shipment.totalAmount || 0;
+    const safeCollectedAmount = collectedAmount || 0;
+    const safeCourierCommissionRate = courierCommissionRate || 0;
+    const governorateCommission = (company && shipment.governorateId) ? (company.governorateCommissions?.[shipment.governorateId] || 0) : 0;
+    
+    let amountForCalc = 0;
+    if (statusConfig.requiresFullCollection) {
+        amountForCalc = safeTotalAmount;
+    } else if (statusConfig.requiresPartialCollection) {
+        amountForCalc = safeCollectedAmount;
+    }
+    
+    update.paidAmount = amountForCalc;
+    update.collectedAmount = amountForCalc;
+
+    if (amountForCalc > 0) { // Commissions are typically on successful collection
+        if (statusConfig.affectsCompanyBalance) {
+            update.companyCommission = governorateCommission;
+        }
+    }
+
+    // Courier commission can sometimes be due on returns
+    if (statusConfig.affectsCourierBalance) {
+        update.courierCommission = safeCourierCommissionRate;
+    }
+
+    return update;
+}
+
+
 export default function CourierDashboard({ user, role, searchTerm }: CourierDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
@@ -140,19 +188,32 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   };
   
   const handleSaveShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
-    if (!id || !app) return;
+    if (!id || !app || !shipmentData.status || !editingShipment || !statuses || !companies) return;
+
     const functions = getFunctions(app);
     const updateShipmentStatusFn = httpsCallable(functions, 'updateShipmentStatus');
 
     toast({ title: "جاري تحديث الحالة..." });
 
     try {
+        const company = companies.find(c => c.id === editingShipment.companyId);
+
+        const calculatedFields = calculateCommissionAndPaidAmount(
+            editingShipment,
+            shipmentData.status,
+            shipmentData.collectedAmount || 0,
+            user.commissionRate || 0,
+            company,
+            statuses
+        );
+        
         const payload = {
             shipmentId: id,
             status: shipmentData.status,
-            reason: shipmentData.reason,
-            collectedAmount: shipmentData.collectedAmount,
+            reason: shipmentData.reason || "",
+            ...calculatedFields
         };
+
         await updateShipmentStatusFn(payload);
         toast({ title: "تم تحديث الشحنة بنجاح" });
         handleSheetOpenChange(false);
@@ -167,8 +228,8 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   };
 
 const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Partial<Shipment>) => {
-    if (selectedRows.length === 0) {
-        toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
+    if (selectedRows.length === 0 || !update.status || !statuses || !companies) {
+        toast({ title: "لم يتم تحديد أي شحنات أو حالة", variant: "destructive" });
         return;
     }
     
@@ -178,11 +239,21 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
     const updateShipmentStatusFn = httpsCallable(functions, 'updateShipmentStatus');
 
     const updatePromises = selectedRows.map(row => {
+        const company = companies.find(c => c.id === row.companyId);
+        const calculatedFields = calculateCommissionAndPaidAmount(
+            row,
+            update.status!,
+            0, // Bulk updates don't support partial collection
+            user.commissionRate || 0,
+            company,
+            statuses
+        );
+
         const payload = {
             shipmentId: row.id,
             status: update.status,
             reason: update.reason || 'تحديث جماعي',
-            collectedAmount: 0, // Bulk updates don't support partial collection yet
+            ...calculatedFields,
         };
         return updateShipmentStatusFn(payload).catch(error => ({
             shipmentId: row.id,
