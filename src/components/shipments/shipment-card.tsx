@@ -7,11 +7,12 @@ import type { Shipment, ShipmentStatusConfig } from "@/lib/types";
 import { Pencil, MessageSquare, Package, CalendarDays, Phone, Share2, Trash2, Printer } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { useUser, useUserProfile } from "@/firebase";
+import { useUser, useUserProfile, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { Checkbox } from "../ui/checkbox";
 import { cn, formatToCairoTime } from "@/lib/utils";
 import React from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { doc } from "firebase/firestore";
 
 interface ShipmentCardProps {
     shipment: Shipment;
@@ -37,6 +38,11 @@ export function ShipmentCard({
     onSelectToggle
 }: ShipmentCardProps) {
     const { userProfile } = useUserProfile();
+    const firestore = useFirestore();
+
+    const settingsDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'system_settings', 'whatsapp_templates') : null, [firestore]);
+    const { data: whatsappTemplates } = useDoc<{courierTemplate: string, customerServiceTemplate: string}>(settingsDocRef);
+
 
     const { 
         id,
@@ -62,22 +68,21 @@ export function ShipmentCard({
         
         let message = '';
         if (isCourier) {
-            const courierName = userProfile?.name || "مندوب شركة الصقر";
-            const formattedAmount = totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
-            const fullAddress = `${address}, ${governorateName}`;
-            message = [
-                `أهلاً أ/ ${recipientName}، معك ${courierName} من شركة الصقر.`,
-                `لديك أوردر بمبلغ ${formattedAmount}، وعنوان التسليم هو: ${fullAddress}.`,
-                `\nبرجاء تأكيد إذا كنت ترغب في الاستلام – التأجيل – أو إلغاء الأوردر.`,
-                `\nشكرًا لك 🌸`
-            ].join('\n');
+            const template = whatsappTemplates?.courierTemplate || '';
+            message = template
+                .replace('{customer_name}', recipientName || '')
+                .replace('{courier_name}', userProfile?.name || '')
+                .replace('{company_name}', companyName || '')
+                .replace('{total_amount}', totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) || '')
+                .replace('{address}', `${address}, ${governorateName}` || '');
         } else if (isCustomerService) {
-            const csName = userProfile?.name || "خدمة عملاء الصقر";
-            message = [
-                `أهلاً أ/ ${recipientName}، معك ${csName} من فريق المتابعة في شركة الصقر.`,
-                `نود المتابعة بخصوص شحنتكم رقم ${trackingNumber || shipment.shipmentCode}.`,
-                `\nهل هناك أي استفسارات يمكننا المساعدة بها؟`,
-            ].join('\n');
+            const template = whatsappTemplates?.customerServiceTemplate || '';
+            const trackingUrl = typeof window !== 'undefined' ? `${window.location.origin}/track?q=${trackingNumber || shipment.shipmentCode}` : '';
+            message = template
+                .replace('{customer_name}', recipientName || '')
+                .replace('{customer_service_name}', userProfile?.name || '')
+                .replace('{shipment_code}', trackingNumber || shipment.shipmentCode || '')
+                .replace('{tracking_link}', trackingUrl);
         }
 
 

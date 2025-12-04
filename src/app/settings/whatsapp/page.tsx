@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState } from 'react';
@@ -21,6 +22,17 @@ const whatsappTemplatesSchema = z.object({
 
 type WhatsAppTemplatesForm = z.infer<typeof whatsappTemplatesSchema>;
 
+const defaultTemplates: WhatsAppTemplatesForm = {
+    courierTemplate: `مرحباً {customer_name}،
+معك {courier_name} مندوب شركة توصيل.
+لديكم شحنة من شركة {company_name} بمبلغ {total_amount}.
+عنوان التسليم: {address}`,
+    customerServiceTemplate: `مرحباً {customer_name}،
+معك {customer_service_name} من فريق المتابعة.
+نود المتابعة بخصوص شحنتكم رقم {shipment_code}.
+يمكنك تتبع الشحنة من خلال الرابط التالي: {tracking_link}`
+};
+
 export default function WhatsAppSettingsPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
@@ -31,15 +43,14 @@ export default function WhatsAppSettingsPage() {
     
     const form = useForm<WhatsAppTemplatesForm>({
         resolver: zodResolver(whatsappTemplatesSchema),
-        defaultValues: {
-            courierTemplate: '',
-            customerServiceTemplate: '',
-        },
+        defaultValues: defaultTemplates,
     });
 
     useEffect(() => {
         if (settings) {
             form.reset(settings);
+        } else {
+            form.reset(defaultTemplates);
         }
     }, [settings, form]);
     
