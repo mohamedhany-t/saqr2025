@@ -25,26 +25,11 @@ import {
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Role, User } from '@/lib/types';
+import type { Shipment, ShipmentStatus, Governorate, Company, Courier, Role, User, ShipmentStatusConfig } from '@/lib/types';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
-
-const shipmentStatusEnum = z.enum([
-    "Pending",
-    "In-Transit",
-    "Delivered",
-    "Partially Delivered",
-    "Evasion (Phone)",
-    "Evasion (Delivery Attempt)",
-    "Cancelled",
-    "Returned",
-    "Postponed",
-    "Returned to Sender",
-    "Refused (Paid)",
-    "Refused (Unpaid)",
-]);
 
 const shipmentSchema = z.object({
   shipmentCode: z.string().optional(),
@@ -57,7 +42,7 @@ const shipmentSchema = z.object({
   address: z.string().min(1, "العنوان مطلوب"),
   totalAmount: z.coerce.number().min(0, "المبلغ يجب أن يكون إيجابي"),
   paidAmount: z.coerce.number().optional(),
-  status: shipmentStatusEnum,
+  status: z.string(), // Changed to string to accept any status
   reason: z.string().optional(),
   deliveryDate: z.date().optional(),
   assignedCourierId: z.string().optional(),
@@ -66,14 +51,6 @@ const shipmentSchema = z.object({
   courierCommission: z.coerce.number().optional(),
   companyCommission: z.coerce.number().optional(),
   isWarehouseReturn: z.boolean().optional(),
-}).superRefine((data, ctx) => {
-    if ((data.status === "Partially Delivered" || data.status === "Refused (Paid)") && (data.collectedAmount === undefined || data.collectedAmount <= 0)) {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "المبلغ المحصّل مطلوب في هذه الحالة",
-            path: ["collectedAmount"],
-        });
-    }
 });
 
 
@@ -86,16 +63,26 @@ type ShipmentFormSheetProps = {
     governorates: Governorate[];
     couriers: User[];
     companies?: Company[];
+    statuses: ShipmentStatusConfig[];
     role: Role | null;
 }
 
-export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave, governorates, couriers, companies, role }: ShipmentFormSheetProps) {
+export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave, governorates, couriers, companies, statuses, role }: ShipmentFormSheetProps) {
   const isEditing = !!shipment;
   const isCourier = role === 'courier';
   const isAdmin = role === 'admin';
   const isCompany = role === 'company';
-
-  const formSchema = shipmentSchema;
+  
+  const formSchema = shipmentSchema.superRefine((data, ctx) => {
+    const selectedStatusConfig = statuses.find(s => s.id === data.status);
+    if (selectedStatusConfig?.requiresPartialCollection && (data.collectedAmount === undefined || data.collectedAmount <= 0)) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "المبلغ المحصّل مطلوب في هذه الحالة",
+            path: ["collectedAmount"],
+        });
+    }
+  });
 
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -158,6 +145,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   };
   
   const selectedStatus = form.watch("status");
+  const selectedStatusConfig = statuses.find(s => s.id === selectedStatus);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -340,25 +328,16 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="Pending">قيد الانتظار</SelectItem>
-                                        <SelectItem value="In-Transit">قيد التوصيل</SelectItem>
-                                        <SelectItem value="Delivered">تم التسليم</SelectItem>
-                                        <SelectItem value="Partially Delivered">تم التسليم جزئياً</SelectItem>
-                                        <SelectItem value="Postponed">مؤجل</SelectItem>
-                                        <SelectItem value="Returned">مرتجع</SelectItem>
-                                        <SelectItem value="Returned to Sender">تم الرجوع للراسل</SelectItem>
-                                        <SelectItem value="Refused (Paid)">رفض ودفع مصاريف شحن</SelectItem>
-                                        <SelectItem value="Refused (Unpaid)">رفض ولم يدفع مصاريف شحن</SelectItem>
-                                        <SelectItem value="Evasion (Phone)">تهرب هاتفيًا</SelectItem>
-                                        <SelectItem value="Evasion (Delivery Attempt)">تهرب بعد الوصول</SelectItem>
-                                        <SelectItem value="Cancelled">تم الإلغاء</SelectItem>
+                                        {statuses.filter(s => s.enabled).map(s => (
+                                            <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                                 <FormMessage className="col-span-4" />
                             </FormItem>
                         )}
                     />
-                    {(selectedStatus === 'Partially Delivered' || selectedStatus === 'Refused (Paid)') && (
+                    {selectedStatusConfig?.requiresPartialCollection && (
                         <FormField
                             control={form.control}
                             name="collectedAmount"
@@ -442,5 +421,3 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
     </Sheet>
   )
 }
-
-    

@@ -1,6 +1,6 @@
 
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, writeBatch, deleteDoc } from 'firebase/firestore';
 import type { ShipmentStatusConfig } from '@/lib/types';
@@ -23,18 +23,18 @@ import {
 } from "@/components/ui/alert-dialog"
 
 const defaultStatuses: ShipmentStatusConfig[] = [
-    { id: 'Pending', label: 'قيد الانتظار', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, isConsideredDelivered: false, isConsideredReturned: false },
-    { id: 'In-Transit', label: 'قيد التوصيل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, isConsideredDelivered: false, isConsideredReturned: false },
-    { id: 'Delivered', label: 'تم التسليم', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, isConsideredDelivered: true, isConsideredReturned: false },
-    { id: 'Partially Delivered', label: 'تسليم جزئي', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, isConsideredDelivered: true, isConsideredReturned: false },
-    { id: 'Returned', label: 'مرتجع', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, isConsideredDelivered: false, isConsideredReturned: true },
-    { id: 'Cancelled', label: 'تم الإلغاء', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, isConsideredDelivered: false, isConsideredReturned: true },
-    { id: 'Postponed', label: 'مؤجل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, isConsideredDelivered: false, isConsideredReturned: false },
-    { id: 'Returned to Sender', label: 'مرتجع للراسل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, isConsideredDelivered: false, isConsideredReturned: true },
-    { id: 'Refused (Paid)', label: 'رفض ودفع الشحن', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, isConsideredDelivered: true, isConsideredReturned: false },
-    { id: 'Refused (Unpaid)', label: 'رفض ولم يدفع', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, isConsideredDelivered: false, isConsideredReturned: true },
-    { id: 'Evasion (Phone)', label: 'تهرب هاتفيًا', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, isConsideredDelivered: false, isConsideredReturned: true },
-    { id: 'Evasion (Delivery Attempt)', label: 'تهرب بعد الوصول', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, isConsideredDelivered: false, isConsideredReturned: true },
+    { id: 'Pending', label: 'قيد الانتظار', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
+    { id: 'In-Transit', label: 'قيد التوصيل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
+    { id: 'Delivered', label: 'تم التسليم', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: true, requiresPartialCollection: false },
+    { id: 'Partially Delivered', label: 'تسليم جزئي', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true },
+    { id: 'Returned', label: 'مرتجع', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
+    { id: 'Cancelled', label: 'تم الإلغاء', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
+    { id: 'Postponed', label: 'مؤجل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
+    { id: 'Returned to Sender', label: 'مرتجع للراسل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
+    { id: 'Refused (Paid)', label: 'رفض ودفع الشحن', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true },
+    { id: 'Refused (Unpaid)', label: 'رفض ولم يدفع', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
+    { id: 'Evasion (Phone)', label: 'تهرب هاتفيًا', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
+    { id: 'Evasion (Delivery Attempt)', label: 'تهرب بعد الوصول', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
 ];
 
 export default function SettingsPage() {
@@ -66,7 +66,9 @@ export default function SettingsPage() {
             if (serverStatuses.length === 0) {
                 seedDefaultStatuses();
             } else {
-                setLocalStatuses(serverStatuses);
+                // Deep copy to avoid direct state mutation issues
+                const sortedStatuses = [...serverStatuses].sort((a, b) => a.label.localeCompare(b.label));
+                setLocalStatuses(JSON.parse(JSON.stringify(sortedStatuses)));
             }
         }
     }, [serverStatuses, isLoading, firestore, toast]);
@@ -83,8 +85,8 @@ export default function SettingsPage() {
             affectsCourierBalance: false,
             affectsCompanyBalance: false,
             enabled: true,
-            isConsideredDelivered: false,
-            isConsideredReturned: false,
+            requiresFullCollection: false,
+            requiresPartialCollection: false,
         };
         setLocalStatuses(prev => [...prev, newStatus]);
     };
@@ -117,22 +119,27 @@ export default function SettingsPage() {
         }
     }
 
-
     const handleSave = async () => {
         if (!firestore) return;
         setIsSaving(true);
         const batch = writeBatch(firestore);
+        
+        const originalIds = new Set(serverStatuses?.map(s => s.id));
 
         localStatuses.forEach(status => {
-            // Sanitize ID: remove spaces and enforce English characters
             const sanitizedId = status.id.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_().-]/g, '');
-            if (!sanitizedId) {
+             if (!sanitizedId) {
                 toast({ title: 'خطأ في الحفظ', description: `المفتاح للحالة "${status.label}" غير صالح.`, variant: 'destructive'});
                 setIsSaving(false);
                 return;
             }
+            
             const docRef = doc(firestore, 'shipment_statuses', sanitizedId);
-            batch.set(docRef, { ...status, id: sanitizedId });
+            
+            // Check if it's a new status or an existing one being saved.
+            if (originalIds.has(sanitizedId) || status.id.startsWith('custom_')) {
+                 batch.set(docRef, { ...status, id: sanitizedId });
+            }
         });
 
         try {
@@ -186,8 +193,8 @@ export default function SettingsPage() {
                                 <TableHead>الاسم المعروض</TableHead>
                                 <TableHead>تحسب للمندوب</TableHead>
                                 <TableHead>تحسب للشركة</TableHead>
-                                <TableHead>تعتبر "مسلمة"</TableHead>
-                                <TableHead>تعتبر "مرتجع"</TableHead>
+                                <TableHead>الإجمالي = المدفوع</TableHead>
+                                <TableHead>يسمح بالتحصيل الجزئي</TableHead>
                                 <TableHead>مفعلة</TableHead>
                                 <TableHead>إجراءات</TableHead>
                             </TableRow>
@@ -223,14 +230,14 @@ export default function SettingsPage() {
                                     </TableCell>
                                      <TableCell className="text-center">
                                         <Checkbox
-                                            checked={status.isConsideredDelivered}
-                                            onCheckedChange={checked => handleFieldChange(status.id, 'isConsideredDelivered', checked)}
+                                            checked={status.requiresFullCollection}
+                                            onCheckedChange={checked => handleFieldChange(status.id, 'requiresFullCollection', checked)}
                                         />
                                     </TableCell>
                                      <TableCell className="text-center">
                                         <Checkbox
-                                            checked={status.isConsideredReturned}
-                                            onCheckedChange={checked => handleFieldChange(status.id, 'isConsideredReturned', checked)}
+                                            checked={status.requiresPartialCollection}
+                                            onCheckedChange={checked => handleFieldChange(status.id, 'requiresPartialCollection', checked)}
                                         />
                                     </TableCell>
                                     <TableCell className="text-center">

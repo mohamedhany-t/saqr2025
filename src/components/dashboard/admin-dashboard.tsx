@@ -45,13 +45,8 @@ import { differenceInDays, differenceInHours } from "date-fns";
 import { ReportsPage } from "@/components/reports/reports-page";
 import { AuditLogPage } from "../audit-log/audit-log-page";
 import Link from "next/link";
+import { exportToExcel } from "@/lib/export";
 
-
-interface AdminDashboardProps {
-  user: User;
-  role: Role;
-  searchTerm: string;
-}
 
 const calculateCommissionAndPaidAmount = (
     status: string,
@@ -75,25 +70,26 @@ const calculateCommissionAndPaidAmount = (
     const safeCollectedAmount = collectedAmount || 0;
     const safeCourierCommissionRate = courierCommissionRate || 0;
     const safeCompanyCommission = companyCommission || 0;
+    
+    let amountForCalc = 0;
+    if (statusConfig.requiresFullCollection) {
+        amountForCalc = safeTotalAmount;
+    } else if (statusConfig.requiresPartialCollection) {
+        amountForCalc = safeCollectedAmount;
+    }
+    
+    update.paidAmount = amountForCalc;
+    update.collectedAmount = amountForCalc;
 
-    if (statusConfig.isConsideredDelivered) {
-        const amountForCalc = status === 'Delivered' ? safeTotalAmount : safeCollectedAmount;
-        update.paidAmount = amountForCalc;
-        update.collectedAmount = amountForCalc;
-        if (statusConfig.affectsCourierBalance) {
-            update.courierCommission = safeCourierCommissionRate;
-        }
+    if (amountForCalc > 0) { // Commissions are typically on successful collection
         if (statusConfig.affectsCompanyBalance) {
             update.companyCommission = safeCompanyCommission;
         }
-    } else if (statusConfig.isConsideredReturned) {
-        if (statusConfig.affectsCourierBalance) {
-            update.courierCommission = safeCourierCommissionRate;
-        }
-        // No paid amount or company commission on returns
-        update.paidAmount = 0;
-        update.collectedAmount = 0;
-        update.companyCommission = 0;
+    }
+
+    // Courier commission can sometimes be due even on returns
+    if (statusConfig.affectsCourierBalance) {
+        update.courierCommission = safeCourierCommissionRate;
     }
 
     return update;
@@ -401,6 +397,7 @@ const MobileShipmentsView = ({
               <ShipmentCard 
                 key={shipment.id}
                 shipment={shipment}
+                statusConfig={statuses.find(sc => sc.id === shipment.status)}
                 governorateName={governorates?.find(g => g.id === shipment.governorateId)?.name || ''}
                 companyName={companies?.find(c => c.id === shipment.companyId)?.name || ''}
                 onEdit={() => onEdit(shipment)}
@@ -601,42 +598,6 @@ const DesktopShipmentsView = ({
     )
   }
 
-const MobileUsersView = ({ listIsLoading, users, companies, onEdit, onDelete } : { listIsLoading: boolean, users: User[], companies: Company[], onEdit: (user: User, company?: Company) => void, onDelete: (user: User) => void }) => {
-     if (listIsLoading) {
-      return (
-        <div className="space-y-3 mt-4">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="p-4 bg-card rounded-lg border">
-                <div className="w-full h-6 bg-muted rounded animate-pulse"/>
-                <div className="w-1/2 h-4 bg-muted rounded animate-pulse mt-2"/>
-            </div>
-          ))}
-        </div>
-      );
-    }
-    if ((users || []).length === 0) {
-      return <div className="text-center py-10 text-muted-foreground">لا يوجد مستخدمون.</div>;
-    }
-    return (
-        <div className="space-y-3 mt-4">
-            {(users || []).map(u => (
-                <UserCard
-                    key={u.id}
-                    user={u}
-                    company={u.role === 'company' ? companies?.find(c => c.id === u.id) : undefined}
-                    onEdit={onEdit}
-                    onDelete={onDelete}
-                />
-            ))}
-        </div>
-    );
-  }
-  
-const DesktopUsersView = ({ listIsLoading, users, onEdit, onDelete }: { listIsLoading: boolean, users: User[], onEdit: (user: User, company?: Company) => void, onDelete: (user: User) => void }) => (
-    <UsersTable users={users || []} isLoading={listIsLoading} onEdit={onEdit} onDelete={onDelete}/>
-)
-
-// Helper component for the Problem Inbox
 const ProblemShipmentList = ({ title, shipments, onEdit, governorates, companies, statuses }: { title: string, shipments: Shipment[], onEdit: (s: Shipment) => void, governorates: Governorate[], companies: Company[], statuses: ShipmentStatusConfig[] }) => {
   if (shipments.length === 0) {
     return null; // Don't render the card if there are no shipments
@@ -673,6 +634,11 @@ const ProblemShipmentList = ({ title, shipments, onEdit, governorates, companies
   )
 }
 
+interface AdminDashboardProps {
+  user: User;
+  role: Role;
+  searchTerm: string;
+}
 export default function AdminDashboard({ user, role, searchTerm }: AdminDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
@@ -1471,7 +1437,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       });
 
       // Step 3: Archive finished shipments for this courier
-      const finishedStatuses = statuses.filter(s => s.isConsideredDelivered || s.isConsideredReturned).map(s => s.id);
+      const finishedStatuses = statuses.filter(s => s.requiresFullCollection || s.requiresPartialCollection || s.affectsCourierBalance).map(s => s.id);
       const courierShipmentsToArchive = shipments?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchivedForCourier && finishedStatuses.includes(s.status)) || [];
       courierShipmentsToArchive.forEach(shipment => {
           const shipmentRef = doc(firestore, 'shipments', shipment.id);
@@ -1530,7 +1496,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     });
   
     // Step 3: Archive finished shipments for this company
-    const finishedStatuses = statuses.filter(s => s.isConsideredDelivered || s.isConsideredReturned).map(s => s.id);
+    const finishedStatuses = statuses.filter(s => s.requiresFullCollection || s.requiresPartialCollection || s.affectsCourierBalance).map(s => s.id);
     const companyShipmentsToArchive = shipments?.filter(s => s.companyId === companyToArchive.id && !s.isArchivedForCompany && finishedStatuses.includes(s.status)) || [];
     companyShipmentsToArchive.forEach(shipment => {
       const shipmentRef = doc(firestore, 'shipments', shipment.id);
@@ -1643,8 +1609,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         return {
             ...courier,
             totalShipments: activeShipments.length,
-            deliveredCount: activeShipments.filter(s => s.status === 'Delivered' || s.status === 'Partially Delivered' || s.status === 'Evasion (Delivery Attempt)').length,
-            returnedCount: activeShipments.filter(s => ['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)).length,
+            deliveredCount: activeShipments.filter(s => statuses?.find(st => st.id === s.status)?.requiresFullCollection).length,
+            returnedCount: activeShipments.filter(s => !statuses?.find(st => st.id === s.status)?.requiresFullCollection && statuses?.find(st => st.id === s.status)?.affectsCourierBalance).length,
             totalCollected,
             totalCommission,
             totalPaidByCourier,
@@ -1652,7 +1618,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             paymentHistory: allPaymentsForCourier.sort((a, b) => (b.paymentDate?.toDate?.() || 0) - (a.paymentDate?.toDate?.() || 0)),
         }
     })
-  }, [users, shipments, courierUsers, courierPayments]);
+  }, [users, shipments, courierUsers, courierPayments, statuses]);
   
   const companyDues = React.useMemo(() => {
     if (!companies || !shipments || !companyPayments) return [];

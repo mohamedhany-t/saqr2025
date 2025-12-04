@@ -50,24 +50,25 @@ const calculateCommissionAndPaidAmount = (
     const safeCourierCommissionRate = courierCommissionRate || 0;
     const safeCompanyCommission = companyCommission || 0;
 
-    if (statusConfig.isConsideredDelivered) {
-        const amountForCalc = status === 'Delivered' ? safeTotalAmount : safeCollectedAmount;
-        update.paidAmount = amountForCalc;
-        update.collectedAmount = amountForCalc;
-        if (statusConfig.affectsCourierBalance) {
-            update.courierCommission = safeCourierCommissionRate;
-        }
+    let amountForCalc = 0;
+    if (statusConfig.requiresFullCollection) {
+        amountForCalc = safeTotalAmount;
+    } else if (statusConfig.requiresPartialCollection) {
+        amountForCalc = safeCollectedAmount;
+    }
+    
+    update.paidAmount = amountForCalc;
+    update.collectedAmount = amountForCalc;
+
+    if (amountForCalc > 0) { // Commissions are typically on successful collection
         if (statusConfig.affectsCompanyBalance) {
             update.companyCommission = safeCompanyCommission;
         }
-    } else if (statusConfig.isConsideredReturned) {
-        if (statusConfig.affectsCourierBalance) {
-            update.courierCommission = safeCourierCommissionRate;
-        }
-        // No paid amount or company commission on returns
-        update.paidAmount = 0;
-        update.collectedAmount = 0;
-        update.companyCommission = 0;
+    }
+
+    // Courier commission can sometimes be due even on returns
+    if (statusConfig.affectsCourierBalance) {
+        update.courierCommission = safeCourierCommissionRate;
     }
 
     return update;
@@ -419,6 +420,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
           <ShipmentCard 
             key={shipment.id}
             shipment={shipment}
+            statusConfig={statuses?.find(sc => sc.id === shipment.status)}
             governorateName={governorates?.find(g => g.id === shipment.governorateId)?.name || ''}
             companyName={companies?.find(c => c.id === shipment.companyId)?.name || ''}
             onEdit={() => openShipmentForm(shipment)}

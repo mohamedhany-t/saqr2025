@@ -37,8 +37,8 @@ export type ShipmentStatusConfig = {
   affectsCourierBalance: boolean; // Determines if it's counted in courier's financial calculations
   affectsCompanyBalance: boolean; // Determines if it's counted in company's financial calculations
   enabled: boolean; // Whether the status is active and can be used
-  isConsideredDelivered: boolean; // Statuses like Delivered, Partially Delivered, Refused (Paid)
-  isConsideredReturned: boolean; // Statuses like Returned, Cancelled, Refused (Unpaid)
+  requiresFullCollection: boolean; // e.g., for "Delivered"
+  requiresPartialCollection: boolean; // e.g., for "Partially Delivered", "Refused (Paid)"
 };
   
 export type Shipment = {
