@@ -10,13 +10,21 @@ const db = admin.firestore();
  * This offloads the calculation from the client.
  */
 export const getDashboardStats = functions.https.onCall(async (data, context) => {
-  // Optional: Add authentication check
-  // if (!context.auth) {
-  //   throw new functions.https.HttpsError(
-  //     "unauthenticated",
-  //     "The function must be called while authenticated."
-  //   );
-  // }
+  // Enforce authentication and admin role.
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "The function must be called while authenticated."
+    );
+  }
+
+  const adminDoc = await db.collection("roles_admin").doc(context.auth.uid).get();
+  if (!adminDoc.exists) {
+      throw new functions.https.HttpsError(
+          "permission-denied",
+          "The function must be called by an admin user."
+      );
+  }
   
   try {
     const shipmentsSnapshot = await db.collection("shipments").get();
