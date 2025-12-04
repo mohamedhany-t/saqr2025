@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import * as React from 'react';
@@ -67,12 +66,12 @@ export function CourierPaymentFormSheet({ children, open, onOpenChange, courier,
         });
       } else {
         form.reset({
-          amount: 0,
+          amount: netDue && netDue > 0 ? netDue : 0,
           notes: "",
         });
       }
     }
-  }, [open, form, isEditing, payment]);
+  }, [open, form, isEditing, payment, netDue]);
 
 
   const onSubmit = (values: z.infer<typeof paymentSchema>) => {
@@ -141,5 +140,3 @@ export function CourierPaymentFormSheet({ children, open, onOpenChange, courier,
     </Sheet>
   )
 }
-
-    

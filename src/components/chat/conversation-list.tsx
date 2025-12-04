@@ -10,6 +10,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { Skeleton } from '../ui/skeleton';
 import { Badge } from '../ui/badge';
+import { formatToCairoTime } from '@/lib/utils';
 
 interface ConversationListProps {
     currentUser: User;
@@ -110,5 +111,3 @@ const ConversationList: React.FC<ConversationListProps> = ({ currentUser, onSele
 };
 
 export default ConversationList;
-
-    

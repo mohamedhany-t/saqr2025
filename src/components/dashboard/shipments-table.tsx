@@ -1,5 +1,4 @@
 
-
 "use client"
 import * as React from "react"
 import type {
@@ -72,7 +71,7 @@ import { doc, writeBatch, serverTimestamp } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { sendPushNotification } from "@/lib/actions"
-import { cn } from "@/lib/utils"
+import { cn, formatToCairoTime } from "@/lib/utils"
 import { ShipmentDetailsDialog } from "../shipments/shipment-details-dialog"
 
 export const statusIcons: Record<ShipmentStatus, React.ReactNode> = {
@@ -110,7 +109,7 @@ export const statusText: Record<string, string> = {
     'In-Transit': 'قيد التوصيل',
     Delivered: 'تم التسليم',
     'Partially Delivered': 'تم التسليم جزئياً',
-    'Evasion (Phone)': 'تهرب هاتفيًا',
+    'Evasion (Phone)": 'تهرب هاتفيًا',
     'Evasion (Delivery Attempt)': 'تهرب بعد الوصول',
     Cancelled: 'تم الإلغاء',
     Returned: 'مرتجع',
@@ -307,9 +306,7 @@ export const getColumns = ({
     ),
     cell: ({ row }) => {
        const createdAt = row.getValue("createdAt") as any;
-       if (!createdAt) return null;
-       const date = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
-       return <div>{date.toLocaleDateString("ar-EG", { year: 'numeric', month: '2-digit', day: '2-digit' })}</div>
+       return <div>{formatToCairoTime(createdAt?.toDate())}</div>;
     },
   },
   {
@@ -903,7 +900,3 @@ export function ShipmentsTable({
     </div>
   )
 }
-    
-
-    
-

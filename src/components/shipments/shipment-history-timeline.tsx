@@ -9,6 +9,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { Loader2 } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
+import { formatToCairoTime } from '@/lib/utils';
 
 interface ShipmentHistoryTimelineProps {
   shipmentId: string;
@@ -70,7 +71,7 @@ export function ShipmentHistoryTimeline({ shipmentId }: ShipmentHistoryTimelineP
                     </p>
                 )}
                 <time className="text-xs text-muted-foreground/80 mt-1 block">
-                    {formatDistanceToNow(entry.updatedAt.toDate(), { addSuffix: true, locale: ar })}
+                    {formatToCairoTime(entry.updatedAt?.toDate())} ({formatDistanceToNow(entry.updatedAt.toDate(), { addSuffix: true, locale: ar })})
                 </time>
               </div>
             </div>
@@ -80,4 +81,3 @@ export function ShipmentHistoryTimeline({ shipmentId }: ShipmentHistoryTimelineP
     </ScrollArea>
   );
 }
-

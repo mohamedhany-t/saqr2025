@@ -1,5 +1,4 @@
 
-
 import type { ColumnDef } from '@tanstack/react-table';
 import { Workbook } from 'exceljs';
 import jsPDF from 'jspdf';
@@ -7,6 +6,7 @@ import 'jspdf-autotable';
 import type { Shipment, Governorate, Company, User } from './types';
 import React from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { formatToCairoTime } from './utils';
 
 
 // Extend jsPDF with autoTable
@@ -79,15 +79,14 @@ const getCellValue = (
              return statusTextMap[statusKey] || value;
         case 'createdAt':
         case 'deliveryDate':
-             if (!value) return '';
-             const date = value.toDate ? value.toDate() : new Date(value);
-             return date.toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+             const date = value?.toDate ? value.toDate() : value;
+             return formatToCairoTime(date);
         default:
              if (value instanceof Date) {
-                return value.toLocaleDateString('ar-EG');
+                return formatToCairoTime(value);
             }
              if (value && value.toDate instanceof Function) { // Firebase Timestamp
-                return value.toDate().toLocaleDateString('ar-EG');
+                return formatToCairoTime(value.toDate());
             }
             return value;
     }
@@ -126,6 +125,9 @@ export const exportToExcel = (
       if (col.key && ['totalAmount', 'paidAmount', 'courierCommission', 'companyCommission', 'netDue', 'totalCollected', 'totalRevenue', 'totalCommission', 'totalCompanyCommission', 'totalPaidToCompany', 'totalPaidByAdmin'].includes(col.key)) {
           col.style = { numFmt: '#,##0.00' };
           col.width = 18;
+      }
+      if (col.key === 'createdAt' || col.key === 'date') {
+        col.width = 25;
       }
   });
 

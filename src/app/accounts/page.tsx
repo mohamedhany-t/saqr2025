@@ -10,8 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileUp, Loader2 } from "lucide-react";
-import { format } from 'date-fns';
-import { ar } from 'date-fns/locale';
+import { formatToCairoTime } from "@/lib/utils";
 import { exportToExcel } from "@/lib/export";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query } from "firebase/firestore";
@@ -153,7 +152,7 @@ function AccountStatementsPage() {
         ];
         
         const dataToExport = transactions.map(tx => ({
-            date: format(tx.date, 'PPpp', { locale: ar }),
+            date: formatToCairoTime(tx.date),
             description: tx.description,
             totalAmount: tx.totalAmount !== undefined ? formatCurrency(tx.totalAmount) : '-',
             paidAmount: tx.paidAmount !== undefined ? formatCurrency(tx.paidAmount) : '-',
@@ -262,7 +261,7 @@ function AccountStatementsPage() {
                                 )}
                                 {transactions.map((tx, index) => (
                                     <TableRow key={`${tx.relatedId}-${index}`}>
-                                        <TableCell>{format(tx.date, 'PP', { locale: ar })}</TableCell>
+                                        <TableCell>{formatToCairoTime(tx.date)}</TableCell>
                                         <TableCell className="max-w-xs truncate">{tx.description}</TableCell>
                                         <TableCell className="text-center font-mono">{formatCurrency(tx.totalAmount)}</TableCell>
                                         <TableCell className="text-center font-mono">{formatCurrency(tx.paidAmount)}</TableCell>

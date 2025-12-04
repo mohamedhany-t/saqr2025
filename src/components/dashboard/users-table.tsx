@@ -1,5 +1,4 @@
 
-
 "use client"
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
@@ -35,6 +34,7 @@ import { Skeleton } from "../ui/skeleton"
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
 import { collection } from "firebase/firestore"
 import { Card, CardContent } from "../ui/card"
+import { formatToCairoTime } from "@/lib/utils"
 
 const roleIcons: Record<Role, React.ReactNode> = {
     admin: <UserIcon className="h-4 w-4 text-red-500" />,
@@ -164,9 +164,7 @@ const getColumns = (onEdit: (user: User, company?: Company) => void, onDelete: (
     header: "تاريخ الإنشاء",
     cell: ({ row }) => {
         const createdAt = row.getValue("createdAt") as any;
-        if (!createdAt) return 'N/A';
-        const date = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
-        return <div>{date.toLocaleDateString("ar-EG")}</div>
+        return <div>{formatToCairoTime(createdAt?.toDate())}</div>;
     }
   },
   {

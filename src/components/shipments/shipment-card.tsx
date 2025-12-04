@@ -10,7 +10,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useUser, useUserProfile } from "@/firebase";
 import { Checkbox } from "../ui/checkbox";
-import { cn } from "@/lib/utils";
+import { cn, formatToCairoTime } from "@/lib/utils";
 import React from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -130,7 +130,7 @@ export function ShipmentCard({
         }
     };
 
-    const timeAgo = createdAt?.toDate ? formatDistanceToNow(createdAt.toDate(), { addSuffix: true, locale: ar }) : '';
+    const timeAgo = formatToCairoTime(createdAt?.toDate());
 
     return (
         <Card className={cn("shadow-md border w-full overflow-hidden relative", isSelected && "ring-2 ring-primary border-primary")} onClick={handleCardClick}>

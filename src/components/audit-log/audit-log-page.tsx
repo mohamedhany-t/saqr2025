@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { format } from 'date-fns';
+import { formatToCairoTime } from '@/lib/utils';
 import { ar } from 'date-fns/locale';
 import type { DateRange } from 'react-day-picker';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
@@ -82,7 +82,7 @@ export function AuditLogPage({ users, shipments, companies, governorates, isLoad
     return history.map(log => {
       // The ref path is like 'shipments/shipmentId/history/historyId'
       const pathSegments = log.ref.path.split('/');
-      const shipmentId = pathSegments[1]; 
+      const shipmentId = pathSegments.length > 1 ? pathSegments[1] : ''; 
       const shipment = shipments.find(s => s.id === shipmentId);
       return {
         ...log,
@@ -221,7 +221,7 @@ export function AuditLogPage({ users, shipments, companies, governorates, isLoad
                   </TableCell>
                   <TableCell className="text-muted-foreground max-w-xs truncate">{log.reason || '-'}</TableCell>
                   <TableCell>{log.updatedBy}</TableCell>
-                  <TableCell>{log.updatedAt?.toDate ? format(log.updatedAt.toDate(), 'PPpp', { locale: ar }) : 'الآن...'}</TableCell>
+                  <TableCell>{log.updatedAt?.toDate ? formatToCairoTime(log.updatedAt.toDate()) : 'الآن...'}</TableCell>
                   <TableCell>
                     {log.shipment && (
                       <div className="flex items-center gap-2">

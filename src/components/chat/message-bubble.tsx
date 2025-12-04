@@ -1,12 +1,9 @@
 
 "use client";
 import React from 'react';
-import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
-import { ar } from 'date-fns/locale';
+import { cn, formatToCairoTime } from '@/lib/utils';
 import type { ChatMessage } from '@/lib/types';
 import { Image, File, Download } from 'lucide-react';
-import { Button } from '../ui/button';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -19,7 +16,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage }) 
     isOwnMessage ? 'bg-primary text-primary-foreground self-end rounded-br-none' : 'bg-muted text-foreground self-start rounded-bl-none'
   );
   
-  const time = message.timestamp?.toDate ? format(message.timestamp.toDate(), 'p', { locale: ar }) : '';
+  const time = formatToCairoTime(message.timestamp?.toDate());
 
   return (
     <div className={cn("flex flex-col", isOwnMessage ? "items-end" : "items-start")}>
