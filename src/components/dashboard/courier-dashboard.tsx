@@ -213,7 +213,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
             ...calculatedFields
         };
 
-        await handleShipmentUpdateFn(payload);
+        await handleShipmentUpdateFn({data: payload});
         toast({ title: "تم تحديث الشحنة بنجاح" });
         handleSheetOpenChange(false);
     } catch (error: any) {
@@ -254,7 +254,7 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
             reason: update.reason || 'تحديث جماعي',
             ...calculatedFields,
         };
-        return handleShipmentUpdateFn(payload).catch(error => ({
+        return handleShipmentUpdateFn({data: payload}).catch(error => ({
             shipmentId: row.id,
             error: error.message || "فشل التحديث"
         }));

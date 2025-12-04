@@ -47,12 +47,20 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateShipmentStatus = exports.getDashboardStats = void 0;
+exports.handleShipmentUpdate = exports.getDashboardStats = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const zod_1 = require("zod");
 const cors_1 = __importDefault(require("cors"));
-admin.initializeApp();
+try {
+    admin.initializeApp();
+}
+catch (e) {
+    // This can happen in local dev environments
+    if (!/already exists/.test(e.message)) {
+        console.error('Firebase admin initialization error', e);
+    }
+}
 const db = admin.firestore();
 // Initialize cors middleware
 const corsHandler = (0, cors_1.default)({ origin: true });
@@ -106,7 +114,7 @@ exports.getDashboardStats = functions.https.onCall(async (data, context) => {
     }
 });
 /**
- * A callable function for a courier to update a shipment's status.
+ * An HTTP Request function for a courier to update a shipment's status.
  * This centralizes logic and security checks.
  */
 const updateShipmentStatusSchema = zod_1.z.object({
@@ -118,14 +126,13 @@ const updateShipmentStatusSchema = zod_1.z.object({
     courierCommission: zod_1.z.number(),
     companyCommission: zod_1.z.number(),
 });
-exports.updateShipmentStatus = functions.https.onRequest((req, res) => {
+exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
         var _a;
         if (req.method !== 'POST') {
-            res.status(405).send('Method Not Allowed');
+            res.status(405).send({ error: { message: 'Method Not Allowed' } });
             return;
         }
-        const data = req.body.data;
         let context = {};
         if ((_a = req.headers.authorization) === null || _a === void 0 ? void 0 : _a.startsWith('Bearer ')) {
             const idToken = req.headers.authorization.split('Bearer ')[1];
@@ -144,7 +151,7 @@ exports.updateShipmentStatus = functions.https.onRequest((req, res) => {
             return;
         }
         const { uid: courierId, token } = context.auth;
-        const validation = updateShipmentStatusSchema.safeParse(data);
+        const validation = updateShipmentStatusSchema.safeParse(req.body.data);
         if (!validation.success) {
             console.error("Validation failed:", validation.error);
             res.status(400).send({ error: { status: 'INVALID_ARGUMENT', message: 'The data provided is invalid.' } });
@@ -175,10 +182,12 @@ exports.updateShipmentStatus = functions.https.onRequest((req, res) => {
                 transaction.set(historyRef, historyEntry);
                 return { success: true, message: "Shipment updated successfully." };
             });
+            // Send success response back to client
             res.status(200).send({ data: result });
         }
         catch (error) {
             console.error("Error updating shipment status:", error);
+            // Send internal error response
             res.status(500).send({ error: { status: 'INTERNAL', message: error.message } });
         }
     });
