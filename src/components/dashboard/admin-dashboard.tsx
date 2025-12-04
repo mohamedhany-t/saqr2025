@@ -45,6 +45,7 @@ import { exportToExcel } from "@/lib/export";
 import { getColumns as getShipmentColumns } from './shipments-table';
 import { differenceInDays, differenceInHours } from "date-fns";
 import { ReportsPage } from "@/components/reports/reports-page";
+import { AuditLogPage } from "../audit-log/audit-log-page";
 
 
 interface AdminDashboardProps {
@@ -1833,6 +1834,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
               كشوفات الحسابات
             </TabsTrigger>
             <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
+            <TabsTrigger value="audit-log">
+                <History className="w-4 h-4 me-2" />
+                سجل التغييرات
+            </TabsTrigger>
             <TabsTrigger value="reports">التقارير</TabsTrigger>
             <TabsTrigger value="ai-tools">
               <Bot className="w-4 h-4 me-2" />
@@ -2176,6 +2181,13 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     <DesktopUsersView listIsLoading={usersLoading || companiesLoading} users={users || []} onEdit={openUserForm} onDelete={setUserToDelete} />
                  }
             </div>
+        </TabsContent>
+        <TabsContent value="audit-log">
+             <AuditLogPage 
+                users={users || []}
+                shipments={shipments || []}
+                isLoading={listIsLoading}
+             />
         </TabsContent>
         <TabsContent value="reports">
              <ReportsPage 
