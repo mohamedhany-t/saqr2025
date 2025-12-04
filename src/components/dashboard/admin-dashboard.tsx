@@ -3,12 +3,12 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, User, CourierPayment, Chat, CompanyPayment, ShipmentStatus, ShipmentHistory } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, User, CourierPayment, Chat, CompanyPayment, ShipmentHistory, ShipmentStatusConfig } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { UsersTable, UserCard } from "@/components/dashboard/users-table";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
@@ -35,17 +35,16 @@ import ChatInterface from "@/components/chat/chat-interface";
 import { Badge } from "../ui/badge";
 import AccountStatementsPage from "@/app/accounts/page";
 import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotification } from "@/lib/actions";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { ShipmentCard } from "../shipments/shipment-card";
 import { ColumnFiltersState } from "@tanstack/react-table";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import AutoAssignPage from "../ai/auto-assign-page";
-import { statusText } from './shipments-table';
-import { exportToExcel } from "@/lib/export";
 import { getColumns as getShipmentColumns } from './shipments-table';
 import { differenceInDays, differenceInHours } from "date-fns";
 import { ReportsPage } from "@/components/reports/reports-page";
 import { AuditLogPage } from "../audit-log/audit-log-page";
+import Link from "next/link";
 
 
 interface AdminDashboardProps {
@@ -55,11 +54,12 @@ interface AdminDashboardProps {
 }
 
 const calculateCommissionAndPaidAmount = (
-    status: ShipmentStatus,
+    status: string,
     totalAmount: number,
     collectedAmount: number,
     courierCommissionRate: number,
     companyCommission: number,
+    statusConfigs: ShipmentStatusConfig[],
 ) => {
     const update: { paidAmount: number; courierCommission: number; companyCommission: number; collectedAmount: number } = {
         paidAmount: 0,
@@ -68,45 +68,32 @@ const calculateCommissionAndPaidAmount = (
         collectedAmount: 0,
     };
     
+    const statusConfig = statusConfigs.find(s => s.id === status);
+    if (!statusConfig) return update;
+
     const safeTotalAmount = totalAmount || 0;
     const safeCollectedAmount = collectedAmount || 0;
     const safeCourierCommissionRate = courierCommissionRate || 0;
     const safeCompanyCommission = companyCommission || 0;
 
-    switch (status) {
-        case 'Delivered':
-            update.paidAmount = safeTotalAmount;
-            update.collectedAmount = safeTotalAmount;
+    if (statusConfig.isConsideredDelivered) {
+        const amountForCalc = status === 'Delivered' ? safeTotalAmount : safeCollectedAmount;
+        update.paidAmount = amountForCalc;
+        update.collectedAmount = amountForCalc;
+        if (statusConfig.affectsCourierBalance) {
             update.courierCommission = safeCourierCommissionRate;
+        }
+        if (statusConfig.affectsCompanyBalance) {
             update.companyCommission = safeCompanyCommission;
-            break;
-
-        case 'Partially Delivered':
-        case 'Refused (Paid)':
-            update.paidAmount = safeCollectedAmount;
-            update.collectedAmount = safeCollectedAmount;
+        }
+    } else if (statusConfig.isConsideredReturned) {
+        if (statusConfig.affectsCourierBalance) {
             update.courierCommission = safeCourierCommissionRate;
-            update.companyCommission = safeCompanyCommission;
-            break;
-
-        case 'Evasion (Delivery Attempt)':
-        case 'Refused (Unpaid)':
-            update.courierCommission = safeCourierCommissionRate;
-            update.companyCommission = 0; // No revenue, so no company commission
-            update.paidAmount = 0;
-            update.collectedAmount = 0;
-            break;
-            
-        case 'Evasion (Phone)':
-        case 'Returned':
-        case 'Cancelled':
-        case 'Postponed':
-        case 'Returned to Sender':
-        case 'Pending':
-        case 'In-Transit':
-        default:
-            // All financial fields are reset to 0 for these statuses
-            break;
+        }
+        // No paid amount or company commission on returns
+        update.paidAmount = 0;
+        update.collectedAmount = 0;
+        update.companyCommission = 0;
     }
 
     return update;
@@ -117,11 +104,13 @@ const Filters = ({
   governorates,
   companies,
   courierUsers,
+  statuses,
   onFiltersChange
 }: {
   governorates: Governorate[];
   companies: Company[];
   courierUsers: User[];
+  statuses: ShipmentStatusConfig[];
   onFiltersChange: React.Dispatch<React.SetStateAction<ColumnFiltersState>>;
 }) => {
     const [localFilters, setLocalFilters] = React.useState<ColumnFiltersState>([]);
@@ -163,19 +152,19 @@ const Filters = ({
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
-                    {Object.entries(statusText).map(([value, label]) => (
+                    {statuses.filter(s => s.enabled).map((status) => (
                         <DropdownMenuCheckboxItem
-                            key={value}
-                            checked={statusFilterValue?.includes(value)}
+                            key={status.id}
+                            checked={statusFilterValue?.includes(status.id)}
                             onCheckedChange={(checked) => {
                                 const current = statusFilterValue || [];
                                 const newFilter = checked
-                                    ? [...current, value]
-                                    : current.filter((id) => id !== value);
+                                    ? [...current, status.id]
+                                    : current.filter((id) => id !== status.id);
                                 setFilter("status", newFilter.length ? newFilter : undefined);
                             }}
                         >
-                            {label}
+                            {status.label}
                         </DropdownMenuCheckboxItem>
                     ))}
                 </DropdownMenuContent>
@@ -278,6 +267,7 @@ const MobileShipmentsView = ({
     governorates,
     companies,
     courierUsers,
+    statuses,
     onEdit,
     onDelete,
     onPrint,
@@ -296,6 +286,7 @@ const MobileShipmentsView = ({
     governorates: Governorate[];
     companies: Company[];
     courierUsers: User[];
+    statuses: ShipmentStatusConfig[];
     onEdit: (shipment: Shipment) => void;
     onDelete: (shipment: Shipment) => void;
     onPrint: (shipment: Shipment) => void;
@@ -312,7 +303,7 @@ const MobileShipmentsView = ({
 
     const selectedCount = Object.values(mobileRowSelection).filter(Boolean).length;
     
-    const getShipmentsByStatus = (status: ShipmentStatus | ShipmentStatus[]) => {
+    const getShipmentsByStatus = (status: string | string[]) => {
         const statuses = Array.isArray(status) ? status : [status];
         return filteredShipments.filter(s => statuses.includes(s.status));
     }
@@ -362,7 +353,7 @@ const MobileShipmentsView = ({
           toast({ title: "لا توجد بيانات للتصدير", description: "الرجاء تحديد شحنة واحدة على الأقل.", variant: "destructive" });
           return;
         }
-        const shipmentColumns = getShipmentColumns({ onEdit, onBulkUpdate: handleGenericBulkUpdate, role, governorates, companies, couriers: courierUsers });
+        const shipmentColumns = getShipmentColumns({ onEdit, onBulkUpdate: handleGenericBulkUpdate, role, governorates, companies, couriers: courierUsers, statuses });
         exportToExcel(selectedShipments, shipmentColumns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates || [], companies || [], courierUsers);
         setMobileRowSelection({});
     }
@@ -410,6 +401,7 @@ const MobileShipmentsView = ({
               <ShipmentCard 
                 key={shipment.id}
                 shipment={shipment}
+                statusConfig={statuses.find(s => s.id === shipment.status)}
                 governorateName={governorates?.find(g => g.id === shipment.governorateId)?.name || ''}
                 companyName={companies?.find(c => c.id === shipment.companyId)?.name || ''}
                 onEdit={() => onEdit(shipment)}
@@ -447,7 +439,7 @@ const MobileShipmentsView = ({
                     <TabsTrigger value="archived-courier">مؤرشف المناديب</TabsTrigger>
                 </TabsList>
                 <div className="flex items-center gap-4">
-                    <Filters governorates={governorates || []} companies={companies || []} courierUsers={courierUsers} onFiltersChange={setColumnFilters} />
+                    <Filters governorates={governorates || []} companies={companies || []} courierUsers={courierUsers} statuses={statuses} onFiltersChange={setColumnFilters} />
                     {currentList.length > 0 && (
                         <Button variant="outline" size="sm" onClick={handleSelectAll} className="h-8 gap-1">
                             <ListChecks className="h-3.5 w-3.5" />
@@ -478,9 +470,9 @@ const MobileShipmentsView = ({
                              </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                            {Object.entries(statusText).map(([statusValue, statusLabel]) => (
-                                 <DropdownMenuItem key={statusValue} onSelect={() => handleMobileBulkUpdate({ status: statusValue as ShipmentStatus })}>
-                                     {statusLabel}
+                            {statuses.filter(s => s.enabled).map((status) => (
+                                 <DropdownMenuItem key={status.id} onSelect={() => handleMobileBulkUpdate({ status: status.id })}>
+                                     {status.label}
                                  </DropdownMenuItem>
                             ))}
                         </DropdownMenuContent>
@@ -534,6 +526,7 @@ const DesktopShipmentsView = ({
     governorates,
     companies,
     courierUsers,
+    statuses,
     openShipmentForm,
     handleGenericBulkUpdate,
     handleBulkDelete,
@@ -543,7 +536,7 @@ const DesktopShipmentsView = ({
     listIsLoading: boolean;
     role: Role | null;
     filteredShipments: Shipment[];
-    getShipmentsByStatus: (status: ShipmentStatus | ShipmentStatus[]) => Shipment[];
+    getShipmentsByStatus: (status: string | string[]) => Shipment[];
     archivedShipmentsCompany: Shipment[];
     archivedShipmentsCourier: Shipment[];
     inWarehouseShipments: Shipment[];
@@ -551,6 +544,7 @@ const DesktopShipmentsView = ({
     governorates: Governorate[];
     companies: Company[];
     courierUsers: User[];
+    statuses: ShipmentStatusConfig[];
     openShipmentForm: (shipment?: Shipment) => void;
     handleGenericBulkUpdate: (selectedRows: Shipment[], update: Partial<Shipment>) => void;
     handleBulkDelete: (selectedRows: Shipment[]) => void;
@@ -564,6 +558,7 @@ const DesktopShipmentsView = ({
           governorates={governorates || []}
           companies={companies || []}
           couriers={courierUsers}
+          statuses={statuses}
           onEdit={openShipmentForm}
           role={role}
           onBulkUpdate={handleGenericBulkUpdate}
@@ -643,7 +638,7 @@ const DesktopUsersView = ({ listIsLoading, users, onEdit, onDelete }: { listIsLo
 )
 
 // Helper component for the Problem Inbox
-const ProblemShipmentList = ({ title, shipments, onEdit, governorates, companies }: { title: string, shipments: Shipment[], onEdit: (s: Shipment) => void, governorates: Governorate[], companies: Company[] }) => {
+const ProblemShipmentList = ({ title, shipments, onEdit, governorates, companies, statuses }: { title: string, shipments: Shipment[], onEdit: (s: Shipment) => void, governorates: Governorate[], companies: Company[], statuses: ShipmentStatusConfig[] }) => {
   if (shipments.length === 0) {
     return null; // Don't render the card if there are no shipments
   }
@@ -804,6 +799,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   }, [firestore, user]);
   const { data: companyPayments } = useCollection<CompanyPayment>(companyPaymentsQuery);
   
+  const statusesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'shipment_statuses'));
+  }, [firestore]);
+  const { data: statuses, isLoading: statusesLoading } = useCollection<ShipmentStatusConfig>(statusesQuery);
+
   const courierUsers = React.useMemo(() => users?.filter(u => u.role === 'courier') || [], [users]);
   
   const openShipmentForm = (shipment?: Shipment) => {
@@ -993,7 +994,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   };
 
   const handleSaveShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
-    if (!firestore || !user || !companies || !users) return;
+    if (!firestore || !user || !companies || !users || !statuses) return;
 
     const shipmentId = id || editingShipment?.id;
 
@@ -1016,9 +1017,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     }
     
     if (dataToSave.status && (originalShipment || !shipmentId)) {
-        const courierId = dataToSave.assignedCourierId || originalShipment?.assignedCourierId;
-        const companyId = dataToSave.companyId || originalShipment?.companyId;
-        const governorateId = dataToSave.governorateId || originalShipment?.governorateId;
+        const baseShipment = originalShipment || shipmentData;
+        const courierId = dataToSave.assignedCourierId || baseShipment.assignedCourierId;
+        const companyId = dataToSave.companyId || baseShipment.companyId;
+        const governorateId = dataToSave.governorateId || baseShipment.governorateId;
         
         const courierUser = users.find(u => u.id === courierId);
         const company = companies.find(c => c.id === companyId);
@@ -1027,15 +1029,16 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             const courierCommissionRate = courierUser.commissionRate || 0;
             const companyGovernorateCommission = governorateId ? company.governorateCommissions?.[governorateId] || 0 : 0;
             
-            const totalAmount = dataToSave.totalAmount ?? originalShipment?.totalAmount ?? 0;
-            const collectedAmount = dataToSave.collectedAmount ?? originalShipment?.collectedAmount ?? 0;
+            const totalAmount = dataToSave.totalAmount ?? baseShipment.totalAmount ?? 0;
+            const collectedAmount = dataToSave.collectedAmount ?? baseShipment.collectedAmount ?? 0;
             
             const calculatedFields = calculateCommissionAndPaidAmount(
                 dataToSave.status,
                 totalAmount,
                 collectedAmount,
                 courierCommissionRate,
-                companyGovernorateCommission
+                companyGovernorateCommission,
+                statuses
             );
 
             dataToSave = { ...dataToSave, ...calculatedFields };
@@ -1432,7 +1435,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
 
   const handleArchiveCourierData = async () => {
-      if (!firestore || !courierToArchive || !user) return;
+      if (!firestore || !courierToArchive || !user || !statuses) return;
       toast({ title: `جاري أرشفة وتسوية حساب ${courierToArchive.name}...` });
       
       const courierDueData = courierDues.find(d => d.id === courierToArchive.id);
@@ -1469,7 +1472,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       });
 
       // Step 3: Archive finished shipments for this courier
-      const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Returned', 'Cancelled', 'Evasion (Phone)', 'Evasion (Delivery Attempt)', 'Refused (Paid)', 'Refused (Unpaid)', 'Returned to Sender'];
+      const finishedStatuses = statuses.filter(s => s.isConsideredDelivered || s.isConsideredReturned).map(s => s.id);
       const courierShipmentsToArchive = shipments?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchivedForCourier && finishedStatuses.includes(s.status)) || [];
       courierShipmentsToArchive.forEach(shipment => {
           const shipmentRef = doc(firestore, 'shipments', shipment.id);
@@ -1491,7 +1494,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   };
   
   const handleArchiveCompanyData = async () => {
-    if (!firestore || !companyToArchive || !user) return;
+    if (!firestore || !companyToArchive || !user || !statuses) return;
     toast({ title: `جاري أرشفة وتسوية حساب ${companyToArchive.name}...` });
     
     const companyDueData = companyDues.find(d => d.id === companyToArchive.id);
@@ -1528,7 +1531,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     });
   
     // Step 3: Archive finished shipments for this company
-    const finishedStatuses: ShipmentStatus[] = ['Delivered', 'Partially Delivered', 'Returned', 'Cancelled', 'Evasion (Phone)', 'Evasion (Delivery Attempt)', 'Refused (Paid)', 'Refused (Unpaid)', 'Returned to Sender'];
+    const finishedStatuses = statuses.filter(s => s.isConsideredDelivered || s.isConsideredReturned).map(s => s.id);
     const companyShipmentsToArchive = shipments?.filter(s => s.companyId === companyToArchive.id && !s.isArchivedForCompany && finishedStatuses.includes(s.status)) || [];
     companyShipmentsToArchive.forEach(shipment => {
       const shipmentRef = doc(firestore, 'shipments', shipment.id);
@@ -1748,7 +1751,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const currentCompanyNetDue = companyDues.find(c => c.id === payingCompany?.id)?.netDue;
   
   const handleGenericBulkUpdate = async (selectedRows: Shipment[], update: Partial<Shipment>) => {
-    if (!firestore || !user || !users || !companies || !governorates) return;
+    if (!firestore || !user || !users || !companies || !governorates || !statuses) return;
     if (selectedRows.length === 0) {
         toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
         return;
@@ -1790,7 +1793,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     row.totalAmount,
                     row.collectedAmount || 0,
                     courierCommissionRate,
-                    companyGovernorateCommission
+                    companyGovernorateCommission,
+                    statuses,
                 );
                 finalUpdate = { ...finalUpdate, ...calculatedFields };
             }
@@ -1837,7 +1841,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     }
   }
 
-  const getShipmentsByStatus = (status: ShipmentStatus | ShipmentStatus[]) => {
+  const getShipmentsByStatus = (status: string | string[]) => {
     const statuses = Array.isArray(status) ? status : [status];
     return filteredShipments.filter(s => statuses.includes(s.status));
   }
@@ -1846,7 +1850,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     return shipments?.filter(s => !s.assignedCourierId && !s.isArchivedForCompany && !s.isArchivedForCourier) || [];
   }, [shipments]);
 
-  const listIsLoading = shipmentsLoading || governoratesLoading || companiesLoading || usersLoading;
+  const listIsLoading = shipmentsLoading || governoratesLoading || companiesLoading || usersLoading || statusesLoading;
 
   return (
     <div className="flex flex-col w-full">
@@ -1867,6 +1871,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
               كشوفات الحسابات
             </TabsTrigger>
             <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
+             <TabsTrigger value="settings">
+                <Link href="/settings" className="flex items-center gap-2">
+                    <Settings className="w-4 h-4" />
+                    <span>الإعدادات</span>
+                </Link>
+            </TabsTrigger>
             <TabsTrigger value="audit-log">
                 <History className="w-4 h-4 me-2" />
                 سجل التغييرات
@@ -1914,6 +1924,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     governorates={governorates || []}
                     companies={companies || []}
                     courierUsers={courierUsers}
+                    statuses={statuses || []}
                     onEdit={openShipmentForm}
                     onDelete={(shipment) => setShipmentToDelete(shipment)}
                     onPrint={handlePrintShipment}
@@ -1935,6 +1946,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     governorates={governorates || []}
                     companies={companies || []}
                     courierUsers={courierUsers}
+                    statuses={statuses || []}
                     openShipmentForm={openShipmentForm}
                     handleGenericBulkUpdate={handleGenericBulkUpdate}
                     handleBulkDelete={handleDeleteShipment}
@@ -1951,6 +1963,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
               onEdit={openShipmentForm}
               governorates={governorates || []}
               companies={companies || []}
+              statuses={statuses || []}
             />
             <ProblemShipmentList 
               title="شحنات مؤجلة لفترة طويلة" 
@@ -1958,6 +1971,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
               onEdit={openShipmentForm}
               governorates={governorates || []}
               companies={companies || []}
+              statuses={statuses || []}
             />
             <ProblemShipmentList 
               title="شحنات متأخرة عند المناديب" 
@@ -1965,6 +1979,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
               onEdit={openShipmentForm}
               governorates={governorates || []}
               companies={companies || []}
+              statuses={statuses || []}
             />
             {problemCount === 0 && (
               <div className="flex flex-col items-center justify-center text-center py-16 bg-muted/40 rounded-lg">
@@ -2256,6 +2271,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         governorates={governorates || []}
         couriers={courierUsers}
         companies={companies || []}
+        statuses={statuses || []}
         role={role}
       >
         <div />

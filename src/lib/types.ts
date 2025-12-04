@@ -17,7 +17,7 @@ export type User = {
   commissionRate?: number; // For couriers
 };
 
-export type ShipmentStatus =
+export type ShipmentStatusKey =
   | "Pending"
   | "In-Transit"
   | "Delivered"
@@ -32,6 +32,16 @@ export type ShipmentStatus =
   | "Refused (Unpaid)";
   // | "Returned to Warehouse"; // This is now a boolean flag
 
+export type ShipmentStatusConfig = {
+  id: string; // The unique key, e.g., 'pending'
+  label: string; // The display name, e.g., 'قيد الانتظار'
+  affectsCourierBalance: boolean; // Determines if it's counted in courier's financial calculations
+  affectsCompanyBalance: boolean; // Determines if it's counted in company's financial calculations
+  enabled: boolean; // Whether the status is active and can be used
+  isConsideredDelivered: boolean; // Statuses like Delivered, Partially Delivered, Refused (Paid)
+  isConsideredReturned: boolean; // Statuses like Returned, Cancelled, Refused (Unpaid)
+};
+  
 export type Shipment = {
   id: string;
   shipmentCode: string; // SH-YYYYMMDD-0001
@@ -43,7 +53,7 @@ export type Shipment = {
   governorateId?: string;
   address: string;
   deliveryDate: Date;
-  status: ShipmentStatus;
+  status: string; // Now a string to hold the key from ShipmentStatusConfig
   reason?: string;
   totalAmount: number;
   paidAmount: number;
@@ -61,7 +71,7 @@ export type Shipment = {
 
 export type ShipmentHistory = {
   id: string;
-  status: ShipmentStatus;
+  status: string;
   reason?: string;
   updatedAt: any;
   updatedBy: string; // User's name
