@@ -86,7 +86,7 @@ const calculateCommissionAndPaidAmount = (
         }
     }
 
-    // Courier commission can sometimes be due even on returns
+    // Courier commission can sometimes be due on returns
     if (statusConfig.affectsCourierBalance) {
         update.courierCommission = safeCourierCommissionRate;
     }
@@ -1875,7 +1875,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 </Button>
             </div>
         </div>
-        <StatsCards shipments={shipments?.filter(s => !s.isArchivedForCompany) || []} role={role} />
+        <StatsCards shipments={shipments || []} role={role} />
         <TabsContent value="shipments" className={isMobile ? "pb-20" : ""}>
             {isMobile ? 
                 <MobileShipmentsView 
