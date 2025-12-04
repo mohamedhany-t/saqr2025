@@ -7,7 +7,7 @@ import { PlusCircle, FileUp, MessageSquare, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, User, Chat } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, User, Chat, ShipmentHistory } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { ImportProgressDialog, type ImportProgress } from "@/components/shipments/import-progress-dialog";
@@ -249,7 +249,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
     }
   };
 
-  const handleSaveShipment = (shipment: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
+  const handleSaveShipment = async (shipment: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
     if (!firestore || !user) return;
 
     const cleanShipmentData: { [key: string]: any } = Object.fromEntries(
@@ -257,9 +257,16 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
     );
     const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
 
-    const savePromise = id
-        ? updateDoc(doc(firestore, 'shipments', id), { ...cleanShipmentData, updatedAt: serverTimestamp() })
-        : setDoc(doc(collection(firestore, 'shipments')), { 
+    const batch = writeBatch(firestore);
+    const shipmentRef = id ? doc(firestore, 'shipments', id) : doc(collection(firestore, 'shipments'));
+    let oldStatus: ShipmentStatus | undefined;
+    
+    if (id) {
+        const docSnap = await getDoc(shipmentRef);
+        if (docSnap.exists()) oldStatus = docSnap.data().status;
+        batch.update(shipmentRef, { ...cleanShipmentData, updatedAt: serverTimestamp() });
+    } else {
+        batch.set(shipmentRef, { 
             ...cleanShipmentData, 
             companyId: user.id, 
             isArchivedForCourier: false,
@@ -267,8 +274,22 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
             createdAt: serverTimestamp(), 
             updatedAt: serverTimestamp() 
           });
+    }
 
-    savePromise
+    const newStatus = cleanShipmentData.status as ShipmentStatus;
+    if (newStatus && newStatus !== oldStatus) {
+        const historyRef = doc(collection(shipmentRef, 'history'));
+        const historyEntry: Omit<ShipmentHistory, 'id'> = {
+            status: newStatus,
+            reason: cleanShipmentData.reason || '',
+            updatedAt: serverTimestamp(),
+            updatedBy: user.name || user.email,
+            userId: user.id,
+        };
+        batch.set(historyRef, historyEntry);
+    }
+    
+    batch.commit()
       .then(() => {
         toast({
           title: id ? "تم تحديث الشحنة" : "تم حفظ الشحنة",
@@ -317,16 +338,40 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
 
 
   const handleGenericBulkUpdate = async (selectedRows: Shipment[], update: Partial<Shipment>) => {
-    if (!firestore) return;
+    if (!firestore || !user) return;
     if (selectedRows.length === 0) {
         toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
         return;
     }
     
     const batch = writeBatch(firestore);
-    selectedRows.forEach(row => {
-        const docRef = doc(firestore, "shipments", row.id);
+
+    // Fetch full data for each row to ensure we have the latest status
+    const fullSelectedRowsData = await Promise.all(
+        selectedRows.map(row => getDoc(doc(firestore, "shipments", row.id)))
+    );
+
+    fullSelectedRowsData.forEach(docSnap => {
+        if (!docSnap.exists()) return;
+        const row = docSnap.data() as Shipment;
+        const docRef = docSnap.ref;
         const finalUpdate: { [key: string]: any } = { ...update, updatedAt: serverTimestamp() };
+
+        // Add history entry if status is changing
+        const newStatus = update.status;
+        const oldStatus = row.status;
+        if (newStatus && newStatus !== oldStatus) {
+            const historyRef = doc(collection(docRef, 'history'));
+            const historyEntry: Omit<ShipmentHistory, 'id'> = {
+                status: newStatus,
+                reason: update.reason || 'تحديث جماعي',
+                updatedAt: serverTimestamp(),
+                updatedBy: user.name || user.email,
+                userId: user.id,
+            };
+            batch.set(historyRef, historyEntry);
+        }
+        
         batch.update(docRef, finalUpdate);
     });
 

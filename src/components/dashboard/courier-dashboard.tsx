@@ -6,7 +6,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, ShipmentStatus, User, CourierPayment, Chat } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, ShipmentStatus, User, CourierPayment, Chat, ShipmentHistory } from "@/lib/types";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
@@ -226,6 +226,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     if (shipment.collectedAmount !== undefined) dataToUpdate.collectedAmount = collectedAmount;
 
     const newStatus = (shipment.status || originalShipmentData.status) as ShipmentStatus;
+    const oldStatus = originalShipmentData.status;
 
     const calculatedFields = calculateCommissionAndPaidAmount(
         newStatus,
@@ -242,9 +243,24 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         return;
     }
 
+    const batch = writeBatch(firestore);
     const docRef = doc(firestore, 'shipments', id);
+    batch.update(docRef, dataToUpdate);
     
-    updateDoc(docRef, dataToUpdate)
+    // Add to history if status has changed
+    if (newStatus && newStatus !== oldStatus) {
+        const historyRef = doc(collection(docRef, 'history'));
+        const historyEntry: Omit<ShipmentHistory, 'id'> = {
+            status: newStatus,
+            reason: dataToUpdate.reason || '',
+            updatedAt: serverTimestamp(),
+            updatedBy: user.name || user.email,
+            userId: user.id,
+        };
+        batch.set(historyRef, historyEntry);
+    }
+    
+    batch.commit()
       .then(() => {
         toast({
           title: "تم تحديث الشحنة",
@@ -299,6 +315,8 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
       }
 
       const newStatus = (allowedUpdates.status || row.status) as ShipmentStatus;
+      const oldStatus = row.status;
+      
       const shipmentCompany = companies.find(c => c.id === row.companyId);
       const companyGovernorateCommission = shipmentCompany && row.governorateId ? (shipmentCompany.governorateCommissions?.[row.governorateId] || 0) : 0;
 
@@ -313,6 +331,18 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
       Object.assign(finalUpdate, allowedUpdates, calculatedFields);
         
       batch.update(docRef, finalUpdate);
+
+       if (newStatus && newStatus !== oldStatus) {
+            const historyRef = doc(collection(docRef, 'history'));
+            const historyEntry: Omit<ShipmentHistory, 'id'> = {
+                status: newStatus,
+                reason: finalUpdate.reason || '',
+                updatedAt: serverTimestamp(),
+                updatedBy: user.name || user.email,
+                userId: user.id,
+            };
+            batch.set(historyRef, historyEntry);
+        }
     });
 
     batch.commit().then(() => {
