@@ -2,10 +2,10 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import type { Shipment, ShipmentHistory, User } from '@/lib/types';
+import type { Shipment, ShipmentHistory, User, Company, Governorate } from '@/lib/types';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collectionGroup, query, orderBy, where, Timestamp } from 'firebase/firestore';
-import { Loader2, Filter } from 'lucide-react';
+import { collectionGroup, query, orderBy, where, Timestamp, getDoc, doc } from 'firebase/firestore';
+import { Loader2, Filter, Pencil, FileText } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,24 +15,33 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import type { DateRange } from 'react-day-picker';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { statusText, statusIcons } from '../dashboard/shipments-table';
+import { ShipmentDetailsDialog } from '../shipments/shipment-details-dialog';
+
 
 interface ExtendedShipmentHistory extends ShipmentHistory {
   shipmentId: string;
+  shipmentPath: string; // The full path to the shipment document
 }
 
 interface AuditLogPageProps {
   users: User[];
   shipments: Shipment[];
+  companies: Company[];
+  governorates: Governorate[];
   isLoading: boolean;
 }
 
-export function AuditLogPage({ users, shipments, isLoading }: AuditLogPageProps) {
+export function AuditLogPage({ users, shipments, companies, governorates, isLoading }: AuditLogPageProps) {
   const firestore = useFirestore();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [detailsShipment, setDetailsShipment] = useState<Shipment | null>(null);
+
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const historyQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -59,19 +68,26 @@ export function AuditLogPage({ users, shipments, isLoading }: AuditLogPageProps)
   const enrichedHistory = useMemo(() => {
     if (!history || !shipments) return [];
     return history.map(log => {
-      const shipmentId = log.id.split('/history/')[0];
+      // The ref path is like 'shipments/shipmentId/history/historyId'
+      const pathSegments = log.ref.path.split('/');
+      const shipmentId = pathSegments[1]; 
       const shipment = shipments.find(s => s.id === shipmentId);
       return {
         ...log,
         shipmentId,
-        shipment: shipment
+        shipment,
       };
     });
   }, [history, shipments]);
 
-  const handleShipmentClick = (shipmentId: string) => {
-    const url = `/?edit=${shipmentId}`;
-    router.push(url);
+  const handleEditShipment = (shipmentId: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('edit', shipmentId);
+    router.replace(`${pathname}?${params.toString()}`);
+  };
+
+  const handleShowDetails = async (shipment: Shipment) => {
+    setDetailsShipment(shipment);
   };
 
   const clearFilters = () => {
@@ -141,12 +157,13 @@ export function AuditLogPage({ users, shipments, isLoading }: AuditLogPageProps)
               <TableHead>السبب/الملاحظات</TableHead>
               <TableHead>المستخدم</TableHead>
               <TableHead>الوقت</TableHead>
+              <TableHead>إجراءات</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {enrichedHistory.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center">
+                <TableCell colSpan={6} className="h-24 text-center">
                   لا توجد سجلات تطابق الفلاتر المحددة.
                 </TableCell>
               </TableRow>
@@ -155,7 +172,7 @@ export function AuditLogPage({ users, shipments, isLoading }: AuditLogPageProps)
                 <TableRow key={log.id}>
                   <TableCell>
                     {log.shipment ? (
-                      <Button variant="link" className="p-0 h-auto" onClick={() => handleShipmentClick(log.shipmentId)}>
+                      <Button variant="link" className="p-0 h-auto" onClick={() => handleShowDetails(log.shipment!)}>
                         {log.shipment.orderNumber || log.shipment.trackingNumber}
                       </Button>
                     ) : (
@@ -171,12 +188,36 @@ export function AuditLogPage({ users, shipments, isLoading }: AuditLogPageProps)
                   <TableCell className="text-muted-foreground max-w-xs truncate">{log.reason || '-'}</TableCell>
                   <TableCell>{log.updatedBy}</TableCell>
                   <TableCell>{format(log.updatedAt.toDate(), 'PPpp', { locale: ar })}</TableCell>
+                  <TableCell>
+                    {log.shipment && (
+                      <div className="flex items-center gap-2">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600" onClick={() => handleShowDetails(log.shipment!)}>
+                            <FileText className="h-4 w-4" />
+                            <span className="sr-only">عرض التفاصيل</span>
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditShipment(log.shipmentId)}>
+                            <Pencil className="h-4 w-4" />
+                            <span className="sr-only">تعديل</span>
+                          </Button>
+                      </div>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
       </div>
+      {detailsShipment && (
+        <ShipmentDetailsDialog 
+            open={!!detailsShipment}
+            onOpenChange={(open) => !open && setDetailsShipment(null)}
+            shipment={detailsShipment}
+            company={companies.find(c => c.id === detailsShipment.companyId)}
+            courier={users.find(u => u.id === detailsShipment.assignedCourierId)}
+            governorate={governorates.find(g => g.id === detailsShipment.governorateId)}
+        />
+      )}
     </div>
   );
 }

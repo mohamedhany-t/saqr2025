@@ -2186,6 +2186,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
              <AuditLogPage 
                 users={users || []}
                 shipments={shipments || []}
+                companies={companies || []}
+                governorates={governorates || []}
                 isLoading={listIsLoading}
              />
         </TabsContent>

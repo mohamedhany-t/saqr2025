@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, DependencyList } from 'react';
@@ -8,19 +9,20 @@ import {
   FirestoreError,
   QuerySnapshot,
   CollectionReference,
+  DocumentReference,
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
-/** Utility type to add an 'id' field to a given type T. */
-export type WithId<T> = T & { id: string };
+/** Utility type to add an 'id' field and a 'ref' to a given type T. */
+export type WithIdAndRef<T> = T & { id: string, ref: DocumentReference };
 
 /**
  * Interface for the return value of the useCollection hook.
  * @template T Type of the document data.
  */
 export interface UseCollectionResult<T> {
-  data: WithId<T>[] | null;
+  data: WithIdAndRef<T>[] | null;
   isLoading: boolean;
   error: FirestoreError | Error | null;
 }
@@ -51,7 +53,7 @@ export function useCollection<T = any>(
     refOrQuery: CollectionReference<DocumentData> | Query<DocumentData> | null | undefined,
 ): UseCollectionResult<T> {
   
-  const [data, setData] = useState<WithId<T>[] | null>(null);
+  const [data, setData] = useState<WithIdAndRef<T>[] | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
@@ -69,7 +71,11 @@ export function useCollection<T = any>(
     const unsubscribe = onSnapshot(
       refOrQuery,
       (snapshot: QuerySnapshot<DocumentData>) => {
-        const results = snapshot.docs.map(doc => ({ ...(doc.data() as T), id: doc.id }));
+        const results = snapshot.docs.map(doc => ({ 
+            ...(doc.data() as T), 
+            id: doc.id,
+            ref: doc.ref // Include the document reference
+        }));
         setData(results);
         setError(null);
         setIsLoading(false);
