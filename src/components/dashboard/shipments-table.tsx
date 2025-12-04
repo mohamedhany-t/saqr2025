@@ -109,7 +109,7 @@ export const statusText: Record<string, string> = {
     'In-Transit': 'قيد التوصيل',
     Delivered: 'تم التسليم',
     'Partially Delivered': 'تم التسليم جزئياً',
-    'Evasion (Phone)": 'تهرب هاتفيًا',
+    'Evasion (Phone)': 'تهرب هاتفيًا',
     'Evasion (Delivery Attempt)': 'تهرب بعد الوصول',
     Cancelled: 'تم الإلغاء',
     Returned: 'مرتجع',
