@@ -355,18 +355,12 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
 };
 
   
-  const { activeShipments, finishedShipments, todaysRouteShipments } = React.useMemo(() => {
-    const allShipments = shipments?.filter(s => !s.isWarehouseReturn) || [];
-    if (!allShipments) return { activeShipments: [], finishedShipments: [], todaysRouteShipments: [] };
+  const { activeShipments, finishedShipments } = React.useMemo(() => {
+    if (!shipments) return { activeShipments: [], finishedShipments: [] };
     const finishedStatuses: string[] = ['Delivered', 'Returned to Sender'];
-    const active = allShipments.filter(s => !finishedStatuses.includes(s.status));
-    const finished = allShipments.filter(s => finishedStatuses.includes(s.status));
-    
-    // For Route Summary, we need all shipments that are not 'Returned to Sender'
-    // as even 'Delivered' shipments are part of the day's route completion.
-    const routeShipments = allShipments.filter(s => s.status !== 'Returned to Sender');
-    
-    return { activeShipments: active, finishedShipments: finished, todaysRouteShipments: routeShipments };
+    const active = shipments.filter(s => !finishedStatuses.includes(s.status));
+    const finished = shipments.filter(s => finishedStatuses.includes(s.status));
+    return { activeShipments: active, finishedShipments: finished };
   }, [shipments]);
 
 
@@ -456,7 +450,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
             <TabsTrigger value="shipments">الشحنات</TabsTrigger>
             <TabsTrigger value="route-summary">
                 <Route className="me-2 h-4 w-4" />
-                موجز الخط السير
+                موجز خط السير
             </TabsTrigger>
             <TabsTrigger value="chat" className="relative">
                 <MessageSquare className="me-2 h-4 w-4" />
@@ -469,27 +463,15 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         </TabsList>
          <TabsContent value="shipments">
             <div className="p-4 sm:p-0">
-              <Tabs defaultValue="all">
+              <Tabs defaultValue="active">
                 <div className="flex items-center">
                   <TabsList className="flex-nowrap overflow-x-auto justify-start">
-                    <TabsTrigger value="all">النشطة <Badge variant="secondary" className="ms-2">{filteredActiveShipments.length}</Badge></TabsTrigger>
-                    <TabsTrigger value="in-transit">قيد التوصيل <Badge variant="secondary" className="ms-2">{inTransitCount}</Badge></TabsTrigger>
-                    <TabsTrigger value="postponed">المؤجلة <Badge variant="secondary" className="ms-2">{postponedCount}</Badge></TabsTrigger>
-                    <TabsTrigger value="returned">مرتجعات <Badge variant="secondary" className="ms-2">{returnedCount}</Badge></TabsTrigger>
+                    <TabsTrigger value="active">النشطة <Badge variant="secondary" className="ms-2">{filteredActiveShipments.length}</Badge></TabsTrigger>
                     <TabsTrigger value="finished">المنتهية <Badge variant="secondary" className="ms-2">{filteredFinishedShipments.length}</Badge></TabsTrigger>
                   </TabsList>
                 </div>
-                <TabsContent value="all" className="mt-4">
+                <TabsContent value="active" className="mt-4">
                   {isMobile ? renderShipmentList(filteredActiveShipments) : renderDesktopTable(filteredActiveShipments)}
-                </TabsContent>
-                <TabsContent value="in-transit" className="mt-4">
-                  {isMobile ? renderShipmentList(filteredActiveShipments.filter(s => s.status === 'In-Transit')) : renderDesktopTable(filteredActiveShipments.filter(s => s.status === 'In-Transit'))}
-                </TabsContent>
-                <TabsContent value="postponed" className="mt-4">
-                  {isMobile ? renderShipmentList(filteredActiveShipments.filter(s => s.status === 'Postponed')) : renderDesktopTable(filteredActiveShipments.filter(s => s.status === 'Postponed'))}
-                </TabsContent>
-                <TabsContent value="returned" className="mt-4">
-                  {isMobile ? renderShipmentList(filteredActiveShipments.filter(s => ['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status))) : renderDesktopTable(filteredActiveShipments.filter(s => ['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)))}
                 </TabsContent>
                 <TabsContent value="finished" className="mt-4">
                   {isMobile ? renderShipmentList(filteredFinishedShipments) : renderDesktopTable(filteredFinishedShipments)}
@@ -499,7 +481,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
          </TabsContent>
         <TabsContent value="route-summary">
             <RouteSummaryPage 
-              shipments={todaysRouteShipments} 
+              shipments={activeShipments} 
               governorates={governorates || []}
               isLoading={shipmentsLoading || governoratesLoading}
             />

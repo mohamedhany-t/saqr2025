@@ -91,7 +91,7 @@ export function RouteSummaryPage({ shipments, governorates, isLoading }: RouteSu
 
   return (
     <div className="p-4 sm:p-6 md:p-8">
-      <h1 className="text-2xl font-bold mb-2">موجز الخط السير</h1>
+      <h1 className="text-2xl font-bold mb-2">موجز خط السير</h1>
       <p className="text-muted-foreground mb-6">
         ملخص يومي للمناطق والعناوين المطلوبة، مرتبة حسب عدد الشحنات.
       </p>
