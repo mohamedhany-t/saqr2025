@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, PlusCircle, Save, Trash2 } from 'lucide-react';
+import { Loader2, PlusCircle, Save, Trash2, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -21,6 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import Link from 'next/link';
 
 const defaultStatuses: ShipmentStatusConfig[] = [
     { id: 'Pending', label: 'قيد الانتظار', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
@@ -158,8 +159,8 @@ export default function SettingsPage() {
     }
 
     return (
-        <div className="p-4 sm:p-6 md:p-8">
-            <div className="flex justify-between items-center mb-6">
+        <div className="p-4 sm:p-6 md:p-8 space-y-8">
+            <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold font-headline">إعدادات النظام</h1>
                     <p className="text-muted-foreground mt-2">
@@ -171,6 +172,23 @@ export default function SettingsPage() {
                     حفظ التغييرات
                 </Button>
             </div>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>إعدادات رسائل واتساب</CardTitle>
+                    <CardDescription>
+                        تخصيص قوالب الرسائل التلقائية التي يتم إرسالها للعملاء عبر واتساب.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                     <Link href="/settings/whatsapp" passHref>
+                        <Button variant="outline">
+                            <MessageSquare className="me-2 h-4 w-4" />
+                            الانتقال إلى إعدادات الواتساب
+                        </Button>
+                    </Link>
+                </CardContent>
+            </Card>
 
             <Card>
                 <CardHeader>
