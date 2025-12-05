@@ -114,6 +114,8 @@ export const exportToExcel = (
   
   worksheet.views = [{ rightToLeft: true }];
   
+  let headerRowIndex = 1;
+
   // Add Report Header if provided
   if (reportHeader) {
     const titleRow = worksheet.addRow([reportHeader.title]);
@@ -127,6 +129,7 @@ export const exportToExcel = (
     worksheet.mergeCells(`A2:${String.fromCharCode(64 + columns.length)}2`);
     
     worksheet.addRow([]); // Add a blank row for spacing
+    headerRowIndex = 4;
   }
 
   const excelColumns = columns.map(col => ({
@@ -149,9 +152,13 @@ export const exportToExcel = (
   });
 
   worksheet.columns = excelColumns;
+
+  // *** FIX: Add the header row back ***
+  const headerTitles = excelColumns.map(c => c.header);
+  worksheet.addRow(headerTitles);
   
   // Style header row
-  const headerRow: Row = worksheet.getRow(reportHeader ? 4 : 1);
+  const headerRow: Row = worksheet.getRow(headerRowIndex);
   headerRow.font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
   headerRow.fill = {
     type: 'pattern',
