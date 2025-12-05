@@ -2,7 +2,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
@@ -598,41 +598,32 @@ const DesktopShipmentsView = ({
     )
   }
 
-const ProblemShipmentList = ({ title, shipments, onEdit, governorates, companies, statuses }: { title: string, shipments: Shipment[], onEdit: (s: Shipment) => void, governorates: Governorate[], companies: Company[], statuses: ShipmentStatusConfig[] }) => {
-  if (shipments.length === 0) {
-    return null; // Don't render the card if there are no shipments
-  }
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-destructive" />
-          {title} ({shipments.length})
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          {shipments.map(s => {
-            const companyName = companies.find(c => c.id === s.companyId)?.name || "N/A";
-            const govName = governorates.find(g => g.id === s.governorateId)?.name || "N/A";
-            const lastUpdate = s.updatedAt?.toDate ? differenceInDays(new Date(), s.updatedAt.toDate()) : 0;
-            return (
-              <div key={s.id} className="border p-3 rounded-lg flex justify-between items-center bg-muted/30">
-                <div>
-                  <p className="font-bold">{s.recipientName} - <span className="text-primary">{companyName}</span></p>
-                  <p className="text-sm text-muted-foreground">{s.address}, {govName}</p>
-                   {title.includes("المؤجلة") && <p className="text-xs text-amber-600">مؤجلة منذ {lastUpdate} أيام</p>}
-                   {title.includes("المتأخرة") && <p className="text-xs text-red-600">لم يتم تحديثها منذ أكثر من 24 ساعة</p>}
+const ProblemShipmentList = ({ title, icon, shipments, onEdit, children }: { title: string, icon: React.ReactNode, shipments: Shipment[], onEdit: (s: Shipment) => void, children?: (shipment: Shipment) => React.ReactNode }) => {
+    if (shipments.length === 0) {
+        return null;
+    }
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    {icon}
+                    {title} ({shipments.length})
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="space-y-3">
+                    {shipments.map(s => (
+                        <div key={s.id} className="border p-3 rounded-lg flex justify-between items-center bg-muted/30">
+                            {children ? children(s) : <p>تفاصيل الشحنة {s.recipientName}</p>}
+                            <Button variant="secondary" size="sm" onClick={() => onEdit(s)}>مراجعة</Button>
+                        </div>
+                    ))}
                 </div>
-                <Button variant="secondary" size="sm" onClick={() => onEdit(s)}>مراجعة</Button>
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
+            </CardContent>
+        </Card>
+    );
+};
+
 
 interface AdminDashboardProps {
   user: User;
@@ -1043,6 +1034,20 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             userId: user.id,
         };
         batch.set(historyRef, historyEntry);
+
+        // Notify courier if admin takes action on price change request
+        if (originalShipment?.status === 'PriceChangeRequested' && originalShipment.assignedCourierId) {
+            const courierId = originalShipment.assignedCourierId;
+            const message = newStatus === 'PriceChangeRejected' 
+                ? `تم رفض طلب تعديل السعر للشحنة ${originalShipment.recipientName}.`
+                : `تمت الموافقة على طلب تعديل السعر للشحنة ${originalShipment.recipientName}.`;
+            sendPushNotification({
+                recipientId: courierId,
+                title: 'تحديث بخصوص طلب تعديل السعر',
+                body: message,
+                url: notificationUrl,
+            }).catch(console.error);
+        }
     }
     
     batch.commit()
@@ -1654,7 +1659,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const returnedShipmentsNeedingAction = React.useMemo(() => shipments?.filter(s => s.status === 'Returned' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
   const longPostponedShipments = React.useMemo(() => shipments?.filter(s => s.status === 'Postponed' && s.updatedAt && differenceInDays(new Date(), s.updatedAt.toDate()) > 3 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
   const staleInTransitShipments = React.useMemo(() => shipments?.filter(s => s.status === 'In-Transit' && s.updatedAt && differenceInHours(new Date(), s.updatedAt.toDate()) > 24 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
-  const problemCount = returnedShipmentsNeedingAction.length + longPostponedShipments.length + staleInTransitShipments.length;
+  const priceChangeRequests = React.useMemo(() => shipments?.filter(s => s.status === 'PriceChangeRequested' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
+  
+  const problemCount = returnedShipmentsNeedingAction.length + longPostponedShipments.length + staleInTransitShipments.length + priceChangeRequests.length;
+
 
   React.useEffect(() => {
     if (usersLoading || shipmentsLoading || companiesLoading) return;
@@ -1824,6 +1832,52 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     return companyDues.filter(c => c.name?.toLowerCase().includes(managementSearchTerm.toLowerCase()));
   }, [companyDues, managementSearchTerm]);
 
+  const handlePriceChangeDecision = (shipment: Shipment, approved: boolean) => {
+    if (!firestore || !user) return;
+    
+    const shipmentRef = doc(firestore, 'shipments', shipment.id);
+    const batch = writeBatch(firestore);
+
+    let updatePayload: any = {
+        updatedAt: serverTimestamp(),
+    };
+    let historyReason = '';
+
+    if (approved) {
+        updatePayload.totalAmount = shipment.requestedAmount;
+        updatePayload.status = 'In-Transit'; // Ready for delivery
+        historyReason = `تمت الموافقة على تعديل السعر من ${shipment.totalAmount} إلى ${shipment.requestedAmount}.`;
+    } else {
+        updatePayload.status = 'PriceChangeRejected';
+        historyReason = `تم رفض طلب تعديل السعر (السعر المقترح: ${shipment.requestedAmount}).`;
+    }
+
+    // Clear the request fields after decision
+    updatePayload.requestedAmount = null;
+    updatePayload.amountChangeReason = null;
+    
+    batch.update(shipmentRef, updatePayload);
+
+    // Add history entry for the decision
+    const historyRef = doc(collection(shipmentRef, 'history'));
+    const historyEntry: Omit<ShipmentHistory, 'id'> = {
+        status: updatePayload.status,
+        reason: historyReason,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.name || user.email,
+        userId: user.id,
+    };
+    batch.set(historyRef, historyEntry);
+
+    batch.commit().then(() => {
+        toast({
+            title: `تم ${approved ? 'قبول' : 'رفض'} الطلب`,
+            description: `تم تحديث حالة الشحنة بنجاح.`,
+        });
+        // Notification is sent from the generic handleSaveShipment
+    }).catch(console.error);
+  };
+
 
   return (
     <div className="flex flex-col w-full">
@@ -1929,38 +1983,63 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             }
         </TabsContent>
          <TabsContent value="problem-inbox">
-          <div className="mt-4 space-y-6">
-            <ProblemShipmentList 
-              title="مرتجعات بحاجة لقرار" 
-              shipments={returnedShipmentsNeedingAction} 
-              onEdit={openShipmentForm}
-              governorates={governorates || []}
-              companies={companies || []}
-              statuses={statuses || []}
-            />
-            <ProblemShipmentList 
-              title="شحنات مؤجلة لفترة طويلة" 
-              shipments={longPostponedShipments}
-              onEdit={openShipmentForm}
-              governorates={governorates || []}
-              companies={companies || []}
-              statuses={statuses || []}
-            />
-            <ProblemShipmentList 
-              title="شحنات متأخرة عند المناديب" 
-              shipments={staleInTransitShipments}
-              onEdit={openShipmentForm}
-              governorates={governorates || []}
-              companies={companies || []}
-              statuses={statuses || []}
-            />
-            {problemCount === 0 && (
-              <div className="flex flex-col items-center justify-center text-center py-16 bg-muted/40 rounded-lg">
-                <CheckSquare className="h-16 w-16 text-green-500 mb-4" />
-                <h3 className="text-2xl font-bold">لا توجد مشاكل حاليًا</h3>
-                <p className="text-muted-foreground mt-2">صندوق المشاكل فارغ. كل الأمور تسير على ما يرام!</p>
-              </div>
-            )}
+            <div className="mt-4 space-y-6">
+                <ProblemShipmentList title="طلبات تعديل أسعار" icon={<DollarSign className="h-5 w-5 text-yellow-500" />} shipments={priceChangeRequests} onEdit={openShipmentForm}>
+                    {(s: Shipment) => {
+                        const courierName = courierUsers.find(c => c.id === s.assignedCourierId)?.name;
+                        return (
+                            <div>
+                                <p className="font-bold">{s.recipientName} - <span className="text-sm text-muted-foreground">بواسطة {courierName}</span></p>
+                                <div className="text-sm text-muted-foreground flex items-center gap-4">
+                                    <span>السعر الحالي: <span className="font-mono">{s.totalAmount.toLocaleString('ar-EG')}</span></span>
+                                    <span className="font-bold text-primary">←</span>
+                                    <span>السعر المقترح: <span className="font-mono font-bold text-primary">{s.requestedAmount?.toLocaleString('ar-EG')}</span></span>
+                                </div>
+                                <p className="text-xs text-amber-600 mt-1">السبب: {s.amountChangeReason || 'لم يذكر'}</p>
+                                <div className="mt-2 flex gap-2">
+                                    <Button size="sm" variant="outline" className="text-green-600 border-green-600 hover:bg-green-50" onClick={() => handlePriceChangeDecision(s, true)}><Check className="me-2 h-4 w-4" /> موافقة</Button>
+                                    <Button size="sm" variant="outline" className="text-red-600 border-red-600 hover:bg-red-50" onClick={() => handlePriceChangeDecision(s, false)}><X className="me-2 h-4 w-4" /> رفض</Button>
+                                </div>
+                            </div>
+                        );
+                    }}
+                </ProblemShipmentList>
+                <ProblemShipmentList title="مرتجعات بحاجة لقرار" icon={<AlertTriangle className="h-5 w-5 text-destructive" />} shipments={returnedShipmentsNeedingAction} onEdit={openShipmentForm}>
+                    {(s: Shipment) => {
+                         const companyName = companies.find(c => c.id === s.companyId)?.name || "N/A";
+                         const govName = governorates.find(g => g.id === s.governorateId)?.name || "N/A";
+                        return (<div>
+                            <p className="font-bold">{s.recipientName} - <span className="text-primary">{companyName}</span></p>
+                            <p className="text-sm text-muted-foreground">{s.address}, {govName}</p>
+                        </div>)
+                    }}
+                </ProblemShipmentList>
+                <ProblemShipmentList title="شحنات مؤجلة لفترة طويلة" icon={<AlertTriangle className="h-5 w-5 text-destructive" />} shipments={longPostponedShipments} onEdit={openShipmentForm}>
+                     {(s: Shipment) => {
+                         const companyName = companies.find(c => c.id === s.companyId)?.name || "N/A";
+                         const lastUpdate = s.updatedAt?.toDate ? differenceInDays(new Date(), s.updatedAt.toDate()) : 0;
+                        return (<div>
+                            <p className="font-bold">{s.recipientName} - <span className="text-primary">{companyName}</span></p>
+                            <p className="text-xs text-amber-600">مؤجلة منذ {lastUpdate} أيام</p>
+                        </div>)
+                    }}
+                </ProblemShipmentList>
+                <ProblemShipmentList title="شحنات متأخرة عند المناديب" icon={<AlertTriangle className="h-5 w-5 text-destructive" />} shipments={staleInTransitShipments} onEdit={openShipmentForm}>
+                    {(s: Shipment) => {
+                         const companyName = companies.find(c => c.id === s.companyId)?.name || "N/A";
+                        return (<div>
+                            <p className="font-bold">{s.recipientName} - <span className="text-primary">{companyName}</span></p>
+                            <p className="text-xs text-red-600">لم يتم تحديثها منذ أكثر من 24 ساعة</p>
+                        </div>)
+                    }}
+                </ProblemShipmentList>
+                {problemCount === 0 && (
+                <div className="flex flex-col items-center justify-center text-center py-16 bg-muted/40 rounded-lg">
+                    <CheckSquare className="h-16 w-16 text-green-500 mb-4" />
+                    <h3 className="text-2xl font-bold">لا توجد مشاكل حاليًا</h3>
+                    <p className="text-muted-foreground mt-2">صندوق المشاكل فارغ. كل الأمور تسير على ما يرام!</p>
+                </div>
+                )}
           </div>
         </TabsContent>
         <TabsContent value="courier-management">

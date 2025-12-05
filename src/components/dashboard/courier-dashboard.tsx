@@ -160,6 +160,20 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   
       toast({ title: "تم تحديث الشحنة بنجاح" });
       handleSheetOpenChange(false);
+      
+      if (shipmentData.status === 'PriceChangeRequested') {
+            const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
+            // Assuming there's a general admin or a way to find admins to notify
+            // For now, let's hardcode a recipient for demonstration, but this should be dynamic
+            const adminId = "R1P4h0n1gTrgP0g0aI0d6WzYx1y1"; // Replace with actual admin user ID logic
+            sendPushNotification({
+                recipientId: adminId,
+                title: 'طلب تعديل سعر',
+                body: `المندوب ${user.name} يطلب تعديل سعر الشحنة ${editingShipment.recipientName}`,
+                url: notificationUrl,
+            }).catch(console.error);
+        }
+
     } catch (error: any) {
       console.error("Error updating shipment:", error);
       toast({

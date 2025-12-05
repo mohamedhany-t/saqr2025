@@ -96,8 +96,26 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      recipientName: "",
+      address: "",
+      totalAmount: 0,
+      status: "Pending",
+      shipmentCode: undefined,
+      senderName: undefined,
+      orderNumber: undefined,
+      recipientPhone: undefined,
+      governorateId: undefined,
+      paidAmount: undefined,
+      reason: undefined,
+      deliveryDate: undefined,
+      assignedCourierId: undefined,
+      companyId: undefined,
+      collectedAmount: undefined,
       requestedAmount: undefined,
-      amountChangeReason: '',
+      amountChangeReason: undefined,
+      courierCommission: undefined,
+      companyCommission: undefined,
+      isWarehouseReturn: false,
     },
   });
   
