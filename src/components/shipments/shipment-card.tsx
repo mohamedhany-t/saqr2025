@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Shipment, ShipmentStatusConfig } from "@/lib/types";
-import { Pencil, MessageSquare, Package, CalendarDays, Phone, Share2, Trash2, Printer } from "lucide-react";
+import { Pencil, MessageSquare, Package, CalendarDays, Phone, Share2, Trash2, Printer, Edit } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useUser, useUserProfile, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
@@ -130,6 +130,12 @@ export function ShipmentCard({
         e.stopPropagation();
         onEdit(shipment);
     }
+
+    const handlePriceChangeRequest = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        // Create a temporary shipment object with the desired status to trigger the correct form view
+        onEdit({ ...shipment, status: 'PriceChangeRequested' });
+    };
     
     const handleDelete = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -156,9 +162,10 @@ export function ShipmentCard({
     const timeAgo = formatToCairoTime(createdAt?.toDate());
     
     const canEdit = isAdmin || isCourier;
+    const isPriceChangePending = status === 'PriceChangeRequested';
 
     return (
-        <Card className={cn("shadow-md border w-full overflow-hidden relative", isSelected && "ring-2 ring-primary border-primary")} onClick={handleCardClick}>
+        <Card className={cn("shadow-md border w-full overflow-hidden relative", isSelected && "ring-2 ring-primary border-primary", isPriceChangePending && "border-yellow-500 ring-2 ring-yellow-500")} onClick={handleCardClick}>
              {onSelectToggle && (
                  <div className="absolute top-2 left-2 z-10" onClick={(e) => e.stopPropagation()}>
                     <Checkbox
@@ -213,7 +220,7 @@ export function ShipmentCard({
                         </div>
                         {/* Status */}
                         <div className="flex justify-end items-center gap-2">
-                            <Badge variant="outline">{statusConfig?.label || status}</Badge>
+                            <Badge variant={isPriceChangePending ? "outline" : "default"} className={cn(isPriceChangePending && "border-yellow-600 text-yellow-700")}>{statusConfig?.label || status}</Badge>
                         </div>
                      </div>
                 </div>
@@ -227,10 +234,25 @@ export function ShipmentCard({
                         </Button>
                     ) : <div></div> /* Empty div to maintain layout */}
 
-                     <Button variant="ghost" size="icon" className="h-9 w-9 text-purple-600" onClick={handleShareToAdmin}>
-                        <Share2 className="h-5 w-5" />
-                         <span className="sr-only">مشاركة تقرير</span>
-                    </Button>
+                     <div className="flex items-center gap-2">
+                        {isCourier && !isPriceChangePending && (
+                             <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-9 w-9 text-yellow-600" onClick={handlePriceChangeRequest}>
+                                            <Edit className="h-5 w-5" />
+                                            <span className="sr-only">طلب تعديل سعر</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent><p>طلب تعديل سعر</p></TooltipContent>
+                                </Tooltip>
+                             </TooltipProvider>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-9 w-9 text-purple-600" onClick={handleShareToAdmin}>
+                            <Share2 className="h-5 w-5" />
+                            <span className="sr-only">مشاركة تقرير</span>
+                        </Button>
+                     </div>
                     
                     {isAdmin ? (
                         <div className="flex items-center gap-2">

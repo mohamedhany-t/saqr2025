@@ -47,6 +47,8 @@ const shipmentSchema = z.object({
   assignedCourierId: z.string().optional(),
   companyId: z.string().optional(),
   collectedAmount: z.coerce.number().optional(),
+  requestedAmount: z.coerce.number().optional(),
+  amountChangeReason: z.string().optional(),
   courierCommission: z.coerce.number().optional(),
   companyCommission: z.coerce.number().optional(),
   isWarehouseReturn: z.boolean().optional(),
@@ -81,6 +83,13 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
             path: ["collectedAmount"],
         });
     }
+     if (isCourier && data.status === 'PriceChangeRequested' && (data.requestedAmount === undefined || data.requestedAmount <= 0)) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "السعر المقترح مطلوب ويجب أن يكون أكبر من صفر.",
+            path: ["requestedAmount"],
+        });
+    }
   });
 
 
@@ -109,6 +118,8 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           assignedCourierId: shipment.assignedCourierId ?? '',
           companyId: shipment.companyId ?? '',
           collectedAmount: shipment.collectedAmount ?? 0,
+          requestedAmount: shipment.requestedAmount ?? undefined,
+          amountChangeReason: shipment.amountChangeReason ?? '',
           courierCommission: shipment.courierCommission ?? 0,
           companyCommission: shipment.companyCommission ?? 0,
           isWarehouseReturn: shipment.isWarehouseReturn ?? false,
@@ -143,6 +154,10 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   
   const selectedStatus = form.watch("status");
   const selectedStatusConfig = statuses.find(s => s.id === selectedStatus);
+  const isPriceChangeRequest = selectedStatus === 'PriceChangeRequested';
+
+  const courierAllowedStatuses = statuses.filter(s => s.enabled && (isCourier ? s.id !== 'Delivered' || shipment?.status === 'PriceChangeRejected' : true) && (shipment?.status === 'PriceChangeRequested' ? s.id === 'PriceChangeRequested' : true));
+
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -155,7 +170,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                 <SheetHeader>
                 <SheetTitle>{isEditing ? "تعديل شحنة" : "إضافة شحنة جديدة"}</SheetTitle>
                 <SheetDescription>
-                    {isCourier ? "قم بتحديث حالة الشحنة." : isEditing ? "قم بتحديث تفاصيل الشحنة هنا." : "أدخل تفاصيل الشحنة الجديدة ليتم إنشاؤها."}
+                    {isCourier ? "قم بتحديث حالة الشحنة أو طلب تعديل السعر." : isEditing ? "قم بتحديث تفاصيل الشحنة هنا." : "أدخل تفاصيل الشحنة الجديدة ليتم إنشاؤها."}
                 </SheetDescription>
                 </SheetHeader>
                 <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6 mr-[-1.5rem] pl-6">
@@ -316,14 +331,14 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">الحالة</FormLabel>
-                                <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
+                                <Select dir="rtl" onValueChange={field.onChange} value={field.value} disabled={isCourier && shipment?.status === 'PriceChangeRequested'}>
                                     <FormControl className="col-span-3">
                                         <SelectTrigger>
                                             <SelectValue placeholder="اختر الحالة" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        {statuses.filter(s => s.enabled).map(s => (
+                                        {courierAllowedStatuses.map(s => (
                                             <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
                                         ))}
                                     </SelectContent>
@@ -332,6 +347,22 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />
+
+                    {isPriceChangeRequest && (
+                         <FormField
+                            control={form.control}
+                            name="requestedAmount"
+                            render={({ field }) => (
+                                <FormItem className="grid grid-cols-4 items-center gap-4">
+                                    <FormLabel className="text-right">السعر المقترح</FormLabel>
+                                    <FormControl className="col-span-3">
+                                        <Input type="number" step="any" {...field} placeholder="أدخل السعر الجديد المقترح" />
+                                    </FormControl>
+                                    <FormMessage className="col-span-3 col-start-2" />
+                                </FormItem>
+                            )}
+                        />
+                    )}
 
                     {selectedStatusConfig?.requiresPartialCollection && (
                         <FormField
@@ -351,10 +382,10 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
 
                      <FormField
                         control={form.control}
-                        name="reason"
+                        name={isPriceChangeRequest ? "amountChangeReason" : "reason"}
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
-                                <FormLabel className="text-right">السبب</FormLabel>
+                                <FormLabel className="text-right">{isPriceChangeRequest ? "سبب طلب التعديل" : "السبب/ملاحظات"}</FormLabel>
                                 <FormControl className="col-span-3">
                                     <Textarea {...field} />
                                 </FormControl>

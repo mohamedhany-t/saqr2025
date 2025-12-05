@@ -41,7 +41,8 @@ import {
     Share2,
     PhoneOff,
     ArchiveRestore,
-    Warehouse
+    Warehouse,
+    Edit
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -88,6 +89,8 @@ export const statusIcons: Record<string, React.ReactNode> = {
     "Returned to Sender": <Archive className="h-4 w-4 text-orange-700" />,
     "Refused (Paid)": <HandCoins className="h-4 w-4 text-green-500" />,
     "Refused (Unpaid)": <ThumbsDown className="h-4 w-4 text-red-500" />,
+    "PriceChangeRequested": <Edit className="h-4 w-4 text-yellow-600" />,
+    "PriceChangeRejected": <ThumbsDown className="h-4 w-4 text-red-600" />,
 }
 
 export const statusVariants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -104,6 +107,8 @@ export const statusVariants: Record<string, "default" | "secondary" | "destructi
     "Returned to Sender": "secondary",
     "Refused (Paid)": "default",
     "Refused (Unpaid)": "destructive",
+    "PriceChangeRequested": "outline",
+    "PriceChangeRejected": "destructive",
 }
 
 export const statusText: Record<string, string> = {
@@ -120,6 +125,8 @@ export const statusText: Record<string, string> = {
     'Returned to Sender': 'تم الرجوع للراسل',
     'Refused (Paid)': 'رفض ودفع الشحن',
     'Refused (Unpaid)': 'رفض ولم يدفع',
+    'PriceChangeRequested': 'طلب تعديل سعر',
+    'PriceChangeRejected': 'مرفوض - تابع مع الإدارة'
 };
 
 

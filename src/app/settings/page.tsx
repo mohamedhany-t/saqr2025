@@ -37,6 +37,8 @@ const defaultStatuses: ShipmentStatusConfig[] = [
     { id: 'Evasion (Phone)', label: 'تهرب هاتفيًا', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
     { id: 'Evasion (Delivery Attempt)', label: 'تهرب بعد الوصول', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
     { id: 'Custom-Return', label: 'استرجاع مخصص', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true, isDeliveredStatus: false, isReturnedStatus: false },
+    { id: 'PriceChangeRequested', label: 'طلب تعديل سعر', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
+    { id: 'PriceChangeRejected', label: 'مرفوض - تابع مع الإدارة', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
 ];
 
 const customReturnStatus: ShipmentStatusConfig = { id: 'Custom-Return', label: 'استرجاع مخصص', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true, isDeliveredStatus: false, isReturnedStatus: false };
@@ -78,7 +80,7 @@ export default function SettingsPage() {
                     const newStatusRef = doc(collection(firestore, 'shipment_statuses'), 'Custom-Return');
                     const newStatusWithRef: WithIdAndRef<ShipmentStatusConfig> = {
                         ...customReturnStatus,
-                        ref: newStatusRef as DocumentReference,
+                        ref: newStatusRef as DocumentReference<ShipmentStatusConfig>,
                     };
                     currentStatuses.push(newStatusWithRef);
                     toast({ title: 'تم اكتشاف حالة جديدة', description: 'تمت إضافة "استرجاع مخصص". يرجى الضغط على حفظ التغييرات لتأكيدها.'});
@@ -115,7 +117,7 @@ export default function SettingsPage() {
             requiresPartialCollection: false,
             isDeliveredStatus: false,
             isReturnedStatus: false,
-            ref: newStatusRef as DocumentReference,
+            ref: newStatusRef as DocumentReference<ShipmentStatusConfig>,
         };
         setLocalStatuses(prev => [...prev, newStatus]);
     };

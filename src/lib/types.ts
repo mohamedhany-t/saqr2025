@@ -29,8 +29,10 @@ export type ShipmentStatusKey =
   | "Returned to Sender"
   | "Refused (Paid)"
   | "Refused (Unpaid)"
-  | "Custom-Return";
-  // | "Returned to Warehouse"; // This is now a boolean flag
+  | "Custom-Return"
+  | "PriceChangeRequested"
+  | "PriceChangeRejected";
+
 
 export type ShipmentStatusConfig = {
   id: string; // The unique key, e.g., 'pending'
@@ -60,6 +62,8 @@ export type Shipment = {
   totalAmount: number;
   paidAmount: number;
   collectedAmount?: number; // For partial delivery
+  requestedAmount?: number; // For price change requests
+  amountChangeReason?: string; // For price change requests
   courierCommission?: number; // Calculated commission for the courier on this shipment
   companyCommission?: number; // Calculated commission for the company on this shipment
   companyId: string; // The company that owns this shipment. (was assignedCompanyId)
