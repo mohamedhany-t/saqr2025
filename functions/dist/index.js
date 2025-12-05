@@ -97,11 +97,17 @@ exports.getDashboardStats = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError("internal", "Failed to calculate dashboard statistics.");
     }
 });
+// Zod schema now expects the full shipment object for context, plus the specific fields being updated.
 const updateShipmentStatusSchema = zod_1.z.object({
     shipmentId: zod_1.z.string(),
     status: zod_1.z.string(),
     reason: zod_1.z.string().optional(),
     collectedAmount: zod_1.z.number().optional(),
+    // Include other fields from shipment object to ensure they are present
+    recipientName: zod_1.z.string(),
+    address: zod_1.z.string(),
+    totalAmount: zod_1.z.number(),
+    companyId: zod_1.z.string(),
 });
 exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
@@ -127,13 +133,16 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
             return;
         }
         const { uid: courierId, name: courierName, email: courierEmail } = context.auth;
-        const validation = updateShipmentStatusSchema.safeParse(req.body);
+        // IMPORTANT FIX: Read from req.body.data for callable functions on onRequest trigger
+        const validation = updateShipmentStatusSchema.safeParse(req.body.data);
         if (!validation.success) {
-            console.error("Validation failed:", validation.error);
+            console.error("Validation failed:", validation.error.errors);
             res.status(400).send({ error: { status: 'INVALID_ARGUMENT', message: 'The data provided is invalid.' } });
             return;
         }
         const { shipmentId, status, reason, collectedAmount } = validation.data;
+        // Use the full shipment data passed from the client
+        const shipmentDataFromClient = validation.data;
         const shipmentRef = db.collection('shipments').doc(shipmentId);
         try {
             const result = await db.runTransaction(async (transaction) => {
@@ -166,8 +175,8 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
                 let courierCommission = 0;
                 let companyCommission = 0;
                 if (statusConfig.requiresFullCollection) {
-                    paidAmount = shipmentData.totalAmount || 0;
-                    finalCollectedAmount = shipmentData.totalAmount || 0;
+                    paidAmount = shipmentDataFromClient.totalAmount || 0;
+                    finalCollectedAmount = shipmentDataFromClient.totalAmount || 0;
                 }
                 else if (statusConfig.requiresPartialCollection) {
                     paidAmount = finalCollectedAmount;
