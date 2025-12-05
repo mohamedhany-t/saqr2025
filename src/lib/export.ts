@@ -155,6 +155,7 @@ export const exportToExcel = (
   
   // Style header row
   const headerRow: Row = worksheet.getRow(headerRowIndex);
+  headerRow.values = excelColumns.map(c => c.header);
   headerRow.font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
   headerRow.fill = {
     type: 'pattern',
