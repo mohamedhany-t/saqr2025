@@ -92,7 +92,7 @@ function AccountStatementsPage() {
             if (entityType === 'courier') {
                 if (rawTx.type === 'shipment') {
                     const s = rawTx.data as Shipment;
-                    tx.description = `شحنة: ${s.recipientName} (${s.trackingNumber})`;
+                    tx.description = `شحنة: ${s.recipientName} (${s.orderNumber})`;
                     tx.totalAmount = s.totalAmount || 0;
                     tx.paidAmount = s.paidAmount || 0;
                     tx.courierCommission = s.courierCommission || 0;
@@ -109,7 +109,7 @@ function AccountStatementsPage() {
             } else { // company
                  if (rawTx.type === 'shipment') {
                     const s = rawTx.data as Shipment;
-                    tx.description = `شحنة: ${s.recipientName} (${s.trackingNumber})`;
+                    tx.description = `شحنة: ${s.recipientName} (${s.orderNumber})`;
                     tx.totalAmount = s.totalAmount || 0;
                     tx.paidAmount = s.paidAmount || 0;
                     tx.companyCommission = s.companyCommission || 0;
