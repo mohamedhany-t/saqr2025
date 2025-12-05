@@ -142,7 +142,7 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
     
     try {
         const db = getAdminFirestore();
-        let recipientIds: string[] = [recipientId];
+        let recipientIds: string[] = [];
 
         // If recipientId is a role (like 'admin'), fetch all user IDs with that role
         if (['admin', 'company', 'courier', 'customer-service'].includes(recipientId)) {
@@ -154,6 +154,9 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
                  console.log(`No users found with role '${recipientId}'.`);
                  return { success: true, message: `No users found with role '${recipientId}'.` };
             }
+        } else {
+            // It's a specific user ID
+            recipientIds.push(recipientId);
         }
         
         const payload = JSON.stringify({ title, body, url });

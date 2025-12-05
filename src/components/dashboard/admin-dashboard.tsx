@@ -19,7 +19,7 @@ import { ImportResult, ImportProgressDialog } from "@/components/shipments/impor
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
-import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc, deleteDoc, increment } from "firebase/firestore";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1004,7 +1004,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         }
     }
 
-    const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
+    const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipmentId}` : `/?edit=${shipmentId}`;
 
     const batch = writeBatch(firestore);
     
@@ -1842,6 +1842,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         updatedAt: serverTimestamp(),
     };
     let historyReason = '';
+    const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipment.id}` : `/?edit=${shipment.id}`;
 
     if (approved) {
         updatePayload.totalAmount = shipment.requestedAmount;
@@ -1852,8 +1853,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         historyReason = `تم رفض طلب تعديل السعر (السعر المقترح: ${shipment.requestedAmount}).`;
     }
 
-    // Clear the request fields after decision
-    updatePayload.requestedAmount = null;
+    // Clear the request fields after decision by setting them to null or using FieldValue.delete()
+    updatePayload.requestedAmount = null; 
     updatePayload.amountChangeReason = null;
     
     batch.update(shipmentRef, updatePayload);
@@ -1874,7 +1875,19 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             title: `تم ${approved ? 'قبول' : 'رفض'} الطلب`,
             description: `تم تحديث حالة الشحنة بنجاح.`,
         });
-        // Notification is sent from the generic handleSaveShipment
+
+        // Send notification to the courier
+        if (shipment.assignedCourierId) {
+            const message = approved 
+                ? `تمت الموافقة على طلب تعديل سعر شحنة ${shipment.recipientName}.`
+                : `تم رفض طلب تعديل سعر شحنة ${shipment.recipientName}.`;
+            sendPushNotification({
+                recipientId: shipment.assignedCourierId,
+                title: 'تحديث بخصوص طلب تعديل السعر',
+                body: message,
+                url: notificationUrl,
+            }).catch(console.error);
+        }
     }).catch(console.error);
   };
 
@@ -2489,5 +2502,3 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
-
-    

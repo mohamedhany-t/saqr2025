@@ -161,7 +161,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
       handleSheetOpenChange(false);
       
       if (shipmentData.status === 'PriceChangeRequested') {
-            const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
+            const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${id}` : `/?edit=${id}`;
             sendPushNotification({
                 recipientId: 'admin', // Send to all admins
                 title: 'طلب تعديل سعر',
