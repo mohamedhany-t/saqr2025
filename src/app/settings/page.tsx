@@ -1,8 +1,8 @@
 
 'use client';
 import React, { useEffect, useState, useMemo } from 'react';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, writeBatch, deleteDoc } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, WithIdAndRef } from '@/firebase';
+import { collection, doc, writeBatch, deleteDoc, DocumentReference } from 'firebase/firestore';
 import type { ShipmentStatusConfig } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,10 +48,10 @@ export default function SettingsPage() {
     const statusesCollectionRef = useMemoFirebase(() => firestore ? collection(firestore, 'shipment_statuses') : null, [firestore]);
     const { data: serverStatuses, isLoading } = useCollection<ShipmentStatusConfig>(statusesCollectionRef);
 
-    const [localStatuses, setLocalStatuses] = useState<ShipmentStatusConfig[]>([]);
+    const [localStatuses, setLocalStatuses] = useState<WithIdAndRef<ShipmentStatusConfig>[]>([]);
     const [isSaving, setIsSaving] = useState(false);
-    const [statusToToggle, setStatusToToggle] = useState<ShipmentStatusConfig | null>(null);
-    const [statusToDelete, setStatusToDelete] = useState<ShipmentStatusConfig | null>(null);
+    const [statusToToggle, setStatusToToggle] = useState<WithIdAndRef<ShipmentStatusConfig> | null>(null);
+    const [statusToDelete, setStatusToDelete] = useState<WithIdAndRef<ShipmentStatusConfig> | null>(null);
 
     useEffect(() => {
         const seedDefaultStatuses = async () => {
@@ -67,16 +67,20 @@ export default function SettingsPage() {
             }
         };
 
-        if (!isLoading && serverStatuses) {
+        if (!isLoading && serverStatuses && firestore) {
             if (serverStatuses.length === 0) {
                 seedDefaultStatuses();
             } else {
                 let currentStatuses = [...serverStatuses];
                 
-                // Ensure Custom-Return status exists
                 const hasCustomReturn = currentStatuses.some(s => s.id === 'Custom-Return');
                 if (!hasCustomReturn) {
-                    currentStatuses.push(customReturnStatus);
+                    const newStatusRef = doc(collection(firestore, 'shipment_statuses'), 'Custom-Return');
+                    const newStatusWithRef: WithIdAndRef<ShipmentStatusConfig> = {
+                        ...customReturnStatus,
+                        ref: newStatusRef as DocumentReference,
+                    };
+                    currentStatuses.push(newStatusWithRef);
                     toast({ title: 'تم اكتشاف حالة جديدة', description: 'تمت إضافة "استرجاع مخصص". يرجى الضغط على حفظ التغييرات لتأكيدها.'});
                 }
                 
@@ -96,8 +100,10 @@ export default function SettingsPage() {
     };
 
     const handleAddNewStatus = () => {
+        if (!firestore) return;
         const newId = `custom_${Date.now()}`;
-        const newStatus: ShipmentStatusConfig = {
+        const newStatusRef = doc(collection(firestore, 'shipment_statuses'), newId);
+        const newStatus: WithIdAndRef<ShipmentStatusConfig> = {
             id: newId,
             label: 'حالة جديدة',
             affectsCourierBalance: false,
@@ -105,6 +111,7 @@ export default function SettingsPage() {
             enabled: true,
             requiresFullCollection: false,
             requiresPartialCollection: false,
+            ref: newStatusRef as DocumentReference,
         };
         setLocalStatuses(prev => [...prev, newStatus]);
     };
@@ -144,8 +151,9 @@ export default function SettingsPage() {
 
         localStatuses.forEach(status => {
             const docRef = doc(firestore, 'shipment_statuses', status.id);
-            // We save the status object as is, using its original/new ID as the document ID.
-            batch.set(docRef, status);
+            // Create a clean object without the 'ref' property before saving
+            const { ref, ...statusToSave } = status;
+            batch.set(docRef, statusToSave);
         });
 
         try {
