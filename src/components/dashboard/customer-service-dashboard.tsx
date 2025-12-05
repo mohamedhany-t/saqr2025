@@ -8,13 +8,44 @@ import type { Role, Shipment, Company, Governorate, User, Chat, ShipmentHistory,
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { useToast } from "@/hooks/use-toast";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, where, doc, getDoc } from "firebase/firestore";
+import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
+import { collection, query, where, doc, getDoc, writeBatch } from "firebase/firestore";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
-import { MessageSquare } from "lucide-react";
+import { AlertTriangle, CheckSquare, DollarSign, MessageSquare, Check, X } from "lucide-react";
 import ChatInterface from "../chat/chat-interface";
 import { Badge } from "../ui/badge";
+import { differenceInDays, differenceInHours } from "date-fns";
+import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
+import { Button } from "../ui/button";
+import { sendPushNotification } from "@/lib/actions";
+
+const ProblemShipmentList = ({ title, icon, shipments, onEdit, children }: { title: string, icon: React.ReactNode, shipments: Shipment[], onEdit: (s: Shipment) => void, children?: (shipment: Shipment) => React.ReactNode }) => {
+    if (shipments.length === 0) {
+        return null;
+    }
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    {icon}
+                    {title} ({shipments.length})
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="space-y-3">
+                    {shipments.map(s => (
+                        <div key={s.id} className="border p-3 rounded-lg flex justify-between items-center bg-muted/30">
+                            {children ? children(s) : <p>تفاصيل الشحنة {s.recipientName}</p>}
+                            <Button variant="secondary" size="sm" onClick={() => onEdit(s)}>مراجعة</Button>
+                        </div>
+                    ))}
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
 
 interface CustomerServiceDashboardProps {
   user: User;
@@ -27,6 +58,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { user: authUser } = useUser();
   const isMobile = useIsMobile();
   const router = useRouter();
   const pathname = usePathname();
@@ -120,6 +152,62 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
     });
     handleSheetOpenChange(false);
   };
+
+  const handlePriceChangeDecision = (shipment: Shipment, approved: boolean) => {
+    if (!firestore || !authUser) return;
+    
+    const shipmentRef = doc(firestore, 'shipments', shipment.id);
+    const batch = writeBatch(firestore);
+
+    let updatePayload: any = {
+        updatedAt: new Date(),
+    };
+    let historyReason = '';
+    const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipment.id}` : `/?edit=${shipment.id}`;
+
+    if (approved) {
+        updatePayload.totalAmount = shipment.requestedAmount;
+        updatePayload.status = 'In-Transit'; // Ready for delivery
+        historyReason = `تمت الموافقة على تعديل السعر من ${shipment.totalAmount} إلى ${shipment.requestedAmount}.`;
+    } else {
+        updatePayload.status = 'PriceChangeRejected';
+        historyReason = `تم رفض طلب تعديل السعر (السعر المقترح: ${shipment.requestedAmount}).`;
+    }
+
+    updatePayload.requestedAmount = null; 
+    updatePayload.amountChangeReason = null;
+    
+    batch.update(shipmentRef, updatePayload);
+
+    const historyRef = doc(collection(shipmentRef, 'history'));
+    const historyEntry: Omit<ShipmentHistory, 'id'> = {
+        status: updatePayload.status,
+        reason: historyReason,
+        updatedAt: new Date(),
+        updatedBy: authUser.displayName || authUser.email || 'خدمة العملاء',
+        userId: authUser.uid,
+    };
+    batch.set(historyRef, historyEntry);
+
+    batch.commit().then(() => {
+        toast({
+            title: `تم ${approved ? 'قبول' : 'رفض'} الطلب`,
+            description: `تم تحديث حالة الشحنة بنجاح.`,
+        });
+
+        if (shipment.assignedCourierId) {
+            const message = approved 
+                ? `تمت الموافقة على طلب تعديل سعر شحنة ${shipment.recipientName}.`
+                : `تم رفض طلب تعديل سعر شحنة ${shipment.recipientName}.`;
+            sendPushNotification({
+                recipientId: shipment.assignedCourierId,
+                title: 'تحديث بخصوص طلب تعديل السعر',
+                body: message,
+                url: notificationUrl,
+            }).catch(console.error);
+        }
+    }).catch(console.error);
+  };
   
   const filteredShipments = React.useMemo(() => {
     if (!shipments) return [];
@@ -134,6 +222,15 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
       String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
     );
   }, [shipments, searchTerm]);
+
+  // --- Problem Inbox Data ---
+  const returnedShipmentsNeedingAction = React.useMemo(() => shipments?.filter(s => s.status === 'Returned' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
+  const longPostponedShipments = React.useMemo(() => shipments?.filter(s => s.status === 'Postponed' && s.updatedAt && differenceInDays(new Date(), s.updatedAt.toDate()) > 3 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
+  const staleInTransitShipments = React.useMemo(() => shipments?.filter(s => s.status === 'In-Transit' && s.updatedAt && differenceInHours(new Date(), s.updatedAt.toDate()) > 24 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
+  const priceChangeRequests = React.useMemo(() => shipments?.filter(s => s.status === 'PriceChangeRequested' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
+  
+  const problemCount = returnedShipmentsNeedingAction.length + longPostponedShipments.length + staleInTransitShipments.length + priceChangeRequests.length;
+
 
   const listIsLoading = shipmentsLoading || governoratesLoading || companiesLoading || couriersLoading || statusesLoading;
 
@@ -192,8 +289,14 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
   return (
     <div className="flex flex-col w-full">
       <Tabs defaultValue="shipments">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="shipments">الشحنات</TabsTrigger>
+            <TabsTrigger value="problem-inbox" className="relative">
+              صندوق المشاكل
+              {problemCount > 0 && (
+                <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 justify-center p-0">{problemCount}</Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="chat" className="relative">
                 <MessageSquare className="me-2 h-4 w-4" />
                 <span>الدردشة</span>
@@ -232,6 +335,67 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
               {isMobile ? renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']), listIsLoading) : renderDesktopTable(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']), listIsLoading)}
             </TabsContent>
           </Tabs>
+        </TabsContent>
+        <TabsContent value="problem-inbox">
+            <div className="mt-4 space-y-6">
+                <ProblemShipmentList title="طلبات تعديل أسعار" icon={<DollarSign className="h-5 w-5 text-yellow-500" />} shipments={priceChangeRequests} onEdit={openShipmentForm}>
+                    {(s: Shipment) => {
+                        const courierName = courierUsers?.find(c => c.id === s.assignedCourierId)?.name;
+                        const requestedAmountString = s.requestedAmount ? s.requestedAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) : 'N/A';
+                        return (
+                            <div>
+                                <p className="font-bold">{s.recipientName} - <span className="text-sm text-muted-foreground">بواسطة {courierName}</span></p>
+                                <div className="text-sm text-muted-foreground flex items-center gap-4">
+                                    <span>السعر الحالي: <span className="font-mono">{s.totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span></span>
+                                    <span className="font-bold text-primary">←</span>
+                                    <span>السعر المقترح: <span className="font-mono font-bold text-primary">{requestedAmountString}</span></span>
+                                </div>
+                                <p className="text-xs text-amber-600 mt-1">السبب: {s.amountChangeReason || 'لم يذكر'}</p>
+                                <div className="mt-2 flex gap-2">
+                                    <Button size="sm" variant="outline" className="text-green-600 border-green-600 hover:bg-green-50" onClick={() => handlePriceChangeDecision(s, true)}><Check className="me-2 h-4 w-4" /> موافقة</Button>
+                                    <Button size="sm" variant="outline" className="text-red-600 border-red-600 hover:bg-red-50" onClick={() => handlePriceChangeDecision(s, false)}><X className="me-2 h-4 w-4" /> رفض</Button>
+                                </div>
+                            </div>
+                        );
+                    }}
+                </ProblemShipmentList>
+                <ProblemShipmentList title="مرتجعات بحاجة لقرار" icon={<AlertTriangle className="h-5 w-5 text-destructive" />} shipments={returnedShipmentsNeedingAction} onEdit={openShipmentForm}>
+                    {(s: Shipment) => {
+                         const companyName = companies?.find(c => c.id === s.companyId)?.name || "N/A";
+                         const govName = governorates?.find(g => g.id === s.governorateId)?.name || "N/A";
+                        return (<div>
+                            <p className="font-bold">{s.recipientName} - <span className="text-primary">{companyName}</span></p>
+                            <p className="text-sm text-muted-foreground">{s.address}, {govName}</p>
+                        </div>)
+                    }}
+                </ProblemShipmentList>
+                <ProblemShipmentList title="شحنات مؤجلة لفترة طويلة" icon={<AlertTriangle className="h-5 w-5 text-destructive" />} shipments={longPostponedShipments} onEdit={openShipmentForm}>
+                     {(s: Shipment) => {
+                         const companyName = companies?.find(c => c.id === s.companyId)?.name || "N/A";
+                         const lastUpdate = s.updatedAt?.toDate ? differenceInDays(new Date(), s.updatedAt.toDate()) : 0;
+                        return (<div>
+                            <p className="font-bold">{s.recipientName} - <span className="text-primary">{companyName}</span></p>
+                            <p className="text-xs text-amber-600">مؤجلة منذ {lastUpdate} أيام</p>
+                        </div>)
+                    }}
+                </ProblemShipmentList>
+                <ProblemShipmentList title="شحنات متأخرة عند المناديب" icon={<AlertTriangle className="h-5 w-5 text-destructive" />} shipments={staleInTransitShipments} onEdit={openShipmentForm}>
+                    {(s: Shipment) => {
+                         const companyName = companies?.find(c => c.id === s.companyId)?.name || "N/A";
+                        return (<div>
+                            <p className="font-bold">{s.recipientName} - <span className="text-primary">{companyName}</span></p>
+                            <p className="text-xs text-red-600">لم يتم تحديثها منذ أكثر من 24 ساعة</p>
+                        </div>)
+                    }}
+                </ProblemShipmentList>
+                {problemCount === 0 && (
+                <div className="flex flex-col items-center justify-center text-center py-16 bg-muted/40 rounded-lg">
+                    <CheckSquare className="h-16 w-16 text-green-500 mb-4" />
+                    <h3 className="text-2xl font-bold">لا توجد مشاكل حاليًا</h3>
+                    <p className="text-muted-foreground mt-2">صندوق المشاكل فارغ. كل الأمور تسير على ما يرام!</p>
+                </div>
+                )}
+          </div>
         </TabsContent>
         <TabsContent value="chat">
            <ChatInterface />
