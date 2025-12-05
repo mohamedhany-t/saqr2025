@@ -1,10 +1,11 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Truck, CheckCircle2, CircleDollarSign, Building, Wallet, BadgeDollarSign, Archive, HandCoins, Loader2 } from "lucide-react";
-import type { Shipment, Role, CourierPayment } from "@/lib/types";
+import type { Shipment, Role, CourierPayment, ShipmentStatusConfig } from "@/lib/types";
 import React, { useEffect, useState } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { useFirebaseApp } from "@/firebase";
+import { useFirebaseApp, useCollection, useMemoFirebase, useFirestore } from "@/firebase";
+import { query, collection } from "firebase/firestore";
 
 interface StatsCardsProps {
     shipments: Shipment[];
@@ -24,6 +25,9 @@ export function StatsCards({ shipments, payments, role }: StatsCardsProps) {
     const [adminStats, setAdminStats] = useState<AdminStatsData | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const app = useFirebaseApp();
+    const firestore = useFirestore();
+
+    const { data: statuses } = useCollection<ShipmentStatusConfig>(useMemoFirebase(() => firestore ? query(collection(firestore, 'shipment_statuses')) : null, [firestore]));
 
     useEffect(() => {
         if (role === 'admin') {
@@ -65,7 +69,10 @@ export function StatsCards({ shipments, payments, role }: StatsCardsProps) {
     const totalRevenue = shipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
     const inTransit = shipments.filter(s => s.status === 'In-Transit').length;
     const delivered = shipments.filter(s => s.status === 'Delivered').length;
-    const returned = shipments.filter(s => ['Returned', 'Custom-Return', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)).length;
+    
+    const returnedStatuses = statuses?.filter(s => s.affectsCourierBalance && !s.requiresFullCollection).map(s => s.id) || [];
+    const returned = shipments.filter(s => returnedStatuses.includes(s.status)).length;
+    
     const totalShipments = shipments.length;
 
     // For Courier Dashboard

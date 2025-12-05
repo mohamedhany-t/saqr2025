@@ -311,7 +311,7 @@ const MobileShipmentsView = ({
         case "in-transit": return getShipmentsByStatus('In-Transit');
         case "delivered": return getShipmentsByStatus(['Delivered']);
         case "postponed": return getShipmentsByStatus('Postponed');
-        case "returned": return getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']);
+        case "returned": return getShipmentsByStatus(['Returned', 'Custom-Return', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']);
         case "returned-to-sender": return getShipmentsByStatus('Returned to Sender');
         case "in-warehouse": return inWarehouseShipments;
         case "archived-company": return archivedShipmentsCompany;
@@ -450,7 +450,7 @@ const MobileShipmentsView = ({
             <TabsContent value="in-transit">{renderShipmentList(getShipmentsByStatus('In-Transit'))}</TabsContent>
             <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentList(getShipmentsByStatus('Postponed'))}</TabsContent>
-            <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
+            <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Custom-Return', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
             <TabsContent value="in-warehouse">{renderShipmentList(inWarehouseShipments)}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentList(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
             <TabsContent value="archived-company">{renderShipmentList(archivedShipmentsCompany)}</TabsContent>
@@ -589,7 +589,7 @@ const DesktopShipmentsView = ({
             <TabsContent value="in-transit">{renderShipmentTable(getShipmentsByStatus('In-Transit'))}</TabsContent>
             <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
-            <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
+            <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Custom-Return', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
             <TabsContent value="in-warehouse">{renderShipmentTable(inWarehouseShipments)}</TabsContent>
             <TabsContent value="returned-to-sender">{renderShipmentTable(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
             <TabsContent value="archived-company">{renderShipmentTable(archivedShipmentsCompany, 'company')}</TabsContent>
@@ -1597,15 +1597,19 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         const totalCommission = activeShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
         const totalPaidByCourier = activePayments.reduce((acc, p) => acc + p.amount, 0);
 
+        // Net due is what the courier OWES the company.
+        // It's the money collected, MINUS their earned commission, MINUS what they've already paid back.
         const netDue = (totalCollected - totalCommission) - totalPaidByCourier;
         
         const allPaymentsForCourier = courierPayments?.filter(p => p.courierId === courier.id) || [];
-
+        
+        const returnedStatuses = statuses?.filter(s => s.affectsCourierBalance && !s.requiresFullCollection).map(s => s.id) || [];
+        
         return {
             ...courier,
             totalShipments: activeShipments.length,
             deliveredCount: activeShipments.filter(s => statuses?.find(st => st.id === s.status)?.requiresFullCollection).length,
-            returnedCount: activeShipments.filter(s => !statuses?.find(st => st.id === s.status)?.requiresFullCollection && statuses?.find(st => st.id === s.status)?.affectsCourierBalance).length,
+            returnedCount: activeShipments.filter(s => returnedStatuses.includes(s.status)).length,
             totalCollected,
             totalCommission,
             totalPaidByCourier,
@@ -1963,13 +1967,13 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                                         <UserIcon className="h-4 w-4 text-muted-foreground" />
                                         {courier.name}
                                     </CardTitle>
-                                    <div className={`text-xl font-bold ${courier.netDue > 0 ? 'text-destructive' : 'text-green-600'}`}>
-                                        {courier.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                                    <div className={`text-xl font-bold ${courier.netDue >= 0 ? 'text-destructive' : 'text-green-600'}`}>
+                                        {Math.abs(courier.netDue).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
                                     </div>
                                 </CardHeader>
                                 <CardContent className="flex-grow">
                                     <p className="text-xs text-muted-foreground">
-                                        المبلغ المستحق على المندوب
+                                        {courier.netDue >= 0 ? "المبلغ المستحق على المندوب" : "المبلغ المستحق للمندوب"}
                                     </p>
                                     <div className="mt-4 space-y-2 text-sm">
                                          <div className="flex justify-between items-center border-b pb-2">
