@@ -1,3 +1,4 @@
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -293,7 +294,7 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
   );
   
   const inTransitCount = filteredActiveShipments.filter(s => s.status === 'In-Transit').length;
-  const returnedCount = filteredActiveShipments.filter(s => ['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)).length;
+  const returnedCount = filteredActiveShipments.filter(s => ['Returned', 'Custom-Return', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)).length;
   const postponedCount = filteredActiveShipments.filter(s => s.status === 'Postponed').length;
 
 

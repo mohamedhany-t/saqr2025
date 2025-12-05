@@ -530,7 +530,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                             <TabsContent value="all-shipments">{renderShipmentList(filteredShipments, shipmentsLoading)}</TabsContent>
                             <TabsContent value="in-transit">{renderShipmentList(filteredShipments.filter(s => s.status === 'In-Transit'), shipmentsLoading)}</TabsContent>
                             <TabsContent value="delivered">{renderShipmentList(filteredShipments.filter(s => ['Delivered'].includes(s.status)), shipmentsLoading)}</TabsContent>
-                            <TabsContent value="returned">{renderShipmentList(filteredShipments.filter(s => ['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)), shipmentsLoading)}</TabsContent>
+                            <TabsContent value="returned">{renderShipmentList(filteredShipments.filter(s => ['Returned', 'Custom-Return', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)), shipmentsLoading)}</TabsContent>
                             <TabsContent value="returned-to-sender">{renderShipmentList(filteredShipments.filter(s => s.status === 'Returned to Sender'), shipmentsLoading)}</TabsContent>
                         </>
                     ) : (
@@ -538,7 +538,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                             <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments, shipmentsLoading)}</TabsContent>
                             <TabsContent value="in-transit">{renderShipmentTable(filteredShipments.filter(s => s.status === 'In-Transit'), shipmentsLoading)}</TabsContent>
                             <TabsContent value="delivered">{renderShipmentTable(filteredShipments.filter(s => ['Delivered'].includes(s.status)), shipmentsLoading)}</TabsContent>
-                            <TabsContent value="returned">{renderShipmentTable(filteredShipments.filter(s => ['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)), shipmentsLoading)}</TabsContent>
+                            <TabsContent value="returned">{renderShipmentTable(filteredShipments.filter(s => ['Returned', 'Custom-Return', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)), shipmentsLoading)}</TabsContent>
                             <TabsContent value="returned-to-sender">{renderShipmentTable(filteredShipments.filter(s => s.status === 'Returned to Sender'), shipmentsLoading)}</TabsContent>
                         </>
                     )}
