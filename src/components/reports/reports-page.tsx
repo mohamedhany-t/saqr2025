@@ -45,7 +45,7 @@ export function ReportsPage({
         )
     }
     
-    const handleExport = (data: any[], type: string, fileName: string) => {
+    const handleExport = (data: any[], type: string, fileName: string, reportHeader?: {title: string, date: string}) => {
         if (!data || data.length === 0) {
             toast({
                 title: "لا توجد بيانات للتصدير",
@@ -55,7 +55,7 @@ export function ReportsPage({
             return;
         }
         const reportColumns = getReportColumns(type);
-        exportToExcel(data, reportColumns, fileName, governorates, companies, couriers);
+        exportToExcel(data, reportColumns, fileName, governorates, companies, couriers, reportHeader);
     };
 
     const getReportColumns = (type: string): any[] => {
@@ -177,16 +177,22 @@ export function ReportsPage({
         if (!selectedCompanyId) return;
         const company = companies.find(c => c.id === selectedCompanyId);
         if (!company) return;
+        
         const companyShipments = shipments.filter(s => s.companyId === selectedCompanyId && !s.isArchivedForCompany);
         const filteredData = filterShipmentsByStatus(companyShipments, companyReportStatuses);
         
         const dataToExport = filteredData.map(shipment => getEnhancedShipmentData(shipment, 'company'));
 
-        const statusString = companyReportStatuses.length > 0 ? companyReportStatuses.map(s => statusText[s] || s).join('_') : 'All';
-        const dateString = new Date().toISOString().split('T')[0];
-        const fileName = `Shipments_${company.name.replace(/\s/g, '_')}_${statusString}_${dateString}`;
+        const today = new Date();
+        const dateString = `${today.getDate().toString().padStart(2, '0')}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getFullYear()}`;
+        const fileName = `${company.name} - شيت توريد - ${dateString}`;
         
-        handleExport(dataToExport, 'company_shipments', fileName);
+        const reportHeader = {
+            title: `شيت توريد شركة: ${company.name}`,
+            date: `تاريخ التقرير: ${dateString.replace(/-/g, '/')}`
+        };
+
+        handleExport(dataToExport, 'company_shipments', fileName, reportHeader);
     };
 
     const handleExportCourierReport = () => {
@@ -287,7 +293,7 @@ export function ReportsPage({
                                  </div>
                                  <Button onClick={handleExportCompanyReport} disabled={!selectedCompanyId}>
                                      <FileUp className="me-2 h-4 w-4" />
-                                     تصدير الشيت
+                                     إنشاء شيت توريد
                                  </Button>
                              </div>
                         </CardContent>
@@ -360,3 +366,5 @@ export function ReportsPage({
         </div>
     )
 }
+
+    

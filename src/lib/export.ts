@@ -1,7 +1,7 @@
 
 
 import type { ColumnDef } from '@tanstack/react-table';
-import { Workbook } from 'exceljs';
+import { Workbook, type Row } from 'exceljs';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import type { Shipment, Governorate, Company, User } from './types';
@@ -101,6 +101,7 @@ export const exportToExcel = (
   governorates: Governorate[],
   companies: Company[],
   users: User[],
+  reportHeader?: { title: string, date: string }
 ) => {
   if (!data || data.length === 0) {
     // This part now primarily serves as a safeguard.
@@ -113,6 +114,21 @@ export const exportToExcel = (
   
   worksheet.views = [{ rightToLeft: true }];
   
+  // Add Report Header if provided
+  if (reportHeader) {
+    const titleRow = worksheet.addRow([reportHeader.title]);
+    titleRow.font = { name: 'Arial', size: 16, bold: true };
+    titleRow.alignment = { horizontal: 'right', vertical: 'middle' };
+    worksheet.mergeCells(`A1:${String.fromCharCode(64 + columns.length)}1`);
+    
+    const dateRow = worksheet.addRow([reportHeader.date]);
+    dateRow.font = { name: 'Arial', size: 12 };
+    dateRow.alignment = { horizontal: 'right', vertical: 'middle' };
+    worksheet.mergeCells(`A2:${String.fromCharCode(64 + columns.length)}2`);
+    
+    worksheet.addRow([]); // Add a blank row for spacing
+  }
+
   const excelColumns = columns.map(col => ({
       header: getHeader(col),
       key: (col as any).accessorKey as string,
@@ -135,13 +151,14 @@ export const exportToExcel = (
   worksheet.columns = excelColumns;
   
   // Style header row
-  worksheet.getRow(1).font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
-  worksheet.getRow(1).fill = {
+  const headerRow: Row = worksheet.getRow(reportHeader ? 4 : 1);
+  headerRow.font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
+  headerRow.fill = {
     type: 'pattern',
     pattern: 'solid',
     fgColor: { argb: 'FF004C99' } // Dark blue
   };
-  worksheet.getRow(1).alignment = { horizontal: 'right', vertical: 'middle' };
+  headerRow.alignment = { horizontal: 'right', vertical: 'middle' };
 
   // Add data rows
   data.forEach(row => {
@@ -208,3 +225,5 @@ export const exportToPDF = (
 
     doc.save('shipments_report.pdf');
 };
+
+    
