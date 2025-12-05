@@ -15,7 +15,7 @@ import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { UserFormSheet } from "@/components/users/user-form-sheet";
 import { CourierPaymentFormSheet } from "@/components/users/courier-payment-form-sheet";
 import { CompanyPaymentFormSheet } from "@/components/users/company-payment-form-sheet";
-import { ImportProgressDialog, type ImportProgress } from "@/components/shipments/import-progress-dialog";
+import { ImportResult, ImportProgressDialog } from "@/components/shipments/import-progress-dialog";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
@@ -397,7 +397,7 @@ const MobileShipmentsView = ({
               <ShipmentCard 
                 key={shipment.id}
                 shipment={shipment}
-                statusConfig={statuses.find(sc => sc.id === shipment.status)}
+                statusConfig={statuses?.find(sc => sc.id === shipment.status)}
                 governorateName={governorates?.find(g => g.id === shipment.governorateId)?.name || ''}
                 companyName={companies?.find(c => c.id === shipment.companyId)?.name || ''}
                 onEdit={() => onEdit(shipment)}
@@ -671,7 +671,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const [importProgress, setImportProgress] = React.useState<ImportProgress | null>(null);
+  const [importResult, setImportResult] = React.useState<ImportResult | null>(null);
 
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
 
@@ -821,140 +821,144 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && firestore && authUser && companies) {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
+    if (!file || !firestore || !authUser || !companies || !governorates) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
         try {
-          const data = e.target?.result;
-          const workbook = read(data, { type: 'binary', cellDates: true });
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          const json = utils.sheet_to_json<any>(worksheet);
+            const data = e.target?.result;
+            const workbook = read(data, { type: 'binary', cellDates: true });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const jsonRows = utils.sheet_to_json<any>(worksheet, { header: 1 });
+            const headers = jsonRows[0] as string[];
+            const json = utils.sheet_to_json<any>(worksheet);
 
-          setImportProgress({ added: 0, updated: 0, total: json.length, processing: true });
-          const batch = writeBatch(firestore);
-          let addedCount = 0;
-          let updatedCount = 0;
-          const shipmentsCollection = collection(firestore, 'shipments');
+            const result: ImportResult = {
+                added: 0,
+                updated: 0,
+                rejected: 0,
+                total: json.length,
+                errors: [],
+                processing: true
+            };
+            setImportResult(result);
 
-          for (const [index, row] of json.entries()) {
-              const orderNumberValue = row['رقم الطلب']?.toString().trim();
-              
-              const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
-              const creationDate = parseExcelDate(row['التاريخ']);
-              const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
-              const senderNameValue = row['الراسل'] || row['العميل الفرعي'];
-              const recipientNameValue = String(row['المرسل اليه'] || '').trim();
-              const recipientPhoneValue = String(row['التليفون']?.toString() || '').trim();
-              const addressValue = String(row['العنوان'] || 'N/A').trim();
-              
-              const companyNameFromSheet = row['الشركة']?.toString().trim();
-              const foundCompany = companies.find(c => c.name === companyNameFromSheet);
+            const validRows: any[] = [];
+            const rejectedRows: any[] = [];
+            
+            // --- 1. Validation Phase ---
+            for (const row of json) {
+                let errorReason = "";
+                const orderNumber = row['رقم الطلب']?.toString().trim();
+                const recipientName = String(row['المرسل اليه'] || '').trim();
+                const phone = String(row['التليفون']?.toString() || '').trim();
+                const governorateName = String(row['المحافظة'] || '').trim();
 
-              const shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>> = {
-                  senderName: senderNameValue,
-                  orderNumber: orderNumberValue,
-                  recipientName: recipientNameValue,
-                  recipientPhone: recipientPhoneValue,
-                  governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
-                  address: addressValue,
-                  totalAmount: parseFloat(String(totalAmountValue).replace(/[^0-9.]/g, '')),
-                  status: 'Pending', // Default status for new/updated shipments from Excel
-                  reason: String(row['السبب'] || ''),
-                  deliveryDate: deliveryDate || new Date(),
-                  isArchivedForCompany: false,
-                  isArchivedForCourier: false,
-                  companyId: foundCompany ? foundCompany.id : authUser.uid,
-              };
+                if (!recipientName) errorReason = "اسم المرسل إليه مفقود";
+                else if (!governorateName) errorReason = "المحافظة مفقودة";
+                else if (governorates.find(g => g.name === governorateName) === undefined) errorReason = `المحافظة "${governorateName}" غير موجودة في النظام`;
+                else if (phone && !/^01[0-2,5]\d{8}$/.test(phone)) errorReason = "رقم الهاتف غير صالح";
+                else if (!orderNumber) errorReason = "رقم الطلب مفقود";
+                
+                if (errorReason) {
+                    rejectedRows.push({ ...row, 'سبب الرفض': errorReason });
+                } else {
+                    validRows.push(row);
+                }
+            }
+            
+            result.rejected = rejectedRows.length;
+            result.errors = rejectedRows;
+            setImportResult({ ...result });
 
-              const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
-              
-              let existingShipmentQuery;
-              if (orderNumberValue) {
-                  existingShipmentQuery = query(shipmentsCollection, where("orderNumber", "==", orderNumberValue), where("companyId", "==", cleanShipmentData.companyId));
-              } else if (recipientNameValue && recipientPhoneValue && addressValue) {
-                  existingShipmentQuery = query(
-                      shipmentsCollection,
-                      where("recipientName", "==", recipientNameValue),
-                      where("recipientPhone", "==", recipientPhoneValue),
-                      where("address", "==", addressValue),
-                      where("companyId", "==", cleanShipmentData.companyId)
-                  );
-              }
+            // --- 2. Processing Phase ---
+            const batch = writeBatch(firestore);
+            const shipmentsCollection = collection(firestore, 'shipments');
 
-              let querySnapshot;
-              if(existingShipmentQuery) {
+            for (const row of validRows) {
+                const orderNumberValue = row['رقم الطلب']?.toString().trim();
+                const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
+                const foundCompany = companies.find(c => c.name === companyNameFromSheet);
+                const companyIdForQuery = foundCompany ? foundCompany.id : authUser.uid;
+
+                const existingShipmentQuery = query(shipmentsCollection, where("orderNumber", "==", orderNumberValue), where("companyId", "==", companyIdForQuery));
+
+                let querySnapshot;
                 try {
-                  querySnapshot = await getDocs(existingShipmentQuery);
+                    querySnapshot = await getDocs(existingShipmentQuery);
                 } catch (err: any) {
                     if (err.code === 'failed-precondition') {
                         toast({
                             title: "فهرس مطلوب",
-                            description: "تحتاج قاعدة البيانات إلى فهرس جديد لتنفيذ هذا الاستيراد. يرجى مراجعة أدوات المطور (console) للحصول على رابط الإنشاء.",
+                            description: "تحتاج قاعدة البيانات إلى فهرس جديد لتنفيذ هذا الاستيراد. راجع console للحصول على رابط الإنشاء.",
                             variant: "destructive",
                             duration: 10000,
                         });
                         console.error("Firestore index required. Please create the index using this link:", err.message.match(/https:\/\/[^\s]+/)?.[0]);
+                        setImportResult(prev => prev ? { ...prev, processing: false, finalError: "فشل الاستيراد. راجع الـ console." } : null);
+                        return;
                     }
-                     setImportProgress(prev => prev ? { ...prev, processing: false, error: "فشل الاستيراد بسبب فهرس مطلوب. راجع الـ console." } : null);
-                     return; // Stop the import process
                 }
-              }
+                
+                const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
+                const creationDate = parseExcelDate(row['التاريخ']);
+                const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
+                const senderNameValue = row['الراسل'] || row['العميل الفرعى'];
 
-              if (!querySnapshot || querySnapshot.empty) {
-                  const docRef = doc(shipmentsCollection);
-                  const shipmentCode = `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`;
-                  batch.set(docRef, { 
-                      ...cleanShipmentData, 
-                      shipmentCode,
-                      id: docRef.id,
-                      createdAt: creationDate || serverTimestamp(),
-                      updatedAt: serverTimestamp(),
-                  });
-                  addedCount++;
-                  setImportProgress(prev => prev ? { ...prev, added: addedCount } : null);
-              } else {
-                  const existingDocRef = querySnapshot.docs[0].ref;
-                  const existingShipment = querySnapshot.docs[0].data() as Shipment;
+                const shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>> = {
+                    senderName: senderNameValue,
+                    orderNumber: orderNumberValue,
+                    recipientName: String(row['المرسل اليه'] || '').trim(),
+                    recipientPhone: String(row['التليفون']?.toString() || '').trim(),
+                    governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
+                    address: String(row['العنوان'] || 'N/A').trim(),
+                    totalAmount: parseFloat(String(totalAmountValue).replace(/[^0-9.]/g, '')),
+                    status: 'Pending',
+                    reason: String(row['السبب'] || ''),
+                    deliveryDate: deliveryDate || new Date(),
+                    isArchivedForCompany: false,
+                    isArchivedForCourier: false,
+                    companyId: companyIdForQuery,
+                };
+                const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
 
-                  let updateData: Partial<Shipment> = { ...cleanShipmentData, updatedAt: serverTimestamp() };
-                  
-                  if (existingShipment.assignedCourierId) {
-                      delete updateData.status;
-                      delete updateData.assignedCourierId;
-                  }
-                  
-                  batch.update(existingDocRef, updateData);
-                  updatedCount++;
-                  setImportProgress(prev => prev ? { ...prev, updated: updatedCount } : null);
-              }
-          }
-          
-          await batch.commit().catch(serverError => {
-            if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
-                const permissionError = new FirestorePermissionError({
-                    path: 'shipments',
-                    operation: 'write',
-                    requestResourceData: {note: "Batch import operation failed"}
-                });
-                errorEmitter.emit('permission-error', permissionError);
+                if (!querySnapshot || querySnapshot.empty) {
+                    const docRef = doc(shipmentsCollection);
+                    const shipmentCode = `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`;
+                    batch.set(docRef, { ...cleanShipmentData, shipmentCode, id: docRef.id, createdAt: creationDate || serverTimestamp(), updatedAt: serverTimestamp() });
+                    result.added++;
+                } else {
+                    const existingDocRef = querySnapshot.docs[0].ref;
+                    const existingShipment = querySnapshot.docs[0].data() as Shipment;
+                    let updateData: Partial<Shipment> = { ...cleanShipmentData, updatedAt: serverTimestamp() };
+                    if (existingShipment.assignedCourierId) {
+                        delete updateData.status;
+                        delete updateData.assignedCourierId;
+                    }
+                    batch.update(existingDocRef, updateData);
+                    result.updated++;
+                }
+                setImportResult({ ...result });
             }
-          });
-          
-          setImportProgress(prev => prev ? { ...prev, processing: false } : null);
-          
+
+            await batch.commit().catch(serverError => {
+              if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+                  errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'shipments', operation: 'write', requestResourceData: {note: "Batch import operation failed"} }));
+              }
+            });
+
+            setImportResult(prev => prev ? { ...prev, processing: false } : null);
+
         } catch (error: any) {
             console.error("Error importing file:", error);
-             setImportProgress(prev => prev ? { ...prev, processing: false, error: "حدث خطأ أثناء معالجة الملف. يرجى التحقق من تنسيق الملف والمحاولة مرة أخرى." } : null);
+            setImportResult(prev => prev ? { ...prev, processing: false, finalError: "حدث خطأ أثناء معالجة الملف. يرجى التحقق من تنسيق الملف." } : null);
         } finally {
-            if (fileInputRef.current) {
-                fileInputRef.current.value = "";
-            }
+            if (fileInputRef.current) fileInputRef.current.value = "";
         }
-      };
-      reader.readAsBinaryString(file);
-    }
-  };
+    };
+    reader.readAsBinaryString(file);
+};
 
   const handleSaveShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
     if (!firestore || !user || !companies || !users || !statuses) return;
@@ -1587,8 +1591,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
 
   const courierDues = React.useMemo(() => {
-    if (!users || !shipments || !courierPayments) return [];
-    
+    if (!users || !shipments || !courierPayments || !statuses) return [];
+
     return courierUsers.map(courier => {
         const activeShipments = shipments?.filter(s => s.assignedCourierId === courier.id && !s.isArchivedForCourier) || [];
         const activePayments = courierPayments?.filter(p => p.courierId === courier.id && !p.isArchived) || [];
@@ -1597,8 +1601,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         const totalCommission = activeShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
         const totalPaidByCourier = activePayments.reduce((acc, p) => acc + p.amount, 0);
 
-        // Net due is what the courier OWES the company.
-        // It's the money collected, MINUS their earned commission, MINUS what they've already paid back.
         const netDue = (totalCollected - totalCommission) - totalPaidByCourier;
         
         const allPaymentsForCourier = courierPayments?.filter(p => p.courierId === courier.id) || [];
@@ -1630,7 +1632,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         const totalCompanyCommission = activeShipments.reduce((acc, s) => acc + (s.companyCommission || 0), 0);
         const totalPaidToCompany = activePayments.reduce((acc, p) => acc + p.amount, 0);
         
-        // This is the amount owed TO the company
         const netDue = totalRevenue - totalCompanyCommission - totalPaidToCompany;
         
         const allPaymentsForCompany = companyPayments?.filter(p => p.companyId === company.id) || [];
@@ -1647,12 +1648,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     })
   }, [companies, shipments, companyPayments]);
 
-  // --- Start: Smart Notifications & Problem Inbox Logic ---
-
-  // Use a ref to track which notifications have already been shown to avoid spamming the user
   const shownNotificationsRef = React.useRef<Set<string>>(new Set());
 
-  // Problem Inbox Shipments
   const returnedShipmentsNeedingAction = React.useMemo(() => shipments?.filter(s => s.status === 'Returned' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
   const longPostponedShipments = React.useMemo(() => shipments?.filter(s => s.status === 'Postponed' && s.updatedAt && differenceInDays(new Date(), s.updatedAt.toDate()) > 3 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
   const staleInTransitShipments = React.useMemo(() => shipments?.filter(s => s.status === 'In-Transit' && s.updatedAt && differenceInHours(new Date(), s.updatedAt.toDate()) > 24 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
@@ -1709,7 +1706,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
   }, [courierDues, courierUsers, shipments, companies, toast, usersLoading, shipmentsLoading, companiesLoading]);
   
-  // --- End: Smart Notifications & Problem Inbox Logic ---
 
   const currentCourierNetDue = courierDues.find(c => c.id === payingCourier?.id)?.netDue;
   const currentCompanyNetDue = companyDues.find(c => c.id === payingCompany?.id)?.netDue;
@@ -1973,7 +1969,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                                 </CardHeader>
                                 <CardContent className="flex-grow">
                                     <p className="text-xs text-muted-foreground">
-                                        {courier.netDue >= 0 ? "المبلغ المستحق على المندوب" : "المبلغ المستحق للمندوب"}
+                                        {courier.netDue > 0 ? "المبلغ المستحق على المندوب" : (courier.netDue < 0 ? "المبلغ المستحق للمندوب" : "الحساب مسوى")}
                                     </p>
                                     <div className="mt-4 space-y-2 text-sm">
                                          <div className="flex justify-between items-center border-b pb-2">
@@ -2362,10 +2358,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         onSave={handleSaveCompanyPayment}
         netDue={currentCompanyNetDue}
       />
-       {importProgress && (
+       {importResult && (
         <ImportProgressDialog
-          progress={importProgress}
-          onClose={() => setImportProgress(null)}
+          result={importResult}
+          onClose={() => setImportResult(null)}
         />
       )}
     </div>
