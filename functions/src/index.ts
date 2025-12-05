@@ -15,6 +15,17 @@ try {
 const db = admin.firestore();
 const corsHandler = cors({ origin: true });
 
+// Define the shape of the status configuration for type safety
+interface ShipmentStatusConfig {
+  id: string;
+  label: string;
+  affectsCourierBalance: boolean;
+  affectsCompanyBalance: boolean;
+  enabled: boolean;
+  requiresFullCollection: boolean;
+  requiresPartialCollection: boolean;
+}
+
 export const getDashboardStats = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "The function must be called while authenticated.");
@@ -123,7 +134,7 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
                 
                 const courierData = courierDoc.data()!;
                 const companyData = companyDoc.data()!;
-                const statusConfigs = statusConfigsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                const statusConfigs: ShipmentStatusConfig[] = statusConfigsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ShipmentStatusConfig));
                 
                 // Perform calculations
                 const statusConfig = statusConfigs.find(s => s.id === status);
