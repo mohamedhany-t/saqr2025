@@ -95,7 +95,10 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {},
+    defaultValues: {
+      requestedAmount: undefined,
+      amountChangeReason: '',
+    },
   });
   
   React.useEffect(() => {
@@ -141,6 +144,8 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           assignedCourierId: "",
           companyId: "",
           collectedAmount: 0,
+          requestedAmount: undefined,
+          amountChangeReason: '',
           isWarehouseReturn: false,
         });
       }
