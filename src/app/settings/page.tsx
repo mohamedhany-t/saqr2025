@@ -41,8 +41,6 @@ const defaultStatuses: ShipmentStatusConfig[] = [
     { id: 'PriceChangeRejected', label: 'مرفوض - تابع مع الإدارة', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
 ];
 
-const customReturnStatus: ShipmentStatusConfig = { id: 'Custom-Return', label: 'استرجاع مخصص', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true, isDeliveredStatus: false, isReturnedStatus: false };
-
 
 export default function SettingsPage() {
     const firestore = useFirestore();
@@ -56,46 +54,41 @@ export default function SettingsPage() {
     const [statusToDelete, setStatusToDelete] = useState<WithIdAndRef<ShipmentStatusConfig> | null>(null);
 
     useEffect(() => {
-        const seedDefaultStatuses = async () => {
-            if (firestore && serverStatuses && serverStatuses.length === 0) {
-                console.log("No statuses found, seeding default statuses...");
-                const batch = writeBatch(firestore);
-                defaultStatuses.forEach(status => {
-                    const docRef = doc(firestore, 'shipment_statuses', status.id);
-                    batch.set(docRef, status);
-                });
-                await batch.commit();
-                toast({ title: 'تم إنشاء الحالات الافتراضية' });
+        const syncStatuses = async () => {
+            if (firestore && serverStatuses) {
+                const existingStatusIds = new Set(serverStatuses.map(s => s.id));
+                const missingStatuses = defaultStatuses.filter(ds => !existingStatusIds.has(ds.id));
+
+                if (missingStatuses.length > 0) {
+                    console.log(`Found ${missingStatuses.length} missing statuses. Adding them now...`);
+                    const batch = writeBatch(firestore);
+                    missingStatuses.forEach(status => {
+                        const docRef = doc(firestore, 'shipment_statuses', status.id);
+                        batch.set(docRef, status);
+                    });
+                    await batch.commit();
+                    toast({ 
+                        title: 'تم تحديث حالات النظام',
+                        description: `تمت إضافة ${missingStatuses.length} حالة جديدة تلقائيًا.`
+                    });
+                    // The `useCollection` hook will re-fetch automatically after the write.
+                } else {
+                    // If no statuses are missing, just set the local state from server data.
+                     const sortedStatuses = [...serverStatuses].sort((a, b) => a.label.localeCompare(b.label));
+                     const initializedStatuses = sortedStatuses.map(s => ({
+                        ...s,
+                        requiresFullCollection: !!s.requiresFullCollection,
+                        requiresPartialCollection: !!s.requiresPartialCollection,
+                        isDeliveredStatus: !!s.isDeliveredStatus,
+                        isReturnedStatus: !!s.isReturnedStatus,
+                    }));
+                    setLocalStatuses(initializedStatuses);
+                }
             }
         };
 
-        if (!isLoading && serverStatuses && firestore) {
-            if (serverStatuses.length === 0) {
-                seedDefaultStatuses();
-            } else {
-                let currentStatuses = [...serverStatuses];
-                
-                const hasCustomReturn = currentStatuses.some(s => s.id === 'Custom-Return');
-                if (!hasCustomReturn) {
-                    const newStatusRef = doc(collection(firestore, 'shipment_statuses'), 'Custom-Return');
-                    const newStatusWithRef: WithIdAndRef<ShipmentStatusConfig> = {
-                        ...customReturnStatus,
-                        ref: newStatusRef as DocumentReference<ShipmentStatusConfig>,
-                    };
-                    currentStatuses.push(newStatusWithRef);
-                    toast({ title: 'تم اكتشاف حالة جديدة', description: 'تمت إضافة "استرجاع مخصص". يرجى الضغط على حفظ التغييرات لتأكيدها.'});
-                }
-                
-                const sortedStatuses = [...currentStatuses].sort((a, b) => a.label.localeCompare(b.label));
-                const initializedStatuses = sortedStatuses.map(s => ({
-                    ...s,
-                    requiresFullCollection: !!s.requiresFullCollection,
-                    requiresPartialCollection: !!s.requiresPartialCollection,
-                    isDeliveredStatus: !!s.isDeliveredStatus,
-                    isReturnedStatus: !!s.isReturnedStatus,
-                }));
-                setLocalStatuses(initializedStatuses);
-            }
+        if (!isLoading && firestore) {
+             syncStatuses();
         }
     }, [serverStatuses, isLoading, firestore, toast]);
 
@@ -175,7 +168,7 @@ export default function SettingsPage() {
     
     const isCoreStatus = (id: string) => defaultStatuses.some(ds => ds.id === id);
 
-    if (isLoading) {
+    if (isLoading && localStatuses.length === 0) {
         return (
             <div className="flex h-screen w-full items-center justify-center">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -348,7 +341,5 @@ export default function SettingsPage() {
         </div>
     );
 }
-
-    
 
     
