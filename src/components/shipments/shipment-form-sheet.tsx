@@ -138,7 +138,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           assignedCourierId: shipment.assignedCourierId ?? '',
           companyId: shipment.companyId ?? '',
           collectedAmount: shipment.collectedAmount ?? 0,
-          requestedAmount: shipment.requestedAmount, // Keep as is, handle in FormField
+          requestedAmount: shipment.requestedAmount ?? undefined,
           amountChangeReason: shipment.amountChangeReason ?? '',
           courierCommission: shipment.courierCommission ?? 0,
           companyCommission: shipment.companyCommission ?? 0,
@@ -178,7 +178,18 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   const selectedStatusConfig = statuses.find(s => s.id === selectedStatus);
   const isPriceChangeRequest = selectedStatus === 'PriceChangeRequested';
 
-  const courierAllowedStatuses = statuses.filter(s => s.enabled && (isCourier ? s.id !== 'Delivered' || shipment?.status === 'PriceChangeRejected' : true) && (shipment?.status === 'PriceChangeRequested' ? s.id === 'PriceChangeRequested' : true));
+  const courierAllowedStatuses = statuses.filter(s => {
+    // Status must be enabled
+    if (!s.enabled) return false;
+    // Hide 'PriceChangeRejected' unless it's the current status
+    if (s.id === 'PriceChangeRejected' && shipment?.status !== 'PriceChangeRejected') return false;
+    // Hide 'Delivered' for couriers, except if they are confirming a price change rejection.
+    if (isCourier && s.id === 'Delivered' && shipment?.status !== 'PriceChangeRejected') return false;
+    // If the shipment is currently in 'PriceChangeRequested' state, only allow that status to be selected
+    if (isCourier && shipment?.status === 'PriceChangeRequested' && s.id !== 'PriceChangeRequested') return false;
+    
+    return true;
+  });
 
 
   return (
@@ -353,14 +364,14 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">الحالة</FormLabel>
-                                <Select dir="rtl" onValueChange={field.onChange} value={field.value} disabled={isCourier && shipment?.status === 'PriceChangeRequested'}>
+                                <Select dir="rtl" onValueChange={field.onChange} value={field.value} disabled={isCourier && shipment?.status === 'PriceChangeRequested' && field.value === 'PriceChangeRequested'}>
                                     <FormControl className="col-span-3">
                                         <SelectTrigger>
                                             <SelectValue placeholder="اختر الحالة" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        {courierAllowedStatuses.map(s => (
+                                        {(isCourier ? courierAllowedStatuses : statuses.filter(s => s.enabled)).map(s => (
                                             <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
                                         ))}
                                     </SelectContent>

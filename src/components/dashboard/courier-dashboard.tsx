@@ -152,8 +152,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         ...shipmentData,    
         shipmentId: id,
       };
-
-      // This is the fix. The 'ref' property from useCollection was causing a circular reference.
+      
       delete payload.ref;
       
       await handleShipmentUpdateFn(payload);
@@ -163,11 +162,8 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
       
       if (shipmentData.status === 'PriceChangeRequested') {
             const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
-            // Assuming there's a general admin or a way to find admins to notify
-            // For now, let's hardcode a recipient for demonstration, but this should be dynamic
-            const adminId = "R1P4h0n1gTrgP0g0aI0d6WzYx1y1"; // Replace with actual admin user ID logic
             sendPushNotification({
-                recipientId: adminId,
+                recipientId: 'admin', // Send to all admins
                 title: 'طلب تعديل سعر',
                 body: `المندوب ${user.name} يطلب تعديل سعر الشحنة ${editingShipment.recipientName}`,
                 url: notificationUrl,

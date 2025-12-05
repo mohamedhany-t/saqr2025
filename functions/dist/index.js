@@ -103,6 +103,8 @@ const updateShipmentStatusSchema = zod_1.z.object({
     status: zod_1.z.string(),
     reason: zod_1.z.string().optional(),
     collectedAmount: zod_1.z.number().optional(),
+    requestedAmount: zod_1.z.number().optional(),
+    amountChangeReason: zod_1.z.string().optional(),
     // Include other fields from shipment object to ensure they are present
     recipientName: zod_1.z.string(),
     address: zod_1.z.string(),
@@ -140,7 +142,7 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
             res.status(400).send({ error: { status: 'INVALID_ARGUMENT', message: 'The data provided is invalid.' } });
             return;
         }
-        const { shipmentId, status, reason, collectedAmount } = validation.data;
+        const { shipmentId, status, reason, collectedAmount, requestedAmount, amountChangeReason } = validation.data;
         // Use the full shipment data passed from the client
         const shipmentDataFromClient = validation.data;
         const shipmentRef = db.collection('shipments').doc(shipmentId);
@@ -197,10 +199,14 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
                     companyCommission,
                 };
                 const finalShipmentUpdate = Object.assign(Object.assign({}, financialUpdate), { status: status, reason: reason || "", updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+                if (status === 'PriceChangeRequested') {
+                    finalShipmentUpdate.requestedAmount = requestedAmount;
+                    finalShipmentUpdate.amountChangeReason = amountChangeReason;
+                }
                 const historyRef = shipmentRef.collection('history').doc();
                 const historyEntry = {
                     status: status,
-                    reason: reason || '',
+                    reason: reason || (status === 'PriceChangeRequested' ? amountChangeReason : '') || '',
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                     updatedBy: courierName || courierEmail,
                     userId: courierId,

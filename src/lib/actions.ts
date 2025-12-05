@@ -142,28 +142,46 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
     
     try {
         const db = getAdminFirestore();
-        
-        const subscriptionsSnap = await db.collection(`users/${recipientId}/pushSubscriptions`).get();
-        if (subscriptionsSnap.empty) {
-            console.log(`No push subscriptions found for user ${recipientId}.`);
-            return { success: true, message: "No push subscriptions found for user." };
+        let recipientIds: string[] = [recipientId];
+
+        // If recipientId is a role (like 'admin'), fetch all user IDs with that role
+        if (['admin', 'company', 'courier', 'customer-service'].includes(recipientId)) {
+            const roleCollectionName = `roles_${recipientId}`;
+            const rolesSnapshot = await db.collection(roleCollectionName).get();
+            if (!rolesSnapshot.empty) {
+                recipientIds = rolesSnapshot.docs.map(doc => doc.id);
+            } else {
+                 console.log(`No users found with role '${recipientId}'.`);
+                 return { success: true, message: `No users found with role '${recipientId}'.` };
+            }
         }
         
         const payload = JSON.stringify({ title, body, url });
 
-        const promises = subscriptionsSnap.docs.map(doc => {
-            const subscription = doc.data() as PushSubscription;
-            return webpush.sendNotification(subscription, payload).catch(error => {
-                console.error(`Error sending notification to endpoint for user ${recipientId}:`, error.statusCode, error.body);
-                // If subscription is expired or invalid, delete it
-                if (error.statusCode === 410 || error.statusCode === 404) {
-                    console.log(`Subscription for user ${recipientId} is invalid. Deleting.`);
-                    return doc.ref.delete();
-                }
+        const allPromises: Promise<any>[] = [];
+
+        for (const id of recipientIds) {
+            const subscriptionsSnap = await db.collection(`users/${id}/pushSubscriptions`).get();
+            if (subscriptionsSnap.empty) {
+                console.log(`No push subscriptions found for user ${id}.`);
+                continue;
+            }
+            
+            const userPromises = subscriptionsSnap.docs.map(doc => {
+                const subscription = doc.data() as PushSubscription;
+                return webpush.sendNotification(subscription, payload).catch(error => {
+                    console.error(`Error sending notification to endpoint for user ${id}:`, error.statusCode, error.body);
+                    // If subscription is expired or invalid, delete it
+                    if (error.statusCode === 410 || error.statusCode === 404) {
+                        console.log(`Subscription for user ${id} is invalid. Deleting.`);
+                        return doc.ref.delete();
+                    }
+                });
             });
-        });
+            allPromises.push(...userPromises);
+        }
         
-        await Promise.all(promises);
+        await Promise.all(allPromises);
         
         return { success: true };
 
