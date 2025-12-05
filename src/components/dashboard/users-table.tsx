@@ -1,12 +1,14 @@
 
 "use client"
 import * as React from "react"
-import type { ColumnDef } from "@tanstack/react-table"
+import type { ColumnDef, SortingState } from "@tanstack/react-table"
 import {
   flexRender,
   getCoreRowModel,
   getPaginationRowModel,
   useReactTable,
+  getSortedRowModel,
+  getFilteredRowModel,
 } from "@tanstack/react-table"
 import { MoreHorizontal, User as UserIcon, Building, Truck, Pencil, Trash2, BadgeDollarSign, ShieldQuestion } from "lucide-react"
 
@@ -205,8 +207,9 @@ const getColumns = (onEdit: (user: User, company?: Company) => void, onDelete: (
 ]
 
 
-export function UsersTable({ users, listIsLoading, onEdit, onDelete }: { users: User[], listIsLoading: boolean, onEdit: (user: User, company?: Company) => void, onDelete: (user: User) => void }) {
-  
+export function UsersTable({ users, listIsLoading, onEdit, onDelete, searchTerm }: { users: User[], listIsLoading: boolean, onEdit: (user: User, company?: Company) => void, onDelete: (user: User) => void, searchTerm: string }) {
+  const [sorting, setSorting] = React.useState<SortingState>([])
+
   const firestore = useFirestore();
   const companiesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -215,12 +218,26 @@ export function UsersTable({ users, listIsLoading, onEdit, onDelete }: { users: 
   const { data: companies, isLoading: companiesLoading } = useCollection<Company>(companiesQuery);
   
   const columns = React.useMemo(() => getColumns(onEdit, onDelete, companies || []), [onEdit, onDelete, companies]);
+
+  const filteredUsers = React.useMemo(() => {
+    if (!searchTerm) return users;
+    const lowercasedTerm = searchTerm.toLowerCase();
+    return users.filter(user => 
+        user.name?.toLowerCase().includes(lowercasedTerm) ||
+        user.email.toLowerCase().includes(lowercasedTerm)
+    );
+  }, [users, searchTerm]);
   
   const table = useReactTable({
-    data: users,
+    data: filteredUsers,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    onSortingChange: setSorting,
+    getSortedRowModel: getSortedRowModel(),
+    state: {
+      sorting,
+    },
   })
 
   return (
@@ -271,7 +288,7 @@ export function UsersTable({ users, listIsLoading, onEdit, onDelete }: { users: 
                   colSpan={columns.length}
                   className="h-24 text-center"
                 >
-                  لا يوجد مستخدمون.
+                  {searchTerm ? "لا يوجد مستخدمون يطابقون بحثك." : "لا يوجد مستخدمون."}
                 </TableCell>
               </TableRow>
             )}

@@ -2,8 +2,9 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
@@ -673,6 +674,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const [importResult, setImportResult] = React.useState<ImportResult | null>(null);
 
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+
+  // State for search terms in management tabs
+  const [managementSearchTerm, setManagementSearchTerm] = React.useState('');
 
   // We use useUser here to get the auth user (with .uid) for the import logic.
   const { user: authUser } = useUser();
@@ -1598,7 +1602,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         const totalCommission = activeShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
         const totalPaidByCourier = activePayments.reduce((acc, p) => acc + p.amount, 0);
 
-        const netDue = (totalCollected > 0 ? (totalCollected - totalCommission) : (totalCollected + totalCommission)) - totalPaidByCourier;
+        const netDue = (totalCollected - totalCommission) - totalPaidByCourier;
         
         const allPaymentsForCourier = courierPayments?.filter(p => p.courierId === courier.id) || [];
         
@@ -1809,6 +1813,18 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
   const listIsLoading = shipmentsLoading || governoratesLoading || companiesLoading || usersLoading || statusesLoading;
 
+  // Filtered data for management tabs
+  const filteredCourierDues = React.useMemo(() => {
+    if (!managementSearchTerm) return courierDues;
+    return courierDues.filter(c => c.name?.toLowerCase().includes(managementSearchTerm.toLowerCase()));
+  }, [courierDues, managementSearchTerm]);
+
+  const filteredCompanyDues = React.useMemo(() => {
+    if (!managementSearchTerm) return companyDues;
+    return companyDues.filter(c => c.name?.toLowerCase().includes(managementSearchTerm.toLowerCase()));
+  }, [companyDues, managementSearchTerm]);
+
+
   return (
     <div className="flex flex-col w-full">
         <Tabs defaultValue="shipments">
@@ -1951,9 +1967,18 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
              <div className="mt-8">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-2xl font-headline font-semibold">إدارة حسابات المناديب</h2>
+                     <div className="relative">
+                        <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="ابحث عن مندوب..."
+                            value={managementSearchTerm}
+                            onChange={(e) => setManagementSearchTerm(e.target.value)}
+                            className="pr-8 sm:w-[300px]"
+                        />
+                    </div>
                 </div>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {courierDues.map(courier => (
+                        {filteredCourierDues.map(courier => (
                             <Card key={courier.id} className="flex flex-col">
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                     <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -2062,9 +2087,18 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                <div className="mt-8">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-2xl fontheadline font-semibold">إدارة حسابات الشركات</h2>
+                    <div className="relative">
+                        <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="ابحث عن شركة..."
+                            value={managementSearchTerm}
+                            onChange={(e) => setManagementSearchTerm(e.target.value)}
+                            className="pr-8 sm:w-[300px]"
+                        />
+                    </div>
                 </div>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {companyDues.map(company => (
+                        {filteredCompanyDues.map(company => (
                              <Card key={company.id} className="flex flex-col">
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                     <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -2163,7 +2197,18 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         <TabsContent value="user-management">
             <div className="mt-8">
                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين والشركات</h2>
+                    <div>
+                        <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين والشركات</h2>
+                        <div className="relative mt-2">
+                             <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                             <Input
+                                placeholder="ابحث عن مستخدم..."
+                                value={managementSearchTerm}
+                                onChange={(e) => setManagementSearchTerm(e.target.value)}
+                                className="pr-8 sm:w-[300px]"
+                            />
+                        </div>
+                    </div>
                     <div className="flex items-center gap-2">
                         <UserFormSheet 
                             open={isUserSheetOpen}
@@ -2193,7 +2238,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                             />
                         ))}
                     </div> : 
-                    <UsersTable listIsLoading={usersLoading || companiesLoading} users={users || []} onEdit={openUserForm} onDelete={setUserToDelete} />
+                    <UsersTable listIsLoading={usersLoading || companiesLoading} users={users || []} onEdit={openUserForm} onDelete={setUserToDelete} searchTerm={managementSearchTerm} />
                  }
             </div>
         </TabsContent>
@@ -2362,5 +2407,5 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         />
       )}
     </div>
-  )
+  );
 }
