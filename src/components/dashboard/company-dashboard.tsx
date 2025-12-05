@@ -10,7 +10,7 @@ import { ShipmentsTable } from "@/components/dashboard/shipments-table";
 import type { Role, Shipment, Company, Governorate, Courier, User, Chat, ShipmentHistory, ShipmentStatusKey, ShipmentStatusConfig } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
-import { ImportProgressDialog, type ImportProgress } from "@/components/shipments/import-progress-dialog";
+import { ImportProgressDialog, type ImportResult } from "@/components/shipments/import-progress-dialog";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from "@/firebase";
@@ -40,7 +40,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
   const pathname = usePathname();
   const searchParams = useSearchParams();
   
-  const [importProgress, setImportProgress] = React.useState<ImportProgress | null>(null);
+  const [importResult, setImportResult] = React.useState<ImportResult | null>(null);
 
   const chatsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.id) return null;
@@ -158,25 +158,47 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && firestore && user) {
+    if (file && firestore && user && governorates) {
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
-          const data = e.target?.result;
-          const workbook = read(data, { type: 'binary', cellDates: true });
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          const json = utils.sheet_to_json<any>(worksheet);
+            const data = e.target?.result;
+            const workbook = read(data, { type: 'binary', cellDates: true });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const json = utils.sheet_to_json<any>(worksheet);
 
-          setImportProgress({ added: 0, updated: 0, total: json.length, processing: true });
-          const batch = writeBatch(firestore);
-          let addedCount = 0;
-          let updatedCount = 0;
-          const shipmentsCollection = collection(firestore, 'shipments');
+            const result: ImportResult = { added: 0, updated: 0, rejected: 0, total: json.length, processing: true, errors: [] };
+            setImportResult(result);
+            
+            const validRows: any[] = [];
+            const rejectedRows: any[] = [];
+            
+            for (const row of json) {
+                let errorReason = "";
+                const recipientName = String(row['المرسل اليه'] || '').trim();
+                const governorateName = String(row['المحافظة'] || '').trim();
 
-          for (const [index, row] of json.entries()) {
+                if (!recipientName) errorReason = "اسم المرسل إليه مفقود";
+                else if (!governorateName) errorReason = "المحافظة مفقودة";
+                else if (governorates.find(g => g.name === governorateName) === undefined) errorReason = `المحافظة "${governorateName}" غير موجودة في النظام`;
+
+                if (errorReason) {
+                    rejectedRows.push({ ...row, 'سبب الرفض': errorReason });
+                } else {
+                    validRows.push(row);
+                }
+            }
+
+            result.rejected = rejectedRows.length;
+            result.errors = rejectedRows;
+            setImportResult({ ...result });
+
+            const batch = writeBatch(firestore);
+            const shipmentsCollection = collection(firestore, 'shipments');
+
+            for (const row of validRows) {
               const orderNumberValue = row['رقم الطلب']?.toString().trim();
-
               const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
               const creationDate = parseExcelDate(row['التاريخ']);
               const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
@@ -198,7 +220,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                   deliveryDate: deliveryDate || new Date(),
                   isArchivedForCompany: false,
                   isArchivedForCourier: false,
-                  companyId: user.id, // Shipment belongs to the current company user
+                  companyId: user.id,
               };
 
               const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
@@ -206,14 +228,6 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
               let existingShipmentQuery;
                if (orderNumberValue) {
                   existingShipmentQuery = query(shipmentsCollection, where("orderNumber", "==", orderNumberValue), where("companyId", "==", user.id));
-              } else if (recipientNameValue && recipientPhoneValue && addressValue) {
-                  existingShipmentQuery = query(
-                      shipmentsCollection,
-                      where("recipientName", "==", recipientNameValue),
-                      where("recipientPhone", "==", recipientPhoneValue),
-                      where("address", "==", addressValue),
-                      where("companyId", "==", user.id)
-                  );
               }
 
               let querySnapshot;
@@ -230,8 +244,8 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                         });
                         console.error("Firestore index required. Please create the index using this link:", err.message.match(/https:\/\/[^\s]+/)?.[0]);
                     }
-                     setImportProgress(prev => prev ? { ...prev, processing: false, error: "فشل الاستيراد بسبب فهرس مطلوب. راجع الـ console." } : null);
-                     return; // Stop the import process
+                     setImportResult(prev => prev ? { ...prev, processing: false, finalError: "فشل الاستيراد بسبب فهرس مطلوب. راجع الـ console." } : null);
+                     return;
                 }
               }
 
@@ -245,23 +259,19 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
                       createdAt: creationDate || serverTimestamp(),
                       updatedAt: serverTimestamp(),
                   });
-                  addedCount++;
-                  setImportProgress(prev => prev ? { ...prev, added: addedCount } : null);
+                  result.added++;
               } else {
                   const existingDocRef = querySnapshot.docs[0].ref;
                   const existingShipment = querySnapshot.docs[0].data() as Shipment;
-
                   let updateData: Partial<Shipment> = { ...cleanShipmentData, updatedAt: serverTimestamp() };
-                  
                   if (existingShipment.assignedCourierId) {
                       delete updateData.status;
                       delete updateData.assignedCourierId;
                   }
-
                   batch.update(existingDocRef, updateData);
-                  updatedCount++;
-                  setImportProgress(prev => prev ? { ...prev, updated: updatedCount } : null);
+                  result.updated++;
               }
+              setImportResult({ ...result });
           }
           
           await batch.commit().catch(serverError => {
@@ -275,11 +285,11 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
             }
           });
           
-          setImportProgress(prev => prev ? { ...prev, processing: false } : null);
+          setImportResult(prev => prev ? { ...prev, processing: false } : null);
 
         } catch (error: any) {
             console.error("Error importing file:", error);
-            setImportProgress(prev => prev ? { ...prev, processing: false, error: "حدث خطأ أثناء معالجة الملف. يرجى التحقق من تنسيق الملف والمحاولة مرة أخرى." } : null);
+            setImportResult(prev => prev ? { ...prev, processing: false, finalError: "حدث خطأ أثناء معالجة الملف. يرجى التحقق من تنسيق الملف والمحاولة مرة أخرى." } : null);
         } finally {
             if (fileInputRef.current) {
                 fileInputRef.current.value = "";
@@ -561,12 +571,14 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
       >
         <div />
       </ShipmentFormSheet>
-      {importProgress && (
+      {importResult && (
         <ImportProgressDialog
-          progress={importProgress}
-          onClose={() => setImportProgress(null)}
+          result={importResult}
+          onClose={() => setImportResult(null)}
         />
       )}
     </div>
   );
 }
+
+    
