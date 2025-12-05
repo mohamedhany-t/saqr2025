@@ -75,6 +75,8 @@ const updateShipmentStatusSchema = z.object({
     status: z.string(),
     reason: z.string().optional(),
     collectedAmount: z.number().optional(),
+    requestedAmount: z.number().optional(),
+    amountChangeReason: z.string().optional(),
     // Include other fields from shipment object to ensure they are present
     recipientName: z.string(),
     address: z.string(),
@@ -117,7 +119,7 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
             return;
         }
 
-        const { shipmentId, status, reason, collectedAmount } = validation.data;
+        const { shipmentId, status, reason, collectedAmount, requestedAmount, amountChangeReason } = validation.data;
         // Use the full shipment data passed from the client
         const shipmentDataFromClient = validation.data;
         const shipmentRef = db.collection('shipments').doc(shipmentId);
@@ -182,17 +184,22 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
                     companyCommission,
                 };
                 
-                const finalShipmentUpdate = {
+                const finalShipmentUpdate: any = {
                     ...financialUpdate,
                     status: status,
                     reason: reason || "",
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 };
+
+                if (status === 'PriceChangeRequested') {
+                    finalShipmentUpdate.requestedAmount = requestedAmount;
+                    finalShipmentUpdate.amountChangeReason = amountChangeReason;
+                }
                 
                 const historyRef = shipmentRef.collection('history').doc();
                 const historyEntry = {
                     status: status,
-                    reason: reason || '',
+                    reason: reason || (status === 'PriceChangeRequested' ? amountChangeReason : '') || '',
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                     updatedBy: courierName || courierEmail,
                     userId: courierId,
