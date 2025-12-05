@@ -1,5 +1,4 @@
 
-
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -858,7 +857,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 if (!recipientName) errorReason = "اسم المرسل إليه مفقود";
                 else if (!governorateName) errorReason = "المحافظة مفقودة";
                 else if (governorates.find(g => g.name === governorateName) === undefined) errorReason = `المحافظة "${governorateName}" غير موجودة في النظام`;
-                else if (phone && !/^01[0-2,5]\d{8}$/.test(phone)) errorReason = "رقم الهاتف غير صالح";
                 else if (!orderNumber) errorReason = "رقم الطلب مفقود";
                 
                 if (errorReason) {
@@ -1601,7 +1599,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         const totalCommission = activeShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
         const totalPaidByCourier = activePayments.reduce((acc, p) => acc + p.amount, 0);
 
-        const netDue = (totalCollected - totalCommission) - totalPaidByCourier;
+        const netDue = (totalCollected > 0 ? (totalCollected - totalCommission) : (totalCollected + totalCommission)) - totalPaidByCourier;
         
         const allPaymentsForCourier = courierPayments?.filter(p => p.courierId === courier.id) || [];
         
@@ -2365,5 +2363,5 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         />
       )}
     </div>
-  );
+  )
 }
