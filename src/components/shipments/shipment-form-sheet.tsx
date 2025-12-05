@@ -138,7 +138,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           assignedCourierId: shipment.assignedCourierId ?? '',
           companyId: shipment.companyId ?? '',
           collectedAmount: shipment.collectedAmount ?? 0,
-          requestedAmount: shipment.requestedAmount ?? undefined,
+          requestedAmount: shipment.requestedAmount, // Keep as is, handle in FormField
           amountChangeReason: shipment.amountChangeReason ?? '',
           courierCommission: shipment.courierCommission ?? 0,
           companyCommission: shipment.companyCommission ?? 0,
@@ -378,7 +378,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                 <FormItem className="grid grid-cols-4 items-center gap-4">
                                     <FormLabel className="text-right">السعر المقترح</FormLabel>
                                     <FormControl className="col-span-3">
-                                        <Input type="number" step="any" {...field} placeholder="أدخل السعر الجديد المقترح" />
+                                        <Input type="number" step="any" {...field} placeholder="أدخل السعر الجديد المقترح" value={field.value ?? ''} />
                                     </FormControl>
                                     <FormMessage className="col-span-3 col-start-2" />
                                 </FormItem>
@@ -409,7 +409,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">{isPriceChangeRequest ? "سبب طلب التعديل" : "السبب/ملاحظات"}</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Textarea {...field} />
+                                    <Textarea {...field} value={field.value ?? ''} />
                                 </FormControl>
                             </FormItem>
                         )}
