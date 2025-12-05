@@ -101,10 +101,12 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
         }
         
         const { uid: courierId, name: courierName, email: courierEmail } = context.auth;
-        const validation = updateShipmentStatusSchema.safeParse(req.body);
+        
+        // IMPORTANT FIX: Read from req.body.data for callable functions on onRequest trigger
+        const validation = updateShipmentStatusSchema.safeParse(req.body.data);
 
         if (!validation.success) {
-            console.error("Validation failed:", validation.error);
+            console.error("Validation failed:", validation.error.errors);
             res.status(400).send({ error: { status: 'INVALID_ARGUMENT', message: 'The data provided is invalid.' } });
             return;
         }
@@ -201,3 +203,5 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
         }
     });
 });
+
+    
