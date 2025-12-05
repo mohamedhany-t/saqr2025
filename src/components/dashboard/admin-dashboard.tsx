@@ -849,15 +849,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             // --- 1. Validation Phase ---
             for (const row of json) {
                 let errorReason = "";
-                const orderNumber = row['رقم الطلب']?.toString().trim();
                 const recipientName = String(row['المرسل اليه'] || '').trim();
-                const phone = String(row['التليفون']?.toString() || '').trim();
                 const governorateName = String(row['المحافظة'] || '').trim();
 
                 if (!recipientName) errorReason = "اسم المرسل إليه مفقود";
                 else if (!governorateName) errorReason = "المحافظة مفقودة";
                 else if (governorates.find(g => g.name === governorateName) === undefined) errorReason = `المحافظة "${governorateName}" غير موجودة في النظام`;
-                else if (!orderNumber) errorReason = "رقم الطلب مفقود";
                 
                 if (errorReason) {
                     rejectedRows.push({ ...row, 'سبب الرفض': errorReason });
@@ -880,22 +877,24 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 const foundCompany = companies.find(c => c.name === companyNameFromSheet);
                 const companyIdForQuery = foundCompany ? foundCompany.id : authUser.uid;
 
-                const existingShipmentQuery = query(shipmentsCollection, where("orderNumber", "==", orderNumberValue), where("companyId", "==", companyIdForQuery));
-
                 let querySnapshot;
-                try {
-                    querySnapshot = await getDocs(existingShipmentQuery);
-                } catch (err: any) {
-                    if (err.code === 'failed-precondition') {
-                        toast({
-                            title: "فهرس مطلوب",
-                            description: "تحتاج قاعدة البيانات إلى فهرس جديد لتنفيذ هذا الاستيراد. راجع console للحصول على رابط الإنشاء.",
-                            variant: "destructive",
-                            duration: 10000,
-                        });
-                        console.error("Firestore index required. Please create the index using this link:", err.message.match(/https:\/\/[^\s]+/)?.[0]);
-                        setImportResult(prev => prev ? { ...prev, processing: false, finalError: "فشل الاستيراد. راجع الـ console." } : null);
-                        return;
+                if(orderNumberValue){
+                    const existingShipmentQuery = query(shipmentsCollection, where("orderNumber", "==", orderNumberValue), where("companyId", "==", companyIdForQuery));
+
+                    try {
+                        querySnapshot = await getDocs(existingShipmentQuery);
+                    } catch (err: any) {
+                        if (err.code === 'failed-precondition') {
+                            toast({
+                                title: "فهرس مطلوب",
+                                description: "تحتاج قاعدة البيانات إلى فهرس جديد لتنفيذ هذا الاستيراد. راجع console للحصول على رابط الإنشاء.",
+                                variant: "destructive",
+                                duration: 10000,
+                            });
+                            console.error("Firestore index required. Please create the index using this link:", err.message.match(/https:\/\/[^\s]+/)?.[0]);
+                            setImportResult(prev => prev ? { ...prev, processing: false, finalError: "فشل الاستيراد. راجع الـ console." } : null);
+                            return;
+                        }
                     }
                 }
                 
