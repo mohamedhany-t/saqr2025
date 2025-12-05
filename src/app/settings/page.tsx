@@ -39,6 +39,9 @@ const defaultStatuses: ShipmentStatusConfig[] = [
     { id: 'Custom-Return', label: 'استرجاع مخصص', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true },
 ];
 
+const customReturnStatus: ShipmentStatusConfig = { id: 'Custom-Return', label: 'استرجاع مخصص', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true };
+
+
 export default function SettingsPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
@@ -49,7 +52,6 @@ export default function SettingsPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [statusToToggle, setStatusToToggle] = useState<ShipmentStatusConfig | null>(null);
     const [statusToDelete, setStatusToDelete] = useState<ShipmentStatusConfig | null>(null);
-    const [originalIds, setOriginalIds] = useState<Map<string, string>>(new Map());
 
     useEffect(() => {
         const seedDefaultStatuses = async () => {
@@ -69,8 +71,16 @@ export default function SettingsPage() {
             if (serverStatuses.length === 0) {
                 seedDefaultStatuses();
             } else {
-                const sortedStatuses = [...serverStatuses].sort((a, b) => a.label.localeCompare(b.label));
-                 // Ensure boolean fields are not undefined
+                let currentStatuses = [...serverStatuses];
+                
+                // Ensure Custom-Return status exists
+                const hasCustomReturn = currentStatuses.some(s => s.id === 'Custom-Return');
+                if (!hasCustomReturn) {
+                    currentStatuses.push(customReturnStatus);
+                    toast({ title: 'تم اكتشاف حالة جديدة', description: 'تمت إضافة "استرجاع مخصص". يرجى الضغط على حفظ التغييرات لتأكيدها.'});
+                }
+                
+                const sortedStatuses = [...currentStatuses].sort((a, b) => a.label.localeCompare(b.label));
                 const initializedStatuses = sortedStatuses.map(s => ({
                     ...s,
                     requiresFullCollection: !!s.requiresFullCollection,
