@@ -27,56 +27,6 @@ interface CourierDashboardProps {
   searchTerm: string;
 }
 
-const calculateCommissionAndPaidAmount = (
-    shipment: Shipment,
-    newStatus: string,
-    collectedAmount: number,
-    courierCommissionRate: number,
-    company: Company | undefined,
-    statusConfigs: ShipmentStatusConfig[],
-) => {
-    const update: { paidAmount: number; courierCommission: number; companyCommission: number; collectedAmount: number } = {
-        paidAmount: 0,
-        courierCommission: 0,
-        companyCommission: 0,
-        collectedAmount: 0,
-    };
-    
-    const statusConfig = statusConfigs.find(s => s.id === newStatus);
-    // If configs are not loaded, or the specific status is not found, do not proceed with calculation.
-    if (!statusConfig || !company) return update;
-
-    const safeTotalAmount = shipment.totalAmount || 0;
-    const safeCollectedAmount = collectedAmount || 0;
-    const safeCourierCommissionRate = courierCommissionRate || 0;
-    
-    const governorateCommission = shipment.governorateId ? (company.governorateCommissions?.[shipment.governorateId] || 0) : 0;
-    
-    let amountForCalc = 0;
-    if (statusConfig.requiresFullCollection) {
-        amountForCalc = safeTotalAmount;
-    } else if (statusConfig.requiresPartialCollection) {
-        amountForCalc = safeCollectedAmount;
-    }
-    
-    update.paidAmount = amountForCalc;
-    update.collectedAmount = amountForCalc;
-
-    if (amountForCalc > 0) { // Commissions are typically on successful collection
-        if (statusConfig.affectsCompanyBalance) {
-            update.companyCommission = governorateCommission;
-        }
-    }
-
-    // Courier commission can sometimes be due on returns
-    if (statusConfig.affectsCourierBalance) {
-        update.courierCommission = safeCourierCommissionRate;
-    }
-
-    return update;
-}
-
-
 export default function CourierDashboard({ user, role, searchTerm }: CourierDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
@@ -189,42 +139,32 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   };
   
   const handleSaveShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
-    if (!id || !app || !shipmentData.status || !editingShipment || !statuses || !companies) return;
-
-    const functions = getFunctions(app);
-    const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
-
+    if (!id || !app || !shipmentData.status || !editingShipment) return;
+  
     toast({ title: "جاري تحديث الحالة..." });
-
+  
     try {
-        const company = companies.find(c => c.id === editingShipment.companyId);
-        
-        const calculatedFields = calculateCommissionAndPaidAmount(
-            editingShipment,
-            shipmentData.status,
-            shipmentData.collectedAmount || 0,
-            user.commissionRate || 0,
-            company,
-            statuses
-        );
-        
-        const payload = {
-            shipmentId: id,
-            status: shipmentData.status,
-            reason: shipmentData.reason || "",
-            ...calculatedFields,
-        };
-
-        await handleShipmentUpdateFn(payload);
-        toast({ title: "تم تحديث الشحنة بنجاح" });
-        handleSheetOpenChange(false);
+      const functions = getFunctions(app);
+      const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
+  
+      const payload = {
+        shipmentId: id,
+        status: shipmentData.status,
+        reason: shipmentData.reason || "",
+        collectedAmount: shipmentData.collectedAmount || 0,
+      };
+      
+      await handleShipmentUpdateFn(payload);
+  
+      toast({ title: "تم تحديث الشحنة بنجاح" });
+      handleSheetOpenChange(false);
     } catch (error: any) {
-        console.error("Error updating shipment:", error);
-        toast({
-            title: "فشل تحديث الشحنة",
-            description: error.message || "حدث خطأ أثناء الاتصال بالخادم.",
-            variant: "destructive"
-        });
+      console.error("Error updating shipment:", error);
+      toast({
+        title: "فشل تحديث الشحنة",
+        description: error.message || "حدث خطأ أثناء الاتصال بالخادم.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -240,21 +180,11 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
     const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
 
     const updatePromises = selectedRows.map(row => {
-        const company = companies.find(c => c.id === row.companyId);
-        const calculatedFields = calculateCommissionAndPaidAmount(
-            row,
-            update.status!,
-            0, // Bulk updates don't support partial collection
-            user.commissionRate || 0,
-            company,
-            statuses
-        );
-
         const payload = {
             shipmentId: row.id,
             status: update.status,
             reason: update.reason || 'تحديث جماعي',
-            ...calculatedFields,
+            collectedAmount: 0, // Bulk updates don't support partial collection
         };
         return handleShipmentUpdateFn(payload).catch(error => ({
             shipmentId: row.id,
