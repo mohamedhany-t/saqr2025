@@ -131,12 +131,6 @@ export function ShipmentCard({
         onEdit(shipment);
     }
 
-    const handlePriceChangeRequest = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        // Create a temporary shipment object with the desired status to trigger the correct form view
-        onEdit({ ...shipment, status: 'PriceChangeRequested' });
-    };
-    
     const handleDelete = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (onDelete) {
@@ -235,19 +229,6 @@ export function ShipmentCard({
                     ) : <div></div> /* Empty div to maintain layout */}
 
                      <div className="flex items-center gap-2">
-                        {isCourier && !isPriceChangePending && (
-                             <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-9 w-9 text-yellow-600" onClick={handlePriceChangeRequest}>
-                                            <Edit className="h-5 w-5" />
-                                            <span className="sr-only">طلب تعديل سعر</span>
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent><p>طلب تعديل سعر</p></TooltipContent>
-                                </Tooltip>
-                             </TooltipProvider>
-                        )}
                         <Button variant="ghost" size="icon" className="h-9 w-9 text-purple-600" onClick={handleShareToAdmin}>
                             <Share2 className="h-5 w-5" />
                             <span className="sr-only">مشاركة تقرير</span>
@@ -294,5 +275,3 @@ export function ShipmentCard({
         </Card>
     );
 }
-
-    
