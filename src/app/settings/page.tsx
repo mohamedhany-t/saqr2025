@@ -36,6 +36,7 @@ const defaultStatuses: ShipmentStatusConfig[] = [
     { id: 'Refused (Unpaid)', label: 'رفض ولم يدفع', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
     { id: 'Evasion (Phone)', label: 'تهرب هاتفيًا', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
     { id: 'Evasion (Delivery Attempt)', label: 'تهرب بعد الوصول', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
+    { id: 'Custom-Return', label: 'استرجاع مخصص', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true },
 ];
 
 export default function SettingsPage() {

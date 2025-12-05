@@ -28,7 +28,8 @@ export type ShipmentStatusKey =
   | "Postponed"
   | "Returned to Sender"
   | "Refused (Paid)"
-  | "Refused (Unpaid)";
+  | "Refused (Unpaid)"
+  | "Custom-Return";
   // | "Returned to Warehouse"; // This is now a boolean flag
 
 export type ShipmentStatusConfig = {

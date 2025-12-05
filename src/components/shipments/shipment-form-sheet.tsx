@@ -74,10 +74,10 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   
   const formSchema = shipmentSchema.superRefine((data, ctx) => {
     const selectedStatusConfig = statuses.find(s => s.id === data.status);
-    if (selectedStatusConfig?.requiresPartialCollection && (data.collectedAmount === undefined || data.collectedAmount < 0)) {
+    if (selectedStatusConfig?.requiresPartialCollection && (data.collectedAmount === undefined)) {
         ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: "المبلغ المحصّل مطلوب ويجب أن يكون صفراً أو أكثر في هذه الحالة",
+            message: "المبلغ المحصّل مطلوب في هذه الحالة",
             path: ["collectedAmount"],
         });
     }
@@ -341,7 +341,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                 <FormItem className="grid grid-cols-4 items-center gap-4">
                                     <FormLabel className="text-right">المبلغ المحصّل</FormLabel>
                                     <FormControl className="col-span-3">
-                                        <Input type="number" {...field} placeholder="أدخل المبلغ المحصل" />
+                                        <Input type="number" step="any" {...field} placeholder="أدخل المبلغ المحصل (يمكن أن يكون سالبًا)" />
                                     </FormControl>
                                     <FormMessage className="col-span-3 col-start-2" />
                                 </FormItem>

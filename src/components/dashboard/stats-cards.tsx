@@ -65,7 +65,7 @@ export function StatsCards({ shipments, payments, role }: StatsCardsProps) {
     const totalRevenue = shipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
     const inTransit = shipments.filter(s => s.status === 'In-Transit').length;
     const delivered = shipments.filter(s => s.status === 'Delivered').length;
-    const returned = shipments.filter(s => ['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)).length;
+    const returned = shipments.filter(s => ['Returned', 'Custom-Return', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)).length;
     const totalShipments = shipments.length;
 
     // For Courier Dashboard
