@@ -146,12 +146,12 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     try {
       const functions = getFunctions(app);
       const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
-  
+      
+      // Send the full original shipment object along with the updates
       const payload = {
+        ...editingShipment, // Base shipment data
+        ...shipmentData,    // Applied updates from the form
         shipmentId: id,
-        status: shipmentData.status,
-        reason: shipmentData.reason || "",
-        collectedAmount: shipmentData.collectedAmount || 0,
       };
       
       await handleShipmentUpdateFn(payload);
@@ -181,10 +181,11 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
 
     const updatePromises = selectedRows.map(row => {
         const payload = {
-            shipmentId: row.id,
+            ...row,
             status: update.status,
             reason: update.reason || 'تحديث جماعي',
             collectedAmount: 0, // Bulk updates don't support partial collection
+            shipmentId: row.id,
         };
         return handleShipmentUpdateFn(payload).catch(error => ({
             shipmentId: row.id,

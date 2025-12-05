@@ -69,11 +69,17 @@ export const getDashboardStats = functions.https.onCall(async (data, context) =>
   }
 });
 
+// Zod schema now expects the full shipment object for context, plus the specific fields being updated.
 const updateShipmentStatusSchema = z.object({
     shipmentId: z.string(),
     status: z.string(),
     reason: z.string().optional(),
     collectedAmount: z.number().optional(),
+    // Include other fields from shipment object to ensure they are present
+    recipientName: z.string(),
+    address: z.string(),
+    totalAmount: z.number(),
+    companyId: z.string(),
 });
 
 export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
@@ -101,15 +107,19 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
         }
         
         const { uid: courierId, name: courierName, email: courierEmail } = context.auth;
-        const validation = updateShipmentStatusSchema.safeParse(req.body);
+        
+        // IMPORTANT FIX: Read from req.body.data for callable functions on onRequest trigger
+        const validation = updateShipmentStatusSchema.safeParse(req.body.data);
 
         if (!validation.success) {
-            console.error("Validation failed:", validation.error);
+            console.error("Validation failed:", validation.error.errors);
             res.status(400).send({ error: { status: 'INVALID_ARGUMENT', message: 'The data provided is invalid.' } });
             return;
         }
 
         const { shipmentId, status, reason, collectedAmount } = validation.data;
+        // Use the full shipment data passed from the client
+        const shipmentDataFromClient = validation.data;
         const shipmentRef = db.collection('shipments').doc(shipmentId);
 
         try {
@@ -148,8 +158,8 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
                 let companyCommission = 0;
                 
                 if (statusConfig.requiresFullCollection) {
-                    paidAmount = shipmentData.totalAmount || 0;
-                    finalCollectedAmount = shipmentData.totalAmount || 0;
+                    paidAmount = shipmentDataFromClient.totalAmount || 0;
+                    finalCollectedAmount = shipmentDataFromClient.totalAmount || 0;
                 } else if (statusConfig.requiresPartialCollection) {
                     paidAmount = finalCollectedAmount;
                 }
