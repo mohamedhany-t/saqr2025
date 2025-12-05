@@ -2007,8 +2007,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 </ProblemShipmentList>
                 <ProblemShipmentList title="مرتجعات بحاجة لقرار" icon={<AlertTriangle className="h-5 w-5 text-destructive" />} shipments={returnedShipmentsNeedingAction} onEdit={openShipmentForm}>
                     {(s: Shipment) => {
-                         const companyName = companies.find(c => c.id === s.companyId)?.name || "N/A";
-                         const govName = governorates.find(g => g.id === s.governorateId)?.name || "N/A";
+                         const companyName = companies?.find(c => c.id === s.companyId)?.name || "N/A";
+                         const govName = governorates?.find(g => g.id === s.governorateId)?.name || "N/A";
                         return (<div>
                             <p className="font-bold">{s.recipientName} - <span className="text-primary">{companyName}</span></p>
                             <p className="text-sm text-muted-foreground">{s.address}, {govName}</p>
@@ -2017,7 +2017,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 </ProblemShipmentList>
                 <ProblemShipmentList title="شحنات مؤجلة لفترة طويلة" icon={<AlertTriangle className="h-5 w-5 text-destructive" />} shipments={longPostponedShipments} onEdit={openShipmentForm}>
                      {(s: Shipment) => {
-                         const companyName = companies.find(c => c.id === s.companyId)?.name || "N/A";
+                         const companyName = companies?.find(c => c.id === s.companyId)?.name || "N/A";
                          const lastUpdate = s.updatedAt?.toDate ? differenceInDays(new Date(), s.updatedAt.toDate()) : 0;
                         return (<div>
                             <p className="font-bold">{s.recipientName} - <span className="text-primary">{companyName}</span></p>
@@ -2027,7 +2027,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 </ProblemShipmentList>
                 <ProblemShipmentList title="شحنات متأخرة عند المناديب" icon={<AlertTriangle className="h-5 w-5 text-destructive" />} shipments={staleInTransitShipments} onEdit={openShipmentForm}>
                     {(s: Shipment) => {
-                         const companyName = companies.find(c => c.id === s.companyId)?.name || "N/A";
+                         const companyName = companies?.find(c => c.id === s.companyId)?.name || "N/A";
                         return (<div>
                             <p className="font-bold">{s.recipientName} - <span className="text-primary">{companyName}</span></p>
                             <p className="text-xs text-red-600">لم يتم تحديثها منذ أكثر من 24 ساعة</p>
@@ -2489,3 +2489,5 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     </div>
   );
 }
+
+    
