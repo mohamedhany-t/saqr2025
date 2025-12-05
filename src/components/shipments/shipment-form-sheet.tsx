@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import * as React from 'react';
@@ -106,13 +105,13 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
       recipientPhone: undefined,
       governorateId: undefined,
       paidAmount: undefined,
-      reason: undefined,
+      reason: "",
       deliveryDate: undefined,
       assignedCourierId: undefined,
       companyId: undefined,
       collectedAmount: undefined,
       requestedAmount: undefined,
-      amountChangeReason: undefined,
+      amountChangeReason: "",
       courierCommission: undefined,
       companyCommission: undefined,
       isWarehouseReturn: false,

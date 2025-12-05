@@ -1987,13 +1987,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 <ProblemShipmentList title="طلبات تعديل أسعار" icon={<DollarSign className="h-5 w-5 text-yellow-500" />} shipments={priceChangeRequests} onEdit={openShipmentForm}>
                     {(s: Shipment) => {
                         const courierName = courierUsers.find(c => c.id === s.assignedCourierId)?.name;
+                        const requestedAmountString = s.requestedAmount ? s.requestedAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) : 'N/A';
                         return (
                             <div>
                                 <p className="font-bold">{s.recipientName} - <span className="text-sm text-muted-foreground">بواسطة {courierName}</span></p>
                                 <div className="text-sm text-muted-foreground flex items-center gap-4">
-                                    <span>السعر الحالي: <span className="font-mono">{s.totalAmount.toLocaleString('ar-EG')}</span></span>
+                                    <span>السعر الحالي: <span className="font-mono">{s.totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span></span>
                                     <span className="font-bold text-primary">←</span>
-                                    <span>السعر المقترح: <span className="font-mono font-bold text-primary">{s.requestedAmount?.toLocaleString('ar-EG')}</span></span>
+                                    <span>السعر المقترح: <span className="font-mono font-bold text-primary">{requestedAmountString}</span></span>
                                 </div>
                                 <p className="text-xs text-amber-600 mt-1">السبب: {s.amountChangeReason || 'لم يذكر'}</p>
                                 <div className="mt-2 flex gap-2">
