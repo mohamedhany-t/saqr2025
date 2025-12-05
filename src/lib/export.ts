@@ -152,10 +152,6 @@ export const exportToExcel = (
   });
 
   worksheet.columns = excelColumns;
-
-  // *** FIX: Add the header row back ***
-  const headerTitles = excelColumns.map(c => c.header);
-  worksheet.addRow(headerTitles);
   
   // Style header row
   const headerRow: Row = worksheet.getRow(headerRowIndex);
@@ -232,5 +228,3 @@ export const exportToPDF = (
 
     doc.save('shipments_report.pdf');
 };
-
-    
