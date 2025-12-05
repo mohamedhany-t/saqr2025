@@ -1,8 +1,8 @@
 
 
 "use client";
-import React, { useState } from 'react';
-import type { Shipment, Company, User, Governorate, CourierPayment, CompanyPayment, ShipmentStatusKey } from '@/lib/types';
+import React, { useState, useEffect } from 'react';
+import type { Shipment, Company, User, Governorate, CourierPayment, CompanyPayment, ShipmentStatusConfig } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../ui/card';
 import { Button } from '../ui/button';
 import { FileUp, Loader2, ChevronDown } from 'lucide-react';
@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { statusText } from '../dashboard/shipments-table';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
 
 interface ReportsPageProps {
     shipments: Shipment[];
@@ -29,13 +31,24 @@ export function ReportsPage({
     governorates,
     courierPayments,
     companyPayments,
-    isLoading
+    isLoading: isPropsLoading
 }: ReportsPageProps) {
     const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
     const [selectedCourierId, setSelectedCourierId] = useState<string | null>(null);
     const [companyReportStatuses, setCompanyReportStatuses] = useState<string[]>([]);
     const [courierReportStatuses, setCourierReportStatuses] = useState<string[]>([]);
     const { toast } = useToast();
+    const firestore = useFirestore();
+
+    const statusesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'shipment_statuses') : null, [firestore]);
+    const { data: statuses, isLoading: statusesLoading } = useCollection<ShipmentStatusConfig>(statusesQuery);
+    
+    const isLoading = isPropsLoading || statusesLoading;
+
+    useEffect(() => {
+        // This effect can be used if we need to react to status changes,
+        // for now, we'll just use the `statuses` data directly in calculations.
+    }, [statuses]);
 
     if (isLoading) {
         return (
@@ -108,10 +121,10 @@ export function ReportsPage({
         }
     }
 
-    const deliveredShipmentStatuses: ShipmentStatusKey[] = ['Delivered'];
-    const returnedShipmentStatuses: string[] = ['Returned', 'Cancelled', 'Returned to Sender', 'Evasion (Phone)', 'Refused (Unpaid)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'];
+    const deliveredShipmentStatuses = statuses?.filter(s => s.isDeliveredStatus).map(s => s.id) || [];
+    const returnedShipmentStatuses = statuses?.filter(s => s.isReturnedStatus).map(s => s.id) || [];
 
-    const deliveredShipments = shipments.filter(s => deliveredShipmentStatuses.includes(s.status as ShipmentStatusKey));
+    const deliveredShipments = shipments.filter(s => deliveredShipmentStatuses.includes(s.status));
     const returnedShipments = shipments.filter(s => returnedShipmentStatuses.includes(s.status));
 
     const courierFinancials = couriers.map(courier => {
@@ -366,5 +379,3 @@ export function ReportsPage({
         </div>
     )
 }
-
-    

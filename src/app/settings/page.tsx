@@ -24,22 +24,22 @@ import {
 import Link from 'next/link';
 
 const defaultStatuses: ShipmentStatusConfig[] = [
-    { id: 'Pending', label: 'قيد الانتظار', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
-    { id: 'In-Transit', label: 'قيد التوصيل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
-    { id: 'Delivered', label: 'تم التسليم', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: true, requiresPartialCollection: false },
-    { id: 'Partially Delivered', label: 'تسليم جزئي', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true },
-    { id: 'Returned', label: 'مرتجع', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
-    { id: 'Cancelled', label: 'تم الإلغاء', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
-    { id: 'Postponed', label: 'مؤجل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
-    { id: 'Returned to Sender', label: 'مرتجع للراسل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
-    { id: 'Refused (Paid)', label: 'رفض ودفع الشحن', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true },
-    { id: 'Refused (Unpaid)', label: 'رفض ولم يدفع', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
-    { id: 'Evasion (Phone)', label: 'تهرب هاتفيًا', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
-    { id: 'Evasion (Delivery Attempt)', label: 'تهرب بعد الوصول', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false },
-    { id: 'Custom-Return', label: 'استرجاع مخصص', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true },
+    { id: 'Pending', label: 'قيد الانتظار', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
+    { id: 'In-Transit', label: 'قيد التوصيل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
+    { id: 'Delivered', label: 'تم التسليم', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: true, requiresPartialCollection: false, isDeliveredStatus: true, isReturnedStatus: false },
+    { id: 'Partially Delivered', label: 'تسليم جزئي', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true, isDeliveredStatus: true, isReturnedStatus: false },
+    { id: 'Returned', label: 'مرتجع', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
+    { id: 'Cancelled', label: 'تم الإلغاء', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
+    { id: 'Postponed', label: 'مؤجل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
+    { id: 'Returned to Sender', label: 'مرتجع للراسل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
+    { id: 'Refused (Paid)', label: 'رفض ودفع الشحن', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true, isDeliveredStatus: true, isReturnedStatus: false },
+    { id: 'Refused (Unpaid)', label: 'رفض ولم يدفع', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
+    { id: 'Evasion (Phone)', label: 'تهرب هاتفيًا', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
+    { id: 'Evasion (Delivery Attempt)', label: 'تهرب بعد الوصول', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
+    { id: 'Custom-Return', label: 'استرجاع مخصص', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true, isDeliveredStatus: false, isReturnedStatus: false },
 ];
 
-const customReturnStatus: ShipmentStatusConfig = { id: 'Custom-Return', label: 'استرجاع مخصص', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true };
+const customReturnStatus: ShipmentStatusConfig = { id: 'Custom-Return', label: 'استرجاع مخصص', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true, isDeliveredStatus: false, isReturnedStatus: false };
 
 
 export default function SettingsPage() {
@@ -89,6 +89,8 @@ export default function SettingsPage() {
                     ...s,
                     requiresFullCollection: !!s.requiresFullCollection,
                     requiresPartialCollection: !!s.requiresPartialCollection,
+                    isDeliveredStatus: !!s.isDeliveredStatus,
+                    isReturnedStatus: !!s.isReturnedStatus,
                 }));
                 setLocalStatuses(initializedStatuses);
             }
@@ -111,6 +113,8 @@ export default function SettingsPage() {
             enabled: true,
             requiresFullCollection: false,
             requiresPartialCollection: false,
+            isDeliveredStatus: false,
+            isReturnedStatus: false,
             ref: newStatusRef as DocumentReference,
         };
         setLocalStatuses(prev => [...prev, newStatus]);
@@ -213,7 +217,7 @@ export default function SettingsPage() {
                 <CardHeader>
                     <CardTitle>إدارة حالات الشحنات</CardTitle>
                     <CardDescription>
-                        أضف أو عدّل حالات الشحنات وحدد أي منها يؤثر على الحسابات المالية.
+                        أضف أو عدّل حالات الشحنات وحدد أي منها يؤثر على الحسابات والتقارير.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -222,6 +226,8 @@ export default function SettingsPage() {
                             <TableRow>
                                 <TableHead className="w-[200px]">المفتاح (Key)</TableHead>
                                 <TableHead>الاسم المعروض</TableHead>
+                                <TableHead>تعتبر مُسلمة؟</TableHead>
+                                <TableHead>تعتبر مرتجع؟</TableHead>
                                 <TableHead>تحسب للمندوب</TableHead>
                                 <TableHead>تحسب للشركة</TableHead>
                                 <TableHead>الإجمالي = المدفوع</TableHead>
@@ -245,6 +251,18 @@ export default function SettingsPage() {
                                         <Input
                                             value={status.label}
                                             onChange={e => handleFieldChange(status.id, 'label', e.target.value)}
+                                        />
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                        <Checkbox
+                                            checked={status.isDeliveredStatus}
+                                            onCheckedChange={checked => handleFieldChange(status.id, 'isDeliveredStatus', checked)}
+                                        />
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                        <Checkbox
+                                            checked={status.isReturnedStatus}
+                                            onCheckedChange={checked => handleFieldChange(status.id, 'isReturnedStatus', checked)}
                                         />
                                     </TableCell>
                                     <TableCell className="text-center">
