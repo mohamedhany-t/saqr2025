@@ -71,9 +71,10 @@ interface CourierDashboardProps {
   user: User;
   role: Role;
   searchTerm: string;
+  onSearchChange: (term: string) => void;
 }
 
-export default function CourierDashboard({ user, role, searchTerm }: CourierDashboardProps) {
+export default function CourierDashboard({ user, role, searchTerm, onSearchChange }: CourierDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const { toast } = useToast();
@@ -371,14 +372,15 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
     try {
       const url = new URL(decodedText);
       const editId = url.searchParams.get('edit');
-      if (editId) {
-        toast({ title: "تم العثور على الشحنة!", description: `جاري فتح تفاصيل الشحنة...` });
+      
+      const targetShipment = allShipmentsForCourier?.find(s => s.id === editId);
+
+      if (targetShipment && targetShipment.shipmentCode) {
+        toast({ title: "تم العثور على الشحنة!", description: `جاري عرض تفاصيل الشحنة ${targetShipment.shipmentCode}` });
+        onSearchChange(targetShipment.shipmentCode);
         setIsScannerOpen(false);
-        const newParams = new URLSearchParams(searchParams.toString());
-        newParams.set('edit', editId);
-        router.push(`${pathname}?${newParams.toString()}`);
       } else {
-        toast({ variant: 'destructive', title: 'باركود غير صالح', description: 'هذا الباركود لا يحتوي على معرف شحنة صالح.' });
+        toast({ variant: 'destructive', title: 'شحنة غير صالحة', description: 'لم يتم العثور على هذه الشحنة في قائمتك.' });
       }
     } catch (e) {
       toast({ variant: 'destructive', title: 'خطأ في قراءة الباركود', description: 'لا يمكن تحليل البيانات الموجودة في الباركود.' });
@@ -511,13 +513,17 @@ const QRScannerDialog = ({ open, onOpenChange, onScanSuccess }: { open: boolean,
             const cameras = await Html5Qrcode.getCameras();
             if (cameras && cameras.length > 0) {
               // Prefer back camera
-              const backCamera = cameras.find(c => c.label.toLowerCase().includes('back')) || cameras[0];
+              const backCamera = cameras.find(c => c.label.toLowerCase().includes('back') || c.label.toLowerCase().includes('بيئة')) || cameras[0];
               
               await scanner.start(
                 backCamera.id,
                 {
                   fps: 10,
-                  qrbox: { width: 250, height: 250 },
+                  qrbox: (viewfinderWidth, viewfinderHeight) => {
+                    const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+                    const qrboxSize = Math.floor(minEdge * 0.7);
+                    return { width: qrboxSize, height: qrboxSize };
+                  },
                   aspectRatio: 1.7777778, // 16:9
                 },
                 onScanSuccess,
@@ -535,7 +541,9 @@ const QRScannerDialog = ({ open, onOpenChange, onScanSuccess }: { open: boolean,
       return () => clearTimeout(timer);
     } else {
       if (scannerRef.current && scannerRef.current.isScanning) {
-        scannerRef.current.stop().catch(error => console.error("Failed to stop scanner.", error));
+        scannerRef.current.stop().then(() => {
+          scannerRef.current?.clear();
+        }).catch(error => console.error("Failed to stop scanner.", error));
       }
     }
   }, [open, onScanSuccess]);

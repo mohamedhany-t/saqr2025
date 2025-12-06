@@ -23,7 +23,7 @@ import { Logo } from '../icons';
 import { InstallPwaButton } from '../install-pwa-button';
 
 
-export function Header({ onSearchChange }: { onSearchChange: (term: string) => void }) {
+export function Header({ onSearchChange, searchTerm }: { onSearchChange: (term: string) => void, searchTerm: string }) {
   const { user } = useUser();
   const auth = useAuth();
   const router = useRouter();
@@ -64,6 +64,7 @@ export function Header({ onSearchChange }: { onSearchChange: (term: string) => v
                 placeholder="بحث في الشحنات..."
                 className="pr-8 sm:w-[300px] md:w-[200px] lg:w-[300px]"
                 onChange={(e) => onSearchChange(e.target.value)}
+                value={searchTerm}
               />
             </div>
           </form>
