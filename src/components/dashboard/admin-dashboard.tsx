@@ -477,45 +477,41 @@ const MobileShipmentsView = ({
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="h-8 gap-1">
-                                <Archive className="h-3.5 w-3.5" />
-                                <span>أرشفة</span>
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={() => handleMobileBulkUpdate({ isArchivedForCompany: true })}>
-                                <Building className="ms-2 h-4 w-4" /> أرشفة للشركة
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => handleMobileBulkUpdate({ isArchivedForCourier: true })}>
-                                <UserIcon className="ms-2 h-4 w-4" /> أرشفة للمندوب
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                    {activeTab === 'archived-company' &&
-                        <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isArchivedForCompany: false })}>
-                            <ArchiveRestore className="me-2 h-4 w-4" />
-                            إلغاء أرشفة الشركة
-                        </Button>
-                    }
-                    {activeTab === 'archived-courier' &&
-                        <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isArchivedForCourier: false })}>
-                            <ArchiveRestore className="me-2 h-4 w-4" />
-                            إلغاء أرشفة المندوب
-                        </Button>
-                    }
                     {activeTab === 'returns-with-couriers' && (
                         <>
                            <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isWarehouseReturn: true })}>
                                 <Warehouse className="me-2 h-4 w-4" />
-                                تم الرجوع للمخزن
+                                للمخزن
                             </Button>
                              <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isReturnedToCompany: true })}>
                                 <Building className="me-2 h-4 w-4" />
-                                تم الرجوع للشركة
+                                للشركة
                             </Button>
                         </>
+                    )}
+                    {activeTab === 'returns-in-warehouse' && (
+                         <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isReturnedToCompany: true })}>
+                            <Building className="me-2 h-4 w-4" />
+                            تم الرجوع للشركة
+                        </Button>
+                    )}
+                     {activeTab === 'returned-to-company' && (
+                        <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isArchivedForCompany: true })}>
+                            <Archive className="me-2 h-4 w-4" />
+                            أرشفة
+                        </Button>
+                    )}
+                     {(activeTab === 'archived-company') && (
+                        <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isArchivedForCompany: false })}>
+                            <ArchiveRestore className="me-2 h-4 w-4" />
+                            إلغاء أرشفة الشركة
+                        </Button>
+                    )}
+                    {(activeTab === 'archived-courier') && (
+                        <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isArchivedForCourier: false })}>
+                            <ArchiveRestore className="me-2 h-4 w-4" />
+                            إلغاء أرشفة المندوب
+                        </Button>
                     )}
                     <Button variant="destructive" size="icon" onClick={handleMobileBulkDelete}>
                         <Trash2 className="h-4 w-4" />
@@ -567,7 +563,7 @@ const DesktopShipmentsView = ({
     columnFilters: ColumnFiltersState,
     setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
   }) => {
-    const renderShipmentTable = (shipmentList: Shipment[], activeTab: 'none' | 'company' | 'courier' | 'returns-with-couriers' = 'none') => (
+    const renderShipmentTable = (shipmentList: Shipment[], activeTab: 'none' | 'company' | 'courier' | 'returns-with-couriers' | 'returns-in-warehouse' | 'returned-to-company' = 'none') => (
         <ShipmentsTable 
           shipments={shipmentList} 
           isLoading={listIsLoading}
@@ -610,8 +606,8 @@ const DesktopShipmentsView = ({
             <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
             <TabsContent value="returns-with-couriers">{renderShipmentTable(returnsWithCouriers, 'returns-with-couriers')}</TabsContent>
-            <TabsContent value="returns-in-warehouse">{renderShipmentTable(inWarehouseShipments)}</TabsContent>
-            <TabsContent value="returned-to-company">{renderShipmentTable(returnedToCompanyShipments)}</TabsContent>
+            <TabsContent value="returns-in-warehouse">{renderShipmentTable(inWarehouseShipments, 'returns-in-warehouse')}</TabsContent>
+            <TabsContent value="returned-to-company">{renderShipmentTable(returnedToCompanyShipments, 'returned-to-company')}</TabsContent>
             <TabsContent value="archived-company">{renderShipmentTable(archivedShipmentsCompany, 'company')}</TabsContent>
             <TabsContent value="archived-courier">{renderShipmentTable(archivedShipmentsCourier, 'courier')}</TabsContent>
         </Tabs>

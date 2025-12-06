@@ -459,7 +459,7 @@ export function ShipmentsTable({
     onBulkDelete?: (selectedRows: Shipment[]) => void,
     filters?: ColumnFiltersState,
     onFiltersChange?: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
-    activeTab?: 'none' | 'company' | 'courier' | 'returns-with-couriers',
+    activeTab?: 'none' | 'company' | 'courier' | 'returns-with-couriers' | 'returns-in-warehouse' | 'returned-to-company',
 }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -768,7 +768,19 @@ export function ShipmentsTable({
                             </Button>
                         </>
                     )}
-                    {role === 'admin' && activeTab !== 'returns-with-couriers' && (
+                    {role === 'admin' && activeTab === 'returns-in-warehouse' && (
+                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isReturnedToCompany: true })}>
+                            <Building className="me-2 h-3.5 w-3.5" />
+                            تم الرجوع للشركة
+                        </Button>
+                    )}
+                    {role === 'admin' && activeTab === 'returned-to-company' && (
+                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isArchivedForCompany: true })}>
+                            <Archive className="me-2 h-3.5 w-3.5" />
+                            أرشفة للشركة
+                        </Button>
+                    )}
+                    {role === 'admin' && activeTab !== 'returns-with-couriers' && activeTab !== 'returns-in-warehouse' && activeTab !== 'returned-to-company' && (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" size="sm" className="h-8 gap-1">
