@@ -35,6 +35,7 @@ export function ReportsPage({
 }: ReportsPageProps) {
     const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
     const [selectedCourierId, setSelectedCourierId] = useState<string | null>(null);
+    const [selectedCompanyForReturnsId, setSelectedCompanyForReturnsId] = useState<string | null>(null);
     const [companyReportStatuses, setCompanyReportStatuses] = useState<string[]>([]);
     const [courierReportStatuses, setCourierReportStatuses] = useState<string[]>([]);
     const { toast } = useToast();
@@ -91,6 +92,7 @@ export function ReportsPage({
         
         switch(type) {
             case 'company_shipments':
+            case 'company_returns':
                 return [...baseShipmentCols, { accessorKey: "companyCommission", header: "عمولة الشركة" }, { accessorKey: "netDue", header: "صافي المستحق" }];
             case 'courier_shipments':
                 return [...baseShipmentCols, { accessorKey: "courierCommission", header: "عمولة المندوب" }, { accessorKey: "netDue", header: "صافي المستحق" }];
@@ -224,6 +226,29 @@ export function ReportsPage({
         handleExport(dataToExport, 'courier_shipments', fileName);
     };
 
+    const handleExportCompanyReturns = () => {
+        if (!selectedCompanyForReturnsId) return;
+        const company = companies.find(c => c.id === selectedCompanyForReturnsId);
+        if (!company) return;
+
+        const companyReturnsInWarehouse = shipments.filter(s => 
+            s.companyId === selectedCompanyForReturnsId &&
+            s.isWarehouseReturn === true &&
+            !s.isReturnedToCompany
+        );
+
+        const today = new Date();
+        const dateString = `${today.getDate().toString().padStart(2, '0')}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getFullYear()}`;
+        const fileName = `شيت مرتجعات - ${company.name} - ${dateString}`;
+
+        const reportHeader = {
+            title: `شيت مرتجعات شركة: ${company.name}`,
+            date: `تاريخ التقرير: ${dateString.replace(/-/g, '/')}`
+        };
+
+        handleExport(companyReturnsInWarehouse, 'company_returns', fileName, reportHeader);
+    };
+
     return (
         <div className="p-4 sm:p-6 md:p-8">
             <div className="mb-8">
@@ -309,6 +334,36 @@ export function ReportsPage({
                                      إنشاء شيت توريد
                                  </Button>
                              </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+
+            <div className="mb-8">
+                <h2 className="text-2xl font-bold mb-2">شيت مرتجعات الشركات</h2>
+                <p className="text-muted-foreground">
+                    اختر شركة لتصدير شيت بجميع المرتجعات الموجودة في المخزن والجاهزة للتسليم للشركة.
+                </p>
+                <div className="mt-4">
+                    <Card>
+                        <CardContent className="pt-6">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                                <div className="md:col-span-3">
+                                    <label className="text-sm font-medium mb-2 block">اختر الشركة</label>
+                                    <Select dir="rtl" onValueChange={setSelectedCompanyForReturnsId} value={selectedCompanyForReturnsId || ''}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="اختر شركة..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <Button onClick={handleExportCompanyReturns} disabled={!selectedCompanyForReturnsId}>
+                                    <FileUp className="me-2 h-4 w-4" />
+                                    إنشاء شيت مرتجعات
+                                </Button>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
