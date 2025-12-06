@@ -54,6 +54,15 @@ const shipmentSchema = z.object({
   isReturnedToCompany: z.boolean().optional(),
 });
 
+const cancellationReasons = [
+    "عدم رد",
+    "مغلق",
+    "مشغول أو خاصيه",
+    "رقم خطأ",
+    "تهرب هاتفيا",
+    "منطقه غير مخدومه",
+];
+
 
 type ShipmentFormSheetProps = {
     children?: React.ReactNode;
@@ -181,6 +190,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   const selectedStatus = form.watch("status");
   const selectedStatusConfig = statuses.find(s => s.id === selectedStatus);
   const isPriceChangeRequest = selectedStatus === 'PriceChangeRequested';
+  const isCancelledStatus = selectedStatus === 'Cancelled';
 
   const courierAllowedStatuses = statuses.filter(s => {
     // Status must be enabled
@@ -424,7 +434,20 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">{isPriceChangeRequest ? "سبب طلب التعديل" : "السبب/ملاحظات"}</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Textarea {...field} value={field.value ?? ''} />
+                                    {isCourier && isCancelledStatus ? (
+                                        <Select dir="rtl" onValueChange={field.onChange} value={field.value}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="اختر سبب الإلغاء..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {cancellationReasons.map(reason => (
+                                                    <SelectItem key={reason} value={reason}>{reason}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    ) : (
+                                        <Textarea {...field} value={field.value ?? ''} />
+                                    )}
                                 </FormControl>
                             </FormItem>
                         )}
@@ -490,3 +513,5 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
     </Sheet>
   )
 }
+
+    
