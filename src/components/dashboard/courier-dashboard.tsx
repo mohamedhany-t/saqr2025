@@ -147,13 +147,14 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
       const functions = getFunctions(app);
       const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
       
-      const payload: any = {
-        ...editingShipment, 
-        ...shipmentData,    
+      const payload = {
         shipmentId: id,
+        status: shipmentData.status,
+        reason: shipmentData.reason,
+        collectedAmount: shipmentData.collectedAmount,
+        requestedAmount: shipmentData.requestedAmount,
+        amountChangeReason: shipmentData.amountChangeReason,
       };
-      
-      delete payload.ref;
       
       await handleShipmentUpdateFn(payload);
   
@@ -387,3 +388,5 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
     </>
   );
 }
+
+    
