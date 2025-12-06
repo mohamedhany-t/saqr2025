@@ -372,7 +372,7 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
       const url = new URL(decodedText);
       const editId = url.searchParams.get('edit');
       if (editId) {
-        toast({ title: "تم العثور على الشحنة!", description: `جاري فتح تفاصيل الشحنة ${editId}...` });
+        toast({ title: "تم العثور على الشحنة!", description: `جاري فتح تفاصيل الشحنة...` });
         setIsScannerOpen(false);
         const newParams = new URLSearchParams(searchParams.toString());
         newParams.set('edit', editId);
@@ -469,17 +469,11 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
          </TabsContent>
        </Tabs>
 
-        <Dialog open={isScannerOpen} onOpenChange={setIsScannerOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>مسح باركود الشحنة</DialogTitle>
-              <DialogDescription>
-                وجّه الكاميرا إلى رمز QR الموجود على ملصق الشحنة.
-              </DialogDescription>
-            </DialogHeader>
-            <div id="qr-reader" className="w-full"></div>
-          </DialogContent>
-        </Dialog>
+      <QRScannerDialog 
+        open={isScannerOpen} 
+        onOpenChange={setIsScannerOpen} 
+        onScanSuccess={handleScanSuccess} 
+      />
 
 
        <ShipmentFormSheet
@@ -500,48 +494,44 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
 }
 
 // Separate component for the scanner logic to manage its lifecycle
-function BarcodeScanner({ onScanSuccess }: { onScanSuccess: (decodedText: string) => void }) {
-  React.useEffect(() => {
-    let scanner: Html5QrcodeScanner | null = null;
-    
-    // Check if the element exists before initializing
-    const qrReaderElement = document.getElementById("qr-reader");
-    if (qrReaderElement && qrReaderElement.children.length === 0) {
-      scanner = new Html5QrcodeScanner(
-        "qr-reader",
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-          supportedScanTypes: [0], // QR code
-        },
-        false // verbose
-      );
-
-      const handleSuccess = (decodedText: string) => {
-        if (scanner) {
-          scanner.clear().catch(error => {
-            console.error("Failed to clear scanner.", error);
-          });
-        }
-        onScanSuccess(decodedText);
-      };
-
-      scanner.render(handleSuccess, undefined);
-    }
-
-    return () => {
-      if (scanner && scanner.getState() === 2) { // 2 is SCANNING state
-        scanner.clear().catch(error => {
-          console.error("Failed to clear scanner on unmount.", error);
-        });
-      }
-    };
-  }, [onScanSuccess]);
-
-  return <div id="qr-reader" className="w-full"></div>;
-}
-
 const QRScannerDialog = ({ open, onOpenChange, onScanSuccess }: { open: boolean, onOpenChange: (open: boolean) => void, onScanSuccess: (text: string) => void }) => {
+  const scannerRef = React.useRef<Html5QrcodeScanner | null>(null);
+
+  React.useEffect(() => {
+    if (open) {
+      // Delay initialization slightly to ensure the DOM element is ready.
+      const timer = setTimeout(() => {
+        const qrReaderElement = document.getElementById("qr-reader");
+        if (qrReaderElement && !scannerRef.current) {
+          const scanner = new Html5QrcodeScanner(
+            "qr-reader",
+            {
+              fps: 10,
+              qrbox: { width: 250, height: 250 },
+              supportedScanTypes: [0], // 0 for QR_CODE
+            },
+            false // verbose
+          );
+
+          const handleSuccess = (decodedText: string, decodedResult: any) => {
+            onScanSuccess(decodedText);
+            scanner.clear().catch(error => console.error("Failed to clear scanner on success.", error));
+            scannerRef.current = null;
+          };
+
+          scanner.render(handleSuccess, undefined);
+          scannerRef.current = scanner;
+        }
+      }, 100); // 100ms delay
+      return () => clearTimeout(timer);
+    } else {
+      if (scannerRef.current) {
+        scannerRef.current.clear().catch(error => console.error("Failed to clear scanner.", error));
+        scannerRef.current = null;
+      }
+    }
+  }, [open, onScanSuccess]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -551,7 +541,7 @@ const QRScannerDialog = ({ open, onOpenChange, onScanSuccess }: { open: boolean,
             وجّه الكاميرا إلى رمز QR الموجود على ملصق الشحنة.
           </DialogDescription>
         </DialogHeader>
-        {open && <BarcodeScanner onScanSuccess={onScanSuccess} />}
+        <div id="qr-reader" className="w-full"></div>
       </DialogContent>
     </Dialog>
   );
