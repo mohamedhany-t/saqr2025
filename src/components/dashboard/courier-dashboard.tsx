@@ -1,4 +1,3 @@
-
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -14,7 +13,7 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
 import { StatsCards } from "@/components/dashboard/stats-cards";
-import { Loader2, MessageSquare, Database, Route } from "lucide-react";
+import { Loader2, MessageSquare, Database, Route, CheckCircle, Archive, Truck } from "lucide-react";
 import ChatInterface from "../chat/chat-interface";
 import { sendPushNotification } from "@/lib/actions";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
@@ -197,7 +196,7 @@ const handleSaveShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'c
             shipmentId: id,
             status: shipmentData.status,
             reason: shipmentData.reason,
-            ...calculatedFields, // Add calculated financial fields
+            ...calculatedFields,
         };
 
         if (shipmentData.status === 'PriceChangeRequested') {
@@ -277,42 +276,38 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
 };
 
   
-  const { activeShipments, finishedShipments } = React.useMemo(() => {
-    if (!shipments) return { activeShipments: [], finishedShipments: [] };
-    const finishedStatuses: string[] = ['Delivered', 'Returned to Sender'];
-    const active = shipments.filter(s => !finishedStatuses.includes(s.status));
-    const finished = shipments.filter(s => finishedStatuses.includes(s.status));
-    return { activeShipments: active, finishedShipments: finished };
-  }, [shipments]);
+  const { activeShipments, returnedShipments, finishedShipments } = React.useMemo(() => {
+    if (!shipments || !statuses) return { activeShipments: [], returnedShipments: [], finishedShipments: [] };
+
+    const deliveredStatusIds = statuses.filter(s => s.isDeliveredStatus).map(s => s.id);
+    const returnedStatusIds = statuses.filter(s => s.isReturnedStatus).map(s => s.id);
+
+    const finished = shipments.filter(s => deliveredStatusIds.includes(s.status));
+    const returned = shipments.filter(s => returnedStatusIds.includes(s.status));
+    const active = shipments.filter(s => !deliveredStatusIds.includes(s.status) && !returnedStatusIds.includes(s.status));
+    
+    return { activeShipments: active, returnedShipments: returned, finishedShipments: finished };
+  }, [shipments, statuses]);
 
 
-  const filteredActiveShipments = React.useMemo(() => {
-    if (!activeShipments) return [];
-    if (!searchTerm) return activeShipments;
-    const lowercasedTerm = searchTerm.toLowerCase();
-    return activeShipments.filter(shipment => 
-        shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
-        shipment.orderNumber?.toLowerCase().includes(lowercasedTerm) ||
-        shipment.recipientName?.toLowerCase().includes(lowercasedTerm) ||
-        shipment.address?.toLowerCase().includes(lowercasedTerm)
-    );
-  }, [activeShipments, searchTerm]);
-  
-  const filteredFinishedShipments = React.useMemo(() => {
-    if (!finishedShipments) return [];
-    if (!searchTerm) return finishedShipments;
-    const lowercasedTerm = searchTerm.toLowerCase();
-    return finishedShipments.filter(shipment => 
-        shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
-        shipment.orderNumber?.toLowerCase().includes(lowercasedTerm) ||
-        shipment.recipientName?.toLowerCase().includes(lowercasedTerm) ||
-        shipment.address?.toLowerCase().includes(lowercasedTerm)
-    );
-  }, [finishedShipments, searchTerm]);
+  const filterShipments = (list: Shipment[]) => {
+      if (!searchTerm) return list;
+      const lowercasedTerm = searchTerm.toLowerCase();
+      return list.filter(shipment => 
+          shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
+          shipment.orderNumber?.toLowerCase().includes(lowercasedTerm) ||
+          shipment.recipientName?.toLowerCase().includes(lowercasedTerm) ||
+          shipment.address?.toLowerCase().includes(lowercasedTerm)
+      );
+  }
+
+  const filteredActiveShipments = filterShipments(activeShipments);
+  const filteredReturnedShipments = filterShipments(returnedShipments);
+  const filteredFinishedShipments = filterShipments(finishedShipments);
 
 
   const renderShipmentList = (shipmentList: Shipment[]) => {
-    if (shipmentsLoading) {
+    if (shipmentsLoading || statusesLoading) {
       return (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -347,7 +342,7 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
   const renderDesktopTable = (shipmentList: Shipment[]) => (
     <ShipmentsTable 
       shipments={shipmentList} 
-      isLoading={shipmentsLoading || companiesLoading}
+      isLoading={shipmentsLoading || companiesLoading || statusesLoading}
       governorates={governorates || []}
       companies={companies || []}
       couriers={[]}
@@ -358,10 +353,6 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
     />
   );
   
-  const inTransitCount = filteredActiveShipments.filter(s => s.status === 'In-Transit').length;
-  const returnedCount = filteredActiveShipments.filter(s => ['Returned', 'Custom-Return', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)'].includes(s.status)).length;
-  const postponedCount = filteredActiveShipments.filter(s => s.status === 'Postponed').length;
-
 
   return (
     <>
@@ -386,12 +377,28 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
               <Tabs defaultValue="active">
                 <div className="flex items-center">
                   <TabsList className="flex-nowrap overflow-x-auto justify-start">
-                    <TabsTrigger value="active">النشطة <Badge variant="secondary" className="ms-2">{filteredActiveShipments.length}</Badge></TabsTrigger>
-                    <TabsTrigger value="finished">المنتهية <Badge variant="secondary" className="ms-2">{filteredFinishedShipments.length}</Badge></TabsTrigger>
+                    <TabsTrigger value="active" className="flex items-center gap-2">
+                        <Truck className="h-4 w-4" />
+                        النشطة 
+                        <Badge variant="secondary">{filteredActiveShipments.length}</Badge>
+                    </TabsTrigger>
+                    <TabsTrigger value="returned" className="flex items-center gap-2">
+                        <Archive className="h-4 w-4" />
+                        المرتجعات
+                        <Badge variant="secondary">{filteredReturnedShipments.length}</Badge>
+                    </TabsTrigger>
+                    <TabsTrigger value="finished" className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4" />
+                        المنتهية 
+                        <Badge variant="secondary">{filteredFinishedShipments.length}</Badge>
+                    </TabsTrigger>
                   </TabsList>
                 </div>
                 <TabsContent value="active" className="mt-4">
                   {isMobile ? renderShipmentList(filteredActiveShipments) : renderDesktopTable(filteredActiveShipments)}
+                </TabsContent>
+                <TabsContent value="returned" className="mt-4">
+                  {isMobile ? renderShipmentList(filteredReturnedShipments) : renderDesktopTable(filteredReturnedShipments)}
                 </TabsContent>
                 <TabsContent value="finished" className="mt-4">
                   {isMobile ? renderShipmentList(filteredFinishedShipments) : renderDesktopTable(filteredFinishedShipments)}

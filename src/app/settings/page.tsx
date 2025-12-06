@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, WithIdAndRef } from '@/firebase';
@@ -23,7 +22,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import Link from 'next/link';
 
-const defaultStatuses: ShipmentStatusConfig[] = [
+const defaultStatuses: Partial<ShipmentStatusConfig>[] = [
     { id: 'Pending', label: 'قيد الانتظار', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
     { id: 'In-Transit', label: 'قيد التوصيل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
     { id: 'Delivered', label: 'تم التسليم', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: true, requiresPartialCollection: false, isDeliveredStatus: true, isReturnedStatus: false },
@@ -57,13 +56,13 @@ export default function SettingsPage() {
         const syncStatuses = async () => {
             if (firestore && serverStatuses) {
                 const existingStatusIds = new Set(serverStatuses.map(s => s.id));
-                const missingStatuses = defaultStatuses.filter(ds => !existingStatusIds.has(ds.id));
+                const missingStatuses = defaultStatuses.filter(ds => ds.id && !existingStatusIds.has(ds.id));
 
                 if (missingStatuses.length > 0) {
                     console.log(`Found ${missingStatuses.length} missing statuses. Adding them now...`);
                     const batch = writeBatch(firestore);
                     missingStatuses.forEach(status => {
-                        const docRef = doc(firestore, 'shipment_statuses', status.id);
+                        const docRef = doc(firestore, 'shipment_statuses', status.id!);
                         batch.set(docRef, status);
                     });
                     await batch.commit();
@@ -251,37 +250,37 @@ export default function SettingsPage() {
                                     <TableCell className="text-center">
                                         <Checkbox
                                             checked={status.isDeliveredStatus}
-                                            onCheckedChange={checked => handleFieldChange(status.id, 'isDeliveredStatus', checked)}
+                                            onCheckedChange={checked => handleFieldChange(status.id, 'isDeliveredStatus', !!checked)}
                                         />
                                     </TableCell>
                                     <TableCell className="text-center">
                                         <Checkbox
                                             checked={status.isReturnedStatus}
-                                            onCheckedChange={checked => handleFieldChange(status.id, 'isReturnedStatus', checked)}
+                                            onCheckedChange={checked => handleFieldChange(status.id, 'isReturnedStatus', !!checked)}
                                         />
                                     </TableCell>
                                     <TableCell className="text-center">
                                         <Checkbox
                                             checked={status.affectsCourierBalance}
-                                            onCheckedChange={checked => handleFieldChange(status.id, 'affectsCourierBalance', checked)}
+                                            onCheckedChange={checked => handleFieldChange(status.id, 'affectsCourierBalance', !!checked)}
                                         />
                                     </TableCell>
                                     <TableCell className="text-center">
                                         <Checkbox
                                             checked={status.affectsCompanyBalance}
-                                            onCheckedChange={checked => handleFieldChange(status.id, 'affectsCompanyBalance', checked)}
+                                            onCheckedChange={checked => handleFieldChange(status.id, 'affectsCompanyBalance', !!checked)}
                                         />
                                     </TableCell>
                                      <TableCell className="text-center">
                                         <Checkbox
                                             checked={status.requiresFullCollection}
-                                            onCheckedChange={checked => handleFieldChange(status.id, 'requiresFullCollection', checked)}
+                                            onCheckedChange={checked => handleFieldChange(status.id, 'requiresFullCollection', !!checked)}
                                         />
                                     </TableCell>
                                      <TableCell className="text-center">
                                         <Checkbox
                                             checked={status.requiresPartialCollection}
-                                            onCheckedChange={checked => handleFieldChange(status.id, 'requiresPartialCollection', checked)}
+                                            onCheckedChange={checked => handleFieldChange(status.id, 'requiresPartialCollection', !!checked)}
                                         />
                                     </TableCell>
                                     <TableCell className="text-center">

@@ -51,7 +51,8 @@ catch (e) {
 }
 const db = admin.firestore();
 const corsHandler = (0, cors_1.default)({ origin: true });
-// Flexible schema to accept data from both Courier and Admin roles.
+// This flexible schema now accepts all possible fields from both
+// courier and admin roles, making them optional to avoid validation errors.
 const updateShipmentStatusSchema = zod_1.z.object({
     shipmentId: zod_1.z.string(),
     status: zod_1.z.string(),
@@ -60,7 +61,10 @@ const updateShipmentStatusSchema = zod_1.z.object({
     // --- Fields for Courier's Price Change Request ---
     requestedAmount: zod_1.z.number().optional(),
     amountChangeReason: zod_1.z.string().optional(),
-    // --- Optional fields that Admin can send ---
+    // --- Optional fields that Admin OR COURIER can now send ---
+    paidAmount: zod_1.z.number().optional(),
+    courierCommission: zod_1.z.number().optional(),
+    // --- Optional fields that only Admin can send ---
     recipientName: zod_1.z.string().optional(),
     recipientPhone: zod_1.z.string().optional(),
     address: zod_1.z.string().optional(),
@@ -69,8 +73,6 @@ const updateShipmentStatusSchema = zod_1.z.object({
     assignedCourierId: zod_1.z.string().optional(),
     companyId: zod_1.z.string().optional(),
     orderNumber: zod_1.z.string().optional(),
-    paidAmount: zod_1.z.number().optional(),
-    courierCommission: zod_1.z.number().optional(),
     companyCommission: zod_1.z.number().optional(),
     isWarehouseReturn: zod_1.z.boolean().optional(),
     isReturnedToCompany: zod_1.z.boolean().optional(),

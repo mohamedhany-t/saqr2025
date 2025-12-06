@@ -1,4 +1,3 @@
-
 import type { User as AuthUser } from 'firebase/auth';
 
 export type Role = "admin" | "company" | "courier" | "customer-service";
@@ -42,8 +41,8 @@ export type ShipmentStatusConfig = {
   enabled: boolean; // Whether the status is active and can be used
   requiresFullCollection: boolean; // e.g., for "Delivered"
   requiresPartialCollection: boolean; // e.g., for "Partially Delivered", "Refused (Paid)"
-  isDeliveredStatus?: boolean; // Is this status counted as "delivered" for reports?
-  isReturnedStatus?: boolean; // Is this status counted as "returned" for reports?
+  isDeliveredStatus: boolean; // Is this status counted as "delivered" for reports?
+  isReturnedStatus: boolean; // Is this status counted as "returned" for reports?
 };
   
 export type Shipment = {
