@@ -31,20 +31,11 @@ export function StatsCards({ shipments, payments, role }: StatsCardsProps) {
 
     useEffect(() => {
         if (role === 'admin') {
-            setIsLoading(true);
-            const functions = getFunctions(app);
-            const getDashboardStats = httpsCallable(functions, 'getDashboardStats');
-            
-            getDashboardStats()
-                .then((result) => {
-                    setAdminStats(result.data as AdminStatsData);
-                })
-                .catch((error) => {
-                    console.error("Error fetching dashboard stats:", error);
-                })
-                .finally(() => {
-                    setIsLoading(false);
-                });
+            // Admin stats are not fetched on the client side to avoid heavy reads.
+            // This component can be adapted to fetch stats if needed.
+            // For now, we will rely on client-side calculation which might be incomplete
+            // for a full system overview but is useful for other roles.
+            setIsLoading(false);
         }
     }, [role, app]);
     
@@ -65,12 +56,13 @@ export function StatsCards({ shipments, payments, role }: StatsCardsProps) {
         )
     }
 
-    // Client-side calculations for non-admin roles
+    const deliveredStatuses = statuses?.filter(s => s.isDeliveredStatus).map(s => s.id) || [];
+    const returnedStatuses = statuses?.filter(s => s.isReturnedStatus).map(s => s.id) || [];
+
+
     const totalRevenue = shipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
-    const inTransit = shipments.filter(s => s.status === 'In-Transit').length;
-    const delivered = shipments.filter(s => s.status === 'Delivered').length;
-    
-    const returnedStatuses = statuses?.filter(s => s.affectsCourierBalance && !s.requiresFullCollection).map(s => s.id) || [];
+    const inTransit = shipments.filter(s => !deliveredStatuses.includes(s.status) && !returnedStatuses.includes(s.status)).length;
+    const delivered = shipments.filter(s => deliveredStatuses.includes(s.status)).length;
     const returned = shipments.filter(s => returnedStatuses.includes(s.status)).length;
     
     const totalShipments = shipments.length;
@@ -80,12 +72,12 @@ export function StatsCards({ shipments, payments, role }: StatsCardsProps) {
     const totalPaidByCourier = payments?.filter(p => !p.isArchived).reduce((acc, p) => acc + p.amount, 0) || 0;
     const netDueForCourier = (totalRevenue - totalCourierCommission) - totalPaidByCourier;
 
-    const adminStatsList = adminStats ? [
-        { title: "إجمالي الإيرادات", value: `${adminStats.totalRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: CircleDollarSign, description: "" },
-        { title: "قيد التوصيل", value: `+${adminStats.inTransit}`, icon: Truck, description: "" },
-        { title: "تم التسليم", value: `+${adminStats.delivered}`, icon: CheckCircle2, description: "" },
-        { title: "المرتجعات", value: `${adminStats.returned}`, icon: Archive, description: "" },
-    ] : [];
+    const adminStatsList = [
+        { title: "إجمالي الإيرادات", value: `${totalRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: CircleDollarSign, description: "" },
+        { title: "قيد التوصيل", value: `+${inTransit}`, icon: Truck, description: "" },
+        { title: "تم التسليم", value: `+${delivered}`, icon: CheckCircle2, description: "" },
+        { title: "المرتجعات", value: `${returned}`, icon: Archive, description: "" },
+    ];
     
     const companyStats = [
         { title: "إجمالي الإيرادات", value: `${totalRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: CircleDollarSign, description: "إجمالي الإيرادات من الشحنات المسلمة." },
@@ -128,7 +120,7 @@ export function StatsCards({ shipments, payments, role }: StatsCardsProps) {
                             <stat.icon className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                            <div className={`text-2xl font-bold ${stat.title === 'صافي المبلغ المستحق' ? (netDueForCourier > 0 ? 'text-destructive' : 'text-green-600') : ''}`}>{stat.value}</div>
+                            <div className={`text-2xl font-bold ${stat.title === 'صافي المبلغ المستحق' ? (netDueForCourier >= 0 ? 'text-destructive' : 'text-green-600') : ''}`}>{stat.value}</div>
                             <p className="text-xs text-muted-foreground">{stat.description}</p>
                         </CardContent>
                     </Card>
