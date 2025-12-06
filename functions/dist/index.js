@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handleShipmentUpdate = exports.getDashboardStats = void 0;
+exports.handleShipmentUpdate = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const zod_1 = require("zod");
@@ -51,65 +51,12 @@ catch (e) {
 }
 const db = admin.firestore();
 const corsHandler = (0, cors_1.default)({ origin: true });
-exports.getDashboardStats = functions.https.onCall(async (data, context) => {
-    if (!context.auth) {
-        throw new functions.https.HttpsError("unauthenticated", "The function must be called while authenticated.");
-    }
-    const adminDoc = await db.collection("roles_admin").doc(context.auth.uid).get();
-    if (!adminDoc.exists) {
-        throw new functions.https.HttpsError("permission-denied", "The function must be called by an admin user.");
-    }
-    try {
-        const shipmentsSnapshot = await db.collection("shipments").get();
-        let totalRevenue = 0;
-        let inTransit = 0;
-        let delivered = 0;
-        let returned = 0;
-        const totalShipments = shipmentsSnapshot.size;
-        shipmentsSnapshot.forEach((doc) => {
-            const shipment = doc.data();
-            if (shipment.paidAmount) {
-                totalRevenue += shipment.paidAmount;
-            }
-            switch (shipment.status) {
-                case "In-Transit":
-                    inTransit++;
-                    break;
-                case "Delivered":
-                    delivered++;
-                    break;
-                case "Returned":
-                case "Cancelled":
-                case "Refused (Unpaid)":
-                case "Evasion (Phone)":
-                case "Partially Delivered":
-                case "Evasion (Delivery Attempt)":
-                case "Refused (Paid)":
-                    returned++;
-                    break;
-                default: break;
-            }
-        });
-        return { totalRevenue, inTransit, delivered, returned, totalShipments };
-    }
-    catch (error) {
-        console.error("Error calculating dashboard stats:", error);
-        throw new functions.https.HttpsError("internal", "Failed to calculate dashboard statistics.");
-    }
-});
-// Zod schema now expects the full shipment object for context, plus the specific fields being updated.
+// Zod schema for simple update from courier
 const updateShipmentStatusSchema = zod_1.z.object({
     shipmentId: zod_1.z.string(),
     status: zod_1.z.string(),
     reason: zod_1.z.string().optional(),
     collectedAmount: zod_1.z.number().optional(),
-    requestedAmount: zod_1.z.number().optional(),
-    amountChangeReason: zod_1.z.string().optional(),
-    // Include other fields from shipment object to ensure they are present
-    recipientName: zod_1.z.string(),
-    address: zod_1.z.string(),
-    totalAmount: zod_1.z.number(),
-    companyId: zod_1.z.string(),
 });
 exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
@@ -135,20 +82,17 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
             return;
         }
         const { uid: courierId, name: courierName, email: courierEmail } = context.auth;
-        // IMPORTANT FIX: Read from req.body.data for callable functions on onRequest trigger
+        // IMPORTANT FIX: Read from req.body.data because this is how callable functions send data to onRequest triggers.
         const validation = updateShipmentStatusSchema.safeParse(req.body.data);
         if (!validation.success) {
             console.error("Validation failed:", validation.error.errors);
             res.status(400).send({ error: { status: 'INVALID_ARGUMENT', message: 'The data provided is invalid.' } });
             return;
         }
-        const { shipmentId, status, reason, collectedAmount, requestedAmount, amountChangeReason } = validation.data;
-        // Use the full shipment data passed from the client
-        const shipmentDataFromClient = validation.data;
+        const { shipmentId, status, reason, collectedAmount } = validation.data;
         const shipmentRef = db.collection('shipments').doc(shipmentId);
         try {
             const result = await db.runTransaction(async (transaction) => {
-                var _a;
                 const shipmentDoc = await transaction.get(shipmentRef);
                 if (!shipmentDoc.exists) {
                     throw new functions.https.HttpsError("not-found", "Shipment not found.");
@@ -157,56 +101,18 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
                 if (shipmentData.assignedCourierId !== courierId) {
                     throw new functions.https.HttpsError("permission-denied", "You are not assigned to this shipment.");
                 }
-                // Fetch necessary data for calculation
-                const courierDoc = await transaction.get(db.collection('users').doc(courierId));
-                const companyDoc = await transaction.get(db.collection('companies').doc(shipmentData.companyId));
-                const statusConfigsSnapshot = await transaction.get(db.collection('shipment_statuses'));
-                if (!courierDoc.exists || !companyDoc.exists) {
-                    throw new functions.https.HttpsError("failed-precondition", "Courier or Company data not found.");
-                }
-                const courierData = courierDoc.data();
-                const companyData = companyDoc.data();
-                const statusConfigs = statusConfigsSnapshot.docs.map(doc => (Object.assign(Object.assign({}, doc.data()), { id: doc.id })));
-                // Perform calculations
-                const statusConfig = statusConfigs.find(s => s.id === status);
-                if (!statusConfig) {
-                    throw new functions.https.HttpsError("failed-precondition", `Status configuration for "${status}" not found.`);
-                }
-                let paidAmount = 0;
-                let finalCollectedAmount = collectedAmount || 0;
-                let courierCommission = 0;
-                let companyCommission = 0;
-                if (statusConfig.requiresFullCollection) {
-                    paidAmount = shipmentDataFromClient.totalAmount || 0;
-                    finalCollectedAmount = shipmentDataFromClient.totalAmount || 0;
-                }
-                else if (statusConfig.requiresPartialCollection) {
-                    paidAmount = finalCollectedAmount;
-                }
-                if (statusConfig.affectsCourierBalance) {
-                    courierCommission = courierData.commissionRate || 0;
-                }
-                if (paidAmount > 0 && statusConfig.affectsCompanyBalance) {
-                    const govId = shipmentData.governorateId;
-                    if (govId && ((_a = companyData.governorateCommissions) === null || _a === void 0 ? void 0 : _a[govId])) {
-                        companyCommission = companyData.governorateCommissions[govId];
-                    }
-                }
-                const financialUpdate = {
-                    paidAmount,
-                    collectedAmount: finalCollectedAmount,
-                    courierCommission,
-                    companyCommission,
+                const finalShipmentUpdate = {
+                    status: status,
+                    reason: reason || "",
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 };
-                const finalShipmentUpdate = Object.assign(Object.assign({}, financialUpdate), { status: status, reason: reason || "", updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-                if (status === 'PriceChangeRequested') {
-                    finalShipmentUpdate.requestedAmount = requestedAmount;
-                    finalShipmentUpdate.amountChangeReason = amountChangeReason;
+                if (collectedAmount !== undefined) {
+                    finalShipmentUpdate.collectedAmount = collectedAmount;
                 }
                 const historyRef = shipmentRef.collection('history').doc();
                 const historyEntry = {
                     status: status,
-                    reason: reason || (status === 'PriceChangeRequested' ? amountChangeReason : '') || '',
+                    reason: reason || '',
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                     updatedBy: courierName || courierEmail,
                     userId: courierId,

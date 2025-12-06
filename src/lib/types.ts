@@ -73,6 +73,7 @@ export type Shipment = {
   isArchivedForCourier?: boolean; // For settling courier accounts
   isArchivedForCompany?: boolean; // For settling company accounts
   isWarehouseReturn?: boolean; // To mark if the item is physically in the warehouse
+  isReturnedToCompany?: boolean; // To mark if the item has been returned to the original company
 };
 
 export type ShipmentHistory = {

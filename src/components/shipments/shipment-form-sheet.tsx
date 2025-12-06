@@ -51,6 +51,7 @@ const shipmentSchema = z.object({
   courierCommission: z.coerce.number().optional(),
   companyCommission: z.coerce.number().optional(),
   isWarehouseReturn: z.boolean().optional(),
+  isReturnedToCompany: z.boolean().optional(),
 });
 
 
@@ -115,6 +116,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
       courierCommission: undefined,
       companyCommission: undefined,
       isWarehouseReturn: false,
+      isReturnedToCompany: false,
     },
   });
   
@@ -143,6 +145,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           courierCommission: shipment.courierCommission ?? 0,
           companyCommission: shipment.companyCommission ?? 0,
           isWarehouseReturn: shipment.isWarehouseReturn ?? false,
+          isReturnedToCompany: shipment.isReturnedToCompany ?? false,
         });
       } else {
         form.reset({
@@ -164,6 +167,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           requestedAmount: undefined,
           amountChangeReason: '',
           isWarehouseReturn: false,
+          isReturnedToCompany: false,
         });
       }
     }
@@ -437,6 +441,22 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                 <FormControl className="col-span-3">
                                    <Checkbox
                                         id="isWarehouseReturn"
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                    />
+                                </FormControl>
+                            </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="isReturnedToCompany"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="isReturnedToCompany" className="text-right">تم الرجوع للشركة؟</Label>
+                                <FormControl className="col-span-3">
+                                   <Checkbox
+                                        id="isReturnedToCompany"
                                         checked={field.value}
                                         onCheckedChange={field.onChange}
                                     />

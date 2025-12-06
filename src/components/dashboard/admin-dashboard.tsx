@@ -257,6 +257,8 @@ const MobileShipmentsView = ({
     archivedShipmentsCompany,
     archivedShipmentsCourier,
     inWarehouseShipments,
+    returnsWithCouriers,
+    returnedToCompanyShipments,
     filteredShipments,
     recentlyUpdatedShipments,
     listIsLoading,
@@ -276,6 +278,8 @@ const MobileShipmentsView = ({
     archivedShipmentsCompany: Shipment[];
     archivedShipmentsCourier: Shipment[];
     inWarehouseShipments: Shipment[];
+    returnsWithCouriers: Shipment[];
+    returnedToCompanyShipments: Shipment[];
     filteredShipments: Shipment[];
     recentlyUpdatedShipments: Shipment[];
     listIsLoading: boolean;
@@ -311,9 +315,9 @@ const MobileShipmentsView = ({
         case "in-transit": return getShipmentsByStatus('In-Transit');
         case "delivered": return getShipmentsByStatus(['Delivered']);
         case "postponed": return getShipmentsByStatus('Postponed');
-        case "returned": return getShipmentsByStatus(['Returned', 'Custom-Return', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']);
-        case "returned-to-sender": return getShipmentsByStatus('Returned to Sender');
-        case "in-warehouse": return inWarehouseShipments;
+        case "returns-with-couriers": return returnsWithCouriers;
+        case "returns-in-warehouse": return inWarehouseShipments;
+        case "returned-to-company": return returnedToCompanyShipments;
         case "archived-company": return archivedShipmentsCompany;
         case "archived-courier": return archivedShipmentsCourier;
         case "all-shipments":
@@ -428,9 +432,9 @@ const MobileShipmentsView = ({
                     <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
                     <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
                     <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
-                    <TabsTrigger value="returned">مرتجعات</TabsTrigger>
-                    <TabsTrigger value="in-warehouse"><Warehouse className="h-4 w-4 me-1" /> في المخزن</TabsTrigger>
-                    <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
+                    <TabsTrigger value="returns-with-couriers">مرتجعات بالخارج</TabsTrigger>
+                    <TabsTrigger value="returns-in-warehouse">مرتجعات بالمخزن</TabsTrigger>
+                    <TabsTrigger value="returned-to-company">وصلت للشركة</TabsTrigger>
                     <TabsTrigger value="archived-company">مؤرشف الشركات</TabsTrigger>
                     <TabsTrigger value="archived-courier">مؤرشف المناديب</TabsTrigger>
                 </TabsList>
@@ -450,9 +454,9 @@ const MobileShipmentsView = ({
             <TabsContent value="in-transit">{renderShipmentList(getShipmentsByStatus('In-Transit'))}</TabsContent>
             <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentList(getShipmentsByStatus('Postponed'))}</TabsContent>
-            <TabsContent value="returned">{renderShipmentList(getShipmentsByStatus(['Returned', 'Custom-Return', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
-            <TabsContent value="in-warehouse">{renderShipmentList(inWarehouseShipments)}</TabsContent>
-            <TabsContent value="returned-to-sender">{renderShipmentList(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
+            <TabsContent value="returns-with-couriers">{renderShipmentList(returnsWithCouriers)}</TabsContent>
+            <TabsContent value="returns-in-warehouse">{renderShipmentList(inWarehouseShipments)}</TabsContent>
+            <TabsContent value="returned-to-company">{renderShipmentList(returnedToCompanyShipments)}</TabsContent>
             <TabsContent value="archived-company">{renderShipmentList(archivedShipmentsCompany)}</TabsContent>
             <TabsContent value="archived-courier">{renderShipmentList(archivedShipmentsCourier)}</TabsContent>
             {selectedCount > 0 && (
@@ -518,6 +522,8 @@ const DesktopShipmentsView = ({
     archivedShipmentsCompany,
     archivedShipmentsCourier,
     inWarehouseShipments,
+    returnsWithCouriers,
+    returnedToCompanyShipments,
     recentlyUpdatedShipments,
     governorates,
     companies,
@@ -536,6 +542,8 @@ const DesktopShipmentsView = ({
     archivedShipmentsCompany: Shipment[];
     archivedShipmentsCourier: Shipment[];
     inWarehouseShipments: Shipment[];
+    returnsWithCouriers: Shipment[];
+    returnedToCompanyShipments: Shipment[];
     recentlyUpdatedShipments: Shipment[];
     governorates: Governorate[];
     companies: Company[];
@@ -577,9 +585,9 @@ const DesktopShipmentsView = ({
                 <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
                 <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
                 <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
-                <TabsTrigger value="returned">مرتجعات</TabsTrigger>
-                <TabsTrigger value="in-warehouse"><Warehouse className="h-4 w-4 me-1" /> في المخزن</TabsTrigger>
-                <TabsTrigger value="returned-to-sender">مرتجع للراسل</TabsTrigger>
+                <TabsTrigger value="returns-with-couriers">مرتجعات لدى المناديب</TabsTrigger>
+                <TabsTrigger value="returns-in-warehouse">مرتجعات وصلت المخزن</TabsTrigger>
+                <TabsTrigger value="returned-to-company">وصلت للشركة</TabsTrigger>
                 <TabsTrigger value="archived-company">مؤرشفة الشركات</TabsTrigger>
                 <TabsTrigger value="archived-courier">مؤرشفة المناديب</TabsTrigger>
             </TabsList>
@@ -589,9 +597,9 @@ const DesktopShipmentsView = ({
             <TabsContent value="in-transit">{renderShipmentTable(getShipmentsByStatus('In-Transit'))}</TabsContent>
             <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
-            <TabsContent value="returned">{renderShipmentTable(getShipmentsByStatus(['Returned', 'Custom-Return', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']))}</TabsContent>
-            <TabsContent value="in-warehouse">{renderShipmentTable(inWarehouseShipments)}</TabsContent>
-            <TabsContent value="returned-to-sender">{renderShipmentTable(getShipmentsByStatus('Returned to Sender'))}</TabsContent>
+            <TabsContent value="returns-with-couriers">{renderShipmentTable(returnsWithCouriers)}</TabsContent>
+            <TabsContent value="returns-in-warehouse">{renderShipmentTable(inWarehouseShipments)}</TabsContent>
+            <TabsContent value="returned-to-company">{renderShipmentTable(returnedToCompanyShipments)}</TabsContent>
             <TabsContent value="archived-company">{renderShipmentTable(archivedShipmentsCompany, 'company')}</TabsContent>
             <TabsContent value="archived-courier">{renderShipmentTable(archivedShipmentsCourier, 'courier')}</TabsContent>
         </Tabs>
@@ -1591,9 +1599,20 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     }).slice(0, 50); // Get the last 50 updated shipments
 }, [shipments]);
 
-  const inWarehouseShipments = React.useMemo(() => {
-    return shipments?.filter(shipment => shipment.isWarehouseReturn && !shipment.isArchivedForCompany && !shipment.isArchivedForCourier) || [];
-  }, [shipments]);
+
+const returnedShipmentStatuses = React.useMemo(() => statuses?.filter(s => s.isReturnedStatus).map(s => s.id) || [], [statuses]);
+
+const returnsWithCouriers = React.useMemo(() => {
+    return shipments?.filter(s => returnedShipmentStatuses.includes(s.status) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCourier) || [];
+}, [shipments, returnedShipmentStatuses]);
+
+const inWarehouseShipments = React.useMemo(() => {
+    return shipments?.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCompany) || [];
+}, [shipments]);
+
+const returnedToCompanyShipments = React.useMemo(() => {
+    return shipments?.filter(s => s.isReturnedToCompany && !s.isArchivedForCompany) || [];
+}, [shipments]);
 
 
   const courierDues = React.useMemo(() => {
@@ -1958,6 +1977,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     archivedShipmentsCompany={archivedShipmentsCompany}
                     archivedShipmentsCourier={archivedShipmentsCourier}
                     inWarehouseShipments={inWarehouseShipments}
+                    returnsWithCouriers={returnsWithCouriers}
+                    returnedToCompanyShipments={returnedToCompanyShipments}
                     filteredShipments={filteredShipments}
                     recentlyUpdatedShipments={recentlyUpdatedShipments}
                     listIsLoading={listIsLoading}
@@ -1982,6 +2003,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     archivedShipmentsCompany={archivedShipmentsCompany}
                     archivedShipmentsCourier={archivedShipmentsCourier}
                     inWarehouseShipments={inWarehouseShipments}
+                    returnsWithCouriers={returnsWithCouriers}
+                    returnedToCompanyShipments={returnedToCompanyShipments}
                     recentlyUpdatedShipments={recentlyUpdatedShipments}
                     governorates={governorates || []}
                     companies={companies || []}
