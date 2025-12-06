@@ -15,7 +15,8 @@ try {
 const db = admin.firestore();
 const corsHandler = cors({ origin: true });
 
-// Flexible schema to accept data from both Courier and Admin roles.
+// This flexible schema now accepts all possible fields from both
+// courier and admin roles, making them optional to avoid validation errors.
 const updateShipmentStatusSchema = z.object({
     shipmentId: z.string(),
     status: z.string(),
@@ -26,7 +27,11 @@ const updateShipmentStatusSchema = z.object({
     requestedAmount: z.number().optional(),
     amountChangeReason: z.string().optional(),
 
-    // --- Optional fields that Admin can send ---
+    // --- Optional fields that Admin OR COURIER can now send ---
+    paidAmount: z.number().optional(),
+    courierCommission: z.number().optional(),
+    
+    // --- Optional fields that only Admin can send ---
     recipientName: z.string().optional(),
     recipientPhone: z.string().optional(),
     address: z.string().optional(),
@@ -35,8 +40,6 @@ const updateShipmentStatusSchema = z.object({
     assignedCourierId: z.string().optional(),
     companyId: z.string().optional(),
     orderNumber: z.string().optional(),
-    paidAmount: z.number().optional(),
-    courierCommission: z.number().optional(),
     companyCommission: z.number().optional(),
     isWarehouseReturn: z.boolean().optional(),
     isReturnedToCompany: z.boolean().optional(),

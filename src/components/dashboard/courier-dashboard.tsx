@@ -21,6 +21,44 @@ import { useNotificationSound } from "@/hooks/use-notification-sound";
 import { Button } from "../ui/button";
 import { RouteSummaryPage } from "./route-summary-page";
 
+const calculateCommissionAndPaidAmount = (
+    status: string,
+    totalAmount: number,
+    collectedAmount: number,
+    courierCommissionRate: number,
+    statusConfigs: ShipmentStatusConfig[],
+) => {
+    const update: { paidAmount: number; courierCommission: number; collectedAmount: number } = {
+        paidAmount: 0,
+        courierCommission: 0,
+        collectedAmount: 0,
+    };
+    
+    const statusConfig = statusConfigs.find(s => s.id === status);
+    if (!statusConfig) return update;
+
+    const safeTotalAmount = totalAmount || 0;
+    const safeCollectedAmount = collectedAmount || 0;
+    const safeCourierCommissionRate = courierCommissionRate || 0;
+    
+    let amountForCalc = 0;
+    if (statusConfig.requiresFullCollection) {
+        amountForCalc = safeTotalAmount;
+    } else if (statusConfig.requiresPartialCollection) {
+        amountForCalc = safeCollectedAmount;
+    }
+    
+    update.paidAmount = amountForCalc;
+    update.collectedAmount = amountForCalc;
+
+    if (statusConfig.affectsCourierBalance) {
+        update.courierCommission = safeCourierCommissionRate;
+    }
+
+    return update;
+}
+
+
 interface CourierDashboardProps {
   user: User;
   role: Role;
@@ -138,26 +176,34 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
     setShipmentSheetOpen(true);
   };
   
-  const handleSaveShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
-    if (!id || !app || !shipmentData.status || !editingShipment) return;
-  
-    toast({ title: "جاري تحديث الحالة..." });
-  
-    try {
-      const functions = getFunctions(app);
-      const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
-      
-      const payload: any = {
-        shipmentId: id,
-        status: shipmentData.status,
-        reason: shipmentData.reason,
-        collectedAmount: shipmentData.collectedAmount,
-      };
+const handleSaveShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
+    if (!id || !app || !shipmentData.status || !editingShipment || !statuses) return;
 
-      if (shipmentData.status === 'PriceChangeRequested') {
-        payload.requestedAmount = shipmentData.requestedAmount;
-        payload.amountChangeReason = shipmentData.amountChangeReason;
-      }
+    toast({ title: "جاري تحديث الحالة..." });
+
+    try {
+        const functions = getFunctions(app);
+        const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
+
+        const calculatedFields = calculateCommissionAndPaidAmount(
+            shipmentData.status,
+            editingShipment.totalAmount,
+            shipmentData.collectedAmount || 0,
+            user.commissionRate || 0,
+            statuses
+        );
+        
+        const payload: any = {
+            shipmentId: id,
+            status: shipmentData.status,
+            reason: shipmentData.reason,
+            ...calculatedFields, // Add calculated financial fields
+        };
+
+        if (shipmentData.status === 'PriceChangeRequested') {
+            payload.requestedAmount = shipmentData.requestedAmount;
+            payload.amountChangeReason = shipmentData.amountChangeReason;
+        }
       
       await handleShipmentUpdateFn(payload);
   
@@ -182,7 +228,7 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
         variant: "destructive",
       });
     }
-  };
+};
 
 const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Partial<Shipment>) => {
     if (selectedRows.length === 0 || !update.status || !statuses || !companies) {
@@ -196,11 +242,19 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
     const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
 
     const updatePromises = selectedRows.map(row => {
+        const calculatedFields = calculateCommissionAndPaidAmount(
+            update.status!,
+            row.totalAmount,
+            0, // Bulk updates for courier don't involve collection
+            user.commissionRate || 0,
+            statuses
+        );
+
         const payload: any = {
             shipmentId: row.id,
             status: update.status,
             reason: update.reason || 'تحديث جماعي',
-            collectedAmount: 0, 
+            ...calculatedFields
         };
         return handleShipmentUpdateFn(payload).catch(error => ({
             shipmentId: row.id,
