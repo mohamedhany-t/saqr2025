@@ -832,8 +832,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             const workbook = read(data, { type: 'binary', cellDates: true });
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
-            const jsonRows = utils.sheet_to_json<any>(worksheet, { header: 1 });
-            const headers = jsonRows[0] as string[];
             const json = utils.sheet_to_json<any>(worksheet);
 
             const result: ImportResult = {
@@ -853,9 +851,11 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             for (const row of json) {
                 let errorReason = "";
                 const recipientName = String(row['المرسل اليه'] || '').trim();
+                const recipientPhone = String(row['التليفون']?.toString() || '').trim();
                 const governorateName = String(row['المحافظة'] || '').trim();
 
                 if (!recipientName) errorReason = "اسم المرسل إليه مفقود";
+                else if (!recipientPhone) errorReason = "رقم الهاتف مفقود";
                 else if (!governorateName) errorReason = "المحافظة مفقودة";
                 else if (governorates.find(g => g.name === governorateName) === undefined) errorReason = `المحافظة "${governorateName}" غير موجودة في النظام`;
                 
@@ -875,15 +875,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             const shipmentsCollection = collection(firestore, 'shipments');
 
             for (const row of validRows) {
-                const orderNumberValue = row['رقم الطلب']?.toString().trim();
+                const recipientPhoneValue = String(row['التليفون']?.toString() || '').trim();
                 const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
                 const foundCompany = companies.find(c => c.name === companyNameFromSheet);
                 const companyIdForQuery = foundCompany ? foundCompany.id : authUser.uid;
 
                 let querySnapshot;
-                if(orderNumberValue){
-                    const existingShipmentQuery = query(shipmentsCollection, where("orderNumber", "==", orderNumberValue), where("companyId", "==", companyIdForQuery));
-
+                if(recipientPhoneValue){
+                    const existingShipmentQuery = query(shipmentsCollection, where("recipientPhone", "==", recipientPhoneValue), where("companyId", "==", companyIdForQuery));
                     try {
                         querySnapshot = await getDocs(existingShipmentQuery);
                     } catch (err: any) {
@@ -905,12 +904,13 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 const creationDate = parseExcelDate(row['التاريخ']);
                 const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
                 const senderNameValue = row['الراسل'] || row['العميل الفرعى'];
+                const orderNumberValue = row['رقم الطلب']?.toString().trim();
 
                 const shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>> = {
                     senderName: senderNameValue,
                     orderNumber: orderNumberValue,
                     recipientName: String(row['المرسل اليه'] || '').trim(),
-                    recipientPhone: String(row['التليفون']?.toString() || '').trim(),
+                    recipientPhone: recipientPhoneValue,
                     governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
                     address: String(row['العنوان'] || 'N/A').trim(),
                     totalAmount: parseFloat(String(totalAmountValue).replace(/[^0-9.]/g, '')),
@@ -931,11 +931,13 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 } else {
                     const existingDocRef = querySnapshot.docs[0].ref;
                     const existingShipment = querySnapshot.docs[0].data() as Shipment;
-                    let updateData: Partial<Shipment> = { ...cleanShipmentData, updatedAt: serverTimestamp() };
+                    
+                    // Skip update if a courier is already assigned
                     if (existingShipment.assignedCourierId) {
-                        delete updateData.status;
-                        delete updateData.assignedCourierId;
+                        continue;
                     }
+                    
+                    let updateData: Partial<Shipment> = { ...cleanShipmentData, updatedAt: serverTimestamp() };
                     batch.update(existingDocRef, updateData);
                     result.updated++;
                 }
