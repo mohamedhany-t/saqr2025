@@ -15,74 +15,14 @@ try {
 const db = admin.firestore();
 const corsHandler = cors({ origin: true });
 
-// Define the shape of the status configuration for type safety
-interface ShipmentStatusConfig {
-  id: string;
-  label: string;
-  affectsCourierBalance: boolean;
-  affectsCompanyBalance: boolean;
-  enabled: boolean;
-  requiresFullCollection: boolean;
-  requiresPartialCollection: boolean;
-}
-
-export const getDashboardStats = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError("unauthenticated", "The function must be called while authenticated.");
-  }
-  const adminDoc = await db.collection("roles_admin").doc(context.auth.uid).get();
-  if (!adminDoc.exists) {
-    throw new functions.https.HttpsError("permission-denied", "The function must be called by an admin user.");
-  }
-  
-  try {
-    const shipmentsSnapshot = await db.collection("shipments").get();
-    let totalRevenue = 0;
-    let inTransit = 0;
-    let delivered = 0;
-    let returned = 0;
-    const totalShipments = shipmentsSnapshot.size;
-
-    shipmentsSnapshot.forEach((doc) => {
-      const shipment = doc.data();
-      if (shipment.paidAmount) {
-        totalRevenue += shipment.paidAmount;
-      }
-      switch (shipment.status) {
-        case "In-Transit": inTransit++; break;
-        case "Delivered": delivered++; break;
-        case "Returned":
-        case "Cancelled":
-        case "Refused (Unpaid)":
-        case "Evasion (Phone)":
-        case "Partially Delivered":
-        case "Evasion (Delivery Attempt)":
-        case "Refused (Paid)": returned++; break;
-        default: break;
-      }
-    });
-
-    return { totalRevenue, inTransit, delivered, returned, totalShipments };
-  } catch (error) {
-    console.error("Error calculating dashboard stats:", error);
-    throw new functions.https.HttpsError("internal", "Failed to calculate dashboard statistics.");
-  }
-});
-
-// Zod schema now expects the full shipment object for context, plus the specific fields being updated.
+// Zod schema for simple update from courier
 const updateShipmentStatusSchema = z.object({
     shipmentId: z.string(),
     status: z.string(),
     reason: z.string().optional(),
     collectedAmount: z.number().optional(),
-    requestedAmount: z.number().optional(),
-    amountChangeReason: z.string().optional(),
-    // Include other fields from shipment object to ensure they are present
-    recipientName: z.string(),
-    address: z.string(),
-    totalAmount: z.number(),
-    companyId: z.string(),
 });
+
 
 export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
@@ -110,7 +50,7 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
         
         const { uid: courierId, name: courierName, email: courierEmail } = context.auth;
         
-        // IMPORTANT FIX: Read from req.body.data for callable functions on onRequest trigger
+        // IMPORTANT FIX: Read from req.body.data because this is how callable functions send data to onRequest triggers.
         const validation = updateShipmentStatusSchema.safeParse(req.body.data);
 
         if (!validation.success) {
@@ -119,9 +59,7 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
             return;
         }
 
-        const { shipmentId, status, reason, collectedAmount, requestedAmount, amountChangeReason } = validation.data;
-        // Use the full shipment data passed from the client
-        const shipmentDataFromClient = validation.data;
+        const { shipmentId, status, reason, collectedAmount } = validation.data;
         const shipmentRef = db.collection('shipments').doc(shipmentId);
 
         try {
@@ -134,72 +72,21 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
                 if (shipmentData.assignedCourierId !== courierId) {
                      throw new functions.https.HttpsError("permission-denied", "You are not assigned to this shipment.");
                 }
-
-                // Fetch necessary data for calculation
-                const courierDoc = await transaction.get(db.collection('users').doc(courierId));
-                const companyDoc = await transaction.get(db.collection('companies').doc(shipmentData.companyId));
-                const statusConfigsSnapshot = await transaction.get(db.collection('shipment_statuses'));
-
-                if (!courierDoc.exists || !companyDoc.exists) {
-                    throw new functions.https.HttpsError("failed-precondition", "Courier or Company data not found.");
-                }
-                
-                const courierData = courierDoc.data()!;
-                const companyData = companyDoc.data()!;
-                const statusConfigs: ShipmentStatusConfig[] = statusConfigsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ShipmentStatusConfig));
-                
-                // Perform calculations
-                const statusConfig = statusConfigs.find(s => s.id === status);
-                if (!statusConfig) {
-                    throw new functions.https.HttpsError("failed-precondition", `Status configuration for "${status}" not found.`);
-                }
-                
-                let paidAmount = 0;
-                let finalCollectedAmount = collectedAmount || 0;
-                let courierCommission = 0;
-                let companyCommission = 0;
-                
-                if (statusConfig.requiresFullCollection) {
-                    paidAmount = shipmentDataFromClient.totalAmount || 0;
-                    finalCollectedAmount = shipmentDataFromClient.totalAmount || 0;
-                } else if (statusConfig.requiresPartialCollection) {
-                    paidAmount = finalCollectedAmount;
-                }
-
-                if (statusConfig.affectsCourierBalance) {
-                    courierCommission = courierData.commissionRate || 0;
-                }
-                
-                if (paidAmount > 0 && statusConfig.affectsCompanyBalance) {
-                    const govId = shipmentData.governorateId;
-                    if(govId && companyData.governorateCommissions?.[govId]) {
-                        companyCommission = companyData.governorateCommissions[govId];
-                    }
-                }
-                
-                const financialUpdate = {
-                    paidAmount,
-                    collectedAmount: finalCollectedAmount,
-                    courierCommission,
-                    companyCommission,
-                };
                 
                 const finalShipmentUpdate: any = {
-                    ...financialUpdate,
                     status: status,
                     reason: reason || "",
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 };
 
-                if (status === 'PriceChangeRequested') {
-                    finalShipmentUpdate.requestedAmount = requestedAmount;
-                    finalShipmentUpdate.amountChangeReason = amountChangeReason;
+                if (collectedAmount !== undefined) {
+                    finalShipmentUpdate.collectedAmount = collectedAmount;
                 }
                 
                 const historyRef = shipmentRef.collection('history').doc();
                 const historyEntry = {
                     status: status,
-                    reason: reason || (status === 'PriceChangeRequested' ? amountChangeReason : '') || '',
+                    reason: reason || '',
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                     updatedBy: courierName || courierEmail,
                     userId: courierId,
