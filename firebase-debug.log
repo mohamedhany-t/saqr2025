@@ -1,0 +1,11 @@
+[debug] [2025-12-06T15:40:51.646Z] ----------------------------------------------------------------------
+[debug] [2025-12-06T15:40:51.650Z] Command:       /nix/store/ws50yvm6vzlzf7jzz6n7xh4szddrack1-nodejs-20.19.1/bin/node /nix/store/c776mhyhgykcld7p90ajrka149ifn61a-firebase-tools-14.26.0/lib/node_modules/firebase-tools/lib/bin/firebase.js deploy --only functions
+[debug] [2025-12-06T15:40:51.651Z] CLI Version:   14.26.0
+[debug] [2025-12-06T15:40:51.651Z] Platform:      linux
+[debug] [2025-12-06T15:40:51.652Z] Node Version:  v20.19.1
+[debug] [2025-12-06T15:40:51.652Z] Time:          Sat Dec 06 2025 15:40:51 GMT+0000 (Coordinated Universal Time)
+[debug] [2025-12-06T15:40:51.652Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-12-06T15:40:52.454Z] Checked if tokens are valid: true, expires at: 1765038624307
+[debug] [2025-12-06T15:40:52.455Z] Checked if tokens are valid: true, expires at: 1765038624307
+[debug] [2025-12-06T15:40:52.461Z] >>> [apiv2][query] GET https://monospace-pa.googleapis.com/v1/workspaces/studio-9762882993 [none]

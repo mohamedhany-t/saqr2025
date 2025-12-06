@@ -147,16 +147,17 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
       const functions = getFunctions(app);
       const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
       
-      // Send ONLY the required fields for the old function version
-      const payload = {
+      const payload: any = {
         shipmentId: id,
         status: shipmentData.status,
         reason: shipmentData.reason,
         collectedAmount: shipmentData.collectedAmount,
-        // The following fields caused the error, so we omit them for now.
-        // requestedAmount: shipmentData.requestedAmount,
-        // amountChangeReason: shipmentData.amountChangeReason,
       };
+
+      if (shipmentData.status === 'PriceChangeRequested') {
+        payload.requestedAmount = shipmentData.requestedAmount;
+        payload.amountChangeReason = shipmentData.amountChangeReason;
+      }
       
       await handleShipmentUpdateFn(payload);
   
@@ -196,14 +197,11 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
 
     const updatePromises = selectedRows.map(row => {
         const payload: any = {
-            ...row,
+            shipmentId: row.id,
             status: update.status,
             reason: update.reason || 'تحديث جماعي',
-            collectedAmount: 0, // Bulk updates don't support partial collection
-            shipmentId: row.id,
+            collectedAmount: 0, 
         };
-        // This is the fix. The 'ref' property from useCollection was causing a circular reference.
-        delete payload.ref;
         return handleShipmentUpdateFn(payload).catch(error => ({
             shipmentId: row.id,
             error: error.message || "فشل التحديث"
