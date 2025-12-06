@@ -147,13 +147,15 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
       const functions = getFunctions(app);
       const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
       
+      // Send ONLY the required fields for the old function version
       const payload = {
         shipmentId: id,
         status: shipmentData.status,
         reason: shipmentData.reason,
         collectedAmount: shipmentData.collectedAmount,
-        requestedAmount: shipmentData.requestedAmount,
-        amountChangeReason: shipmentData.amountChangeReason,
+        // The following fields caused the error, so we omit them for now.
+        // requestedAmount: shipmentData.requestedAmount,
+        // amountChangeReason: shipmentData.amountChangeReason,
       };
       
       await handleShipmentUpdateFn(payload);
@@ -388,5 +390,3 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
     </>
   );
 }
-
-    
