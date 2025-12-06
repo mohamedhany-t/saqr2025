@@ -1,3 +1,4 @@
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -143,7 +144,11 @@ export default function CourierDashboard({ user, role, searchTerm }: CourierDash
   const { data: allShipmentsForCourier, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
   
   const shipments = React.useMemo(() => {
-    return allShipmentsForCourier?.filter(s => !s.isArchivedForCourier) || [];
+    return allShipmentsForCourier?.filter(s => 
+        !s.isArchivedForCourier && 
+        !s.isWarehouseReturn &&
+        !s.isReturnedToCompany
+    ) || [];
   }, [allShipmentsForCourier]);
 
   const paymentsQuery = useMemoFirebase(() => {

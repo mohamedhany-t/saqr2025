@@ -505,6 +505,18 @@ const MobileShipmentsView = ({
                             إلغاء أرشفة المندوب
                         </Button>
                     }
+                    {activeTab === 'returns-with-couriers' && (
+                        <>
+                           <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isWarehouseReturn: true })}>
+                                <Warehouse className="me-2 h-4 w-4" />
+                                تم الرجوع للمخزن
+                            </Button>
+                             <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isReturnedToCompany: true })}>
+                                <Building className="me-2 h-4 w-4" />
+                                تم الرجوع للشركة
+                            </Button>
+                        </>
+                    )}
                     <Button variant="destructive" size="icon" onClick={handleMobileBulkDelete}>
                         <Trash2 className="h-4 w-4" />
                     </Button>
@@ -555,7 +567,7 @@ const DesktopShipmentsView = ({
     columnFilters: ColumnFiltersState,
     setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
   }) => {
-    const renderShipmentTable = (shipmentList: Shipment[], isArchivedTab: 'none' | 'company' | 'courier' = 'none') => (
+    const renderShipmentTable = (shipmentList: Shipment[], activeTab: 'none' | 'company' | 'courier' | 'returns-with-couriers' = 'none') => (
         <ShipmentsTable 
           shipments={shipmentList} 
           isLoading={listIsLoading}
@@ -569,7 +581,7 @@ const DesktopShipmentsView = ({
           onBulkDelete={handleBulkDelete}
           filters={columnFilters}
           onFiltersChange={setColumnFilters}
-          isArchivedTab={isArchivedTab}
+          activeTab={activeTab}
         />
     );
 
@@ -597,7 +609,7 @@ const DesktopShipmentsView = ({
             <TabsContent value="in-transit">{renderShipmentTable(getShipmentsByStatus('In-Transit'))}</TabsContent>
             <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
-            <TabsContent value="returns-with-couriers">{renderShipmentTable(returnsWithCouriers)}</TabsContent>
+            <TabsContent value="returns-with-couriers">{renderShipmentTable(returnsWithCouriers, 'returns-with-couriers')}</TabsContent>
             <TabsContent value="returns-in-warehouse">{renderShipmentTable(inWarehouseShipments)}</TabsContent>
             <TabsContent value="returned-to-company">{renderShipmentTable(returnedToCompanyShipments)}</TabsContent>
             <TabsContent value="archived-company">{renderShipmentTable(archivedShipmentsCompany, 'company')}</TabsContent>

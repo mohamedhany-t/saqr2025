@@ -445,7 +445,7 @@ export function ShipmentsTable({
     onBulkDelete,
     filters,
     onFiltersChange,
-    isArchivedTab = 'none',
+    activeTab = 'none',
 }: { 
     shipments: Shipment[], 
     isLoading: boolean, 
@@ -459,7 +459,7 @@ export function ShipmentsTable({
     onBulkDelete?: (selectedRows: Shipment[]) => void,
     filters?: ColumnFiltersState,
     onFiltersChange?: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
-    isArchivedTab?: 'none' | 'company' | 'courier',
+    activeTab?: 'none' | 'company' | 'courier' | 'returns-with-couriers',
 }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -756,7 +756,19 @@ export function ShipmentsTable({
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    {role === 'admin' && (
+                    {role === 'admin' && activeTab === 'returns-with-couriers' && (
+                        <>
+                           <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isWarehouseReturn: true })}>
+                                <Warehouse className="me-2 h-3.5 w-3.5" />
+                                تم الرجوع للمخزن
+                            </Button>
+                             <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isReturnedToCompany: true })}>
+                                <Building className="me-2 h-3.5 w-3.5" />
+                                تم الرجوع للشركة
+                            </Button>
+                        </>
+                    )}
+                    {role === 'admin' && activeTab !== 'returns-with-couriers' && (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" size="sm" className="h-8 gap-1">
@@ -774,13 +786,13 @@ export function ShipmentsTable({
                             </DropdownMenuContent>
                         </DropdownMenu>
                     )}
-                    {isArchivedTab === 'company' && role === 'admin' && (
+                    {activeTab === 'company' && role === 'admin' && (
                         <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isArchivedForCompany: false })}>
                             <ArchiveRestore className="h-3.5 w-3.5" />
                             <span className="sr-only sm:not-sr-only">إلغاء أرشفة الشركة</span>
                         </Button>
                     )}
-                     {isArchivedTab === 'courier' && role === 'admin' && (
+                     {activeTab === 'courier' && role === 'admin' && (
                         <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isArchivedForCourier: false })}>
                             <ArchiveRestore className="h-3.5 w-3.5" />
                             <span className="sr-only sm:not-sr-only">إلغاء أرشفة المندوب</span>
@@ -803,7 +815,7 @@ export function ShipmentsTable({
                                     ))}
                                 </DropdownMenuContent>
                             </DropdownMenu>
-                            {isArchivedTab === 'none' && <Button variant="destructive" size="sm" className="h-8 gap-1" onClick={handleBulkDeleteInternal}>
+                            {activeTab === 'none' && <Button variant="destructive" size="sm" className="h-8 gap-1" onClick={handleBulkDeleteInternal}>
                                 <Trash2 className="h-3.5 w-3.5" />
                                 <span className="sr-only sm:not-sr-only">حذف</span>
                             </Button>}
