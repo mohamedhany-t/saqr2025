@@ -876,13 +876,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
             for (const row of validRows) {
                 const recipientPhoneValue = String(row['التليفون']?.toString() || '').trim();
-                const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
-                const foundCompany = companies.find(c => c.name === companyNameFromSheet);
-                const companyIdForQuery = foundCompany ? foundCompany.id : authUser.uid;
-
+                
                 let querySnapshot;
-                if(recipientPhoneValue){
-                    const existingShipmentQuery = query(shipmentsCollection, where("recipientPhone", "==", recipientPhoneValue), where("companyId", "==", companyIdForQuery));
+                if (recipientPhoneValue) {
+                    const existingShipmentQuery = query(shipmentsCollection, where("recipientPhone", "==", recipientPhoneValue));
                     try {
                         querySnapshot = await getDocs(existingShipmentQuery);
                     } catch (err: any) {
@@ -899,6 +896,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                         }
                     }
                 }
+                
+                const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
+                const foundCompany = companies.find(c => c.name === companyNameFromSheet);
+                const companyIdForQuery = foundCompany ? foundCompany.id : authUser.uid;
                 
                 const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
                 const creationDate = parseExcelDate(row['التاريخ']);
@@ -929,8 +930,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     batch.set(docRef, { ...cleanShipmentData, shipmentCode, id: docRef.id, createdAt: creationDate || serverTimestamp(), updatedAt: serverTimestamp() });
                     result.added++;
                 } else {
-                    const existingDocRef = querySnapshot.docs[0].ref;
-                    const existingShipment = querySnapshot.docs[0].data() as Shipment;
+                    const existingDoc = querySnapshot.docs[0];
+                    const existingShipment = existingDoc.data() as Shipment;
                     
                     // Skip update if a courier is already assigned
                     if (existingShipment.assignedCourierId) {
@@ -938,7 +939,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     }
                     
                     let updateData: Partial<Shipment> = { ...cleanShipmentData, updatedAt: serverTimestamp() };
-                    batch.update(existingDocRef, updateData);
+                    batch.update(existingDoc.ref, updateData);
                     result.updated++;
                 }
                 setImportResult({ ...result });
@@ -961,6 +962,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     };
     reader.readAsBinaryString(file);
 };
+
 
   const handleSaveShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
     if (!firestore || !user || !companies || !users || !statuses) return;
