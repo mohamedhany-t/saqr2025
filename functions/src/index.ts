@@ -15,12 +15,34 @@ try {
 const db = admin.firestore();
 const corsHandler = cors({ origin: true });
 
-// Zod schema for simple update from courier
+// Flexible schema to accept data from both Courier and Admin roles.
 const updateShipmentStatusSchema = z.object({
     shipmentId: z.string(),
     status: z.string(),
     reason: z.string().optional(),
     collectedAmount: z.number().optional(),
+    
+    // --- Fields for Courier's Price Change Request ---
+    requestedAmount: z.number().optional(),
+    amountChangeReason: z.string().optional(),
+
+    // --- Optional fields that Admin can send ---
+    recipientName: z.string().optional(),
+    recipientPhone: z.string().optional(),
+    address: z.string().optional(),
+    totalAmount: z.number().optional(),
+    governorateId: z.string().optional(),
+    assignedCourierId: z.string().optional(),
+    companyId: z.string().optional(),
+    orderNumber: z.string().optional(),
+    paidAmount: z.number().optional(),
+    courierCommission: z.number().optional(),
+    companyCommission: z.number().optional(),
+    isWarehouseReturn: z.boolean().optional(),
+    isReturnedToCompany: z.boolean().optional(),
+    isArchivedForCourier: z.boolean().optional(),
+    isArchivedForCompany: z.boolean().optional(),
+    senderName: z.string().optional(),
 });
 
 
@@ -48,9 +70,8 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
             return;
         }
         
-        const { uid: courierId, name: courierName, email: courierEmail } = context.auth;
+        const { uid: userId, name: userName, email: userEmail } = context.auth;
         
-        // IMPORTANT FIX: Read from req.body.data because this is how callable functions send data to onRequest triggers.
         const validation = updateShipmentStatusSchema.safeParse(req.body.data);
 
         if (!validation.success) {
@@ -59,7 +80,8 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
             return;
         }
 
-        const { shipmentId, status, reason, collectedAmount } = validation.data;
+        const validatedData = validation.data;
+        const shipmentId = validatedData.shipmentId;
         const shipmentRef = db.collection('shipments').doc(shipmentId);
 
         try {
@@ -68,28 +90,36 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
                 if (!shipmentDoc.exists) {
                      throw new functions.https.HttpsError("not-found", "Shipment not found.");
                 }
+
                 const shipmentData = shipmentDoc.data()!;
-                if (shipmentData.assignedCourierId !== courierId) {
+                
+                // Allow admin to edit any shipment, but courier/company can only edit their own.
+                const userRoleDoc = await db.collection('roles_admin').doc(userId).get();
+                const isAdmin = userRoleDoc.exists;
+                
+                if (!isAdmin && shipmentData.assignedCourierId !== userId && shipmentData.companyId !== userId) {
                      throw new functions.https.HttpsError("permission-denied", "You are not assigned to this shipment.");
                 }
                 
-                const finalShipmentUpdate: any = {
-                    status: status,
-                    reason: reason || "",
+                // Construct the final update object from validated, non-undefined data
+                const finalShipmentUpdate: { [key: string]: any } = {
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 };
 
-                if (collectedAmount !== undefined) {
-                    finalShipmentUpdate.collectedAmount = collectedAmount;
+                // Add all valid fields from the request to the update object
+                for (const key in validatedData) {
+                    if (Object.prototype.hasOwnProperty.call(validatedData, key) && (validatedData as any)[key] !== undefined && key !== 'shipmentId') {
+                        finalShipmentUpdate[key] = (validatedData as any)[key];
+                    }
                 }
                 
                 const historyRef = shipmentRef.collection('history').doc();
                 const historyEntry = {
-                    status: status,
-                    reason: reason || '',
+                    status: validatedData.status,
+                    reason: validatedData.reason || validatedData.amountChangeReason || '',
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    updatedBy: courierName || courierEmail,
-                    userId: courierId,
+                    updatedBy: userName || userEmail,
+                    userId: userId,
                 };
 
                 transaction.update(shipmentRef, finalShipmentUpdate);
