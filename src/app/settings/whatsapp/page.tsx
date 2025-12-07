@@ -28,11 +28,18 @@ const defaultTemplates: WhatsAppTemplatesForm = {
 لديكم شحنة من شركة {company_name} بمبلغ {total_amount}.
 عنوان التسليم: {address}
 يمكنك تتبع الشحنة من خلال الرابط التالي: {tracking_link}`,
-    customerServiceTemplate: `مرحباً {customer_name}،
-معك {customer_service_name} من فريق المتابعة بخصوص شحنتكم رقم {shipment_code}.
-المندوب المسؤول: {courier_name}
-رقم المندوب: {courier_phone}
-يمكنك تتبع الشحنة من خلال الرابط التالي: {tracking_link}`
+    customerServiceTemplate: `أهلاً بك {customer_name}،
+معك {customer_service_name} من فريق الدعم في *الصقر للخدمات اللوجستية*.
+
+نود إبلاغك بآخر مستجدات شحنتك رقم *{shipment_code}* القادمة من *{company_name}*.
+
+- *المندوب المسؤول:* {courier_name}
+- *للتواصل مع المندوب:* {courier_phone}
+
+- *لتتبع شحنتك مباشرة:*
+{tracking_link}
+
+إذا كان لديك أي استفسار، لا تتردد في الرد على هذه الرسالة.`
 };
 
 export default function WhatsAppSettingsPage() {
