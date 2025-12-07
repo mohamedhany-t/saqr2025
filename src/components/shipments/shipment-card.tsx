@@ -13,6 +13,7 @@ import { cn, formatToCairoTime } from "@/lib/utils";
 import React from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { doc, collection } from "firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
 
 interface ShipmentCardProps {
     shipment: Shipment;
@@ -39,6 +40,7 @@ export function ShipmentCard({
 }: ShipmentCardProps) {
     const { userProfile } = useUserProfile();
     const firestore = useFirestore();
+    const { toast } = useToast();
 
     const settingsDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'system_settings', 'whatsapp_templates') : null, [firestore]);
     const { data: whatsappTemplates } = useDoc<{courierTemplate: string, customerServiceTemplate: string}>(settingsDocRef);
@@ -88,6 +90,16 @@ export function ShipmentCard({
                 .replace('{address}', `${address}, ${governorateName}` || '')
                 .replace('{tracking_link}', trackingUrl);
         } else if (isCustomerService) {
+            // Ensure courier data is loaded before attempting to send the message
+            if (shipment.assignedCourierId && !assignedCourier) {
+                toast({
+                    title: "جاري تحميل بيانات المندوب",
+                    description: "يرجى المحاولة مرة أخرى خلال لحظات.",
+                    variant: "default",
+                });
+                return;
+            }
+
             const template = whatsappTemplates?.customerServiceTemplate || '';
             message = template
                 .replace('{customer_name}', recipientName || '')
