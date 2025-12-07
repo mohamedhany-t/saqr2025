@@ -29,8 +29,9 @@ const defaultTemplates: WhatsAppTemplatesForm = {
 عنوان التسليم: {address}
 يمكنك تتبع الشحنة من خلال الرابط التالي: {tracking_link}`,
     customerServiceTemplate: `مرحباً {customer_name}،
-معك {customer_service_name} من فريق المتابعة.
-نود المتابعة بخصوص شحنتكم رقم {shipment_code}.
+معك {customer_service_name} من فريق المتابعة بخصوص شحنتكم رقم {shipment_code}.
+المندوب المسؤول: {courier_name}
+رقم المندوب: {courier_phone}
 يمكنك تتبع الشحنة من خلال الرابط التالي: {tracking_link}`
 };
 
@@ -105,7 +106,7 @@ export default function WhatsAppSettingsPage() {
                         <Info className="h-4 w-4" />
                         <AlertTitle>المتغيرات المتاحة</AlertTitle>
                         <AlertDescription dir="ltr" className="font-mono text-xs">
-                            {'{customer_name}'}, {'{courier_name}'}, {'{shipment_code}'}, {'{total_amount}'}, {'{address}'}, {'{tracking_link}'}, {'{company_name}'}, {'{customer_service_name}'}
+                            {'{customer_name}'}, {'{courier_name}'}, {'{courier_phone}'}, {'{shipment_code}'}, {'{total_amount}'}, {'{address}'}, {'{tracking_link}'}, {'{company_name}'}, {'{customer_service_name}'}
                         </AlertDescription>
                     </Alert>
 

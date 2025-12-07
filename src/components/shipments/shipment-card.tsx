@@ -3,16 +3,16 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import type { Shipment, ShipmentStatusConfig } from "@/lib/types";
+import type { Shipment, ShipmentStatusConfig, User } from "@/lib/types";
 import { Pencil, MessageSquare, Package, CalendarDays, Phone, Share2, Trash2, Printer, Edit } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { useUser, useUserProfile, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
+import { useUser, useUserProfile, useFirestore, useDoc, useMemoFirebase, useCollection } from "@/firebase";
 import { Checkbox } from "../ui/checkbox";
 import { cn, formatToCairoTime } from "@/lib/utils";
 import React from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { doc } from "firebase/firestore";
+import { doc, collection } from "firebase/firestore";
 
 interface ShipmentCardProps {
     shipment: Shipment;
@@ -42,6 +42,15 @@ export function ShipmentCard({
 
     const settingsDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'system_settings', 'whatsapp_templates') : null, [firestore]);
     const { data: whatsappTemplates } = useDoc<{courierTemplate: string, customerServiceTemplate: string}>(settingsDocRef);
+    
+    // Fetch all users to find courier info
+    const usersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
+    const { data: allUsers } = useCollection<User>(usersQuery);
+    
+    const assignedCourier = React.useMemo(() => {
+        if (!allUsers || !shipment.assignedCourierId) return null;
+        return allUsers.find(u => u.id === shipment.assignedCourierId);
+    }, [allUsers, shipment.assignedCourierId]);
 
 
     const { 
@@ -85,6 +94,8 @@ export function ShipmentCard({
                 .replace('{customer_service_name}', userProfile?.name || '')
                 .replace('{shipment_code}', shipmentCode || '')
                 .replace('{company_name}', companyName || '')
+                .replace('{courier_name}', assignedCourier?.name || 'غير محدد')
+                .replace('{courier_phone}', assignedCourier?.phone || 'غير متوفر')
                 .replace('{total_amount}', totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) || '')
                 .replace('{address}', `${address}, ${governorateName}` || '')
                 .replace('{tracking_link}', trackingUrl);
