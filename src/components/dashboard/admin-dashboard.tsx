@@ -2,7 +2,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
@@ -1972,6 +1972,12 @@ const returnedToCompanyShipments = React.useMemo(() => {
                     className="hidden"
                     accept=".xlsx, .xls"
                 />
+                <Button asChild variant="outline" size="sm">
+                    <Link href="/scan">
+                        <ScanLine className="h-4 w-4" />
+                        <span className="sr-only sm:not-sr-only">مسح باركود</span>
+                    </Link>
+                </Button>
             <Button variant="outline" size="sm" onClick={handleImportClick}>
                 <FileUp className="h-4 w-4" />
                 <span className="sr-only sm:not-sr-only">استيراد</span>

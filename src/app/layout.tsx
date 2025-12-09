@@ -4,7 +4,8 @@ import { Inter, Cairo } from "next/font/google";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
-import React from 'react';
+import React, { Suspense } from 'react';
+import { Loader2 } from "lucide-react";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const cairo = Cairo({ subsets: ["arabic"], variable: "--font-cairo", weight: ['400', '700'] });
@@ -29,9 +30,11 @@ export default function RootLayout({
           <meta name="theme-color" content="#5F9EA0" />
       </head>
       <body className={`${inter.variable} ${cairo.variable} font-headline`}>
-        <FirebaseClientProvider>
-          {children}
-        </FirebaseClientProvider>
+        <Suspense fallback={<div className="flex min-h-screen w-full items-center justify-center bg-muted/30"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
+            <FirebaseClientProvider>
+            {children}
+            </FirebaseClientProvider>
+        </Suspense>
         <Toaster />
       </body>
     </html>
