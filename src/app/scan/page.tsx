@@ -247,7 +247,7 @@ export default function ScanPage() {
                                     />
                                     <div className="flex-1">
                                         <p className="font-bold">{shipment.recipientName}</p>
-                                        <p className="text-sm text-muted-foreground">{shipment.address}, {governorates.find(g => g.id === shipment.governorateId)?.name}</p>
+                                        <p className="text-sm text-muted-foreground">{shipment.address}, {governorates?.find(g => g.id === shipment.governorateId)?.name}</p>
                                     </div>
                                     <Badge variant={statusVariants[shipment.status] || 'secondary'} className="flex items-center gap-1">
                                         {statusIcons[shipment.status]}
