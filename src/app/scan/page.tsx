@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, getDoc, query } from 'firebase/firestore';
+import { collection, doc, getDoc, query, where } from 'firebase/firestore';
 import type { Shipment, Governorate, Company, User, ShipmentStatusConfig } from '@/lib/types';
 import { Loader2, ArrowRight, ScanLine, X, CheckSquare, Trash2, Warehouse, Building, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,7 @@ export default function ScanPage() {
     const { data: allShipments, isLoading: shipmentsLoading } = useCollection<Shipment>(useMemoFirebase(() => firestore ? query(collection(firestore, 'shipments')) : null, [firestore]));
     const { data: governorates, isLoading: governoratesLoading } = useCollection<Governorate>(useMemoFirebase(() => firestore ? collection(firestore, 'governorates') : null, [firestore]));
     const { data: companies, isLoading: companiesLoading } = useCollection<Company>(useMemoFirebase(() => firestore ? collection(firestore, 'companies') : null, [firestore]));
-    const { data: courierUsers, isLoading: couriersLoading } = useCollection<User>(useMemoFirebase(() => firestore ? query(collection(firestore, 'users'), where => where('role', '==', 'courier')) : null, [firestore]));
+    const { data: courierUsers, isLoading: couriersLoading } = useCollection<User>(useMemoFirebase(() => firestore ? query(collection(firestore, 'users'), where('role', '==', 'courier')) : null, [firestore]));
     const { data: statuses, isLoading: statusesLoading } = useCollection<ShipmentStatusConfig>(useMemoFirebase(() => firestore ? query(collection(firestore, 'shipment_statuses')) : null, [firestore]));
 
     const dataIsLoading = shipmentsLoading || governoratesLoading || companiesLoading || couriersLoading || statusesLoading;
@@ -60,10 +60,16 @@ export default function ScanPage() {
         
         let shipmentId = '';
         try {
+            // Check if the scanned text is a URL from our QR codes
             const url = new URL(text);
-            shipmentId = url.searchParams.get('edit') || '';
+            if (url.searchParams.has('edit')) {
+                shipmentId = url.searchParams.get('edit') || '';
+            } else {
+                 // Fallback for other QR code formats that might just have the ID
+                shipmentId = text.trim().split('/').pop() || '';
+            }
         } catch (e) {
-            // It might not be a URL, could be just the ID
+            // It's not a URL, so it must be the shipment code or ID itself
             shipmentId = text.trim();
         }
 
@@ -80,13 +86,19 @@ export default function ScanPage() {
             return;
         }
 
-        const shipment = allShipments?.find(s => s.id === shipmentId);
+        // Search by ID first
+        let shipment = allShipments?.find(s => s.id === shipmentId);
+        
+        // If not found by ID, search by shipmentCode
+        if (!shipment) {
+            shipment = allShipments?.find(s => s.shipmentCode === shipmentId);
+        }
 
         if (shipment) {
             playBeep();
-            setScannedShipmentIds(prev => new Set(prev).add(shipmentId));
-            setScannedShipments(prev => [shipment, ...prev.filter(s => s.id !== shipmentId)]);
-            setLastScannedId(shipmentId);
+            setScannedShipmentIds(prev => new Set(prev).add(shipment!.id));
+            setScannedShipments(prev => [shipment!, ...prev.filter(s => s.id !== shipment!.id)]);
+            setLastScannedId(shipment.id);
         } else {
             toast({ title: "لم يتم العثور على الشحنة", description: `لم يتم العثور على شحنة بالمعرف: ${shipmentId}`, variant: "destructive" });
         }
@@ -282,4 +294,3 @@ export default function ScanPage() {
         </div>
     );
 }
-
