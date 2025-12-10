@@ -221,7 +221,6 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                 </SheetDescription>
                 </SheetHeader>
                 <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-6 mr-[-1.5rem] pl-6">
-                    {/* These fields are read-only for couriers */}
                     <FormField
                         control={form.control}
                         name="recipientName"
@@ -229,7 +228,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">المرسل اليه</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input {...field} disabled />
+                                    <Input {...field} disabled={isCourier} />
                                 </FormControl>
                             </FormItem>
                         )}
@@ -241,7 +240,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">العنوان</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input {...field} disabled />
+                                    <Input {...field} disabled={isCourier} />
                                 </FormControl>
                             </FormItem>
                         )}
@@ -253,13 +252,12 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">الإجمالي</FormLabel>
                                 <FormControl className="col-span-3">
-                                    <Input type="number" {...field} disabled />
+                                    <Input type="number" {...field} disabled={isCourier && !isPriceChangeRequest} />
                                 </FormControl>
                             </FormItem>
                         )}
                     />
 
-                    {/* These fields are hidden for couriers */}
                     {(isAdmin || isCompany) && <>
                       <FormField
                         control={form.control}
@@ -513,5 +511,3 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
     </Sheet>
   )
 }
-
-    
