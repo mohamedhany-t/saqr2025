@@ -19,14 +19,14 @@ interface QRScannerDialogProps {
     continuous?: boolean; // New prop to control scanning mode
 }
 
+const QR_READER_ELEMENT_ID = "qr-reader-dialog";
+
 // Separate component for the scanner logic to manage its lifecycle
 export const QRScannerDialog = ({ open, onOpenChange, onScanSuccess, continuous = false }: QRScannerDialogProps) => {
   const scannerRef = React.useRef<Html5Qrcode | null>(null);
   const { toast } = useToast();
 
   React.useEffect(() => {
-    const QR_READER_ELEMENT_ID = "qr-reader-dialog";
-
     if (open) {
       const timer = setTimeout(async () => {
         const qrReaderElement = document.getElementById(QR_READER_ELEMENT_ID);
