@@ -20,14 +20,8 @@ import { sendPushNotification } from "@/lib/actions";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
 import { Button } from "../ui/button";
 import { RouteSummaryPage } from "./route-summary-page";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Html5Qrcode, type Html5QrcodeResult } from "html5-qrcode";
+import type { Html5QrcodeResult } from "html5-qrcode";
+import { QRScannerDialog } from "@/components/shipments/qr-scanner-dialog";
 
 const calculateCommissionAndPaidAmount = (
     status: string,
@@ -494,80 +488,3 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
     </>
   );
 }
-
-// Separate component for the scanner logic to manage its lifecycle
-const QRScannerDialog = ({ open, onOpenChange, onScanSuccess }: { open: boolean, onOpenChange: (open: boolean) => void, onScanSuccess: (text: string, result: Html5QrcodeResult) => void }) => {
-  const scannerRef = React.useRef<Html5Qrcode | null>(null);
-
-  React.useEffect(() => {
-    const QR_READER_ELEMENT_ID = "qr-reader-courier";
-
-    if (open) {
-      const timer = setTimeout(async () => {
-        const qrReaderElement = document.getElementById(QR_READER_ELEMENT_ID);
-        if (qrReaderElement && !scannerRef.current) {
-          const scanner = new Html5Qrcode(QR_READER_ELEMENT_ID, false);
-          scannerRef.current = scanner;
-
-          try {
-            const cameras = await Html5Qrcode.getCameras();
-            if (cameras && cameras.length > 0) {
-              // Prefer back camera
-              const backCamera = cameras.find(c => c.label.toLowerCase().includes('back') || c.label.toLowerCase().includes('بيئة')) || cameras[0];
-              
-              await scanner.start(
-                backCamera.id,
-                {
-                  fps: 10,
-                  qrbox: (viewfinderWidth, viewfinderHeight) => {
-                    const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-                    const qrboxSize = Math.floor(minEdge * 0.7);
-                    return { width: qrboxSize, height: qrboxSize };
-                  },
-                  aspectRatio: 1.7777778, // 16:9
-                },
-                onScanSuccess,
-                undefined // Optional error callback
-              );
-            } else {
-              console.error("No cameras found.");
-            }
-          } catch (err) {
-            console.error("Error starting QR scanner:", err);
-          }
-        }
-      }, 300); // Increased delay to ensure DOM is ready
-
-      return () => clearTimeout(timer);
-    } else {
-      if (scannerRef.current && scannerRef.current.isScanning) {
-        scannerRef.current.stop().then(() => {
-          scannerRef.current?.clear();
-        }).catch(error => console.error("Failed to stop scanner.", error));
-      }
-    }
-  }, [open, onScanSuccess]);
-
-  // Cleanup on unmount
-  React.useEffect(() => {
-    return () => {
-      if (scannerRef.current && scannerRef.current.isScanning) {
-        scannerRef.current.stop().catch(error => console.error("Failed to stop scanner on unmount.", error));
-      }
-    };
-  }, []);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>مسح باركود الشحنة</DialogTitle>
-          <DialogDescription>
-            وجّه الكاميرا إلى رمز QR الموجود على ملصق الشحنة.
-          </DialogDescription>
-        </DialogHeader>
-        <div id="qr-reader-courier" className="w-full [&>video]:w-full [&>video]:h-auto [&>img]:hidden"></div>
-      </DialogContent>
-    </Dialog>
-  );
-};

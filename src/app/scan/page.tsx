@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, getDoc, query, where, writeBatch, serverTimestamp } from 'firebase/firestore';
 import type { Shipment, Governorate, Company, User, ShipmentStatusConfig, ShipmentHistory } from '@/lib/types';
-import { Loader2, ArrowRight, ScanLine, X, CheckSquare, Trash2, Warehouse, Building, Archive } from 'lucide-react';
+import { Loader2, ArrowRight, ScanLine, X, CheckSquare, Trash2, Warehouse, Building, Archive, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,8 @@ import { statusIcons, statusText, statusVariants } from '@/components/dashboard/
 import { ShipmentFormSheet } from '@/components/shipments/shipment-form-sheet';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { QRScannerDialog } from '@/components/shipments/qr-scanner-dialog';
+import type { Html5QrcodeResult } from "html5-qrcode";
 
 export default function ScanPage() {
     const [scannedShipmentIds, setScannedShipmentIds] = useState<Set<string>>(new Set());
@@ -23,6 +25,7 @@ export default function ScanPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [editingShipment, setEditingShipment] = useState<Shipment | undefined>(undefined);
     const [isSheetOpen, setIsSheetOpen] = useState(false);
+    const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [selection, setSelection] = useState<Record<string, boolean>>({});
     
     const router = useRouter();
@@ -209,6 +212,12 @@ export default function ScanPage() {
         }
     };
 
+    const handleScanSuccess = (decodedText: string, decodedResult: Html5QrcodeResult) => {
+        processScan(decodedText);
+        // Do not close the scanner to allow for continuous scanning.
+        // setIsScannerOpen(false);
+    };
+
     if (dataIsLoading) {
         return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-12 w-12 animate-spin" /></div>;
     }
@@ -221,10 +230,16 @@ export default function ScanPage() {
                         <ScanLine className="h-6 w-6 text-primary" />
                         <h1 className="text-xl font-bold">محطة المسح المجمع</h1>
                     </div>
-                     <Button variant="ghost" onClick={() => router.back()}>
-                        <ArrowRight className="me-2 h-4 w-4" />
-                        العودة إلى لوحة التحكم
-                    </Button>
+                     <div className="flex items-center gap-2">
+                         <Button variant="outline" onClick={() => setIsScannerOpen(true)}>
+                            <QrCode className="me-2 h-4 w-4" />
+                            مسح بالكاميرا
+                        </Button>
+                        <Button variant="ghost" onClick={() => router.back()}>
+                            <ArrowRight className="me-2 h-4 w-4" />
+                            العودة إلى لوحة التحكم
+                        </Button>
+                    </div>
                 </div>
                  <div className="p-4 flex items-center gap-4 border-b">
                     <Button onClick={handleSelectAll} disabled={scannedShipments.length === 0}>
@@ -266,6 +281,10 @@ export default function ScanPage() {
                     {scannedShipments.length === 0 ? (
                         <div className="text-center text-muted-foreground pt-20">
                             <p>في انتظار المسح... قم بتوجيه السكانر أو الصق رقم الشحنة.</p>
+                            <Button className="mt-4" onClick={() => setIsScannerOpen(true)}>
+                                <QrCode className="me-2 h-4 w-4" />
+                                أو استخدم كاميرا الهاتف
+                            </Button>
                         </div>
                     ) : (
                         <div className="space-y-3">
@@ -309,6 +328,13 @@ export default function ScanPage() {
                 />
             </main>
             
+            <QRScannerDialog 
+                open={isScannerOpen} 
+                onOpenChange={setIsScannerOpen} 
+                onScanSuccess={handleScanSuccess} 
+                continuous={true}
+            />
+
             {editingShipment && (
                  <ShipmentFormSheet
                     open={isSheetOpen}
