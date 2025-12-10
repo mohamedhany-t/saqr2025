@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Html5Qrcode, type Html5QrcodeResult, type Html5QrcodeScannerState } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeScannerState, type Html5QrcodeResult } from "html5-qrcode";
 import { useToast } from "@/hooks/use-toast";
 
 interface QRScannerDialogProps {
@@ -56,7 +56,7 @@ export const QRScannerDialog = ({ open, onOpenChange, onScanSuccess, continuous 
                         onOpenChange(false); // Close dialog on success if not continuous
                     }
                 },
-                (errorMessage: string, error: any) => { // Changed type to any
+                (errorMessage: string, error: any) => {
                     // This is called frequently, so we don't toast here.
                     // console.log(`QR Code no longer in sight. ${errorMessage}`);
                 }
