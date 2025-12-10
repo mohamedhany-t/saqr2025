@@ -3,9 +3,9 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, getDoc, query, where } from 'firebase/firestore';
-import type { Shipment, Governorate, Company, User, ShipmentStatusConfig } from '@/lib/types';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, doc, getDoc, query, where, writeBatch, serverTimestamp } from 'firebase/firestore';
+import type { Shipment, Governorate, Company, User, ShipmentStatusConfig, ShipmentHistory } from '@/lib/types';
 import { Loader2, ArrowRight, ScanLine, X, CheckSquare, Trash2, Warehouse, Building, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -27,6 +27,7 @@ export default function ScanPage() {
     
     const router = useRouter();
     const firestore = useFirestore();
+    const { user } = useUser();
     const { toast } = useToast();
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -143,12 +144,19 @@ export default function ScanPage() {
         setIsSheetOpen(true);
     };
     
-    const handleSaveShipment = (data: Partial<Omit<Shipment, 'id'>>, id?: string) => {
-         // This needs a proper implementation using server actions similar to admin dashboard
-        console.log("Saving shipment", id, data);
-        toast({ title: "ميزة الحفظ قيد الإنشاء" });
+    const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
+        if (!firestore || !user || !id) return;
+        const shipmentRef = doc(firestore, 'shipments', id);
+        try {
+            await writeBatch(firestore).update(shipmentRef, { ...data, updatedAt: serverTimestamp() }).commit();
+            toast({ title: 'تم تحديث الشحنة بنجاح' });
+            setScannedShipments(prev => prev.map(s => s.id === id ? { ...s, ...data } as Shipment : s));
+        } catch (error) {
+            console.error('Failed to save shipment:', error);
+            toast({ title: 'فشل تحديث الشحنة', variant: 'destructive' });
+        }
         handleSheetClose();
-    }
+    };
     
     const selectedCount = Object.values(selection).filter(Boolean).length;
     
@@ -162,16 +170,43 @@ export default function ScanPage() {
         }
     };
     
-    const handleBulkUpdate = (update: Partial<Shipment>) => {
-        // Needs a proper server action implementation
+    const handleBulkUpdate = async (update: Partial<Shipment>) => {
+        if (!firestore || !user) return;
         const selectedIds = Object.keys(selection).filter(id => selection[id]);
         if (selectedIds.length === 0) {
             toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
             return;
         }
         toast({ title: `جاري تحديث ${selectedIds.length} شحنة...` });
-        console.log("Bulk updating", selectedIds, "with", update);
-        setSelection({});
+
+        const batch = writeBatch(firestore);
+        selectedIds.forEach(id => {
+            const shipmentRef = doc(firestore, 'shipments', id);
+            batch.update(shipmentRef, { ...update, updatedAt: serverTimestamp() });
+             if (update.status) {
+                const historyRef = doc(collection(shipmentRef, 'history'));
+                const historyEntry: Omit<ShipmentHistory, 'id'> = {
+                    status: update.status,
+                    reason: 'تحديث جماعي عبر الماسح',
+                    updatedAt: serverTimestamp(),
+                    updatedBy: user.displayName || user.email || 'Admin',
+                    userId: user.uid,
+                };
+                batch.set(historyRef, historyEntry);
+            }
+        });
+
+        try {
+            await batch.commit();
+            toast({ title: `تم تحديث ${selectedIds.length} شحنة بنجاح` });
+            // Optimistically update local state
+            setScannedShipments(prev => prev.map(s => selectedIds.includes(s.id) ? { ...s, ...update } as Shipment : s));
+        } catch (error) {
+            console.error('Bulk update failed:', error);
+            toast({ title: 'فشل التحديث المجمع', variant: 'destructive' });
+        } finally {
+            setSelection({});
+        }
     };
 
     if (dataIsLoading) {
@@ -223,10 +258,6 @@ export default function ScanPage() {
                              <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleBulkUpdate({ isArchivedForCompany: true })}>
                                 <Archive className="me-2 h-3.5 w-3.5" />
                                 أرشفة
-                            </Button>
-                            <Button variant="destructive" size="sm" className="h-8 gap-1" onClick={() => handleBulkUpdate({})}>
-                                <Trash2 className="h-3.5 w-3.5" />
-                                حذف
                             </Button>
                         </div>
                     )}

@@ -1974,7 +1974,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
                 />
                 <Button asChild variant="outline" size="sm">
                     <Link href="/scan">
-                        <ScanLine className="h-4 w-4" />
+                        <ScanLine className="h-4 w-4 me-2" />
                         <span className="sr-only sm:not-sr-only">مسح باركود</span>
                     </Link>
                 </Button>

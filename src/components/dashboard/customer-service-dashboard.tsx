@@ -12,13 +12,14 @@ import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebas
 import { collection, query, where, doc, getDoc, writeBatch } from "firebase/firestore";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
-import { AlertTriangle, CheckSquare, DollarSign, MessageSquare, Check, X } from "lucide-react";
+import { AlertTriangle, CheckSquare, DollarSign, MessageSquare, Check, X, ScanLine } from "lucide-react";
 import ChatInterface from "../chat/chat-interface";
 import { Badge } from "../ui/badge";
 import { differenceInDays, differenceInHours } from "date-fns";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
 import { sendPushNotification } from "@/lib/actions";
+import Link from "next/link";
 
 const ProblemShipmentList = ({ title, icon, shipments, onEdit, children }: { title: string, icon: React.ReactNode, shipments: Shipment[], onEdit: (s: Shipment) => void, children?: (shipment: Shipment) => React.ReactNode }) => {
     if (shipments.length === 0) {
@@ -289,22 +290,32 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
   return (
     <div className="flex flex-col w-full">
       <Tabs defaultValue="shipments">
-        <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="shipments">الشحنات</TabsTrigger>
-            <TabsTrigger value="problem-inbox" className="relative">
-              صندوق المشاكل
-              {problemCount > 0 && (
-                <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 justify-center p-0">{problemCount}</Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="chat" className="relative">
-                <MessageSquare className="me-2 h-4 w-4" />
-                <span>الدردشة</span>
-                {totalUnreadCount > 0 && (
-                    <Badge className="absolute -top-2 -right-2 h-5 w-5 justify-center p-0">{totalUnreadCount}</Badge>
+        <div className="flex items-center">
+            <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="shipments">الشحنات</TabsTrigger>
+                <TabsTrigger value="problem-inbox" className="relative">
+                صندوق المشاكل
+                {problemCount > 0 && (
+                    <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 justify-center p-0">{problemCount}</Badge>
                 )}
-            </TabsTrigger>
-        </TabsList>
+                </TabsTrigger>
+                <TabsTrigger value="chat" className="relative">
+                    <MessageSquare className="me-2 h-4 w-4" />
+                    <span>الدردشة</span>
+                    {totalUnreadCount > 0 && (
+                        <Badge className="absolute -top-2 -right-2 h-5 w-5 justify-center p-0">{totalUnreadCount}</Badge>
+                    )}
+                </TabsTrigger>
+            </TabsList>
+             <div className="ms-auto">
+                <Button asChild variant="outline" size="sm">
+                    <Link href="/scan">
+                        <ScanLine className="h-4 w-4 me-2" />
+                        <span className="sr-only sm:not-sr-only">مسح باركود</span>
+                    </Link>
+                </Button>
+            </div>
+        </div>
         <StatsCards shipments={shipments || []} role={role} />
         <TabsContent value="shipments">
           <Tabs defaultValue="all-shipments">
