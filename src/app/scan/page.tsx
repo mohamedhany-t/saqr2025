@@ -6,14 +6,14 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, getDoc, query, where, writeBatch, serverTimestamp } from 'firebase/firestore';
 import type { Shipment, Governorate, Company, User, ShipmentStatusConfig, ShipmentHistory } from '@/lib/types';
-import { Loader2, ArrowRight, ScanLine, X, CheckSquare, Trash2, Warehouse, Building, Archive, QrCode } from 'lucide-react';
+import { Loader2, ArrowRight, ScanLine, X, CheckSquare, Trash2, Warehouse, Building, Archive, QrCode, MoreVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { statusIcons, statusText, statusVariants } from '@/components/dashboard/shipments-table';
 import { ShipmentFormSheet } from '@/components/shipments/shipment-form-sheet';
 import { useToast } from '@/hooks/use-toast';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { QRScannerDialog } from '@/components/shipments/qr-scanner-dialog';
 import type { Html5QrcodeResult } from "html5-qrcode";
 
@@ -222,10 +222,42 @@ export default function ScanPage() {
         return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-12 w-12 animate-spin" /></div>;
     }
 
+    const bulkActions = (
+      <div className="flex flex-wrap items-center gap-2">
+           <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                   <Button variant="outline" size="sm" className="h-8 gap-1">
+                      <CheckSquare className="h-3.5 w-3.5" />
+                      <span>تغيير الحالة</span>
+                   </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                  {statuses?.filter(s => s.enabled).map((status) => (
+                       <DropdownMenuItem key={status.id} onSelect={() => handleBulkUpdate({ status: status.id })}>
+                           {status.label}
+                       </DropdownMenuItem>
+                  ))}
+              </DropdownMenuContent>
+          </DropdownMenu>
+           <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleBulkUpdate({ isWarehouseReturn: true })}>
+              <Warehouse className="me-2 h-3.5 w-3.5" />
+              تم الرجوع للمخزن
+          </Button>
+           <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleBulkUpdate({ isReturnedToCompany: true })}>
+              <Building className="me-2 h-3.5 w-3.5" />
+              تم الرجوع للشركة
+          </Button>
+           <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleBulkUpdate({ isArchivedForCompany: true })}>
+              <Archive className="me-2 h-3.5 w-3.5" />
+              أرشفة
+          </Button>
+      </div>
+  );
+
     return (
-        <div className="flex h-screen bg-muted/30 p-4 gap-4" dir="rtl">
-            <main className="flex-1 bg-background rounded-lg shadow-lg flex flex-col">
-                <div className="p-4 border-b flex items-center justify-between">
+        <div className="flex h-screen flex-col md:flex-row bg-muted/30 p-2 md:p-4 gap-4" dir="rtl">
+             <main className="flex-1 bg-background rounded-lg shadow-lg flex flex-col overflow-hidden">
+                 <div className="p-4 border-b flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-3">
                         <ScanLine className="h-6 w-6 text-primary" />
                         <h1 className="text-xl font-bold">محطة المسح المجمع</h1>
@@ -237,46 +269,18 @@ export default function ScanPage() {
                         </Button>
                         <Button variant="ghost" onClick={() => router.back()}>
                             <ArrowRight className="me-2 h-4 w-4" />
-                            العودة إلى لوحة التحكم
+                            العودة للوحة التحكم
                         </Button>
                     </div>
                 </div>
-                 <div className="p-4 flex items-center gap-4 border-b">
+                <div className="p-4 flex-col sm:flex-row flex items-center gap-4 border-b">
                     <Button onClick={handleSelectAll} disabled={scannedShipments.length === 0}>
                         {selectedCount === scannedShipments.length ? "إلغاء تحديد الكل" : "تحديد الكل"}
                     </Button>
-                    {selectedCount > 0 && (
-                        <div className="flex items-center gap-2">
-                             <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                     <Button variant="outline" size="sm" className="h-8 gap-1">
-                                        <CheckSquare className="h-3.5 w-3.5" />
-                                        <span>تغيير الحالة</span>
-                                     </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent>
-                                    {statuses?.filter(s => s.enabled).map((status) => (
-                                         <DropdownMenuItem key={status.id} onSelect={() => handleBulkUpdate({ status: status.id })}>
-                                             {status.label}
-                                         </DropdownMenuItem>
-                                    ))}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                             <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleBulkUpdate({ isWarehouseReturn: true })}>
-                                <Warehouse className="me-2 h-3.5 w-3.5" />
-                                تم الرجوع للمخزن
-                            </Button>
-                             <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleBulkUpdate({ isReturnedToCompany: true })}>
-                                <Building className="me-2 h-3.5 w-3.5" />
-                                تم الرجوع للشركة
-                            </Button>
-                             <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleBulkUpdate({ isArchivedForCompany: true })}>
-                                <Archive className="me-2 h-3.5 w-3.5" />
-                                أرشفة
-                            </Button>
-                        </div>
-                    )}
-                 </div>
+                    <div className="hidden md:flex items-center gap-2">
+                        {selectedCount > 0 && bulkActions}
+                    </div>
+                </div>
                 <div className="flex-1 overflow-y-auto p-4">
                     {scannedShipments.length === 0 ? (
                         <div className="text-center text-muted-foreground pt-20">
@@ -287,7 +291,7 @@ export default function ScanPage() {
                             </Button>
                         </div>
                     ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-3 pb-20 md:pb-0">
                             {scannedShipments.map(shipment => (
                                 <div key={shipment.id} className={`p-3 border rounded-lg flex items-center gap-4 transition-all duration-300 ${lastScannedId === shipment.id ? 'bg-primary/10 ring-2 ring-primary' : 'bg-card'}`}>
                                     <Checkbox 
@@ -327,6 +331,14 @@ export default function ScanPage() {
                     tabIndex={-1}
                 />
             </main>
+
+            {/* Mobile Bulk Actions Toolbar */}
+            {selectedCount > 0 && (
+                <div className="md:hidden fixed bottom-0 left-0 right-0 bg-background border-t p-2 shadow-lg flex items-center justify-between gap-2 z-50">
+                    <span className="text-sm font-semibold">{selectedCount} محددة</span>
+                    {bulkActions}
+                </div>
+            )}
             
             <QRScannerDialog 
                 open={isScannerOpen} 
@@ -351,3 +363,4 @@ export default function ScanPage() {
         </div>
     );
 }
+
