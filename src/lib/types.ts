@@ -75,6 +75,7 @@ export type Shipment = {
   isArchivedForCompany?: boolean; // For settling company accounts
   isWarehouseReturn?: boolean; // To mark if the item is physically in the warehouse
   isReturnedToCompany?: boolean; // To mark if the item has been returned to the original company
+  isExchange?: boolean; // To mark the shipment as a package-for-package exchange
 };
 
 export type ShipmentHistory = {

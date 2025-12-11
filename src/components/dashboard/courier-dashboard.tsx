@@ -22,6 +22,17 @@ import { Button } from "../ui/button";
 import { RouteSummaryPage } from "./route-summary-page";
 import type { Html5QrcodeResult } from "html5-qrcode";
 import { QRScannerDialog } from "@/components/shipments/qr-scanner-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 
 const calculateCommissionAndPaidAmount = (
     status: string,
@@ -71,6 +82,7 @@ interface CourierDashboardProps {
 export default function CourierDashboard({ user, role, searchTerm, onSearchChange }: CourierDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
+  const [exchangeAlertShipment, setExchangeAlertShipment] = React.useState<Shipment | null>(null);
   const { toast } = useToast();
   const firestore = useFirestore();
   const isMobile = useIsMobile();
@@ -180,8 +192,20 @@ export default function CourierDashboard({ user, role, searchTerm, onSearchChang
   const { data: statuses, isLoading: statusesLoading } = useCollection<ShipmentStatusConfig>(statusesQuery);
 
   const openShipmentForm = (shipment?: Shipment) => {
-    setEditingShipment(shipment);
-    setShipmentSheetOpen(true);
+    if (shipment?.isExchange) {
+        setExchangeAlertShipment(shipment);
+    } else {
+        setEditingShipment(shipment);
+        setShipmentSheetOpen(true);
+    }
+  };
+
+  const handleProceedToEdit = () => {
+    if (exchangeAlertShipment) {
+        setEditingShipment(exchangeAlertShipment);
+        setShipmentSheetOpen(true);
+        setExchangeAlertShipment(null);
+    }
   };
   
 const handleSaveShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
@@ -479,6 +503,21 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
             </div>
          </TabsContent>
        </Tabs>
+      
+      <AlertDialog open={!!exchangeAlertShipment} onOpenChange={() => setExchangeAlertShipment(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>⚠️ تنبيه: شحنة استبدال</AlertDialogTitle>
+            <AlertDialogDescription>
+              هذه الشحنة هي عملية استبدال (طرد مقابل طرد). يجب عليك استلام طرد من العميل أولاً قبل تسليم الطرد الجديد إليه.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={handleProceedToEdit}>موافق، فهمت</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
 
       <QRScannerDialog 
         open={isScannerOpen} 

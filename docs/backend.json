@@ -130,6 +130,10 @@
         "isArchived": {
             "type": "boolean",
             "description": "Flag to indicate if a shipment is archived and excluded from active calculations."
+        },
+        "isExchange": {
+            "type": "boolean",
+            "description": "Flag to indicate if a shipment is an exchange (package-for-package)."
         }
       },
       "required": [

@@ -52,6 +52,7 @@ const shipmentSchema = z.object({
   companyCommission: z.coerce.number().optional(),
   isWarehouseReturn: z.boolean().optional(),
   isReturnedToCompany: z.boolean().optional(),
+  isExchange: z.boolean().optional(),
 });
 
 const cancellationReasons = [
@@ -126,6 +127,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
       companyCommission: undefined,
       isWarehouseReturn: false,
       isReturnedToCompany: false,
+      isExchange: false,
     },
   });
   
@@ -155,6 +157,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           companyCommission: shipment.companyCommission ?? 0,
           isWarehouseReturn: shipment.isWarehouseReturn ?? false,
           isReturnedToCompany: shipment.isReturnedToCompany ?? false,
+          isExchange: shipment.isExchange ?? false,
         });
       } else {
         form.reset({
@@ -177,6 +180,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           amountChangeReason: '',
           isWarehouseReturn: false,
           isReturnedToCompany: false,
+          isExchange: false,
         });
       }
     }
@@ -456,6 +460,22 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
 
                     {/* Fields hidden for couriers */}
                      {(isAdmin || isCompany) && <>
+                      <FormField
+                        control={form.control}
+                        name="isExchange"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="isExchange" className="text-right">شحنة استبدال؟</Label>
+                                <FormControl className="col-span-3">
+                                   <Checkbox
+                                        id="isExchange"
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                    />
+                                </FormControl>
+                            </FormItem>
+                        )}
+                      />
                       <FormField
                         control={form.control}
                         name="isWarehouseReturn"

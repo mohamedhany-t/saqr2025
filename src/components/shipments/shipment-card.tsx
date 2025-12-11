@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Shipment, ShipmentStatusConfig, User } from "@/lib/types";
-import { Pencil, MessageSquare, Package, CalendarDays, Phone, Share2, Trash2, Printer, Edit } from "lucide-react";
+import { Pencil, MessageSquare, Package, CalendarDays, Phone, Share2, Trash2, Printer, Edit, Replace } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useUser, useUserProfile, useFirestore, useDoc, useMemoFirebase, useCollection } from "@/firebase";
@@ -65,7 +65,8 @@ export function ShipmentCard({
         shipmentCode,
         reason,
         createdAt,
-        senderName
+        senderName,
+        isExchange
     } = shipment;
 
     const isAdmin = userProfile?.role === 'admin';
@@ -182,7 +183,7 @@ export function ShipmentCard({
     const isPriceChangePending = status === 'PriceChangeRequested';
 
     return (
-        <Card className={cn("shadow-md border w-full overflow-hidden relative", isSelected && "ring-2 ring-primary border-primary", isPriceChangePending && "border-yellow-500 ring-2 ring-yellow-500")} onClick={handleCardClick}>
+        <Card className={cn("shadow-md border w-full overflow-hidden relative", isSelected && "ring-2 ring-primary border-primary", isPriceChangePending && "border-yellow-500 ring-2 ring-yellow-500", isExchange && "border-orange-500 ring-2 ring-orange-500")} onClick={handleCardClick}>
              {onSelectToggle && (
                  <div className="absolute top-2 left-2 z-10" onClick={(e) => e.stopPropagation()}>
                     <Checkbox
@@ -236,7 +237,13 @@ export function ShipmentCard({
                             <p className="font-semibold">{reason || 'لا يوجد'}</p>
                         </div>
                         {/* Status */}
-                        <div className="flex justify-end items-center gap-2">
+                        <div className="flex justify-end items-center gap-2 flex-wrap">
+                             {isExchange && (
+                                <Badge variant="outline" className="border-orange-600 text-orange-700 bg-orange-50 flex items-center gap-1">
+                                    <Replace className="h-3 w-3" />
+                                    <span>شحنة استبدال</span>
+                                </Badge>
+                            )}
                             <Badge variant={isPriceChangePending ? "outline" : "default"} className={cn(isPriceChangePending && "border-yellow-600 text-yellow-700")}>{statusConfig?.label || status}</Badge>
                         </div>
                      </div>
