@@ -812,17 +812,32 @@ export function ShipmentsTable({
                     )}
                     {role === 'admin' && (
                         <>
-                            <DropdownMenu>
+                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="outline" size="sm" className="h-8 gap-1">
                                         <Building className="h-3.5 w-3.5" />
-                                        <span className="sr-only sm:not-sr-only">تعيين شركة</span>
+                                        <span>تعيين شركة</span>
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent>
-                                {companies.map(company => (
+                                {(companies || []).map(company => (
                                         <DropdownMenuItem key={company.id} onSelect={() => handleGenericBulkUpdate({ companyId: company.id })}>
                                             {company.name}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="sm" className="h-8 gap-1">
+                                        <UserIcon className="h-3.5 w-3.5" />
+                                        <span>تعيين مندوب</span>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                {(couriers || []).map(courier => (
+                                        <DropdownMenuItem key={courier.id} onSelect={() => handleGenericBulkUpdate({ assignedCourierId: courier.id })}>
+                                            {courier.name}
                                         </DropdownMenuItem>
                                     ))}
                                 </DropdownMenuContent>
@@ -833,7 +848,7 @@ export function ShipmentsTable({
                             </Button>}
                         </>
                     )}
-                    {(role === 'admin' || role === 'company') && (
+                    {(role === 'company') && (
                          <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" size="sm" className="h-8 gap-1">

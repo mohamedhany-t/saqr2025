@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, getDoc, query, where, writeBatch, serverTimestamp } from 'firebase/firestore';
 import type { Shipment, Governorate, Company, User, ShipmentStatusConfig, ShipmentHistory } from '@/lib/types';
-import { Loader2, ArrowRight, ScanLine, X, CheckSquare, Trash2, Warehouse, Building, Archive, QrCode, MoreVertical } from 'lucide-react';
+import { Loader2, ArrowRight, ScanLine, X, CheckSquare, Trash2, Warehouse, Building, Archive, QrCode, MoreVertical, User as UserIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +15,8 @@ import { ShipmentFormSheet } from '@/components/shipments/shipment-form-sheet';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { QRScannerDialog } from '@/components/shipments/qr-scanner-dialog';
-import type { Html5QrcodeResult } from "html5-qrcode";
+import type { Html5QrcodeResult, QrcodeError } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 
 export default function ScanPage() {
     const [scannedShipmentIds, setScannedShipmentIds] = useState<Set<string>>(new Set());
@@ -191,7 +192,6 @@ export default function ScanPage() {
                 const historyEntry: Omit<ShipmentHistory, 'id'> = {
                     status: update.status,
                     reason: 'تحديث جماعي عبر الماسح',
-                    updatedAt: serverTimestamp(),
                     updatedBy: user.displayName || user.email || 'Admin',
                     userId: user.uid,
                 };
@@ -239,6 +239,36 @@ export default function ScanPage() {
                   ))}
               </DropdownMenuContent>
           </DropdownMenu>
+          <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-1">
+                        <UserIcon className="h-3.5 w-3.5" />
+                        <span>تعيين مندوب</span>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                {(courierUsers || []).map(courier => (
+                        <DropdownMenuItem key={courier.id} onSelect={() => handleBulkUpdate({ assignedCourierId: courier.id })}>
+                            {courier.name}
+                        </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+             <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-1">
+                        <Building className="h-3.5 w-3.5" />
+                        <span>تعيين شركة</span>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                {(companies || []).map(company => (
+                        <DropdownMenuItem key={company.id} onSelect={() => handleBulkUpdate({ companyId: company.id })}>
+                            {company.name}
+                        </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
            <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleBulkUpdate({ isWarehouseReturn: true })}>
               <Warehouse className="me-2 h-3.5 w-3.5" />
               تم الرجوع للمخزن
@@ -363,4 +393,3 @@ export default function ScanPage() {
         </div>
     );
 }
-
