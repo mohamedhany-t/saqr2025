@@ -192,6 +192,7 @@ export default function ScanPage() {
                 const historyEntry: Omit<ShipmentHistory, 'id'> = {
                     status: update.status,
                     reason: 'تحديث جماعي عبر الماسح',
+                    updatedAt: serverTimestamp(),
                     updatedBy: user.displayName || user.email || 'Admin',
                     userId: user.uid,
                 };
@@ -393,5 +394,7 @@ export default function ScanPage() {
         </div>
     );
 }
+
+    
 
     
