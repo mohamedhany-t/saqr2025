@@ -1,3 +1,4 @@
+
 import type { User as AuthUser } from 'firebase/auth';
 
 export type Role = "admin" | "company" | "courier" | "customer-service";
@@ -39,6 +40,7 @@ export type ShipmentStatusConfig = {
   affectsCourierBalance: boolean; // Determines if it's counted in courier's financial calculations
   affectsCompanyBalance: boolean; // Determines if it's counted in company's financial calculations
   enabled: boolean; // Whether the status is active and can be used
+  visibleToCourier: boolean; // Whether the status is visible in the courier's dropdown
   requiresFullCollection: boolean; // e.g., for "Delivered"
   requiresPartialCollection: boolean; // e.g., for "Partially Delivered", "Refused (Paid)"
   isDeliveredStatus: boolean; // Is this status counted as "delivered" for reports?

@@ -193,14 +193,17 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   const isCancelledStatus = selectedStatus === 'Cancelled';
 
   const courierAllowedStatuses = statuses.filter(s => {
-    // Status must be enabled
-    if (!s.enabled) return false;
-    // Hide 'PriceChangeRejected' unless it's the current status
-    if (s.id === 'PriceChangeRejected' && shipment?.status !== 'PriceChangeRejected') return false;
-    // Hide 'Delivered' for couriers, except if they are confirming a price change rejection.
-    if (isCourier && s.id === 'Delivered' && shipment?.status !== 'PriceChangeRejected') return false;
-    // If the shipment is currently in 'PriceChangeRequested' state, only allow that status to be selected
-    if (isCourier && shipment?.status === 'PriceChangeRequested' && s.id !== 'PriceChangeRequested') return false;
+    // General filters for courier
+    if (isCourier) {
+      if (!s.enabled || !s.visibleToCourier) return false;
+      // Hide 'PriceChangeRejected' unless it's the current status
+      if (s.id === 'PriceChangeRejected' && shipment?.status !== 'PriceChangeRejected') return false;
+      // If the shipment is currently in 'PriceChangeRequested' state, only allow that status to be selected
+      if (shipment?.status === 'PriceChangeRequested' && s.id !== 'PriceChangeRequested') return false;
+    } else {
+      // General filter for others (admin/company)
+      if (!s.enabled) return false;
+    }
     
     return true;
   });
@@ -383,7 +386,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        {(isCourier ? courierAllowedStatuses : statuses.filter(s => s.enabled)).map(s => (
+                                        {courierAllowedStatuses.map(s => (
                                             <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
                                         ))}
                                     </SelectContent>

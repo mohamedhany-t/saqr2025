@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, WithIdAndRef } from '@/firebase';
@@ -23,21 +24,21 @@ import {
 import Link from 'next/link';
 
 const defaultStatuses: Partial<ShipmentStatusConfig>[] = [
-    { id: 'Pending', label: 'قيد الانتظار', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
-    { id: 'In-Transit', label: 'قيد التوصيل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
-    { id: 'Delivered', label: 'تم التسليم', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: true, requiresPartialCollection: false, isDeliveredStatus: true, isReturnedStatus: false },
-    { id: 'Partially Delivered', label: 'تسليم جزئي', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true, isDeliveredStatus: true, isReturnedStatus: false },
-    { id: 'Returned', label: 'مرتجع', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
-    { id: 'Cancelled', label: 'تم الإلغاء', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
-    { id: 'Postponed', label: 'مؤجل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
-    { id: 'Returned to Sender', label: 'مرتجع للراسل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
-    { id: 'Refused (Paid)', label: 'رفض ودفع الشحن', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true, isDeliveredStatus: true, isReturnedStatus: false },
-    { id: 'Refused (Unpaid)', label: 'رفض ولم يدفع', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
-    { id: 'Evasion (Phone)', label: 'تهرب هاتفيًا', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
-    { id: 'Evasion (Delivery Attempt)', label: 'تهرب بعد الوصول', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
-    { id: 'Custom-Return', label: 'استرجاع مخصص', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, requiresFullCollection: false, requiresPartialCollection: true, isDeliveredStatus: false, isReturnedStatus: false },
-    { id: 'PriceChangeRequested', label: 'طلب تعديل سعر', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
-    { id: 'PriceChangeRejected', label: 'مرفوض - تابع مع الإدارة', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
+    { id: 'Pending', label: 'قيد الانتظار', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, visibleToCourier: false, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
+    { id: 'In-Transit', label: 'قيد التوصيل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, visibleToCourier: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
+    { id: 'Delivered', label: 'تم التسليم', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, visibleToCourier: true, requiresFullCollection: true, requiresPartialCollection: false, isDeliveredStatus: true, isReturnedStatus: false },
+    { id: 'Partially Delivered', label: 'تسليم جزئي', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, visibleToCourier: true, requiresFullCollection: false, requiresPartialCollection: true, isDeliveredStatus: true, isReturnedStatus: false },
+    { id: 'Returned', label: 'مرتجع', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, visibleToCourier: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
+    { id: 'Cancelled', label: 'تم الإلغاء', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, visibleToCourier: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
+    { id: 'Postponed', label: 'مؤجل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, visibleToCourier: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
+    { id: 'Returned to Sender', label: 'مرتجع للراسل', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, visibleToCourier: false, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
+    { id: 'Refused (Paid)', label: 'رفض ودفع الشحن', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, visibleToCourier: true, requiresFullCollection: false, requiresPartialCollection: true, isDeliveredStatus: true, isReturnedStatus: false },
+    { id: 'Refused (Unpaid)', label: 'رفض ولم يدفع', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, visibleToCourier: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
+    { id: 'Evasion (Phone)', label: 'تهرب هاتفيًا', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, visibleToCourier: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
+    { id: 'Evasion (Delivery Attempt)', label: 'تهرب بعد الوصول', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, visibleToCourier: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
+    { id: 'Custom-Return', label: 'استرجاع مخصص', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, visibleToCourier: true, requiresFullCollection: false, requiresPartialCollection: true, isDeliveredStatus: false, isReturnedStatus: false },
+    { id: 'PriceChangeRequested', label: 'طلب تعديل سعر', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, visibleToCourier: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
+    { id: 'PriceChangeRejected', label: 'مرفوض - تابع مع الإدارة', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, visibleToCourier: false, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
 ];
 
 
@@ -80,6 +81,7 @@ export default function SettingsPage() {
                         requiresPartialCollection: !!s.requiresPartialCollection,
                         isDeliveredStatus: !!s.isDeliveredStatus,
                         isReturnedStatus: !!s.isReturnedStatus,
+                        visibleToCourier: s.visibleToCourier === undefined ? true : s.visibleToCourier,
                     }));
                     setLocalStatuses(initializedStatuses);
                 }
@@ -105,6 +107,7 @@ export default function SettingsPage() {
             affectsCourierBalance: false,
             affectsCompanyBalance: false,
             enabled: true,
+            visibleToCourier: true,
             requiresFullCollection: false,
             requiresPartialCollection: false,
             isDeliveredStatus: false,
@@ -227,6 +230,7 @@ export default function SettingsPage() {
                                 <TableHead>الإجمالي = المدفوع</TableHead>
                                 <TableHead>يسمح بالتحصيل الجزئي</TableHead>
                                 <TableHead>مفعلة</TableHead>
+                                <TableHead>يظهر للمندوب</TableHead>
                                 <TableHead>إجراءات</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -288,6 +292,12 @@ export default function SettingsPage() {
                                             checked={status.enabled}
                                             onCheckedChange={() => setStatusToToggle(status)}
                                             disabled={isCoreStatus(status.id) && status.id === 'Delivered'}
+                                        />
+                                    </TableCell>
+                                     <TableCell className="text-center">
+                                        <Checkbox
+                                            checked={status.visibleToCourier}
+                                            onCheckedChange={checked => handleFieldChange(status.id, 'visibleToCourier', !!checked)}
                                         />
                                     </TableCell>
                                      <TableCell className="text-center">
