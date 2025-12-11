@@ -346,6 +346,16 @@ const MobileShipmentsView = ({
         onBulkUpdate(selectedRows, update);
     };
 
+    const handleBulkPrint = () => {
+        const selectedIds = selectedShipments.map(s => s.id);
+        if (selectedIds.length === 0) {
+            toast({ title: "لم يتم تحديد أي شحنات للطباعة", variant: "destructive" });
+            return;
+        }
+        const printUrl = `/print/bulk?ids=${selectedIds.join(',')}`;
+        window.open(printUrl, '_blank', 'width=800,height=600');
+        setMobileRowSelection({});
+    };
 
     const handleExport = () => {
         if (selectedShipments.length === 0) {
@@ -459,7 +469,7 @@ const MobileShipmentsView = ({
             <TabsContent value="archived-company">{renderShipmentList(archivedShipmentsCompany)}</TabsContent>
             <TabsContent value="archived-courier">{renderShipmentList(archivedShipmentsCourier)}</TabsContent>
             {selectedCount > 0 && (
-                <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-2 shadow-lg flex items-center justify-around gap-2 z-40">
+                <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-2 shadow-lg flex items-center justify-around flex-wrap gap-2 z-40">
                      <span className="text-sm font-medium">{selectedCount} شحنات محددة</span>
                      <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -476,6 +486,40 @@ const MobileShipmentsView = ({
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                             <Button variant="outline" size="sm">
+                                <CourierIcon className="me-2 h-4 w-4" />
+                                <span>تعيين مندوب</span>
+                             </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            {courierUsers.map((courier) => (
+                                 <DropdownMenuItem key={courier.id} onSelect={() => handleMobileBulkUpdate({ assignedCourierId: courier.id })}>
+                                     {courier.name}
+                                 </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                             <Button variant="outline" size="sm">
+                                <Building className="me-2 h-4 w-4" />
+                                <span>تعيين شركة</span>
+                             </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            {companies.map((company) => (
+                                 <DropdownMenuItem key={company.id} onSelect={() => handleMobileBulkUpdate({ companyId: company.id })}>
+                                     {company.name}
+                                 </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button variant="outline" size="sm" onClick={handleBulkPrint}>
+                        <Printer className="me-2 h-4 w-4" />
+                        <span>طباعة</span>
+                    </Button>
                     {activeTab === 'returns-with-couriers' && (
                         <>
                            <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isWarehouseReturn: true })}>
