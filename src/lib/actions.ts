@@ -29,12 +29,14 @@ function initializeAdminApp(): App {
             }, 'admin');
         } catch (e) {
             console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY. Please ensure it is a valid JSON string.', e);
+            throw new Error('Could not initialize Firebase Admin SDK due to invalid service account key.');
         }
     }
 
     // Fallback for Google Cloud environments (like Cloud Run used by Firebase App Hosting)
     // where Application Default Credentials are automatically available.
     try {
+        console.log("Attempting to initialize Firebase Admin with default credentials...");
         return initializeApp({}, 'admin');
     } catch(e) {
         console.error("Default Firebase Admin initialization failed. Ensure you have set up Application Default Credentials or the FIREBASE_SERVICE_ACCOUNT_KEY environment variable.", e);
@@ -54,6 +56,23 @@ function getAdminAuth(): Auth {
 
 function getAdminFirestore(): Firestore {
     return getFirestore(adminApp);
+}
+
+// --- VAPID Keys Initialization ---
+// Configure web-push once when the module is loaded.
+const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+
+if (vapidPublicKey && vapidPrivateKey) {
+    console.log("VAPID keys found, configuring web-push.");
+    webpush.setVapidDetails(
+        'mailto:support@alsaqr-logistics.com',
+        vapidPublicKey,
+        vapidPrivateKey
+    );
+} else {
+    // This log will appear in the server logs (Vercel Functions logs) if keys are missing
+    console.error("VAPID keys are NOT set on the server. Push notifications will fail.");
 }
 
 
@@ -124,21 +143,13 @@ export async function deleteAuthUser(userData: z.infer<typeof deleteUserSchema>)
 
 
 export async function sendPushNotification(notificationData: z.infer<typeof pushNotificationSchema>) {
-    const { recipientId, title, body, url } = pushNotificationSchema.parse(notificationData);
-    
-    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-    const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-
+    // VAPID keys are now checked and set at the module level.
     if (!vapidPublicKey || !vapidPrivateKey) {
-        console.error("VAPID keys are not set on the server. Skipping push notification.");
+        console.error("Cannot send push notification because VAPID keys are not configured.");
         return { success: false, error: "VAPID keys not set on server." };
     }
-    
-    webpush.setVapidDetails(
-        'mailto:support@alsaqr-logistics.com',
-        vapidPublicKey,
-        vapidPrivateKey
-    );
+
+    const { recipientId, title, body, url } = pushNotificationSchema.parse(notificationData);
     
     try {
         const db = getAdminFirestore();
