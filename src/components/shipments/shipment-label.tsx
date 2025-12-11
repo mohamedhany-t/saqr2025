@@ -81,7 +81,7 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
         </div>
         
         {/* Footer with Details & QR Code */}
-        <div className="grid grid-cols-2 items-end pt-1 mt-auto">
+        <div className="grid grid-cols-2 items-end pt-1 mt-2">
             <div className="text-center">
                 <div className="w-24 h-24 mx-auto">
                   {editUrl && <QRCode value={editUrl} size={96} level="M" />}
