@@ -15,7 +15,6 @@ interface ShipmentLabelProps {
   className?: string;
 }
 
-// Component for a single label with a specific key-value pair
 const InfoLine = ({ label, value, valueClass = '', labelClass = '' }: { label: string; value: React.ReactNode; valueClass?: string; labelClass?: string; }) => (
   <p className="leading-tight">
     <span className={`font-bold ${labelClass}`}>{label}:</span> <span className={valueClass}>{value}</span>
@@ -23,14 +22,13 @@ const InfoLine = ({ label, value, valueClass = '', labelClass = '' }: { label: s
 );
 
 export function ShipmentLabel({ shipment, governorateName, companyName, editUrl, className }: ShipmentLabelProps) {
-  // Style for the main container, fitting the 100mm x 100mm size
   const labelStyle: React.CSSProperties = {
     width: '100mm',
     height: '100mm',
     boxSizing: 'border-box',
     display: 'flex',
     flexDirection: 'column',
-    fontFamily: "'Cairo', sans-serif", // Explicitly set font family for printing
+    fontFamily: "'Cairo', sans-serif",
   };
 
   const formattedAmount = new Intl.NumberFormat('ar-EG', {
@@ -40,13 +38,13 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl,
 
 
   return (
-    <div id="printable-label" style={labelStyle} className={cn("bg-white border-2 border-black p-1 text-black", className)} dir="rtl">
+    <div id="printable-label" style={labelStyle} className={cn("bg-white border-2 border-black p-2 text-black flex flex-col", className)} dir="rtl">
         
         {/* Header */}
         <div className="flex justify-between items-center border-b-2 border-black pb-1 mb-1">
             <div className="text-right">
                 <h1 className="text-base font-bold">AlSaqr Logistics</h1>
-                <p className="text-xs">{companyName}</p>
+                <p className="text-xs">{shipment.senderName || companyName}</p>
             </div>
             <Logo className="w-8 h-8 flex-shrink-0" />
         </div>
@@ -54,7 +52,7 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl,
         {/* Main Content */}
         <div className='flex flex-col flex-grow'>
             {/* Recipient Info */}
-            <div className="space-y-1">
+            <div className="space-y-1 flex-grow">
                 <div className="grid grid-cols-2 gap-x-2">
                     <div className="col-span-2">
                         <InfoLine label="إلى" value={shipment.recipientName} valueClass="text-base font-bold" labelClass="text-sm" />
@@ -83,18 +81,13 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl,
         </div>
         
         {/* Footer with Details & QR Code */}
-        <div className="grid grid-cols-2 items-end pt-1 mt-2">
-            <div className="text-center">
-                <div className="w-24 h-24 mx-auto">
-                  {editUrl && <QRCode value={editUrl} size={96} level="M" />}
-                </div>
-                 <p className="text-[10px] font-mono font-bold mt-1">{shipment.shipmentCode}</p>
+        <div className="flex justify-between items-center pt-1">
+             <div className="text-center">
+                {editUrl && <QRCode value={editUrl} size={64} level="M" />}
             </div>
-             <div className="flex flex-col justify-center h-full text-center px-1">
-                <p className="text-xs leading-tight">شكرًا لاختياركم الصقر للخدمات اللوجستية.</p>
-                <p className="text-xs mt-2 leading-tight">
-                    <span className="font-bold">من:</span> {shipment.senderName || companyName}
-                </p>
+             <div className="flex flex-col h-full text-right px-1">
+                 <p className="text-xs font-bold leading-tight">رقم الشحنة: <span className="font-mono">{shipment.shipmentCode}</span></p>
+                <p className="text-[10px] mt-2 leading-tight">شكرًا لاختياركم الصقر للخدمات اللوجستية.</p>
             </div>
         </div>
     </div>
