@@ -27,9 +27,8 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
     height: '100mm',
     boxSizing: 'border-box',
     fontFamily: 'Cairo, sans-serif',
-    display: 'grid',
-    gridTemplateRows: 'auto 1fr auto', // Header, Content, Footer
-    gridTemplateColumns: '100%',
+    display: 'flex',
+    flexDirection: 'column',
   };
 
   const formattedAmount = new Intl.NumberFormat('ar-EG', {
@@ -51,7 +50,7 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
         </div>
         
         {/* Main Content */}
-        <div className='flex flex-col h-full'>
+        <div className='flex flex-col flex-grow'>
             {/* Recipient Info */}
             <div className="space-y-1">
                 <div className="grid grid-cols-2 gap-x-2">
@@ -73,7 +72,7 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
             </div>
 
             {/* Amount */}
-            <div className="text-center border-t-2 border-b-2 border-black py-1 my-1">
+            <div className="text-center border-t-2 border-b-2 border-black py-1 my-2">
                 <p className="text-sm font-bold">المبلغ المطلوب:</p>
                 <p className="text-xl font-bold">
                     {formattedAmount}
@@ -82,18 +81,18 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
         </div>
         
         {/* Footer with Details & QR Code */}
-        <div className="flex justify-around items-end pt-1">
-            <div className="flex flex-col justify-end h-full text-center">
-                <p className="text-xs">شكرًا لاختياركم الصقر للخدمات اللوجستية.</p>
-                <p className="text-xs mt-1">
-                    <span className="font-bold">من:</span> {shipment.senderName || companyName}
-                </p>
-            </div>
+        <div className="grid grid-cols-2 items-end pt-1 mt-auto">
             <div className="text-center">
                 <div className="w-24 h-24 mx-auto">
                   {editUrl && <QRCode value={editUrl} size={96} level="M" />}
                 </div>
                  <p className="text-[10px] font-mono font-bold mt-1">{shipment.shipmentCode}</p>
+            </div>
+             <div className="flex flex-col justify-center h-full text-center px-1">
+                <p className="text-xs leading-tight">شكرًا لاختياركم الصقر للخدمات اللوجستية.</p>
+                <p className="text-xs mt-2 leading-tight">
+                    <span className="font-bold">من:</span> {shipment.senderName || companyName}
+                </p>
             </div>
         </div>
     </div>
