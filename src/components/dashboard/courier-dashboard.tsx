@@ -14,7 +14,7 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
 import { StatsCards } from "@/components/dashboard/stats-cards";
-import { Loader2, MessageSquare, Database, Route, CheckCircle, Archive, Truck, QrCode } from "lucide-react";
+import { Loader2, MessageSquare, Database, Route, CheckCircle, Archive, Truck, QrCode, CalendarClock } from "lucide-react";
 import ChatInterface from "../chat/chat-interface";
 import { sendPushNotification } from "@/lib/actions";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
@@ -285,17 +285,23 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
 };
 
   
-  const { activeShipments, returnedShipments, finishedShipments } = React.useMemo(() => {
-    if (!shipments || !statuses) return { activeShipments: [], returnedShipments: [], finishedShipments: [] };
+  const { activeShipments, postponedShipments, returnedShipments, finishedShipments } = React.useMemo(() => {
+    if (!shipments || !statuses) return { activeShipments: [], postponedShipments: [], returnedShipments: [], finishedShipments: [] };
 
     const deliveredStatusIds = statuses.filter(s => s.isDeliveredStatus).map(s => s.id);
     const returnedStatusIds = statuses.filter(s => s.isReturnedStatus).map(s => s.id);
 
     const finished = shipments.filter(s => deliveredStatusIds.includes(s.status));
     const returned = shipments.filter(s => returnedStatusIds.includes(s.status));
-    const active = shipments.filter(s => !deliveredStatusIds.includes(s.status) && !returnedStatusIds.includes(s.status));
+    const postponed = shipments.filter(s => s.status === 'Postponed');
     
-    return { activeShipments: active, returnedShipments: returned, finishedShipments: finished };
+    const active = shipments.filter(s => 
+        !deliveredStatusIds.includes(s.status) && 
+        !returnedStatusIds.includes(s.status) &&
+        s.status !== 'Postponed'
+    );
+    
+    return { activeShipments: active, postponedShipments: postponed, returnedShipments: returned, finishedShipments: finished };
   }, [shipments, statuses]);
 
 
@@ -311,6 +317,7 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
   }
 
   const filteredActiveShipments = filterShipments(activeShipments);
+  const filteredPostponedShipments = filterShipments(postponedShipments);
   const filteredReturnedShipments = filterShipments(returnedShipments);
   const filteredFinishedShipments = filterShipments(finishedShipments);
 
@@ -410,6 +417,11 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
                         النشطة 
                         <Badge variant="secondary">{filteredActiveShipments.length}</Badge>
                     </TabsTrigger>
+                    <TabsTrigger value="postponed" className="flex items-center gap-2">
+                        <CalendarClock className="h-4 w-4" />
+                        المؤجلة 
+                        <Badge variant="secondary">{filteredPostponedShipments.length}</Badge>
+                    </TabsTrigger>
                     <TabsTrigger value="returned" className="flex items-center gap-2">
                         <Archive className="h-4 w-4" />
                         المرتجعات
@@ -428,6 +440,9 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
                 </div>
                 <TabsContent value="active" className="mt-4">
                   {isMobile ? renderShipmentList(filteredActiveShipments) : renderDesktopTable(filteredActiveShipments)}
+                </TabsContent>
+                <TabsContent value="postponed" className="mt-4">
+                  {isMobile ? renderShipmentList(filteredPostponedShipments) : renderDesktopTable(filteredPostponedShipments)}
                 </TabsContent>
                 <TabsContent value="returned" className="mt-4">
                   {isMobile ? renderShipmentList(filteredReturnedShipments) : renderDesktopTable(filteredReturnedShipments)}
