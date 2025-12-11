@@ -83,7 +83,7 @@ export function ReportsPage({
     const getReportColumns = (type: string): any[] => {
         const baseShipmentCols = [
           { accessorKey: "orderNumber", header: "رقم الطلب" },
-          { accessorKey: "trackingNumber", header: "رقم الشحنة" },
+          { accessorKey: "shipmentCode", header: "رقم الشحنة" },
           { accessorKey: "companyId", header: "الشركة" },
           { accessorKey: "senderName", header: "الراسل" },
           { accessorKey: "createdAt", header: "التاريخ" },
@@ -103,7 +103,7 @@ export function ReportsPage({
             case 'company_returns':
                 return [...baseShipmentCols, { accessorKey: "companyCommission", header: "عمولة الشركة" }, { accessorKey: "netDue", header: "صافي المستحق" }];
             case 'company_update':
-                 return baseShipmentCols.filter(col => !['paidAmount', 'reason'].includes(col.accessorKey));
+                 return baseShipmentCols.filter(col => !['paidAmount', 'reason', 'companyCommission'].includes(col.accessorKey));
             case 'courier_shipments':
                 return [...baseShipmentCols, { accessorKey: "courierCommission", header: "عمولة المندوب" }, { accessorKey: "netDue", header: "صافي المستحق" }];
             case 'delivered_shipments':
