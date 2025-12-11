@@ -14,7 +14,7 @@ interface ShipmentLabelProps {
 }
 
 // Component for a single label with a specific key-value pair
-const InfoLine = ({ label, value, valueClass = '', labelClass = '' }: { label: string; value: string; valueClass?: string; labelClass?: string; }) => (
+const InfoLine = ({ label, value, valueClass = '', labelClass = '' }: { label: string; value: React.ReactNode; valueClass?: string; labelClass?: string; }) => (
   <p className="leading-tight">
     <span className={`font-bold ${labelClass}`}>{label}:</span> <span className={valueClass}>{value}</span>
   </p>
@@ -26,7 +26,10 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
     width: '100mm',
     height: '100mm',
     boxSizing: 'border-box',
-    fontFamily: 'Cairo, sans-serif'
+    fontFamily: 'Cairo, sans-serif',
+    display: 'grid',
+    gridTemplateRows: 'auto 1fr auto', // Header, Content, Footer
+    gridTemplateColumns: '100%',
   };
 
   const formattedAmount = new Intl.NumberFormat('ar-EG', {
@@ -36,53 +39,59 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
 
 
   return (
-    <div id="printable-label" style={labelStyle} className="bg-white border-2 border-black p-3 flex flex-col font-sans text-black" dir="rtl">
+    <div id="printable-label" style={labelStyle} className="bg-white border-2 border-black p-2 text-black" dir="rtl">
         
         {/* Header */}
-        <div className="flex justify-between items-center border-b-2 border-black pb-2 mb-2 flex-shrink-0">
-            <div className="text-right flex-grow">
-                <h1 className="text-xl font-bold">AlSaqr Logistics</h1>
-                <p className="text-sm">{companyName}</p>
+        <div className="flex justify-between items-center border-b-2 border-black pb-1 mb-1">
+            <div className="text-right">
+                <h1 className="text-lg font-bold">AlSaqr Logistics</h1>
+                <p className="text-xs">{companyName}</p>
             </div>
-            <Logo className="w-12 h-12 flex-shrink-0" />
+            <Logo className="w-10 h-10 flex-shrink-0" />
         </div>
         
-        <div className='flex-grow flex flex-col'>
+        {/* Main Content */}
+        <div className='flex flex-col justify-between'>
             {/* Recipient Info */}
-            <div className="grid grid-cols-2 gap-x-4 mb-2">
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1">
                 <div className="col-span-2">
-                    <InfoLine label="إلى" value={shipment.recipientName} valueClass="text-lg font-bold" labelClass="text-base" />
+                    <InfoLine label="إلى" value={shipment.recipientName} valueClass="text-base font-bold" labelClass="text-sm" />
                 </div>
                 <div>
-                    <InfoLine label="الهاتف" value={shipment.recipientPhone} valueClass="text-lg font-bold" labelClass="text-base" />
+                    <InfoLine label="الهاتف" value={shipment.recipientPhone} valueClass="text-base font-bold" labelClass="text-sm" />
                 </div>
                 <div>
-                    <InfoLine label="المحافظة" value={governorateName} valueClass="text-lg font-bold" labelClass="text-base"/>
+                    <InfoLine label="المحافظة" value={governorateName} valueClass="text-base font-bold" labelClass="text-sm"/>
                 </div>
                 <div className="col-span-2">
-                    <p className="text-lg font-bold mt-1 leading-tight">
+                    <p className="text-base font-bold mt-1 leading-tight">
                         {shipment.address}
                     </p>
                 </div>
             </div>
 
             {/* Amount */}
-            <div className="text-center border-t-2 border-b-2 border-black py-1 my-2">
-                <p className="text-base font-bold">المبلغ المطلوب:</p>
-                <p className="text-2xl font-bold">
+            <div className="text-center border-t-2 border-b-2 border-black py-1 my-1">
+                <p className="text-sm font-bold">المبلغ المطلوب:</p>
+                <p className="text-xl font-bold">
                     {formattedAmount}
                 </p>
             </div>
         </div>
         
         {/* Footer with Details & QR Code */}
-        <div className="flex justify-between items-center pt-2 mt-auto flex-shrink-0">
-            <div className="flex flex-col justify-center h-full">
-                <InfoLine label="كود الشحنة" value={shipment.shipmentCode} valueClass="text-base font-mono font-bold" />
-                <p className="text-xs mt-2">شكرًا لاختياركم الصقر للخدمات اللوجستية.</p>
+        <div className="flex justify-between items-end pt-1">
+            <div className="flex flex-col justify-end h-full">
+                <p className="text-xs">شكرًا لاختياركم الصقر للخدمات اللوجستية.</p>
+                <p className="text-xs mt-1">
+                    <span className="font-bold">من:</span> {shipment.senderName || companyName}
+                </p>
             </div>
-            <div className="w-24 h-24 flex-shrink-0">
-                {editUrl && <QRCode value={editUrl} size={96} level="M" />}
+            <div className="text-center">
+                <div className="w-20 h-20 mx-auto">
+                  {editUrl && <QRCode value={editUrl} size={80} level="M" />}
+                </div>
+                 <p className="text-[10px] font-mono font-bold mt-1">{shipment.shipmentCode}</p>
             </div>
         </div>
     </div>

@@ -182,7 +182,7 @@ const BulkShipmentPrint = () => {
     return (
         <div className="bg-gray-200">
             {data.map((shipment, index) => (
-                <div key={shipment.id} className="page-break" style={{ width: '100mm', height: '100mm', margin: 'auto' }}>
+                <div key={shipment.id} className="page-break" style={{ width: '100mm', height: '100mm', margin: '0' }}>
                     <ShipmentLabel
                         shipment={shipment}
                         governorateName={shipment.governorateName}

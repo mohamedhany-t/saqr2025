@@ -89,19 +89,23 @@
 
 @media print {
     body, html {
-        background: #fff;
-        margin: 0;
-        padding: 0;
+        background: #fff !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
     main {
         margin: 0 !important;
         padding: 0 !important;
     }
     .page-break {
-        break-inside: avoid;
-        page-break-after: always;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+        page-break-before: always !important;
+        display: block;
     }
-    .page-break:last-child {
-        page-break-after: avoid;
+    .page-break:first-child {
+        page-break-before: auto !important;
     }
 }
