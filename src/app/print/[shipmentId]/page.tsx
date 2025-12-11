@@ -1,12 +1,16 @@
 
 'use client';
-import React, { useEffect, useState, Suspense } from 'react';
+import React, 'useEffect', 'useState', 'Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { doc, getDoc, getDocs, collection, query, where, documentId, Firestore } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import type { Shipment, Governorate, Company } from '@/lib/types';
 import { ShipmentLabel } from '@/components/shipments/shipment-label';
 import { Loader2 } from 'lucide-react';
+import { Cairo } from "next/font/google";
+
+// Load the Cairo font specifically for this page
+const cairo = Cairo({ subsets: ["arabic"], variable: "--font-cairo", weight: ['400', '700'] });
 
 interface PrintableShipment extends Shipment {
     governorateName: string;
@@ -86,7 +90,7 @@ const SingleShipmentPrint = () => {
         }
     }, [data, error]);
 
-    if (error) return <PrintableError error={error} />;
+    if (error) return <PrintableError />;
     if (!data) return <PrintableLoader />;
 
     return (
@@ -96,6 +100,7 @@ const SingleShipmentPrint = () => {
                 governorateName={data.governorateName}
                 companyName={data.companyName}
                 editUrl={`${originUrl}/?edit=${data.id}`}
+                className={cairo.className}
             />
         </div>
     );
@@ -176,18 +181,19 @@ const BulkShipmentPrint = () => {
         }
     }, [data, error]);
 
-    if (error) return <PrintableError error={error} />;
+    if (error) return <PrintableError />;
     if (!data) return <PrintableLoader />;
 
     return (
         <div className="bg-gray-200">
-            {data.map((shipment, index) => (
+            {data.map((shipment) => (
                 <div key={shipment.id} className="page-break" style={{ width: '100mm', height: '100mm', margin: '0' }}>
                     <ShipmentLabel
                         shipment={shipment}
                         governorateName={shipment.governorateName}
                         companyName={shipment.companyName}
                         editUrl={`${originUrl}/?edit=${shipment.id}`}
+                        className={cairo.className}
                     />
                 </div>
             ))}
@@ -196,10 +202,10 @@ const BulkShipmentPrint = () => {
 };
 
 // --- UI Components ---
-const PrintableError = ({ error }: { error: string }) => (
+const PrintableError = () => (
     <div className="flex h-screen items-center justify-center text-center p-4" dir="rtl">
         <div>
-            <h1 className="text-xl font-bold text-destructive">{error}</h1>
+            <h1 className="text-xl font-bold text-destructive">حدث خطأ</h1>
             <p className="text-muted-foreground">سيتم إغلاق هذه النافذة تلقائياً.</p>
         </div>
     </div>
@@ -224,7 +230,9 @@ function PrintView() {
 export default function PrintShipmentPage() {
     return (
         <Suspense fallback={<PrintableLoader />}>
-            <PrintView />
+            <main className={cairo.className}>
+                <PrintView />
+            </main>
         </Suspense>
     );
 }

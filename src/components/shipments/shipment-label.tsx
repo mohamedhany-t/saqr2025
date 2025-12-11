@@ -5,12 +5,14 @@ import React from 'react';
 import QRCode from 'react-qr-code';
 import { Logo } from '@/components/icons';
 import type { Shipment } from '@/lib/types';
+import { cn } from '@/lib/utils';
 
 interface ShipmentLabelProps {
   shipment: Shipment;
   governorateName: string;
   companyName: string;
   editUrl: string;
+  className?: string;
 }
 
 // Component for a single label with a specific key-value pair
@@ -20,15 +22,15 @@ const InfoLine = ({ label, value, valueClass = '', labelClass = '' }: { label: s
   </p>
 );
 
-export function ShipmentLabel({ shipment, governorateName, companyName, editUrl }: ShipmentLabelProps) {
+export function ShipmentLabel({ shipment, governorateName, companyName, editUrl, className }: ShipmentLabelProps) {
   // Style for the main container, fitting the 100mm x 100mm size
   const labelStyle: React.CSSProperties = {
     width: '100mm',
     height: '100mm',
     boxSizing: 'border-box',
-    fontFamily: 'Cairo, sans-serif',
     display: 'flex',
     flexDirection: 'column',
+    fontFamily: "'Cairo', sans-serif", // Explicitly set font family for printing
   };
 
   const formattedAmount = new Intl.NumberFormat('ar-EG', {
@@ -38,7 +40,7 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
 
 
   return (
-    <div id="printable-label" style={labelStyle} className="bg-white border-2 border-black p-1 text-black" dir="rtl">
+    <div id="printable-label" style={labelStyle} className={cn("bg-white border-2 border-black p-1 text-black", className)} dir="rtl">
         
         {/* Header */}
         <div className="flex justify-between items-center border-b-2 border-black pb-1 mb-1">
