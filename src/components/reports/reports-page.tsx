@@ -1,5 +1,4 @@
 
-
 "use client";
 import React, { useState, useEffect } from 'react';
 import type { Shipment, Company, User, Governorate, CourierPayment, CompanyPayment, ShipmentStatusConfig } from '@/lib/types';
@@ -8,7 +7,6 @@ import { Button } from '../ui/button';
 import { FileUp, Loader2, ChevronDown } from 'lucide-react';
 import { exportToExcel } from '@/lib/export';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { statusText } from '../dashboard/shipments-table';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
@@ -59,6 +57,8 @@ export function ReportsPage({
         // for now, we'll just use the `statuses` data directly in calculations.
     }, [statuses]);
 
+    const enabledStatuses = React.useMemo(() => statuses?.filter(s => s.enabled) || [], [statuses]);
+
     if (isLoading) {
         return (
             <div className="flex justify-center items-center h-64">
@@ -103,7 +103,7 @@ export function ReportsPage({
             case 'company_returns':
                 return [...baseShipmentCols, { accessorKey: "companyCommission", header: "عمولة الشركة" }, { accessorKey: "netDue", header: "صافي المستحق" }];
             case 'company_update':
-                 return baseShipmentCols.filter(col => !['paidAmount', 'reason', 'companyCommission'].includes(col.accessorKey));
+                 return baseShipmentCols.filter(col => !['paidAmount', 'reason', 'companyCommission', 'courierCommission', 'netDue'].includes(col.accessorKey));
             case 'courier_shipments':
                 return [...baseShipmentCols, { accessorKey: "courierCommission", header: "عمولة المندوب" }, { accessorKey: "netDue", header: "صافي المستحق" }];
             case 'delivered_shipments':
@@ -234,9 +234,9 @@ export function ReportsPage({
         
         const dataToExport = filteredData.map(shipment => getEnhancedShipmentData(shipment, 'courier'));
         
-        const statusString = courierReportStatuses.length > 0 ? courierReportStatuses.map(s => statusText[s] || s).join('_') : 'All';
+        const statusString = courierReportStatuses.length > 0 ? courierReportStatuses.map(s => enabledStatuses.find(es => es.id === s)?.label || s).join('_') : 'الكل';
         const dateString = new Date().toISOString().split('T')[0];
-        const fileName = `Shipments_${courier.name?.replace(/\s/g, '_')}_${statusString}_${dateString}`;
+        const fileName = `شحنات_${courier.name?.replace(/\s/g, '_')}_${statusString}_${dateString}`;
 
         handleExport(dataToExport, 'courier_shipments', fileName);
     };
@@ -320,25 +320,24 @@ export function ReportsPage({
                                                     {companyReportStatuses.length === 0
                                                         ? "اختر الحالة..."
                                                         : companyReportStatuses.length === 1
-                                                        ? statusText[companyReportStatuses[0]]
+                                                        ? enabledStatuses.find(s => s.id === companyReportStatuses[0])?.label
                                                         : `الحالة (${companyReportStatuses.length})`}
                                                 </span>
                                                 <ChevronDown className="h-4 w-4 opacity-50" />
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent className="w-56">
-                                            {Object.entries(statusText).map(([statusValue, statusLabel]) => (
+                                            {enabledStatuses.map(status => (
                                                 <DropdownMenuCheckboxItem
-                                                    key={statusValue}
-                                                    checked={companyReportStatuses.includes(statusValue)}
+                                                    key={status.id}
+                                                    checked={companyReportStatuses.includes(status.id)}
                                                     onCheckedChange={(checked) => {
-                                                        const status = statusValue;
                                                         setCompanyReportStatuses(prev => 
-                                                            checked ? [...prev, status] : prev.filter(s => s !== status)
+                                                            checked ? [...prev, status.id] : prev.filter(s => s !== status.id)
                                                         );
                                                     }}
                                                 >
-                                                    {statusLabel}
+                                                    {status.label}
                                                 </DropdownMenuCheckboxItem>
                                             ))}
                                         </DropdownMenuContent>
@@ -383,25 +382,24 @@ export function ReportsPage({
                                                     {companyUpdateStatuses.length === 0
                                                         ? "اختر الحالة..."
                                                         : companyUpdateStatuses.length === 1
-                                                        ? statusText[companyUpdateStatuses[0]]
+                                                        ? enabledStatuses.find(s => s.id === companyUpdateStatuses[0])?.label
                                                         : `الحالة (${companyUpdateStatuses.length})`}
                                                 </span>
                                                 <ChevronDown className="h-4 w-4 opacity-50" />
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent className="w-56">
-                                            {Object.entries(statusText).map(([statusValue, statusLabel]) => (
+                                            {enabledStatuses.map(status => (
                                                 <DropdownMenuCheckboxItem
-                                                    key={statusValue}
-                                                    checked={companyUpdateStatuses.includes(statusValue)}
+                                                    key={status.id}
+                                                    checked={companyUpdateStatuses.includes(status.id)}
                                                     onCheckedChange={(checked) => {
-                                                        const status = statusValue;
                                                         setCompanyUpdateStatuses(prev => 
-                                                            checked ? [...prev, status] : prev.filter(s => s !== status)
+                                                            checked ? [...prev, status.id] : prev.filter(s => s !== status.id)
                                                         );
                                                     }}
                                                 >
-                                                    {statusLabel}
+                                                    {status.label}
                                                 </DropdownMenuCheckboxItem>
                                             ))}
                                         </DropdownMenuContent>
@@ -476,25 +474,24 @@ export function ReportsPage({
                                                     {courierReportStatuses.length === 0
                                                         ? "اختر الحالة..."
                                                         : courierReportStatuses.length === 1
-                                                        ? statusText[courierReportStatuses[0]]
+                                                        ? enabledStatuses.find(s => s.id === courierReportStatuses[0])?.label
                                                         : `الحالة (${courierReportStatuses.length})`}
                                                 </span>
                                                 <ChevronDown className="h-4 w-4 opacity-50" />
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent className="w-56">
-                                            {Object.entries(statusText).map(([statusValue, statusLabel]) => (
+                                            {enabledStatuses.map(status => (
                                                 <DropdownMenuCheckboxItem
-                                                    key={statusValue}
-                                                    checked={courierReportStatuses.includes(statusValue)}
+                                                    key={status.id}
+                                                    checked={courierReportStatuses.includes(status.id)}
                                                     onCheckedChange={(checked) => {
-                                                        const status = statusValue;
                                                         setCourierReportStatuses(prev => 
-                                                            checked ? [...prev, status] : prev.filter(s => s !== status)
+                                                            checked ? [...prev, status.id] : prev.filter(s => s !== status.id)
                                                         );
                                                     }}
                                                 >
-                                                    {statusLabel}
+                                                    {status.label}
                                                 </DropdownMenuCheckboxItem>
                                             ))}
                                         </DropdownMenuContent>
