@@ -27,8 +27,9 @@ export function PwaAndNotificationHandler() {
             return;
         }
 
-        // Register the service worker
-        navigator.serviceWorker.register('/sw.js').catch(err => {
+        // Register the service worker, explicitly setting the scope to the root.
+        // This is crucial for ensuring it controls all pages, especially on platforms like Vercel.
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(err => {
             console.error('Service Worker registration failed:', err);
         });
 
