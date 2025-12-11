@@ -36,8 +36,16 @@ export function ReportsPage({
     const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
     const [selectedCourierId, setSelectedCourierId] = useState<string | null>(null);
     const [selectedCompanyForReturnsId, setSelectedCompanyForReturnsId] = useState<string | null>(null);
+    
+    // States for Supply Sheet
     const [companyReportStatuses, setCompanyReportStatuses] = useState<string[]>([]);
+
+    // States for Update Sheet
+    const [selectedCompanyForUpdateId, setSelectedCompanyForUpdateId] = useState<string | null>(null);
+    const [companyUpdateStatuses, setCompanyUpdateStatuses] = useState<string[]>([]);
+    
     const [courierReportStatuses, setCourierReportStatuses] = useState<string[]>([]);
+
     const { toast } = useToast();
     const firestore = useFirestore();
 
@@ -94,6 +102,8 @@ export function ReportsPage({
             case 'company_shipments':
             case 'company_returns':
                 return [...baseShipmentCols, { accessorKey: "companyCommission", header: "عمولة الشركة" }, { accessorKey: "netDue", header: "صافي المستحق" }];
+            case 'company_update':
+                 return baseShipmentCols.filter(col => !['paidAmount', 'reason'].includes(col.accessorKey));
             case 'courier_shipments':
                 return [...baseShipmentCols, { accessorKey: "courierCommission", header: "عمولة المندوب" }, { accessorKey: "netDue", header: "صافي المستحق" }];
             case 'delivered_shipments':
@@ -188,26 +198,31 @@ export function ReportsPage({
         return { ...shipment, netDue };
     }
 
-    const handleExportCompanyReport = () => {
-        if (!selectedCompanyId) return;
-        const company = companies.find(c => c.id === selectedCompanyId);
+    const handleExportCompanyReport = (type: 'supply' | 'update') => {
+        const companyId = type === 'supply' ? selectedCompanyId : selectedCompanyForUpdateId;
+        const statusFilters = type === 'supply' ? companyReportStatuses : companyUpdateStatuses;
+        const reportType = type === 'supply' ? 'company_shipments' : 'company_update';
+        const fileNamePrefix = type === 'supply' ? 'شيت توريد' : 'شيت ابديت';
+
+        if (!companyId) return;
+        const company = companies.find(c => c.id === companyId);
         if (!company) return;
         
-        const companyShipments = shipments.filter(s => s.companyId === selectedCompanyId && !s.isArchivedForCompany);
-        const filteredData = filterShipmentsByStatus(companyShipments, companyReportStatuses);
+        const companyShipments = shipments.filter(s => s.companyId === companyId && !s.isArchivedForCompany);
+        const filteredData = filterShipmentsByStatus(companyShipments, statusFilters);
         
         const dataToExport = filteredData.map(shipment => getEnhancedShipmentData(shipment, 'company'));
 
         const today = new Date();
         const dateString = `${today.getDate().toString().padStart(2, '0')}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getFullYear()}`;
-        const fileName = `${company.name} - شيت توريد - ${dateString}`;
+        const fileName = `${fileNamePrefix} - ${company.name} - ${dateString}`;
         
         const reportHeader = {
-            title: `شيت توريد شركة: ${company.name}`,
+            title: `${fileNamePrefix} شركة: ${company.name}`,
             date: `تاريخ التقرير: ${dateString.replace(/-/g, '/')}`
         };
 
-        handleExport(dataToExport, 'company_shipments', fileName, reportHeader);
+        handleExport(dataToExport, reportType, fileName, reportHeader);
     };
 
     const handleExportCourierReport = () => {
@@ -329,11 +344,74 @@ export function ReportsPage({
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                  </div>
-                                 <Button onClick={handleExportCompanyReport} disabled={!selectedCompanyId}>
+                                 <Button onClick={() => handleExportCompanyReport('supply')} disabled={!selectedCompanyId}>
                                      <FileUp className="me-2 h-4 w-4" />
                                      إنشاء شيت توريد
                                  </Button>
                              </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+
+            <div className="mb-8">
+                <h2 className="text-2xl font-bold mb-2">شيت أبديت للشركات</h2>
+                <p className="text-muted-foreground">
+                    اختر شركة وحالة الشحنات لاستخراج شيت تحديث مختصر (بدون بيانات مالية).
+                </p>
+                <div className="mt-4">
+                    <Card>
+                        <CardContent className="pt-6">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                                <div className="md:col-span-2">
+                                    <label className="text-sm font-medium mb-2 block">اختر الشركة</label>
+                                    <Select dir="rtl" onValueChange={setSelectedCompanyForUpdateId} value={selectedCompanyForUpdateId || ''}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="اختر شركة..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium mb-2 block">فلترة حسب الحالة</label>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="outline" className="w-full justify-between">
+                                                <span>
+                                                    {companyUpdateStatuses.length === 0
+                                                        ? "اختر الحالة..."
+                                                        : companyUpdateStatuses.length === 1
+                                                        ? statusText[companyUpdateStatuses[0]]
+                                                        : `الحالة (${companyUpdateStatuses.length})`}
+                                                </span>
+                                                <ChevronDown className="h-4 w-4 opacity-50" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent className="w-56">
+                                            {Object.entries(statusText).map(([statusValue, statusLabel]) => (
+                                                <DropdownMenuCheckboxItem
+                                                    key={statusValue}
+                                                    checked={companyUpdateStatuses.includes(statusValue)}
+                                                    onCheckedChange={(checked) => {
+                                                        const status = statusValue;
+                                                        setCompanyUpdateStatuses(prev => 
+                                                            checked ? [...prev, status] : prev.filter(s => s !== status)
+                                                        );
+                                                    }}
+                                                >
+                                                    {statusLabel}
+                                                </DropdownMenuCheckboxItem>
+                                            ))}
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                                <Button onClick={() => handleExportCompanyReport('update')} disabled={!selectedCompanyForUpdateId}>
+                                    <FileUp className="me-2 h-4 w-4" />
+                                    إنشاء شيت أبديت
+                                </Button>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
