@@ -57,8 +57,8 @@ export async function suggestAssignments(input: AssignmentInput): Promise<Assign
 
 const assignmentPrompt = ai.definePrompt({
     name: 'assignmentPrompt',
-    inputSchema: AssignmentInputSchema,
-    outputSchema: AssignmentOutputSchema,
+    input: { schema: AssignmentInputSchema },
+    output: { schema: AssignmentOutputSchema },
     prompt: `You are an expert logistics coordinator for a delivery company in Egypt.
 Your task is to assign a list of new shipments to the most suitable couriers.
 
