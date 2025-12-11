@@ -39,7 +39,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "../shipments/shipment-card";
 import { ColumnFiltersState } from "@tanstack/react-table";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
-import AutoAssignPage from "../ai/auto-assign-page";
 import { getColumns as getShipmentColumns } from './shipments-table';
 import { differenceInDays, differenceInHours } from "date-fns";
 import { ReportsPage } from "@/components/reports/reports-page";
@@ -1846,10 +1845,6 @@ const returnedToCompanyShipments = React.useMemo(() => {
     return filteredShipments.filter(s => statuses.includes(s.status));
   }
   
-  const unassignedShipments = React.useMemo(() => {
-    return shipments?.filter(s => !s.assignedCourierId && !s.isArchivedForCompany && !s.isArchivedForCourier) || [];
-  }, [shipments]);
-
   const listIsLoading = shipmentsLoading || governoratesLoading || companiesLoading || usersLoading || statusesLoading;
 
   // Filtered data for management tabs
@@ -1953,10 +1948,6 @@ const returnedToCompanyShipments = React.useMemo(() => {
                 سجل التغييرات
             </TabsTrigger>
             <TabsTrigger value="reports">التقارير</TabsTrigger>
-            <TabsTrigger value="ai-tools">
-              <Bot className="w-4 h-4 me-2" />
-              الذكاء الاصطناعي
-            </TabsTrigger>
             <TabsTrigger value="chat" className="relative">
               الدردشة
               {totalUnreadCount > 0 && (
@@ -2395,15 +2386,6 @@ const returnedToCompanyShipments = React.useMemo(() => {
                 courierPayments={courierPayments || []}
                 isLoading={listIsLoading}
              />
-        </TabsContent>
-        <TabsContent value="ai-tools">
-            <AutoAssignPage 
-                shipments={shipments || []}
-                unassignedShipments={unassignedShipments}
-                couriers={courierUsers}
-                governorates={governorates || []}
-                isLoading={listIsLoading}
-            />
         </TabsContent>
         <TabsContent value="chat">
            <ChatInterface />
