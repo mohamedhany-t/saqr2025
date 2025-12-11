@@ -97,7 +97,11 @@
         margin: 0 !important;
         padding: 0 !important;
     }
-    .page-break:not(:last-child) {
+    .page-break {
+        break-inside: avoid;
         page-break-after: always;
+    }
+    .page-break:last-child {
+        page-break-after: avoid;
     }
 }

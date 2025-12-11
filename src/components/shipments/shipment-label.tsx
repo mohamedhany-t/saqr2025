@@ -39,7 +39,7 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
     <div id="printable-label" style={labelStyle} className="bg-white border-2 border-black p-3 flex flex-col font-sans text-black" dir="rtl">
         
         {/* Header */}
-        <div className="flex justify-between items-center border-b-2 border-black pb-2 mb-2">
+        <div className="flex justify-between items-center border-b-2 border-black pb-2 mb-2 flex-shrink-0">
             <div className="text-right flex-grow">
                 <h1 className="text-xl font-bold">AlSaqr Logistics</h1>
                 <p className="text-sm">{companyName}</p>
@@ -47,34 +47,36 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
             <Logo className="w-12 h-12 flex-shrink-0" />
         </div>
         
-        {/* Recipient Info */}
-        <div className="grid grid-cols-2 gap-x-4 mb-2">
-            <div className="col-span-2">
-                <InfoLine label="إلى" value={shipment.recipientName} valueClass="text-lg font-bold" labelClass="text-base" />
+        <div className='flex-grow flex flex-col'>
+            {/* Recipient Info */}
+            <div className="grid grid-cols-2 gap-x-4 mb-2">
+                <div className="col-span-2">
+                    <InfoLine label="إلى" value={shipment.recipientName} valueClass="text-lg font-bold" labelClass="text-base" />
+                </div>
+                <div>
+                    <InfoLine label="الهاتف" value={shipment.recipientPhone} valueClass="text-lg font-bold" labelClass="text-base" />
+                </div>
+                <div>
+                    <InfoLine label="المحافظة" value={governorateName} valueClass="text-lg font-bold" labelClass="text-base"/>
+                </div>
+                <div className="col-span-2">
+                    <p className="text-lg font-bold mt-1 leading-tight">
+                        {shipment.address}
+                    </p>
+                </div>
             </div>
-            <div>
-                 <InfoLine label="الهاتف" value={shipment.recipientPhone} valueClass="text-lg font-bold" labelClass="text-base" />
-            </div>
-            <div>
-                <InfoLine label="المحافظة" value={governorateName} valueClass="text-lg font-bold" labelClass="text-base"/>
-            </div>
-             <div className="col-span-2">
-                <p className="text-lg font-bold mt-1 leading-tight">
-                    {shipment.address}
-                </p>
-             </div>
-        </div>
 
-        {/* Amount */}
-        <div className="text-center border-t-2 border-b-2 border-black py-1 my-2">
-             <p className="text-base font-bold">المبلغ المطلوب:</p>
-             <p className="text-2xl font-bold">
-                {formattedAmount}
-             </p>
+            {/* Amount */}
+            <div className="text-center border-t-2 border-b-2 border-black py-1 my-2">
+                <p className="text-base font-bold">المبلغ المطلوب:</p>
+                <p className="text-2xl font-bold">
+                    {formattedAmount}
+                </p>
+            </div>
         </div>
         
         {/* Footer with Details & QR Code */}
-        <div className="flex justify-between items-center pt-2 mt-auto">
+        <div className="flex justify-between items-center pt-2 mt-auto flex-shrink-0">
             <div className="flex flex-col justify-center h-full">
                 <InfoLine label="كود الشحنة" value={shipment.shipmentCode} valueClass="text-base font-mono font-bold" />
                 <p className="text-xs mt-2">شكرًا لاختياركم الصقر للخدمات اللوجستية.</p>
