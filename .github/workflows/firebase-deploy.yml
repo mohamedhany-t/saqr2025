@@ -3,28 +3,44 @@ name: Deploy to Firebase Hosting (on push)
 on:
   push:
     branches:
-      - main   # غيّر لو فرعك main
+      - main   # غيّر لو فرعك main لو اسم الفرع مختلف
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
+      # Checkout repo
       - uses: actions/checkout@v4
 
+      # Setup Node.js
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
+      # Install dependencies
       - name: Install dependencies
         run: npm ci
 
+      # Build project
       - name: Build
         run: npm run build
 
+      # Install Firebase CLI
+      - name: Install firebase-tools
+        run: npm i -g firebase-tools
+
+      # Ensure webframeworks experiment is enabled
+      - name: Enable Firebase webframeworks experiment
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          firebase experiments:enable webframeworks --project studio-9762882993-dc7cd --token "$FIREBASE_TOKEN" || true
+
+      # Deploy to Firebase Hosting
       - name: Deploy to Firebase
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         run: |
-          npm i -g firebase-tools
-          firebase deploy --only hosting --token "$FIREBASE_TOKEN"
+          firebase deploy --only hosting --project studio-9762882993-dc7cd --token "$FIREBASE_TOKEN"
