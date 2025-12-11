@@ -73,7 +73,7 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
             </div>
 
             {/* Amount */}
-            <div className="text-center border-t-2 border-b-2 border-black py-1 mt-auto">
+            <div className="text-center border-t-2 border-b-2 border-black py-1 my-1">
                 <p className="text-sm font-bold">المبلغ المطلوب:</p>
                 <p className="text-xl font-bold">
                     {formattedAmount}
@@ -83,7 +83,7 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl 
         
         {/* Footer with Details & QR Code */}
         <div className="flex justify-around items-end pt-1">
-            <div className="flex flex-col justify-end h-full">
+            <div className="flex flex-col justify-end h-full text-center">
                 <p className="text-xs">شكرًا لاختياركم الصقر للخدمات اللوجستية.</p>
                 <p className="text-xs mt-1">
                     <span className="font-bold">من:</span> {shipment.senderName || companyName}
