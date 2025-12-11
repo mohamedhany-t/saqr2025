@@ -1,6 +1,6 @@
 
 'use client';
-import React, 'useEffect', 'useState', 'Suspense } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { doc, getDoc, getDocs, collection, query, where, documentId, Firestore } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
@@ -187,7 +187,7 @@ const BulkShipmentPrint = () => {
     return (
         <div className="bg-gray-200">
             {data.map((shipment) => (
-                <div key={shipment.id} className="page-break" style={{ width: '100mm', height: '100mm', margin: '0' }}>
+                <div key={shipment.id} className="page-break" style={{ width: '100mm', height: '100mm', display: 'block', margin: '0' }}>
                     <ShipmentLabel
                         shipment={shipment}
                         governorateName={shipment.governorateName}
