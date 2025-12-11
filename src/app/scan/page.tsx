@@ -15,7 +15,7 @@ import { ShipmentFormSheet } from '@/components/shipments/shipment-form-sheet';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { QRScannerDialog } from '@/components/shipments/qr-scanner-dialog';
-import type { Html5QrcodeResult, QrcodeError } from "html5-qrcode";
+import type { Html5QrcodeResult } from "html5-qrcode";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 
 export default function ScanPage() {
@@ -393,3 +393,5 @@ export default function ScanPage() {
         </div>
     );
 }
+
+    
