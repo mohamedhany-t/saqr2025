@@ -20,6 +20,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
 import { sendPushNotification } from "@/lib/actions";
 import Link from "next/link";
+import { ShipmentFilters } from "./shipment-filters";
+import type { ColumnFiltersState } from "@tanstack/react-table";
 
 const ProblemShipmentList = ({ title, icon, shipments, onEdit, children }: { title: string, icon: React.ReactNode, shipments: Shipment[], onEdit: (s: Shipment) => void, children?: (shipment: Shipment) => React.ReactNode }) => {
     if (shipments.length === 0) {
@@ -64,6 +66,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
 
   // --- Data Fetching ---
   const shipmentsQuery = useMemoFirebase(() => {
@@ -212,9 +215,26 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
   
   const filteredShipments = React.useMemo(() => {
     if (!shipments) return [];
-    if (!searchTerm) return shipments;
+    
+    let baseShipments = shipments;
+
+    if (columnFilters.length > 0) {
+        baseShipments = baseShipments.filter(shipment => {
+            return columnFilters.every(filter => {
+                const value = (shipment as any)[filter.id];
+                const filterValue = filter.value as string[];
+                if (Array.isArray(filterValue) && filterValue.length > 0) {
+                    return filterValue.includes(value);
+                }
+                return true;
+            });
+        });
+    }
+
+    if (!searchTerm) return baseShipments;
+    
     const lowercasedTerm = searchTerm.toLowerCase();
-    return shipments.filter(shipment =>
+    return baseShipments.filter(shipment =>
       String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
       String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
       String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
@@ -222,7 +242,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
       String(shipment.trackingNumber || '').toLowerCase().includes(lowercasedTerm) ||
       String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
     );
-  }, [shipments, searchTerm]);
+  }, [shipments, searchTerm, columnFilters]);
 
   // --- Problem Inbox Data ---
   const returnedShipmentsNeedingAction = React.useMemo(() => shipments?.filter(s => s.status === 'Returned' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
@@ -319,6 +339,15 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
         <StatsCards shipments={shipments || []} role={role} />
         <TabsContent value="shipments">
           <Tabs defaultValue="all-shipments">
+            <div className="flex items-center gap-4 flex-wrap mt-4">
+               <ShipmentFilters
+                  governorates={governorates || []}
+                  companies={companies || []}
+                  courierUsers={courierUsers || []}
+                  statuses={statuses || []}
+                  onFiltersChange={setColumnFilters}
+                />
+            </div>
             <TabsList className="flex-nowrap overflow-x-auto justify-start mt-4">
               <TabsTrigger value="all-shipments">الكل</TabsTrigger>
               <TabsTrigger value="pending">قيد الانتظار</TabsTrigger>
