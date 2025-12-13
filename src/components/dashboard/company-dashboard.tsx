@@ -300,14 +300,27 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
     }
   };
 
-  const handleSaveShipment = async (shipment: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
+  const handleSaveShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
     if (!firestore || !user) return;
-
+  
     const cleanShipmentData: { [key: string]: any } = Object.fromEntries(
-      Object.entries(shipment).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+      Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== '')
     );
+  
+    // Add automatic notes
+    let notes = [];
+    if (cleanShipmentData.isExchange) notes.push("شحنة استبدال");
+    if (cleanShipmentData.isCustomReturn) notes.push("شحنة استرجاع مخصص");
+    
+    // Combine new notes with existing reason, avoiding duplicates
+    const existingReason = editingShipment?.reason || '';
+    const newNotes = notes.filter(n => !existingReason.includes(n)).join(' - ');
+    if (newNotes) {
+      cleanShipmentData.reason = existingReason ? `${existingReason} - ${newNotes}` : newNotes;
+    }
+  
     const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
-
+  
     const batch = writeBatch(firestore);
     const shipmentRef = id ? doc(firestore, 'shipments', id) : doc(collection(firestore, 'shipments'));
     let oldStatus: string | undefined;
@@ -326,7 +339,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
             updatedAt: serverTimestamp() 
           });
     }
-
+  
     const newStatus = cleanShipmentData.status as string;
     if (newStatus && newStatus !== oldStatus) {
         const historyRef = doc(collection(shipmentRef, 'history'));
@@ -347,11 +360,11 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
           description: `تمت العملية بنجاح`,
         });
         handleSheetOpenChange(false);
-        if (shipment.assignedCourierId) {
+        if (shipmentData.assignedCourierId) {
           sendPushNotification({
-            recipientId: shipment.assignedCourierId,
+            recipientId: shipmentData.assignedCourierId,
             title: 'شحنة جديدة',
-            body: `تم تعيين شحنة جديدة لك: ${shipment.recipientName}`,
+            body: `تم تعيين شحنة جديدة لك: ${shipmentData.recipientName}`,
             url: notificationUrl,
           }).catch(console.error);
         }

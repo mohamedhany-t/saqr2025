@@ -893,6 +893,19 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== '')
     );
     
+    // Add automatic notes
+    let notes = [];
+    if (dataToSave.isExchange) notes.push("شحنة استبدال");
+    if (dataToSave.isCustomReturn) notes.push("شحنة استرجاع مخصص");
+    
+    // Combine new notes with existing reason, avoiding duplicates
+    const existingReason = shipment?.reason || '';
+    const newNotes = notes.filter(n => !existingReason.includes(n)).join(' - ');
+    if (newNotes) {
+        dataToSave.reason = existingReason ? `${existingReason} - ${newNotes}` : newNotes;
+    }
+
+
     dataToSave.updatedAt = serverTimestamp();
 
     let originalShipment: Shipment | undefined;
