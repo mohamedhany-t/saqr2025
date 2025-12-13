@@ -79,6 +79,7 @@ const updateShipmentStatusSchema = zod_1.z.object({
     isArchivedForCourier: zod_1.z.boolean().optional(),
     isArchivedForCompany: zod_1.z.boolean().optional(),
     senderName: zod_1.z.string().optional(),
+    isCustomReturn: zod_1.z.boolean().optional(),
 });
 exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
@@ -115,6 +116,7 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
         const shipmentRef = db.collection('shipments').doc(shipmentId);
         try {
             const result = await db.runTransaction(async (transaction) => {
+                var _a, _b, _c;
                 const shipmentDoc = await transaction.get(shipmentRef);
                 if (!shipmentDoc.exists) {
                     throw new functions.https.HttpsError("not-found", "Shipment not found.");
@@ -135,6 +137,15 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
                     if (Object.prototype.hasOwnProperty.call(validatedData, key) && validatedData[key] !== undefined && key !== 'shipmentId') {
                         finalShipmentUpdate[key] = validatedData[key];
                     }
+                }
+                // If isCustomReturn is true and the status is a "delivered" status, make the paidAmount negative.
+                const isCustomReturn = shipmentData.isCustomReturn === true || validatedData.isCustomReturn === true;
+                const statusConfigDoc = await db.collection('shipment_statuses').doc(validatedData.status).get();
+                const isDeliveredStatus = statusConfigDoc.exists && ((_a = statusConfigDoc.data()) === null || _a === void 0 ? void 0 : _a.isDeliveredStatus) === true;
+                if (isCustomReturn && isDeliveredStatus) {
+                    const totalAmount = (_c = (_b = validatedData.totalAmount) !== null && _b !== void 0 ? _b : shipmentData.totalAmount) !== null && _c !== void 0 ? _c : 0;
+                    finalShipmentUpdate.paidAmount = -Math.abs(totalAmount);
+                    finalShipmentUpdate.collectedAmount = -Math.abs(totalAmount);
                 }
                 const historyRef = shipmentRef.collection('history').doc();
                 const historyEntry = {
