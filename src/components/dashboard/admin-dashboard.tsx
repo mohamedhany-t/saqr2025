@@ -966,7 +966,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
                 const senderNameValue = row['الراسل'] || row['العميل الفرعى'];
                 
-                let shipmentCodeValue = row['كود الشحنه']?.toString().trim();
+                let shipmentCodeValue = row['رقم الشحنه']?.toString().trim();
                 if (!shipmentCodeValue) {
                     shipmentCodeValue = `SK-${Date.now()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
                 }
