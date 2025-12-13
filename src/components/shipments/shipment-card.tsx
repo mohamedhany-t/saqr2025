@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Shipment, ShipmentStatusConfig, User } from "@/lib/types";
-import { Pencil, MessageSquare, Package, CalendarDays, Phone, Share2, Trash2, Printer, Edit, Replace } from "lucide-react";
+import { Pencil, MessageSquare, Package, CalendarDays, Phone, Share2, Trash2, Printer, Edit, Replace, Star, Archive } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useUser, useUserProfile, useFirestore, useDoc, useMemoFirebase, useCollection } from "@/firebase";
@@ -66,7 +66,9 @@ export function ShipmentCard({
         reason,
         createdAt,
         senderName,
-        isExchange
+        isExchange,
+        isUrgent,
+        isCustomReturn,
     } = shipment;
 
     const isAdmin = userProfile?.role === 'admin';
@@ -185,7 +187,12 @@ export function ShipmentCard({
     const isPriceChangePending = status === 'PriceChangeRequested';
 
     return (
-        <Card className={cn("shadow-md border w-full overflow-hidden relative", isSelected && "ring-2 ring-primary border-primary", isPriceChangePending && "border-yellow-500 ring-2 ring-yellow-500", isExchange && "border-orange-500 ring-2 ring-orange-500")} onClick={handleCardClick}>
+        <Card className={cn(
+            "shadow-md border w-full overflow-hidden relative transition-all", 
+            isSelected && "ring-2 ring-primary border-primary", 
+            isPriceChangePending && "border-yellow-500 ring-2 ring-yellow-500", 
+            isUrgent && "border-red-500 ring-2 ring-red-500"
+        )} onClick={handleCardClick}>
              {onSelectToggle && (
                  <div className="absolute top-2 left-2 z-10" onClick={(e) => e.stopPropagation()}>
                     <Checkbox
@@ -240,10 +247,22 @@ export function ShipmentCard({
                         </div>
                         {/* Status */}
                         <div className="flex justify-end items-center gap-2 flex-wrap">
+                            {isUrgent && (
+                                <Badge variant="destructive" className="flex items-center gap-1">
+                                    <Star className="h-3 w-3" />
+                                    <span>مستعجلة</span>
+                                </Badge>
+                            )}
                              {isExchange && (
                                 <Badge variant="outline" className="border-orange-600 text-orange-700 bg-orange-50 flex items-center gap-1">
                                     <Replace className="h-3 w-3" />
-                                    <span>شحنة استبدال</span>
+                                    <span>استبدال</span>
+                                </Badge>
+                            )}
+                            {isCustomReturn && (
+                                <Badge variant="outline" className="border-blue-600 text-blue-700 bg-blue-50 flex items-center gap-1">
+                                    <Archive className="h-3 w-3" />
+                                    <span>استرجاع</span>
                                 </Badge>
                             )}
                             <Badge variant={isPriceChangePending ? "outline" : "default"} className={cn(isPriceChangePending && "border-yellow-600 text-yellow-700")}>{statusConfig?.label || status}</Badge>

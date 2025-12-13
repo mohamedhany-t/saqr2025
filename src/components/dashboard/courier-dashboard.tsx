@@ -284,7 +284,7 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
 
         const payload: any = {
             shipmentId: row.id,
-            status: update.status,
+            status: update.status!,
             reason: update.reason || 'تحديث جماعي',
             ...calculatedFields
         };
@@ -319,11 +319,18 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
     const returned = shipments.filter(s => returnedStatusIds.includes(s.status));
     const postponed = shipments.filter(s => s.status === 'Postponed');
     
-    const active = shipments.filter(s => 
+    let active = shipments.filter(s => 
         !deliveredStatusIds.includes(s.status) && 
         !returnedStatusIds.includes(s.status) &&
         s.status !== 'Postponed'
     );
+    
+    // Sort active shipments to show urgent ones first
+    active.sort((a, b) => {
+        const aUrgent = a.isUrgent ? 1 : 0;
+        const bUrgent = b.isUrgent ? 1 : 0;
+        return bUrgent - aUrgent;
+    });
     
     return { activeShipments: active, postponedShipments: postponed, returnedShipments: returned, finishedShipments: finished };
   }, [shipments, statuses]);

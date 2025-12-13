@@ -36,7 +36,6 @@ const defaultStatuses: Partial<ShipmentStatusConfig>[] = [
     { id: 'Refused (Unpaid)', label: 'رفض ولم يدفع', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, visibleToCourier: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
     { id: 'Evasion (Phone)', label: 'تهرب هاتفيًا', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, visibleToCourier: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
     { id: 'Evasion (Delivery Attempt)', label: 'تهرب بعد الوصول', affectsCourierBalance: true, affectsCompanyBalance: false, enabled: true, visibleToCourier: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: true },
-    { id: 'Custom-Return', label: 'استرجاع مخصص', affectsCourierBalance: true, affectsCompanyBalance: true, enabled: true, visibleToCourier: true, requiresFullCollection: false, requiresPartialCollection: true, isDeliveredStatus: false, isReturnedStatus: false },
     { id: 'PriceChangeRequested', label: 'طلب تعديل سعر', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, visibleToCourier: true, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
     { id: 'PriceChangeRejected', label: 'مرفوض - تابع مع الإدارة', affectsCourierBalance: false, affectsCompanyBalance: false, enabled: true, visibleToCourier: false, requiresFullCollection: false, requiresPartialCollection: false, isDeliveredStatus: false, isReturnedStatus: false },
 ];
@@ -350,5 +349,3 @@ export default function SettingsPage() {
         </div>
     );
 }
-
-    

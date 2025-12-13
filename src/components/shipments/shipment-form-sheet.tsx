@@ -54,6 +54,8 @@ const shipmentSchema = z.object({
   isWarehouseReturn: z.boolean().optional(),
   isReturnedToCompany: z.boolean().optional(),
   isExchange: z.boolean().optional(),
+  isUrgent: z.boolean().optional(),
+  isCustomReturn: z.boolean().optional(),
 });
 
 const cancellationReasons = [
@@ -138,6 +140,8 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
       isWarehouseReturn: false,
       isReturnedToCompany: false,
       isExchange: false,
+      isUrgent: false,
+      isCustomReturn: false,
     },
   });
   
@@ -168,6 +172,8 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           isWarehouseReturn: shipment.isWarehouseReturn ?? false,
           isReturnedToCompany: shipment.isReturnedToCompany ?? false,
           isExchange: shipment.isExchange ?? false,
+          isUrgent: shipment.isUrgent ?? false,
+          isCustomReturn: shipment.isCustomReturn ?? false,
         });
       } else {
         form.reset({
@@ -191,6 +197,8 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           isWarehouseReturn: false,
           isReturnedToCompany: false,
           isExchange: false,
+          isUrgent: false,
+          isCustomReturn: false,
         });
       }
     }
@@ -475,22 +483,48 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
 
                     {/* Fields hidden for couriers */}
                      {(isAdmin || isCompany) && <>
-                      <FormField
-                        control={form.control}
-                        name="isExchange"
-                        render={({ field }) => (
-                            <FormItem className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="isExchange" className="text-right">شحنة استبدال؟</Label>
-                                <FormControl className="col-span-3">
-                                   <Checkbox
-                                        id="isExchange"
-                                        checked={field.value}
-                                        onCheckedChange={field.onChange}
-                                    />
-                                </FormControl>
-                            </FormItem>
-                        )}
-                      />
+                      <div className="grid grid-cols-4 items-center gap-4">
+                          <FormLabel className="text-right">خيارات إضافية</FormLabel>
+                          <div className="col-span-3 flex items-center gap-4 flex-wrap">
+                            <FormField
+                                control={form.control}
+                                name="isUrgent"
+                                render={({ field }) => (
+                                    <FormItem className="flex items-center gap-2 space-y-0">
+                                        <FormControl>
+                                            <Checkbox checked={field.value} onCheckedChange={field.onChange} id="isUrgent" />
+                                        </FormControl>
+                                        <Label htmlFor="isUrgent">شحنة مستعجلة</Label>
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="isExchange"
+                                render={({ field }) => (
+                                    <FormItem className="flex items-center gap-2 space-y-0">
+                                        <FormControl>
+                                            <Checkbox checked={field.value} onCheckedChange={field.onChange} id="isExchange" />
+                                        </FormControl>
+                                        <Label htmlFor="isExchange">شحنة استبدال</Label>
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="isCustomReturn"
+                                render={({ field }) => (
+                                    <FormItem className="flex items-center gap-2 space-y-0">
+                                        <FormControl>
+                                           <Checkbox checked={field.value} onCheckedChange={field.onChange} id="isCustomReturn" />
+                                        </FormControl>
+                                        <Label htmlFor="isCustomReturn">استرجاع مخصص</Label>
+                                    </FormItem>
+                                )}
+                              />
+                          </div>
+                      </div>
+
                       <FormField
                         control={form.control}
                         name="isWarehouseReturn"

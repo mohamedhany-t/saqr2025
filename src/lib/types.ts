@@ -29,7 +29,6 @@ export type ShipmentStatusKey =
   | "Returned to Sender"
   | "Refused (Paid)"
   | "Refused (Unpaid)"
-  | "Custom-Return"
   | "PriceChangeRequested"
   | "PriceChangeRejected";
 
@@ -76,6 +75,8 @@ export type Shipment = {
   isWarehouseReturn?: boolean; // To mark if the item is physically in the warehouse
   isReturnedToCompany?: boolean; // To mark if the item has been returned to the original company
   isExchange?: boolean; // To mark the shipment as a package-for-package exchange
+  isUrgent?: boolean; // To mark the shipment as urgent
+  isCustomReturn?: boolean; // To mark the shipment as a custom return
 };
 
 export type ShipmentHistory = {
