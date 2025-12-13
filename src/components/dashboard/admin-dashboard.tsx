@@ -968,7 +968,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 let shipmentCodeValue = codeFromSheet ? String(codeFromSheet).trim() : null;
 
                 if (!shipmentCodeValue) {
-                    shipmentCodeValue = `SK-${Date.now()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+                    const date = new Date();
+                    const dateString = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
+                    const randomNum = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+                    shipmentCodeValue = `SK-${dateString}-${randomNum}`;
                 }
 
                 const shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>> = {

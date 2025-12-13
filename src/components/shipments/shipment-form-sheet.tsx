@@ -29,6 +29,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
+import { RefreshCw } from 'lucide-react';
 
 const shipmentSchema = z.object({
   shipmentCode: z.string().optional(),
@@ -77,6 +78,13 @@ type ShipmentFormSheetProps = {
     statuses: ShipmentStatusConfig[];
     role: Role | null;
 }
+
+const generateShipmentCode = () => {
+    const date = new Date();
+    const dateString = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
+    const randomNum = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+    return `SH-${dateString}-${randomNum}`;
+};
 
 export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave, governorates, couriers, companies, statuses, role }: ShipmentFormSheetProps) {
   const isEditing = !!shipment;
@@ -161,7 +169,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
         });
       } else {
         form.reset({
-          shipmentCode: `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
+          shipmentCode: generateShipmentCode(),
           senderName: "",
           orderNumber: "",
           recipientName: "",
@@ -272,9 +280,14 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                         render={({ field }) => (
                             <FormItem className="grid grid-cols-4 items-center gap-4">
                                 <FormLabel className="text-right">كود الشحنة</FormLabel>
-                                <FormControl className="col-span-3">
-                                    <Input {...field} disabled />
-                                </FormControl>
+                                <div className="col-span-3 flex items-center gap-2">
+                                  <FormControl>
+                                      <Input {...field} />
+                                  </FormControl>
+                                  <Button type="button" variant="outline" size="icon" onClick={() => field.onChange(generateShipmentCode())}>
+                                      <RefreshCw className="h-4 w-4" />
+                                  </Button>
+                                </div>
                             </FormItem>
                         )}
                       />
