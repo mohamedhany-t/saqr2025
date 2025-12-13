@@ -59,9 +59,11 @@ const shipmentSchema = z.object({
 const cancellationReasons = [
     "عدم رد",
     "مغلق",
-    "مشغول أو خاصيه",
+    "مشغول",
+    "بريد صوتي",
     "رقم خطأ",
     "تهرب هاتفيا",
+    "مكرر",
     "منطقه غير مخدومه",
 ];
 
@@ -83,7 +85,7 @@ const generateShipmentCode = () => {
     const date = new Date();
     const dateString = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
     const randomNum = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-    return `SH-${dateString}-${randomNum}`;
+    return `SK-${dateString}-${randomNum}`;
 };
 
 export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSave, governorates, couriers, companies, statuses, role }: ShipmentFormSheetProps) {
