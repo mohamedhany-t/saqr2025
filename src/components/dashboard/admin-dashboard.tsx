@@ -967,7 +967,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
                 const senderNameValue = row['الراسل'] || row['العميل الفرعى'];
                 
-                let shipmentCodeValue = row['رقم الشحنه']?.toString().trim() || null;
+                // Prioritize 'كود الشحنة', then 'رقم الشحنه'
+                const codeFromSheet = row['كود الشحنة'] || row['رقم الشحنه'];
+                let shipmentCodeValue = codeFromSheet ? String(codeFromSheet).trim() : null;
+
                 if (!shipmentCodeValue) {
                     shipmentCodeValue = `SK-${Date.now()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
                 }
