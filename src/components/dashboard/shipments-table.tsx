@@ -42,7 +42,8 @@ import {
     PhoneOff,
     ArchiveRestore,
     Warehouse,
-    Edit
+    Edit,
+    BellRing
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -756,6 +757,12 @@ export function ShipmentsTable({
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
+                    {role === 'admin' && (
+                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ retryAttempt: true })}>
+                            <BellRing className="me-2 h-3.5 w-3.5" />
+                            إعادة محاولة
+                        </Button>
+                    )}
                     {role === 'admin' && activeTab === 'returns-with-couriers' && (
                         <>
                            <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isWarehouseReturn: true })}>
@@ -900,6 +907,7 @@ export function ShipmentsTable({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
+                  className={row.original.retryAttempt ? "bg-yellow-100/50 dark:bg-yellow-900/20" : ""}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} className={cn("text-right", cell.column.id === 'status' && 'min-w-[180px]')}>

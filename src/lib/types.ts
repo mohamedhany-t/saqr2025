@@ -77,6 +77,7 @@ export type Shipment = {
   isExchange?: boolean; // To mark the shipment as a package-for-package exchange
   isUrgent?: boolean; // To mark the shipment as urgent
   isCustomReturn?: boolean; // To mark the shipment as a custom return
+  retryAttempt?: boolean; // To mark the shipment for a retry attempt
 };
 
 export type ShipmentHistory = {

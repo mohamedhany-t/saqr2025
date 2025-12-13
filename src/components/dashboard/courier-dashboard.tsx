@@ -14,7 +14,7 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
 import { StatsCards } from "@/components/dashboard/stats-cards";
-import { Loader2, MessageSquare, Database, Route, CheckCircle, Archive, Truck, QrCode, CalendarClock } from "lucide-react";
+import { Loader2, MessageSquare, Database, Route, CheckCircle, Archive, Truck, QrCode, CalendarClock, RefreshCw } from "lucide-react";
 import ChatInterface from "../chat/chat-interface";
 import { sendPushNotification } from "@/lib/actions";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
@@ -91,6 +91,9 @@ export default function CourierDashboard({ user, role, searchTerm, onSearchChang
   const searchParams = useSearchParams();
   const app = useFirebaseApp();
   const [isScannerOpen, setIsScannerOpen] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState("active");
+  const [showRetryPopup, setShowRetryPopup] = React.useState(false);
+
   
   const chatsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.id) return null;
@@ -229,6 +232,7 @@ const handleSaveShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'c
             shipmentId: id,
             status: shipmentData.status,
             reason: shipmentData.reason,
+            retryAttempt: false, // Reset retry flag on any update
             ...calculatedFields,
         };
 
@@ -309,20 +313,22 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
 };
 
   
-  const { activeShipments, postponedShipments, returnedShipments, finishedShipments } = React.useMemo(() => {
-    if (!shipments || !statuses) return { activeShipments: [], postponedShipments: [], returnedShipments: [], finishedShipments: [] };
+  const { activeShipments, postponedShipments, returnedShipments, finishedShipments, retryShipments } = React.useMemo(() => {
+    if (!shipments || !statuses) return { activeShipments: [], postponedShipments: [], returnedShipments: [], finishedShipments: [], retryShipments: [] };
 
     const deliveredStatusIds = statuses.filter(s => s.isDeliveredStatus).map(s => s.id);
     const returnedStatusIds = statuses.filter(s => s.isReturnedStatus).map(s => s.id);
 
+    const retry = shipments.filter(s => s.retryAttempt === true);
     const finished = shipments.filter(s => deliveredStatusIds.includes(s.status));
-    const returned = shipments.filter(s => returnedStatusIds.includes(s.status));
-    const postponed = shipments.filter(s => s.status === 'Postponed');
+    const returned = shipments.filter(s => returnedStatusIds.includes(s.status) && !s.retryAttempt);
+    const postponed = shipments.filter(s => s.status === 'Postponed' && !s.retryAttempt);
     
     let active = shipments.filter(s => 
         !deliveredStatusIds.includes(s.status) && 
         !returnedStatusIds.includes(s.status) &&
-        s.status !== 'Postponed'
+        s.status !== 'Postponed' &&
+        !s.retryAttempt
     );
     
     // Sort active shipments to show urgent ones first
@@ -332,9 +338,15 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
         return bUrgent - aUrgent;
     });
     
-    return { activeShipments: active, postponedShipments: postponed, returnedShipments: returned, finishedShipments: finished };
+    return { activeShipments: active, postponedShipments: postponed, returnedShipments: returned, finishedShipments: finished, retryShipments: retry };
   }, [shipments, statuses]);
 
+  // Effect to show the retry popup
+  React.useEffect(() => {
+      if (retryShipments.length > 0) {
+          setShowRetryPopup(true);
+      }
+  }, [retryShipments.length]);
 
   const filterShipments = (list: Shipment[]) => {
       if (!searchTerm) return list;
@@ -351,6 +363,7 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
   const filteredPostponedShipments = filterShipments(postponedShipments);
   const filteredReturnedShipments = filterShipments(returnedShipments);
   const filteredFinishedShipments = filterShipments(finishedShipments);
+  const filteredRetryShipments = filterShipments(retryShipments);
 
 
   const renderShipmentList = (shipmentList: Shipment[]) => {
@@ -440,9 +453,14 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
         </TabsList>
          <TabsContent value="shipments">
             <div className="p-4 sm:p-0">
-              <Tabs defaultValue="active">
+              <Tabs defaultValue={activeTab} onValueChange={setActiveTab} value={activeTab}>
                 <div className="flex items-center">
                   <TabsList className="flex-nowrap overflow-x-auto justify-start">
+                    <TabsTrigger value="retry" className="flex items-center gap-2 text-yellow-600 data-[state=active]:border-yellow-500 data-[state=active]:text-yellow-600">
+                        <RefreshCw className="h-4 w-4" />
+                        إعادة محاولة
+                        {filteredRetryShipments.length > 0 && <Badge variant="destructive" className="h-5 w-5 justify-center p-0">{filteredRetryShipments.length}</Badge>}
+                    </TabsTrigger>
                     <TabsTrigger value="active" className="flex items-center gap-2">
                         <Truck className="h-4 w-4" />
                         النشطة 
@@ -469,6 +487,9 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
                     <span>مسح باركود</span>
                   </Button>
                 </div>
+                <TabsContent value="retry" className="mt-4">
+                  {isMobile ? renderShipmentList(filteredRetryShipments) : renderDesktopTable(filteredRetryShipments)}
+                </TabsContent>
                 <TabsContent value="active" className="mt-4">
                   {isMobile ? renderShipmentList(filteredActiveShipments) : renderDesktopTable(filteredActiveShipments)}
                 </TabsContent>
@@ -510,6 +531,26 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
             </div>
          </TabsContent>
        </Tabs>
+
+      <AlertDialog open={showRetryPopup} onOpenChange={setShowRetryPopup}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>تنبيه: شحنات لإعادة المحاولة</AlertDialogTitle>
+            <AlertDialogDescription>
+              لديك {retryShipments.length} شحنة تتطلب إعادة محاولة تسليم. هل تود عرضها الآن؟
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>لاحقاً</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              setActiveTab("retry");
+              setShowRetryPopup(false);
+            }}>
+              عرض الشحنات
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       
       <AlertDialog open={!!exchangeAlertShipment} onOpenChange={() => setExchangeAlertShipment(null)}>
         <AlertDialogContent>
@@ -549,5 +590,3 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
     </>
   );
 }
-
-    

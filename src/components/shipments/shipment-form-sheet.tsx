@@ -56,6 +56,7 @@ const shipmentSchema = z.object({
   isExchange: z.boolean().optional(),
   isUrgent: z.boolean().optional(),
   isCustomReturn: z.boolean().optional(),
+  retryAttempt: z.boolean().optional(),
 });
 
 const cancellationReasons = [
@@ -143,6 +144,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
       isExchange: false,
       isUrgent: false,
       isCustomReturn: false,
+      retryAttempt: false,
     },
   });
   
@@ -175,6 +177,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           isExchange: shipment.isExchange ?? false,
           isUrgent: shipment.isUrgent ?? false,
           isCustomReturn: shipment.isCustomReturn ?? false,
+          retryAttempt: shipment.retryAttempt ?? false,
         });
       } else {
         form.reset({
@@ -200,6 +203,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           isExchange: false,
           isUrgent: false,
           isCustomReturn: false,
+          retryAttempt: false,
         });
       }
     }
@@ -487,6 +491,18 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                       <div className="grid grid-cols-4 items-center gap-4">
                           <FormLabel className="text-right">خيارات إضافية</FormLabel>
                           <div className="col-span-3 flex items-center gap-4 flex-wrap">
+                            <FormField
+                                control={form.control}
+                                name="retryAttempt"
+                                render={({ field }) => (
+                                    <FormItem className="flex items-center gap-2 space-y-0">
+                                        <FormControl>
+                                            <Checkbox checked={field.value} onCheckedChange={field.onChange} id="retryAttempt" />
+                                        </FormControl>
+                                        <Label htmlFor="retryAttempt">إعادة محاولة</Label>
+                                    </FormItem>
+                                )}
+                            />
                             <FormField
                                 control={form.control}
                                 name="isUrgent"

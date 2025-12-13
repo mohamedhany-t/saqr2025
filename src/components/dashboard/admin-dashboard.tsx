@@ -2,7 +2,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
@@ -337,6 +337,10 @@ const MobileShipmentsView = ({
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
+                    <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ retryAttempt: true })}>
+                        <BellRing className="me-2 h-4 w-4" />
+                        <span>إعادة محاولة</span>
+                    </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                              <Button variant="outline" size="sm">
