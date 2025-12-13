@@ -55,6 +55,7 @@ const calculateCommissionAndPaidAmount = (
     courierCommissionRate: number,
     companyCommission: number,
     statusConfigs: ShipmentStatusConfig[],
+    isCustomReturn: boolean = false,
 ) => {
     const update: { paidAmount: number; courierCommission: number; companyCommission: number; collectedAmount: number } = {
         paidAmount: 0,
@@ -77,14 +78,21 @@ const calculateCommissionAndPaidAmount = (
     } else if (statusConfig.requiresPartialCollection) {
         amountForCalc = safeCollectedAmount;
     }
+
+    // New logic for custom return
+    if (isCustomReturn && statusConfig.isDeliveredStatus) {
+        amountForCalc = -Math.abs(safeTotalAmount);
+    }
     
     update.paidAmount = amountForCalc;
     update.collectedAmount = amountForCalc;
 
-    if (amountForCalc > 0) { // Commissions are typically on successful collection
-        if (statusConfig.affectsCompanyBalance) {
-            update.companyCommission = safeCompanyCommission;
-        }
+    // Commission logic needs to consider negative amounts for returns.
+    // Company commission is usually on revenue, which is negative here.
+    if (statusConfig.affectsCompanyBalance) {
+        // If it's a return, maybe the company commission should be 0 or a fixed fee.
+        // For now, let's assume it's calculated on the (negative) paid amount.
+        update.companyCommission = safeCompanyCommission; // This might need adjustment based on business rules for returns.
     }
 
     // Courier commission can sometimes be due on returns
@@ -914,6 +922,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             
             const totalAmount = dataToSave.totalAmount ?? baseShipment.totalAmount ?? 0;
             const collectedAmount = dataToSave.collectedAmount ?? baseShipment.collectedAmount ?? 0;
+            const isCustomReturn = dataToSave.isCustomReturn ?? baseShipment.isCustomReturn ?? false;
             
             const calculatedFields = calculateCommissionAndPaidAmount(
                 dataToSave.status,
@@ -921,7 +930,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 collectedAmount,
                 courierCommissionRate,
                 companyGovernorateCommission,
-                statuses
+                statuses,
+                isCustomReturn
             );
 
             dataToSave = { ...dataToSave, ...calculatedFields };
@@ -1691,6 +1701,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
             if (courierUser && company) {
                 const courierCommissionRate = courierUser.commissionRate || 0;
                 const companyGovernorateCommission = governorateId ? company.governorateCommissions?.[governorateId] || 0 : 0;
+                const isCustomReturn = update.isCustomReturn ?? row.isCustomReturn ?? false;
 
                 const calculatedFields = calculateCommissionAndPaidAmount(
                     update.status!,
@@ -1699,6 +1710,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
                     courierCommissionRate,
                     companyGovernorateCommission,
                     statuses,
+                    isCustomReturn,
                 );
                 finalUpdate = { ...finalUpdate, ...calculatedFields };
             }

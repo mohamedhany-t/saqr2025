@@ -46,6 +46,7 @@ const updateShipmentStatusSchema = z.object({
     isArchivedForCourier: z.boolean().optional(),
     isArchivedForCompany: z.boolean().optional(),
     senderName: z.string().optional(),
+    isCustomReturn: z.boolean().optional(),
 });
 
 
@@ -114,6 +115,17 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
                     if (Object.prototype.hasOwnProperty.call(validatedData, key) && (validatedData as any)[key] !== undefined && key !== 'shipmentId') {
                         finalShipmentUpdate[key] = (validatedData as any)[key];
                     }
+                }
+
+                // If isCustomReturn is true and the status is a "delivered" status, make the paidAmount negative.
+                const isCustomReturn = shipmentData.isCustomReturn === true || validatedData.isCustomReturn === true;
+                const statusConfigDoc = await db.collection('shipment_statuses').doc(validatedData.status).get();
+                const isDeliveredStatus = statusConfigDoc.exists && statusConfigDoc.data()?.isDeliveredStatus === true;
+
+                if (isCustomReturn && isDeliveredStatus) {
+                    const totalAmount = validatedData.totalAmount ?? shipmentData.totalAmount ?? 0;
+                    finalShipmentUpdate.paidAmount = -Math.abs(totalAmount);
+                    finalShipmentUpdate.collectedAmount = -Math.abs(totalAmount);
                 }
                 
                 const historyRef = shipmentRef.collection('history').doc();
