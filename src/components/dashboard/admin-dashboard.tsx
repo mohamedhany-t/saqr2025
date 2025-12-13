@@ -2,7 +2,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
@@ -902,8 +902,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             for (const row of json) {
                 let errorReason = "";
                 const recipientName = String(row['المرسل اليه'] || '').trim();
-                const recipientPhone = String(row['التليفون']?.toString() || '').trim();
+                let recipientPhone = String(row['التليفون']?.toString() || '').trim();
                 const governorateName = String(row['المحافظة'] || '').trim();
+
+                // Format phone number
+                if (recipientPhone.length === 10 && recipientPhone.startsWith("1")) {
+                    recipientPhone = "0" + recipientPhone;
+                    row['التليفون'] = recipientPhone; // Update row data for consistency
+                }
 
                 if (!recipientName) errorReason = "اسم المرسل إليه مفقود";
                 else if (!recipientPhone) errorReason = "رقم الهاتف مفقود";
@@ -926,11 +932,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             const shipmentsCollection = collection(firestore, 'shipments');
 
             for (const row of validRows) {
-                const recipientPhoneValue = String(row['التليفون']?.toString() || '').trim();
-                
+                const orderNumberValue = row['رقم الطلب']?.toString().trim();
+                let existingShipmentQuery;
+                if (orderNumberValue) {
+                   existingShipmentQuery = query(shipmentsCollection, where("orderNumber", "==", orderNumberValue));
+                }
+
                 let querySnapshot;
-                if (recipientPhoneValue) {
-                    const existingShipmentQuery = query(shipmentsCollection, where("recipientPhone", "==", recipientPhoneValue));
+                if (existingShipmentQuery) {
                     try {
                         querySnapshot = await getDocs(existingShipmentQuery);
                     } catch (err: any) {
@@ -956,13 +965,18 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 const creationDate = parseExcelDate(row['التاريخ']);
                 const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
                 const senderNameValue = row['الراسل'] || row['العميل الفرعى'];
-                const orderNumberValue = row['رقم الطلب']?.toString().trim();
+                
+                let shipmentCodeValue = row['كود الشحنه']?.toString().trim();
+                if (!shipmentCodeValue) {
+                    shipmentCodeValue = `SK-${Date.now()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+                }
 
                 const shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>> = {
+                    shipmentCode: shipmentCodeValue,
                     senderName: senderNameValue,
                     orderNumber: orderNumberValue,
                     recipientName: String(row['المرسل اليه'] || '').trim(),
-                    recipientPhone: recipientPhoneValue,
+                    recipientPhone: String(row['التليفون']?.toString() || '').trim(),
                     governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
                     address: String(row['العنوان'] || 'N/A').trim(),
                     totalAmount: parseFloat(String(totalAmountValue).replace(/[^0-9.]/g, '')),
@@ -977,18 +991,10 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
                 if (!querySnapshot || querySnapshot.empty) {
                     const docRef = doc(shipmentsCollection);
-                    const shipmentCode = `SH-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`;
-                    batch.set(docRef, { ...cleanShipmentData, shipmentCode, id: docRef.id, createdAt: creationDate || serverTimestamp(), updatedAt: serverTimestamp() });
+                    batch.set(docRef, { ...cleanShipmentData, id: docRef.id, createdAt: creationDate || serverTimestamp(), updatedAt: serverTimestamp() });
                     result.added++;
                 } else {
                     const existingDoc = querySnapshot.docs[0];
-                    const existingShipment = existingDoc.data() as Shipment;
-                    
-                    // Skip update if a courier is already assigned
-                    if (existingShipment.assignedCourierId) {
-                        continue;
-                    }
-                    
                     let updateData: Partial<Shipment> = { ...cleanShipmentData, updatedAt: serverTimestamp() };
                     batch.update(existingDoc.ref, updateData);
                     result.updated++;
