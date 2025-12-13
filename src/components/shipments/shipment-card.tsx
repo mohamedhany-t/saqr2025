@@ -124,9 +124,11 @@ export function ShipmentCard({
         e.stopPropagation();
 
         const senderNameText = userProfile?.name || "مستخدم";
+        const senderPhoneText = userProfile?.phone || "غير متوفر";
         
         const shipmentDetails = [
-            `*تقرير شحنة من ${senderNameText}*`,
+            `*تقرير شحنة من: ${senderNameText}*`,
+            `*الهاتف: ${senderPhoneText}*`,
             `--------------------------`,
             `*كود الشحنة:* ${shipment.shipmentCode}`,
             `*الشركة (العميل الرئيسي):* ${companyName}`,
