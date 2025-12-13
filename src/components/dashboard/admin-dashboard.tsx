@@ -933,34 +933,30 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
             for (const row of validRows) {
                 const orderNumberValue = row['رقم الطلب']?.toString().trim();
+                const recipientNameValue = String(row['المرسل اليه'] || '').trim();
+                const recipientPhoneValue = String(row['التليفون']?.toString() || '').trim();
                 
-                let existingShipmentQuery;
-                if (orderNumberValue) {
-                   existingShipmentQuery = query(shipmentsCollection, where("orderNumber", "==", orderNumberValue));
-                }
-
                 let querySnapshot;
-                if (existingShipmentQuery) {
-                    try {
-                        querySnapshot = await getDocs(existingShipmentQuery);
-                    } catch (err: any) {
-                        if (err.code === 'failed-precondition') {
-                            toast({
-                                title: "فهرس مطلوب",
-                                description: "تحتاج قاعدة البيانات إلى فهرس جديد لتنفيذ هذا الاستيراد. راجع console للحصول على رابط الإنشاء.",
-                                variant: "destructive",
-                                duration: 10000,
-                            });
-                            console.error("Firestore index required. Please create the index using this link:", err.message.match(/https:\/\/[^\s]+/)?.[0]);
-                            setImportResult(prev => prev ? { ...prev, processing: false, finalError: "فشل الاستيراد. راجع الـ console." } : null);
-                            return;
-                        }
-                    }
-                }
                 
                 const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
                 const foundCompany = companies.find(c => c.name === companyNameFromSheet);
                 const companyIdForQuery = foundCompany ? foundCompany.id : authUser.uid;
+
+                // Priority 1: Find by Order Number (if it exists)
+                if (orderNumberValue) {
+                    const q = query(shipmentsCollection, where("orderNumber", "==", orderNumberValue), where("companyId", "==", companyIdForQuery));
+                    querySnapshot = await getDocs(q);
+                }
+
+                // Priority 2: Find by Recipient Name + Phone (if order number not found or doesn't exist)
+                if ((!querySnapshot || querySnapshot.empty) && recipientNameValue && recipientPhoneValue) {
+                    const q = query(shipmentsCollection, 
+                        where("recipientName", "==", recipientNameValue),
+                        where("recipientPhone", "==", recipientPhoneValue),
+                        where("companyId", "==", companyIdForQuery)
+                    );
+                     querySnapshot = await getDocs(q);
+                }
                 
                 const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
                 const creationDate = parseExcelDate(row['التاريخ']);
@@ -979,8 +975,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     shipmentCode: shipmentCodeValue,
                     senderName: senderNameValue,
                     orderNumber: orderNumberValue,
-                    recipientName: String(row['المرسل اليه'] || '').trim(),
-                    recipientPhone: String(row['التليفون']?.toString() || '').trim(),
+                    recipientName: recipientNameValue,
+                    recipientPhone: recipientPhoneValue,
                     governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
                     address: String(row['العنوان'] || 'N/A').trim(),
                     totalAmount: parseFloat(String(totalAmountValue).replace(/[^0-9.]/g, '')),
@@ -999,7 +995,16 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                     result.added++;
                 } else {
                     const existingDoc = querySnapshot.docs[0];
+                    const existingShipment = existingDoc.data() as Shipment;
+
                     let updateData: Partial<Shipment> = { ...cleanShipmentData, updatedAt: serverTimestamp() };
+                    
+                    // Smart Update: If shipment is already assigned, don't change its status or courier
+                    if (existingShipment.assignedCourierId) {
+                      delete updateData.status;
+                      delete updateData.assignedCourierId;
+                    }
+
                     batch.update(existingDoc.ref, updateData);
                     result.updated++;
                 }
