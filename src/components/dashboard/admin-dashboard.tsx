@@ -933,6 +933,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
             for (const row of validRows) {
                 const orderNumberValue = row['رقم الطلب']?.toString().trim();
+                
                 let existingShipmentQuery;
                 if (orderNumberValue) {
                    existingShipmentQuery = query(shipmentsCollection, where("orderNumber", "==", orderNumberValue));
@@ -966,7 +967,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
                 const senderNameValue = row['الراسل'] || row['العميل الفرعى'];
                 
-                let shipmentCodeValue = row['رقم الشحنه']?.toString().trim();
+                let shipmentCodeValue = row['رقم الشحنه']?.toString().trim() || null;
                 if (!shipmentCodeValue) {
                     shipmentCodeValue = `SK-${Date.now()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
                 }
