@@ -899,7 +899,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     if (dataToSave.isCustomReturn) notes.push("شحنة استرجاع مخصص");
     
     // Combine new notes with existing reason, avoiding duplicates
-    const existingReason = shipment?.reason || '';
+    const existingReason = editingShipment?.reason || '';
     const newNotes = notes.filter(n => !existingReason.includes(n)).join(' - ');
     if (newNotes) {
         dataToSave.reason = existingReason ? `${existingReason} - ${newNotes}` : newNotes;
