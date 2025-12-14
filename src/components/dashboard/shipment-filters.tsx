@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ChevronDown } from 'lucide-react';
 import type { Company, Governorate, ShipmentStatusConfig, User } from '@/lib/types';
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
+import { Label } from '../ui/label';
 
 export const ShipmentFilters = ({
   governorates,
@@ -34,6 +36,7 @@ export const ShipmentFilters = ({
     const companyFilterValue = localFilters.find(f => f.id === 'companyId')?.value as string[] | undefined;
     const courierFilterValue = localFilters.find(f => f.id === 'assignedCourierId')?.value as string[] | undefined;
     const statusFilterValue = localFilters.find(f => f.id === 'status')?.value as string[] | undefined;
+    const assignmentFilterValue = localFilters.find(f => f.id === 'assignmentStatus')?.value as string | undefined;
 
     const setFilter = (id: string, value: any) => {
         setLocalFilters(prev => {
@@ -157,6 +160,33 @@ export const ShipmentFilters = ({
                         {courier.name}
                     </DropdownMenuCheckboxItem>
                     ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+             <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-1">
+                        <ChevronDown className="h-3.5 w-3.5 ms-1" />
+                        <span>
+                            حالة التعيين
+                            {assignmentFilterValue && `: ${assignmentFilterValue === 'assigned' ? 'معينة' : 'غير معينة'}`}
+                        </span>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="p-2">
+                    <RadioGroup value={assignmentFilterValue} onValueChange={(value) => setFilter('assignmentStatus', value === 'all' ? undefined : value)}>
+                        <div className="flex items-center space-x-2 space-x-reverse">
+                            <RadioGroupItem value="all" id="assign-all" />
+                            <Label htmlFor="assign-all">الكل</Label>
+                        </div>
+                        <div className="flex items-center space-x-2 space-x-reverse">
+                            <RadioGroupItem value="assigned" id="assign-assigned" />
+                            <Label htmlFor="assign-assigned">معينة لمندوب</Label>
+                        </div>
+                        <div className="flex items-center space-x-2 space-x-reverse">
+                            <RadioGroupItem value="unassigned" id="assign-unassigned" />
+                            <Label htmlFor="assign-unassigned">غير معينة</Label>
+                        </div>
+                    </RadioGroup>
                 </DropdownMenuContent>
             </DropdownMenu>
         </div>

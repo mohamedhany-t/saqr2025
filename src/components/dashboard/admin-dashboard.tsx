@@ -34,7 +34,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import ChatInterface from "@/components/chat/chat-interface";
 import { Badge } from "../ui/badge";
 import AccountStatementsPage from "@/app/accounts/page";
-import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotification } from "@/lib/actions";
+import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotification, handleShipmentUpdate as handleShipmentUpdateAction } from "@/lib/actions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "../shipments/shipment-card";
 import { ColumnFiltersState } from "@tanstack/react-table";
@@ -47,61 +47,6 @@ import Link from "next/link";
 import { exportToExcel } from "@/lib/export";
 import { ShipmentFilters } from './shipment-filters';
 
-
-const calculateCommissionAndPaidAmount = (
-    status: string,
-    totalAmount: number,
-    collectedAmount: number,
-    courierCommissionRate: number,
-    companyCommission: number,
-    statusConfigs: ShipmentStatusConfig[],
-    isCustomReturn: boolean = false,
-) => {
-    const update: { paidAmount: number; courierCommission: number; companyCommission: number; collectedAmount: number } = {
-        paidAmount: 0,
-        courierCommission: 0,
-        companyCommission: 0,
-        collectedAmount: 0,
-    };
-    
-    const statusConfig = statusConfigs.find(s => s.id === status);
-    if (!statusConfig) return update;
-
-    const safeTotalAmount = totalAmount || 0;
-    const safeCollectedAmount = collectedAmount || 0;
-    const safeCourierCommissionRate = courierCommissionRate || 0;
-    const safeCompanyCommission = companyCommission || 0;
-    
-    let amountForCalc = 0;
-    if (statusConfig.requiresFullCollection) {
-        amountForCalc = safeTotalAmount;
-    } else if (statusConfig.requiresPartialCollection) {
-        amountForCalc = safeCollectedAmount;
-    }
-
-    // New logic for custom return
-    if (isCustomReturn && statusConfig.isDeliveredStatus) {
-        amountForCalc = -Math.abs(safeTotalAmount);
-    }
-    
-    update.paidAmount = amountForCalc;
-    update.collectedAmount = amountForCalc;
-
-    // Commission logic needs to consider negative amounts for returns.
-    // Company commission is usually on revenue, which is negative here.
-    if (statusConfig.affectsCompanyBalance) {
-        // If it's a return, maybe the company commission should be 0 or a fixed fee.
-        // For now, let's assume it's calculated on the (negative) paid amount.
-        update.companyCommission = safeCompanyCommission; // This might need adjustment based on business rules for returns.
-    }
-
-    // Courier commission can sometimes be due on returns
-    if (statusConfig.affectsCourierBalance) {
-        update.courierCommission = safeCourierCommissionRate;
-    }
-
-    return update;
-}
 
 const MobileShipmentsView = ({
     archivedShipmentsCompany,
@@ -965,147 +910,42 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 };
 
 
-  const handleSaveShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
-    if (!firestore || !user || !companies || !users || !statuses) return;
-
-    const shipmentId = id || editingShipment?.id;
-
-    let dataToSave: { [key: string]: any } = Object.fromEntries(
-        Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== '')
-    );
-    
-    // Add automatic notes
-    let notes = [];
-    if (dataToSave.isExchange) notes.push("شحنة استبدال");
-    if (dataToSave.isCustomReturn) notes.push("شحنة استرجاع مخصص");
-    
-    // Combine new notes with existing reason, avoiding duplicates
-    const existingReason = editingShipment?.reason || '';
-    const newNotes = notes.filter(n => !existingReason.includes(n)).join(' - ');
-    if (newNotes) {
-        dataToSave.reason = existingReason ? `${existingReason} - ${newNotes}` : newNotes;
+  const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
+    if (!firestore || !authUser) {
+      toast({ title: "خطأ في المصادقة", variant: "destructive" });
+      return;
     }
-
-
-    dataToSave.updatedAt = serverTimestamp();
-
-    let originalShipment: Shipment | undefined;
-    if (shipmentId) {
-        const docSnap = await getDoc(doc(firestore, 'shipments', shipmentId));
-        if (docSnap.exists()) {
-            originalShipment = docSnap.data() as Shipment;
-        } else {
-            console.error("Shipment to update not found in database.");
-            toast({ title: "خطأ", description: "لم يتم العثور على الشحنة المطلوب تحديثها.", variant: "destructive" });
-            return;
-        }
-    }
-    
-    if (dataToSave.status && (originalShipment || !shipmentId)) {
-        const baseShipment = originalShipment || shipmentData;
-        const courierId = dataToSave.assignedCourierId || baseShipment.assignedCourierId;
-        const companyId = dataToSave.companyId || baseShipment.companyId;
-        const governorateId = dataToSave.governorateId || baseShipment.governorateId;
-        
-        const courierUser = users.find(u => u.id === courierId);
-        const company = companies.find(c => c.id === companyId);
-        
-        if (courierUser && company) {
-            const courierCommissionRate = courierUser.commissionRate || 0;
-            const companyGovernorateCommission = governorateId ? company.governorateCommissions?.[governorateId] || 0 : 0;
-            
-            const totalAmount = dataToSave.totalAmount ?? baseShipment.totalAmount ?? 0;
-            const collectedAmount = dataToSave.collectedAmount ?? baseShipment.collectedAmount ?? 0;
-            const isCustomReturn = dataToSave.isCustomReturn ?? baseShipment.isCustomReturn ?? false;
-            
-            const calculatedFields = calculateCommissionAndPaidAmount(
-                dataToSave.status,
-                totalAmount,
-                collectedAmount,
-                courierCommissionRate,
-                companyGovernorateCommission,
-                statuses,
-                isCustomReturn
-            );
-
-            dataToSave = { ...dataToSave, ...calculatedFields };
-        }
-    }
-
-    const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipmentId}` : `/?edit=${shipmentId}`;
-
-    const batch = writeBatch(firestore);
-    
-    const shipmentRef = shipmentId ? doc(firestore, 'shipments', shipmentId) : doc(collection(firestore, 'shipments'));
-    if (shipmentId) {
-        batch.update(shipmentRef, dataToSave);
-    } else {
-        batch.set(shipmentRef, { 
-            ...dataToSave, 
-            companyId: dataToSave.companyId || user.id, 
-            isArchivedForCourier: false,
-            isArchivedForCompany: false,
-            createdAt: serverTimestamp() 
-        });
-    }
-
-    // Add to history if status has changed
-    const newStatus = dataToSave.status;
-    const oldStatus = originalShipment?.status;
-    if (newStatus && newStatus !== oldStatus) {
-        const historyRef = doc(collection(shipmentRef, 'history'));
-        const historyEntry: Omit<ShipmentHistory, 'id'> = {
-            status: newStatus,
-            reason: dataToSave.reason || '',
-            updatedAt: serverTimestamp(),
-            updatedBy: user.name || user.email,
-            userId: user.id,
-        };
-        batch.set(historyRef, historyEntry);
-
-        // Notify courier if admin takes action on price change request
-        if (originalShipment?.status === 'PriceChangeRequested' && originalShipment.assignedCourierId) {
-            const courierId = originalShipment.assignedCourierId;
-            const message = newStatus === 'PriceChangeRejected' 
-                ? `تم رفض طلب تعديل السعر للشحنة ${originalShipment.recipientName}.`
-                : `تمت الموافقة على طلب تعديل السعر للشحنة ${originalShipment.recipientName}.`;
-            sendPushNotification({
-                recipientId: courierId,
-                title: 'تحديث بخصوص طلب تعديل السعر',
-                body: message,
-                url: notificationUrl,
-            }).catch(console.error);
-        }
-    }
-    
-    batch.commit()
-      .then(() => {
-        toast({
-          title: shipmentId ? "تم تحديث الشحنة" : "تم حفظ الشحنة",
-          description: `تمت العملية بنجاح`,
-        });
-        handleSheetOpenChange(false);
-        if (shipmentData.assignedCourierId && shipmentData.assignedCourierId !== originalShipment?.assignedCourierId) {
-          sendPushNotification({
-            recipientId: shipmentData.assignedCourierId,
-            title: 'شحنة جديدة',
-            body: `تم تعيين شحنة جديدة لك: ${shipmentData.recipientName}`,
-            url: notificationUrl,
-          }).catch(console.error);
-        }
-      })
-      .catch(serverError => {
-        if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({
-                path: `shipments/${shipmentId || ''}`,
-                operation: shipmentId ? 'update' : 'create',
-                requestResourceData: dataToSave
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        } else {
-            console.error("Error during save operation:", serverError);
-        }
+  
+    const result = await handleShipmentUpdateAction({
+      shipmentData: data,
+      shipmentId: id,
+      userId: authUser.uid,
+      userName: authUser.displayName || authUser.email!,
+    });
+  
+    if (result.success) {
+      toast({
+        title: id ? "تم تحديث الشحنة" : "تم حفظ الشحنة",
+        description: `تمت العملية بنجاح`,
       });
+      handleSheetOpenChange(false);
+      // Handle notification for new assignment
+      if (data.assignedCourierId && (!editingShipment || data.assignedCourierId !== editingShipment.assignedCourierId)) {
+        const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${id || result.newId}` : `/?edit=${id || result.newId}`;
+        sendPushNotification({
+          recipientId: data.assignedCourierId,
+          title: 'شحنة جديدة',
+          body: `تم تعيين شحنة جديدة لك: ${data.recipientName}`,
+          url: notificationUrl,
+        }).catch(console.error);
+      }
+    } else {
+      toast({
+        title: "فشل تحديث الشحنة",
+        description: result.error || "حدث خطأ غير متوقع.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDeleteShipment = (shipmentsToDelete: Shipment[]) => {
@@ -1562,6 +1402,13 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         baseShipments = baseShipments.filter(shipment => {
             return columnFilters.every(filter => {
                 const value = (shipment as any)[filter.id];
+                // Handle the new assignmentStatus filter
+                if (filter.id === 'assignmentStatus') {
+                    const hasCourier = !!shipment.assignedCourierId;
+                    if (filter.value === 'assigned') return hasCourier;
+                    if (filter.value === 'unassigned') return !hasCourier;
+                    return true; // for 'all'
+                }
                 const filterValue = filter.value as string[];
                 if (!value && filter.id !== 'status') return false; // Status can be a valid filter even if shipment.status is not set
                 if (Array.isArray(filterValue) && filterValue.length > 0) {
@@ -1759,97 +1606,35 @@ const returnedToCompanyShipments = React.useMemo(() => {
   const currentCompanyNetDue = companyDues.find(c => c.id === payingCompany?.id)?.netDue;
   
   const handleGenericBulkUpdate = async (selectedRows: Shipment[], update: Partial<Shipment>) => {
-    if (!firestore || !user || !users || !companies || !governorates || !statuses) return;
-    if (selectedRows.length === 0) {
-        toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
-        return;
-    }
-    
-    const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
-    const batch = writeBatch(firestore);
-    
-    const fullSelectedRowsData = await Promise.all(
-        selectedRows.map(async (row) => {
-            const fullRowData = shipments?.find(s => s.id === row.id) || null;
-            if (fullRowData) return fullRowData;
-            const docSnap = await getDoc(doc(firestore, "shipments", row.id));
-            return docSnap.exists() ? docSnap.data() as Shipment : null;
-        })
+    if (!authUser) return;
+  
+    const updatePromises = selectedRows.map(row => 
+      handleShipmentUpdateAction({
+        shipmentData: update,
+        shipmentId: row.id,
+        userId: authUser.uid,
+        userName: authUser.displayName || authUser.email!,
+      })
     );
-
-    const validRows = fullSelectedRowsData.filter((row): row is Shipment => row !== null);
-
-    validRows.forEach(row => {
-        const docRef = doc(firestore, "shipments", row.id);
-        
-        let finalUpdate: { [key: string]: any } = { ...update, updatedAt: serverTimestamp() };
-
-        if (update.status) {
-            const courierId = update.assignedCourierId || row.assignedCourierId;
-            const companyId = update.companyId || row.companyId;
-            const governorateId = update.governorateId || row.governorateId;
-
-            const courierUser = users.find(u => u.id === courierId);
-            const company = companies.find(c => c.id === companyId);
-
-            if (courierUser && company) {
-                const courierCommissionRate = courierUser.commissionRate || 0;
-                const companyGovernorateCommission = governorateId ? company.governorateCommissions?.[governorateId] || 0 : 0;
-                const isCustomReturn = update.isCustomReturn ?? row.isCustomReturn ?? false;
-
-                const calculatedFields = calculateCommissionAndPaidAmount(
-                    update.status!,
-                    row.totalAmount,
-                    row.collectedAmount || 0,
-                    courierCommissionRate,
-                    companyGovernorateCommission,
-                    statuses,
-                    isCustomReturn,
-                );
-                finalUpdate = { ...finalUpdate, ...calculatedFields };
-            }
-
-            // Add history entry for status change
-            if (update.status !== row.status) {
-                const historyRef = doc(collection(docRef, 'history'));
-                const historyEntry: Omit<ShipmentHistory, 'id'> = {
-                    status: update.status,
-                    reason: update.reason || 'تحديث جماعي',
-                    updatedAt: serverTimestamp(),
-                    updatedBy: user.name || user.email,
-                    userId: user.id,
-                };
-                batch.set(historyRef, historyEntry);
-            }
-        }
-        
-        batch.update(docRef, finalUpdate);
-    });
-
+  
     try {
-        await batch.commit();
-
-        if (update.assignedCourierId && selectedRows.length > 0) {
-            await sendPushNotification({
-                recipientId: update.assignedCourierId,
-                title: 'شحنات جديدة',
-                body: `تم تعيين ${selectedRows.length} شحنة جديدة لك.`,
-                url: notificationUrl,
-            });
-        }
-
-        toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
-    } catch (serverError) {
-        if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({
-                path: 'shipments',
-                operation: 'update',
-                requestResourceData: { update, note: `Bulk update of ${selectedRows.length} documents.` }
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        }
+      await Promise.all(updatePromises);
+      toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
+  
+      if (update.assignedCourierId && selectedRows.length > 0) {
+        const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
+        await sendPushNotification({
+          recipientId: update.assignedCourierId,
+          title: 'شحنات جديدة',
+          body: `تم تعيين ${selectedRows.length} شحنة جديدة لك.`,
+          url: notificationUrl,
+        });
+      }
+    } catch (error) {
+      console.error("Bulk update failed:", error);
+      toast({ title: "فشل التحديث المجمع", variant: "destructive" });
     }
-  }
+  };
 
   const getShipmentsByStatus = (status: string | string[]) => {
     const statuses = Array.isArray(status) ? status : [status];
@@ -1870,62 +1655,58 @@ const returnedToCompanyShipments = React.useMemo(() => {
   }, [companyDues, managementSearchTerm]);
 
   const handlePriceChangeDecision = (shipment: Shipment, approved: boolean) => {
-    if (!firestore || !user) return;
+    if (!firestore || !authUser) return;
     
-    const shipmentRef = doc(firestore, 'shipments', shipment.id);
-    const batch = writeBatch(firestore);
-
-    let updatePayload: any = {
-        updatedAt: serverTimestamp(),
-    };
-    let historyReason = '';
-    const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipment.id}` : `/?edit=${shipment.id}`;
-
+    let updatePayload: any = {};
     if (approved) {
-        updatePayload.totalAmount = shipment.requestedAmount;
-        updatePayload.status = 'In-Transit'; // Ready for delivery
-        historyReason = `تمت الموافقة على تعديل السعر من ${shipment.totalAmount} إلى ${shipment.requestedAmount}.`;
+        updatePayload = {
+            totalAmount: shipment.requestedAmount,
+            status: 'In-Transit',
+            reason: `تمت الموافقة على تعديل السعر من ${shipment.totalAmount} إلى ${shipment.requestedAmount}.`,
+        };
     } else {
-        updatePayload.status = 'PriceChangeRejected';
-        historyReason = `تم رفض طلب تعديل السعر (السعر المقترح: ${shipment.requestedAmount}).`;
+        updatePayload = {
+            status: 'PriceChangeRejected',
+            reason: `تم رفض طلب تعديل السعر (السعر المقترح: ${shipment.requestedAmount}).`,
+        };
     }
 
-    // Clear the request fields after decision by setting them to null or using FieldValue.delete()
-    updatePayload.requestedAmount = null; 
-    updatePayload.amountChangeReason = null;
-    
-    batch.update(shipmentRef, updatePayload);
-
-    // Add history entry for the decision
-    const historyRef = doc(collection(shipmentRef, 'history'));
-    const historyEntry: Omit<ShipmentHistory, 'id'> = {
-        status: updatePayload.status,
-        reason: historyReason,
-        updatedAt: serverTimestamp(),
-        updatedBy: user.name || user.email,
-        userId: user.id,
-    };
-    batch.set(historyRef, historyEntry);
-
-    batch.commit().then(() => {
-        toast({
-            title: `تم ${approved ? 'قبول' : 'رفض'} الطلب`,
-            description: `تم تحديث حالة الشحنة بنجاح.`,
-        });
-
-        // Send notification to the courier
-        if (shipment.assignedCourierId) {
-            const message = approved 
-                ? `تمت الموافقة على طلب تعديل سعر شحنة ${shipment.recipientName}.`
-                : `تم رفض طلب تعديل سعر شحنة ${shipment.recipientName}.`;
-            sendPushNotification({
-                recipientId: shipment.assignedCourierId,
-                title: 'تحديث بخصوص طلب تعديل السعر',
-                body: message,
-                url: notificationUrl,
-            }).catch(console.error);
+    handleShipmentUpdateAction({
+        shipmentId: shipment.id,
+        shipmentData: {
+            ...updatePayload,
+            requestedAmount: null,
+            amountChangeReason: null,
+        },
+        userId: authUser.uid,
+        userName: authUser.displayName || authUser.email!,
+    }).then(result => {
+        if (result.success) {
+            toast({
+                title: `تم ${approved ? 'قبول' : 'رفض'} الطلب`,
+                description: `تم تحديث حالة الشحنة بنجاح.`,
+            });
+            // Send notification to the courier
+            if (shipment.assignedCourierId) {
+                const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipment.id}` : `/?edit=${shipment.id}`;
+                const message = approved 
+                    ? `تمت الموافقة على طلب تعديل سعر شحنة ${shipment.recipientName}.`
+                    : `تم رفض طلب تعديل سعر شحنة ${shipment.recipientName}.`;
+                sendPushNotification({
+                    recipientId: shipment.assignedCourierId,
+                    title: 'تحديث بخصوص طلب تعديل السعر',
+                    body: message,
+                    url: notificationUrl,
+                }).catch(console.error);
+            }
+        } else {
+            toast({
+                title: "فشل تحديث الشحنة",
+                description: result.error || "حدث خطأ غير متوقع.",
+                variant: "destructive",
+            });
         }
-    }).catch(console.error);
+    });
   };
 
 

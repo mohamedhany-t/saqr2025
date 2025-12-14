@@ -222,6 +222,13 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
         baseShipments = baseShipments.filter(shipment => {
             return columnFilters.every(filter => {
                 const value = (shipment as any)[filter.id];
+                 // Handle the new assignmentStatus filter
+                if (filter.id === 'assignmentStatus') {
+                    const hasCourier = !!shipment.assignedCourierId;
+                    if (filter.value === 'assigned') return hasCourier;
+                    if (filter.value === 'unassigned') return !hasCourier;
+                    return true; // for 'all'
+                }
                 const filterValue = filter.value as string[];
                 if (Array.isArray(filterValue) && filterValue.length > 0) {
                     return filterValue.includes(value);
