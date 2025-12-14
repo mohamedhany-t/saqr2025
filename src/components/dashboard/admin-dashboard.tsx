@@ -56,6 +56,8 @@ const MobileShipmentsView = ({
     returnedToCompanyShipments,
     filteredShipments,
     recentlyUpdatedShipments,
+    unassignedShipments,
+    assignedShipments,
     listIsLoading,
     governorates,
     companies,
@@ -77,6 +79,8 @@ const MobileShipmentsView = ({
     returnedToCompanyShipments: Shipment[];
     filteredShipments: Shipment[];
     recentlyUpdatedShipments: Shipment[];
+    unassignedShipments: Shipment[];
+    assignedShipments: Shipment[];
     listIsLoading: boolean;
     governorates: Governorate[];
     companies: Company[];
@@ -106,8 +110,8 @@ const MobileShipmentsView = ({
     const getCurrentShipmentList = () => {
       switch (activeTab) {
         case "recently-updated": return recentlyUpdatedShipments;
-        case "pending": return getShipmentsByStatus('Pending');
-        case "in-transit": return getShipmentsByStatus('In-Transit');
+        case "unassigned": return unassignedShipments;
+        case "assigned": return assignedShipments;
         case "delivered": return getShipmentsByStatus(['Delivered']);
         case "postponed": return getShipmentsByStatus('Postponed');
         case "returns-with-couriers": return returnsWithCouriers;
@@ -229,12 +233,12 @@ const MobileShipmentsView = ({
             <div className="flex flex-col gap-4 mt-4">
                 <TabsList className="grid grid-cols-4 h-auto">
                     <TabsTrigger value="all-shipments">الكل</TabsTrigger>
+                    <TabsTrigger value="unassigned">غير معينة</TabsTrigger>
+                    <TabsTrigger value="assigned">معينة</TabsTrigger>
                     <TabsTrigger value="recently-updated">
                         <RefreshCw className="h-4 w-4 me-1" />
                         المُحدَّثة
                     </TabsTrigger>
-                    <TabsTrigger value="pending">قيد الانتظار</TabsTrigger>
-                    <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
                     <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
                     <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
                     <TabsTrigger value="returns-with-couriers">مرتجعات بالخارج</TabsTrigger>
@@ -254,9 +258,9 @@ const MobileShipmentsView = ({
                 </div>
             </div>
             <TabsContent value="all-shipments">{renderShipmentList(filteredShipments)}</TabsContent>
+            <TabsContent value="unassigned">{renderShipmentList(unassignedShipments)}</TabsContent>
+            <TabsContent value="assigned">{renderShipmentList(assignedShipments)}</TabsContent>
             <TabsContent value="recently-updated">{renderShipmentList(recentlyUpdatedShipments)}</TabsContent>
-            <TabsContent value="pending">{renderShipmentList(getShipmentsByStatus('Pending'))}</TabsContent>
-            <TabsContent value="in-transit">{renderShipmentList(getShipmentsByStatus('In-Transit'))}</TabsContent>
             <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentList(getShipmentsByStatus('Postponed'))}</TabsContent>
             <TabsContent value="returns-with-couriers">{renderShipmentList(returnsWithCouriers)}</TabsContent>
@@ -376,6 +380,8 @@ const DesktopShipmentsView = ({
     returnsWithCouriers,
     returnedToCompanyShipments,
     recentlyUpdatedShipments,
+    unassignedShipments,
+    assignedShipments,
     governorates,
     companies,
     courierUsers,
@@ -396,6 +402,8 @@ const DesktopShipmentsView = ({
     returnsWithCouriers: Shipment[];
     returnedToCompanyShipments: Shipment[];
     recentlyUpdatedShipments: Shipment[];
+    unassignedShipments: Shipment[];
+    assignedShipments: Shipment[];
     governorates: Governorate[];
     companies: Company[];
     courierUsers: User[];
@@ -428,12 +436,12 @@ const DesktopShipmentsView = ({
         <Tabs defaultValue="all-shipments">
             <TabsList className="flex-nowrap overflow-x-auto justify-start mt-4">
                 <TabsTrigger value="all-shipments">الكل</TabsTrigger>
+                <TabsTrigger value="unassigned">غير معينة</TabsTrigger>
+                <TabsTrigger value="assigned">معينة</TabsTrigger>
                 <TabsTrigger value="recently-updated">
                     <RefreshCw className="h-4 w-4 me-1" />
                     المُحدَّثة مؤخراً
                 </TabsTrigger>
-                <TabsTrigger value="pending">قيد الانتظار</TabsTrigger>
-                <TabsTrigger value="in-transit">قيد التوصيل</TabsTrigger>
                 <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
                 <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
                 <TabsTrigger value="returns-with-couriers">مرتجعات لدى المناديب</TabsTrigger>
@@ -443,9 +451,9 @@ const DesktopShipmentsView = ({
                 <TabsTrigger value="archived-courier">مؤرشفة المناديب</TabsTrigger>
             </TabsList>
             <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments)}</TabsContent>
+            <TabsContent value="unassigned">{renderShipmentTable(unassignedShipments)}</TabsContent>
+            <TabsContent value="assigned">{renderShipmentTable(assignedShipments)}</TabsContent>
             <TabsContent value="recently-updated">{renderShipmentTable(recentlyUpdatedShipments)}</TabsContent>
-            <TabsContent value="pending">{renderShipmentTable(getShipmentsByStatus('Pending'))}</TabsContent>
-            <TabsContent value="in-transit">{renderShipmentTable(getShipmentsByStatus('In-Transit'))}</TabsContent>
             <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
             <TabsContent value="returns-with-couriers">{renderShipmentTable(returnsWithCouriers, 'returns-with-couriers')}</TabsContent>
@@ -1402,13 +1410,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         baseShipments = baseShipments.filter(shipment => {
             return columnFilters.every(filter => {
                 const value = (shipment as any)[filter.id];
-                // Handle the new assignmentStatus filter
-                if (filter.id === 'assignmentStatus') {
-                    const hasCourier = !!shipment.assignedCourierId;
-                    if (filter.value === 'assigned') return hasCourier;
-                    if (filter.value === 'unassigned') return !hasCourier;
-                    return true; // for 'all'
-                }
                 const filterValue = filter.value as string[];
                 if (!value && filter.id !== 'status') return false; // Status can be a valid filter even if shipment.status is not set
                 if (Array.isArray(filterValue) && filterValue.length > 0) {
@@ -1431,6 +1432,9 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     );
   }, [shipments, searchTerm, columnFilters]);
   
+  const unassignedShipments = React.useMemo(() => filteredShipments.filter(s => !s.assignedCourierId), [filteredShipments]);
+  const assignedShipments = React.useMemo(() => filteredShipments.filter(s => !!s.assignedCourierId), [filteredShipments]);
+
     const archivedShipmentsCompany = React.useMemo(() => {
         const archived = shipments?.filter(s => s.isArchivedForCompany) || [];
         if (!searchTerm) return archived;
@@ -1786,6 +1790,8 @@ const returnedToCompanyShipments = React.useMemo(() => {
                     returnedToCompanyShipments={returnedToCompanyShipments}
                     filteredShipments={filteredShipments}
                     recentlyUpdatedShipments={recentlyUpdatedShipments}
+                    unassignedShipments={unassignedShipments}
+                    assignedShipments={assignedShipments}
                     listIsLoading={listIsLoading}
                     governorates={governorates || []}
                     companies={companies || []}
@@ -1811,6 +1817,8 @@ const returnedToCompanyShipments = React.useMemo(() => {
                     returnsWithCouriers={returnsWithCouriers}
                     returnedToCompanyShipments={returnedToCompanyShipments}
                     recentlyUpdatedShipments={recentlyUpdatedShipments}
+                    unassignedShipments={unassignedShipments}
+                    assignedShipments={assignedShipments}
                     governorates={governorates || []}
                     companies={companies || []}
                     courierUsers={courierUsers}
