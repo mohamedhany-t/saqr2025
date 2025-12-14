@@ -81,6 +81,7 @@ const updateShipmentStatusSchema = zod_1.z.object({
     senderName: zod_1.z.string().optional(),
     isCustomReturn: zod_1.z.boolean().optional(),
     retryAttempt: zod_1.z.boolean().optional(),
+    isLabelPrinted: zod_1.z.boolean().optional(),
 });
 exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
     corsHandler(req, res, async () => {

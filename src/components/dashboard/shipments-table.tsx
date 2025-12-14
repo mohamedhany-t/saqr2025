@@ -526,6 +526,14 @@ export function ShipmentsTable({
         return;
     }
     
+    // Check if onBulkUpdate is defined and use it for the print center flow
+    if (onBulkUpdate) {
+        onBulkUpdate(selectedRows.map(row => row.original), { isLabelPrinted: true });
+        table.resetRowSelection();
+        return; // The parent (PrintCenterPage) will open the print window
+    }
+
+    // Fallback for regular print
     const ids = selectedRows.map(row => row.original.id);
     const printUrl = `/print/bulk?ids=${ids.join(',')}`;
     window.open(printUrl, '_blank', 'width=800,height=600');
