@@ -923,6 +923,14 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
       return;
     }
   
+    // Clean up undefined values from the data object before sending to Firestore
+    const cleanData: { [key: string]: any } = {};
+    for (const key in data) {
+      if ((data as any)[key] !== undefined) {
+        cleanData[key] = (data as any)[key];
+      }
+    }
+
     const batch = writeBatch(firestore);
     const shipmentRef = id ? doc(firestore, "shipments", id) : doc(collection(firestore, "shipments"));
     let oldStatus: string | undefined;
@@ -930,17 +938,17 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     if (id) {
       const docSnap = await getDoc(shipmentRef);
       if (docSnap.exists()) oldStatus = docSnap.data().status;
-      batch.update(shipmentRef, { ...data, updatedAt: serverTimestamp() });
+      batch.update(shipmentRef, { ...cleanData, updatedAt: serverTimestamp() });
     } else {
-      batch.set(shipmentRef, { ...data, id: shipmentRef.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      batch.set(shipmentRef, { ...cleanData, id: shipmentRef.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
     }
   
-    const newStatus = data.status;
+    const newStatus = cleanData.status;
     if (newStatus && newStatus !== oldStatus) {
       const historyRef = doc(collection(shipmentRef, 'history'));
       const historyEntry: Omit<ShipmentHistory, 'id'> = {
         status: newStatus,
-        reason: data.reason || 'تحديث من لوحة التحكم',
+        reason: cleanData.reason || 'تحديث من لوحة التحكم',
         updatedAt: serverTimestamp(),
         updatedBy: authUser.displayName || authUser.email || 'Admin',
         userId: authUser.uid,
@@ -955,12 +963,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
         description: "تمت العملية بنجاح",
       });
       handleSheetOpenChange(false);
-      if (data.assignedCourierId && (!editingShipment || data.assignedCourierId !== editingShipment.assignedCourierId)) {
+      if (cleanData.assignedCourierId && (!editingShipment || cleanData.assignedCourierId !== editingShipment.assignedCourierId)) {
         const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${id || shipmentRef.id}` : `/?edit=${id || shipmentRef.id}`;
         sendPushNotification({
-          recipientId: data.assignedCourierId,
+          recipientId: cleanData.assignedCourierId,
           title: 'شحنة جديدة',
-          body: `تم تعيين شحنة جديدة لك: ${data.recipientName}`,
+          body: `تم تعيين شحنة جديدة لك: ${cleanData.recipientName}`,
           url: notificationUrl,
         }).catch(console.error);
       }
