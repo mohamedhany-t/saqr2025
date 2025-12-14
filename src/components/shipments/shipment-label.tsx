@@ -38,6 +38,8 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl,
     currency: 'EGP',
   }).format(shipment.totalAmount);
 
+  // Combine company name and sender name
+  const senderDisplay = [companyName, shipment.senderName].filter(Boolean).join(' - ');
 
   return (
     <div id="printable-label" style={labelStyle} className={cn("bg-white border-2 border-black p-2 text-black flex flex-col", className)} dir="rtl">
@@ -46,7 +48,7 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl,
         <div className="flex justify-between items-center pb-1">
             <div className="text-right">
                 <h1 className="text-lg font-bold leading-none">AlSaqr Logistics</h1>
-                <p className="text-sm leading-none">{shipment.senderName || companyName}</p>
+                <p className="text-sm leading-none">{senderDisplay}</p>
             </div>
             <Logo className="w-8 h-8 flex-shrink-0" />
         </div>
