@@ -68,6 +68,7 @@ const MobileShipmentsView = ({
     onPrint,
     onBulkUpdate,
     onBulkDelete,
+    onBulkPrint,
     columnFilters,
     setColumnFilters,
     role,
@@ -91,6 +92,7 @@ const MobileShipmentsView = ({
     onPrint: (shipment: Shipment) => void;
     onBulkUpdate: (selectedRows: Shipment[], update: Partial<Shipment>) => void;
     onBulkDelete: (selectedRows: Shipment[]) => void;
+    onBulkPrint: (selectedRows: Shipment[]) => void;
     columnFilters: ColumnFiltersState;
     setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>;
     role: Role | null;
@@ -146,14 +148,8 @@ const MobileShipmentsView = ({
         onBulkUpdate(selectedRows, update);
     };
 
-    const handleBulkPrint = () => {
-        const selectedIds = selectedShipments.map(s => s.id);
-        if (selectedIds.length === 0) {
-            toast({ title: "لم يتم تحديد أي شحنات للطباعة", variant: "destructive" });
-            return;
-        }
-        const printUrl = `/print/bulk?ids=${selectedIds.join(',')}`;
-        window.open(printUrl, '_blank', 'width=800,height=600');
+    const handleMobileBulkPrint = () => {
+        onBulkPrint(selectedShipments);
         setMobileRowSelection({});
     };
 
@@ -320,7 +316,7 @@ const MobileShipmentsView = ({
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <Button variant="outline" size="sm" onClick={handleBulkPrint}>
+                    <Button variant="outline" size="sm" onClick={handleMobileBulkPrint}>
                         <Printer className="me-2 h-4 w-4" />
                         <span>طباعة</span>
                     </Button>
@@ -389,6 +385,7 @@ const DesktopShipmentsView = ({
     openShipmentForm,
     handleGenericBulkUpdate,
     handleBulkDelete,
+    handleBulkPrint,
     columnFilters,
     setColumnFilters,
   }: {
@@ -411,6 +408,7 @@ const DesktopShipmentsView = ({
     openShipmentForm: (shipment?: Shipment) => void;
     handleGenericBulkUpdate: (selectedRows: Shipment[], update: Partial<Shipment>) => void;
     handleBulkDelete: (selectedRows: Shipment[]) => void;
+    handleBulkPrint: (selectedRows: Shipment[]) => void;
     columnFilters: ColumnFiltersState,
     setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
   }) => {
@@ -426,6 +424,7 @@ const DesktopShipmentsView = ({
           role={role}
           onBulkUpdate={handleGenericBulkUpdate}
           onBulkDelete={handleBulkDelete}
+          onBulkPrint={handleBulkPrint}
           filters={columnFilters}
           onFiltersChange={setColumnFilters}
           activeTab={activeTab}
@@ -546,8 +545,8 @@ const PrintCenterPage = ({
             statuses={statuses}
             onEdit={onEdit}
             role={role}
-            onBulkUpdate={handlePrintAndUpdate}
-            activeTab="none"
+            onBulkUpdate={onGenericBulkUpdate}
+            onBulkPrint={handlePrintAndUpdate}
           />
         </TabsContent>
         <TabsContent value="printed">
@@ -561,7 +560,7 @@ const PrintCenterPage = ({
             onEdit={onEdit}
             role={role}
             onBulkUpdate={onGenericBulkUpdate}
-            activeTab="none"
+            onBulkPrint={handlePrintAndUpdate}
           />
         </TabsContent>
       </Tabs>
@@ -1422,15 +1421,21 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
 
 
   const filteredShipments = React.useMemo(() => {
-    let baseShipments = shipments?.filter(shipment => !shipment.isArchivedForCompany && !shipment.isArchivedForCourier) || [];
+    let baseShipments = shipments || [];
 
     // Apply column filters
     if (columnFilters.length > 0) {
         baseShipments = baseShipments.filter(shipment => {
             return columnFilters.every(filter => {
                 const value = (shipment as any)[filter.id];
+                if (filter.id === 'isAssigned') {
+                    const filterValue = filter.value;
+                    if (filterValue === 'assigned') return !!shipment.assignedCourierId;
+                    if (filterValue === 'unassigned') return !shipment.assignedCourierId;
+                    return true;
+                }
+                if (!value && filter.id !== 'status') return false;
                 const filterValue = filter.value as string[];
-                if (!value && filter.id !== 'status') return false; // Status can be a valid filter even if shipment.status is not set
                 if (Array.isArray(filterValue) && filterValue.length > 0) {
                   return filterValue.includes(value);
                 }
@@ -1669,6 +1674,16 @@ const returnedToCompanyShipments = React.useMemo(() => {
     }
   };
 
+  const handleBulkPrint = (selectedRows: Shipment[]) => {
+    if (selectedRows.length === 0) {
+        toast({ title: "لم يتم تحديد أي شحنات للطباعة", variant: "destructive" });
+        return;
+    }
+    const ids = selectedRows.map(row => row.id);
+    const printUrl = `/print/bulk?ids=${ids.join(',')}`;
+    window.open(printUrl, '_blank', 'width=800,height=600');
+  };
+
   const getShipmentsByStatus = (status: string | string[]) => {
     const statuses = Array.isArray(status) ? status : [status];
     return filteredShipments.filter(s => statuses.includes(s.status));
@@ -1816,6 +1831,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
                     onPrint={handlePrintShipment}
                     onBulkUpdate={handleGenericBulkUpdate}
                     onBulkDelete={handleDeleteShipment}
+                    onBulkPrint={handleBulkPrint}
                     columnFilters={columnFilters}
                     setColumnFilters={setColumnFilters}
                     role={role}
@@ -1840,6 +1856,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
                     openShipmentForm={openShipmentForm}
                     handleGenericBulkUpdate={handleGenericBulkUpdate}
                     handleBulkDelete={handleDeleteShipment}
+                    handleBulkPrint={handleBulkPrint}
                     columnFilters={columnFilters}
                     setColumnFilters={setColumnFilters}
                 />

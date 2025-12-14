@@ -48,7 +48,7 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl,
         <div className="flex justify-between items-center pb-1">
             <div className="text-right">
                 <h1 className="text-lg font-bold leading-none">AlSaqr Logistics</h1>
-                <p className="text-sm leading-none">{senderDisplay}</p>
+                <p className="text-sm leading-none">شكرًا لاختياركم الصقر للخدمات اللوجستية.</p>
             </div>
             <Logo className="w-8 h-8 flex-shrink-0" />
         </div>
@@ -78,8 +78,8 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl,
         {/* Footer */}
         <div className="flex justify-between items-center pt-2 mt-auto">
             <div className="text-right text-xs">
+                <p className="font-semibold">{senderDisplay}</p>
                 <p className="font-bold">كود الشحنة: <span className="font-mono font-normal">{shipment.shipmentCode}</span></p>
-                <p className="mt-1">شكرًا لاختياركم الصقر للخدمات اللوجستية.</p>
             </div>
              <div className="text-left">
                 {editUrl && <QRCode value={editUrl} size={90} level="M" />}
