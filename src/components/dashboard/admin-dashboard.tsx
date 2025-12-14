@@ -1,4 +1,5 @@
 
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -1648,6 +1649,14 @@ const returnedToCompanyShipments = React.useMemo(() => {
     selectedRows.forEach(row => {
       const shipmentRef = doc(firestore, 'shipments', row.id);
       const finalUpdate: { [key: string]: any } = { ...update, updatedAt: serverTimestamp() };
+      
+      // Clean up undefined values
+      for (const key in finalUpdate) {
+        if (finalUpdate[key] === undefined) {
+          delete finalUpdate[key];
+        }
+      }
+
       batch.update(shipmentRef, finalUpdate);
   
       if (update.status) {
