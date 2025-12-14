@@ -75,11 +75,11 @@ export function ShipmentLabel({ shipment, governorateName, companyName, editUrl,
         </div>
         
         {/* Footer */}
-        <div className="flex justify-between items-end pt-2 mt-auto">
-            <div className="text-right text-xs">
-                <p className="font-semibold">{senderDisplay}</p>
-                <p className="font-bold">كود الشحنة: <span className="font-mono font-normal">{shipment.shipmentCode}</span></p>
-                <p className="text-sm leading-none">شكرًا لاختياركم الصقر للخدمات اللوجستية.</p>
+        <div className="flex justify-between items-start pt-2 mt-auto">
+            <div className="flex-1 text-right text-xs">
+                 <p className="font-semibold text-base">{senderDisplay}</p>
+                 <p className="font-bold">كود الشحنة: <span className="font-mono font-normal">{shipment.shipmentCode}</span></p>
+                 <p className="text-sm leading-none mt-2">شكرًا لاختياركم الصقر للخدمات اللوجستية.</p>
             </div>
              <div className="text-left">
                 {editUrl && <QRCode value={editUrl} size={90} level="M" />}
