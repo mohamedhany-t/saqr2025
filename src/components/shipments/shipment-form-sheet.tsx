@@ -57,6 +57,7 @@ const shipmentSchema = z.object({
   isUrgent: z.boolean().optional(),
   isCustomReturn: z.boolean().optional(),
   retryAttempt: z.boolean().optional(),
+  isLabelPrinted: z.boolean().optional(),
 });
 
 const cancellationReasons = [
@@ -145,6 +146,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
       isUrgent: false,
       isCustomReturn: false,
       retryAttempt: false,
+      isLabelPrinted: false,
     },
   });
   
@@ -178,6 +180,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           isUrgent: shipment.isUrgent ?? false,
           isCustomReturn: shipment.isCustomReturn ?? false,
           retryAttempt: shipment.retryAttempt ?? false,
+          isLabelPrinted: shipment.isLabelPrinted ?? false,
         });
       } else {
         form.reset({
@@ -204,6 +207,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           isUrgent: false,
           isCustomReturn: false,
           retryAttempt: false,
+          isLabelPrinted: false,
         });
       }
     }
@@ -587,6 +591,24 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                         )}
                     />
                      </>}
+                     {isAdmin && (
+                        <FormField
+                        control={form.control}
+                        name="isLabelPrinted"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="isLabelPrinted" className="text-right">تمت طباعة الملصق؟</Label>
+                                <FormControl className="col-span-3">
+                                   <Checkbox
+                                        id="isLabelPrinted"
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                    />
+                                </FormControl>
+                            </FormItem>
+                        )}
+                    />
+                     )}
                 </div>
                 <SheetFooter>
                     <SheetClose asChild>

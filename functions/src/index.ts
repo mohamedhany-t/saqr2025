@@ -48,6 +48,7 @@ const updateShipmentStatusSchema = z.object({
     senderName: z.string().optional(),
     isCustomReturn: z.boolean().optional(),
     retryAttempt: z.boolean().optional(),
+    isLabelPrinted: z.boolean().optional(),
 });
 
 

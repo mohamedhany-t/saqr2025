@@ -134,6 +134,10 @@
         "isExchange": {
             "type": "boolean",
             "description": "Flag to indicate if a shipment is an exchange (package-for-package)."
+        },
+        "isLabelPrinted": {
+            "type": "boolean",
+            "description": "Flag to indicate if the shipping label has been printed."
         }
       },
       "required": [

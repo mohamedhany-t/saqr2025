@@ -538,6 +538,83 @@ const ProblemShipmentList = ({ title, icon, shipments, onEdit, children }: { tit
     );
 };
 
+const PrintCenterPage = ({
+    shipments,
+    isLoading,
+    governorates,
+    companies,
+    courierUsers,
+    statuses,
+    onEdit,
+    role,
+    onGenericBulkUpdate,
+  }: {
+    shipments: Shipment[];
+    isLoading: boolean;
+    governorates: Governorate[];
+    companies: Company[];
+    courierUsers: User[];
+    statuses: ShipmentStatusConfig[];
+    onEdit: (shipment: Shipment) => void;
+    role: Role | null;
+    onGenericBulkUpdate: (selectedRows: Shipment[], update: Partial<Shipment>) => void;
+  }) => {
+    const unprintedShipments = React.useMemo(() => shipments.filter(s => !s.isLabelPrinted), [shipments]);
+    const printedShipments = React.useMemo(() => shipments.filter(s => s.isLabelPrinted), [shipments]);
+    const { toast } = useToast();
+  
+    const handlePrintAndUpdate = async (selectedRows: Shipment[]) => {
+      if (selectedRows.length === 0) {
+        toast({ title: 'لم يتم تحديد أي شحنات', variant: 'destructive' });
+        return;
+      }
+      // Step 1: Update Firestore
+      await onGenericBulkUpdate(selectedRows, { isLabelPrinted: true });
+  
+      // Step 2: Open print window
+      const ids = selectedRows.map(row => row.id);
+      const printUrl = `/print/bulk?ids=${ids.join(',')}`;
+      window.open(printUrl, '_blank', 'width=800,height=600');
+    };
+  
+    return (
+      <Tabs defaultValue="unprinted">
+        <TabsList>
+          <TabsTrigger value="unprinted">جاهزة للطباعة ({unprintedShipments.length})</TabsTrigger>
+          <TabsTrigger value="printed">تمت طباعتها ({printedShipments.length})</TabsTrigger>
+        </TabsList>
+        <TabsContent value="unprinted">
+          <ShipmentsTable
+            shipments={unprintedShipments}
+            isLoading={isLoading}
+            governorates={governorates}
+            companies={companies}
+            couriers={courierUsers}
+            statuses={statuses}
+            onEdit={onEdit}
+            role={role}
+            onBulkUpdate={handlePrintAndUpdate}
+            activeTab="none"
+          />
+        </TabsContent>
+        <TabsContent value="printed">
+          <ShipmentsTable
+            shipments={printedShipments}
+            isLoading={isLoading}
+            governorates={governorates}
+            companies={companies}
+            couriers={courierUsers}
+            statuses={statuses}
+            onEdit={onEdit}
+            role={role}
+            onBulkUpdate={onGenericBulkUpdate}
+            activeTab="none"
+          />
+        </TabsContent>
+      </Tabs>
+    );
+  };
+
 
 interface AdminDashboardProps {
   user: User;
@@ -1858,6 +1935,10 @@ const returnedToCompanyShipments = React.useMemo(() => {
         <div className="flex items-center">
             <TabsList className="flex-nowrap overflow-x-auto justify-start">
             <TabsTrigger value="shipments">الشحنات</TabsTrigger>
+            <TabsTrigger value="print-center">
+                <Printer className="w-4 h-4 me-2"/>
+                مركز الطباعة
+            </TabsTrigger>
             <TabsTrigger value="problem-inbox" className="relative">
               صندوق المشاكل
               {problemCount > 0 && (
@@ -1960,6 +2041,19 @@ const returnedToCompanyShipments = React.useMemo(() => {
                     setColumnFilters={setColumnFilters}
                 />
             }
+        </TabsContent>
+        <TabsContent value="print-center">
+            <PrintCenterPage 
+                shipments={shipments || []}
+                isLoading={shipmentsLoading}
+                governorates={governorates || []}
+                companies={companies || []}
+                courierUsers={courierUsers || []}
+                statuses={statuses || []}
+                onEdit={openShipmentForm}
+                role={role}
+                onGenericBulkUpdate={handleGenericBulkUpdate}
+            />
         </TabsContent>
          <TabsContent value="problem-inbox">
             <div className="mt-4 space-y-6">

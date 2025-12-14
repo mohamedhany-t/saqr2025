@@ -78,6 +78,7 @@ export type Shipment = {
   isUrgent?: boolean; // To mark the shipment as urgent
   isCustomReturn?: boolean; // To mark the shipment as a custom return
   retryAttempt?: boolean; // To mark the shipment for a retry attempt
+  isLabelPrinted?: boolean; // To track if the shipping label has been printed
 };
 
 export type ShipmentHistory = {

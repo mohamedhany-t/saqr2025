@@ -80,6 +80,7 @@ const updateShipmentStatusSchema = zod_1.z.object({
     isArchivedForCompany: zod_1.z.boolean().optional(),
     senderName: zod_1.z.string().optional(),
     isCustomReturn: zod_1.z.boolean().optional(),
+    retryAttempt: zod_1.z.boolean().optional(),
 });
 exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
@@ -132,6 +133,10 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
                 const finalShipmentUpdate = {
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 };
+                // Courier is taking an action, so reset the retry flag.
+                if (validatedData.status) {
+                    finalShipmentUpdate.retryAttempt = false;
+                }
                 // Add all valid fields from the request to the update object
                 for (const key in validatedData) {
                     if (Object.prototype.hasOwnProperty.call(validatedData, key) && validatedData[key] !== undefined && key !== 'shipmentId') {
