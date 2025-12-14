@@ -444,6 +444,7 @@ export function ShipmentsTable({
     role, 
     onBulkUpdate,
     onBulkDelete,
+    onBulkPrint,
     filters,
     onFiltersChange,
     activeTab = 'none',
@@ -458,6 +459,7 @@ export function ShipmentsTable({
     role: Role | null, 
     onBulkUpdate?: (selectedRows: Shipment[], update: Partial<Shipment>) => void,
     onBulkDelete?: (selectedRows: Shipment[]) => void,
+    onBulkPrint?: (selectedRows: Shipment[]) => void,
     filters?: ColumnFiltersState,
     onFiltersChange?: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
     activeTab?: 'none' | 'company' | 'courier' | 'returns-with-couriers' | 'returns-in-warehouse' | 'returned-to-company',
@@ -519,21 +521,19 @@ export function ShipmentsTable({
     exportToExcel(dataToExport, columns.filter(c => c.id !== 'select' && c.id !== 'actions'), "shipments", governorates, companies, couriers);
   }
 
-  const handleBulkPrint = () => {
+  const handleBulkPrintInternal = () => {
     const selectedRows = table.getFilteredSelectedRowModel().rows;
     if (selectedRows.length === 0) {
         toast({ title: "لم يتم تحديد أي شحنات للطباعة", variant: "destructive" });
         return;
     }
     
-    // Check if onBulkUpdate is defined and use it for the print center flow
-    if (onBulkUpdate) {
-        onBulkUpdate(selectedRows.map(row => row.original), { isLabelPrinted: true });
+    if (onBulkPrint) {
+        onBulkPrint(selectedRows.map(row => row.original));
         table.resetRowSelection();
-        return; // The parent (PrintCenterPage) will open the print window
+        return;
     }
 
-    // Fallback for regular print
     const ids = selectedRows.map(row => row.original.id);
     const printUrl = `/print/bulk?ids=${ids.join(',')}`;
     window.open(printUrl, '_blank', 'width=800,height=600');
@@ -560,14 +560,12 @@ export function ShipmentsTable({
         return;
     }
     
-    // If a role-specific handler is provided (e.g., for couriers), use it.
     if (onBulkUpdate) {
         onBulkUpdate(selectedRows.map(row => row.original), update);
         table.resetRowSelection();
         return;
     }
 
-    // Generic handler primarily for admin (fallback)
     const batch = writeBatch(firestore);
     selectedRows.forEach(row => {
         const docRef = doc(firestore, "shipments", row.original.id);
@@ -746,7 +744,7 @@ export function ShipmentsTable({
                     <span className="text-sm text-muted-foreground hidden lg:inline">
                         {table.getFilteredSelectedRowModel().rows.length} شحنات محددة
                     </span>
-                    {role !== 'courier' && <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleBulkPrint}>
+                    {role !== 'courier' && <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleBulkPrintInternal}>
                         <Printer className="h-3.5 w-3.5" />
                         <span className="sr-only sm:not-sr-only">طباعة المحدد</span>
                     </Button>}
