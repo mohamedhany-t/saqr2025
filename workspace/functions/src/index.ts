@@ -133,12 +133,22 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
                         }
                         
                         finalUpdate.paidAmount = paidAmount;
-                        finalUpdate.collectedAmount = paidAmount; // Align collected with paid for consistency
+                        finalUpdate.collectedAmount = paidAmount; 
+
+                        // --- Start of Custom Return Logic ---
+                        const isCustomReturn = finalUpdate.isCustomReturn ?? shipmentData.isCustomReturn;
+                        if (isCustomReturn && newStatusConfig.isDeliveredStatus) {
+                            finalUpdate.paidAmount = -Math.abs(totalAmount);
+                            finalUpdate.collectedAmount = -Math.abs(totalAmount);
+                        }
+                        // --- End of Custom Return Logic ---
+                        
 
                         // Handle courier commission
                         if (newStatusConfig.affectsCourierBalance) {
                             const courierId = finalUpdate.assignedCourierId ?? shipmentData.assignedCourierId;
                             if (courierId) {
+                                // Fetch courier data within the transaction if possible, or have it available
                                 const courierProfileDoc = await db.collection('couriers').doc(courierId).get();
                                 const commissionRate = courierProfileDoc?.exists ? (courierProfileDoc.data() as any).commissionRate || 0 : 0;
                                 finalUpdate.courierCommission = commissionRate;
@@ -163,20 +173,6 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
 
                     }
                 }
-                
-                // Handle Custom Return logic - this overrides previous calculations if applicable
-                const isCustomReturn = finalUpdate.isCustomReturn ?? shipmentData.isCustomReturn;
-                const statusesSnapForReturn = await db.collection('shipment_statuses').get();
-                const statusConfigsForReturn = statusesSnapForReturn.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ShipmentStatusConfig[];
-                const finalStatus = finalUpdate.status ?? shipmentData.status;
-                const finalStatusConfig = statusConfigsForReturn.find(s => s.id === finalStatus);
-                
-                if (isCustomReturn && finalStatusConfig?.isDeliveredStatus) {
-                    const totalAmount = finalUpdate.totalAmount ?? shipmentData.totalAmount ?? 0;
-                    finalUpdate.paidAmount = -Math.abs(totalAmount);
-                    finalUpdate.collectedAmount = -Math.abs(totalAmount);
-                }
-
 
                 const historyRef = shipmentRef.collection('history').doc();
                 const historyEntry = {
@@ -200,10 +196,3 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
         }
     });
 });
-
-// Define a simple type for the function to use, matching the one in admin-dashboard
-interface ShipmentStatusConfigLocal {
-  id: string;
-  isDeliveredStatus?: boolean;
-  isReturnedStatus?: boolean;
-}
