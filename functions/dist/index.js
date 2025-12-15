@@ -32,6 +32,17 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -51,29 +62,22 @@ catch (e) {
 }
 const db = admin.firestore();
 const corsHandler = (0, cors_1.default)({ origin: true });
-// This flexible schema now accepts all possible fields from both
-// courier and admin roles, making them optional to avoid validation errors.
 const updateShipmentStatusSchema = zod_1.z.object({
     shipmentId: zod_1.z.string(),
-    status: zod_1.z.string(),
+    // All other fields are optional because the logic will decide what to do
+    status: zod_1.z.string().optional(),
     reason: zod_1.z.string().optional(),
-    collectedAmount: zod_1.z.number().optional(),
-    // --- Fields for Courier's Price Change Request ---
-    requestedAmount: zod_1.z.number().optional(),
+    collectedAmount: zod_1.z.coerce.number().optional(),
+    requestedAmount: zod_1.z.coerce.number().optional(),
     amountChangeReason: zod_1.z.string().optional(),
-    // --- Optional fields that Admin OR COURIER can now send ---
-    paidAmount: zod_1.z.number().optional(),
-    courierCommission: zod_1.z.number().optional(),
-    // --- Optional fields that only Admin can send ---
     recipientName: zod_1.z.string().optional(),
     recipientPhone: zod_1.z.string().optional(),
     address: zod_1.z.string().optional(),
-    totalAmount: zod_1.z.number().optional(),
+    totalAmount: zod_1.z.coerce.number().optional(),
     governorateId: zod_1.z.string().optional(),
     assignedCourierId: zod_1.z.string().optional(),
     companyId: zod_1.z.string().optional(),
     orderNumber: zod_1.z.string().optional(),
-    companyCommission: zod_1.z.number().optional(),
     isWarehouseReturn: zod_1.z.boolean().optional(),
     isReturnedToCompany: zod_1.z.boolean().optional(),
     isArchivedForCourier: zod_1.z.boolean().optional(),
@@ -82,6 +86,8 @@ const updateShipmentStatusSchema = zod_1.z.object({
     isCustomReturn: zod_1.z.boolean().optional(),
     retryAttempt: zod_1.z.boolean().optional(),
     isLabelPrinted: zod_1.z.boolean().optional(),
+    isUrgent: zod_1.z.boolean().optional(),
+    isExchange: zod_1.z.boolean().optional(),
 });
 exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
@@ -114,54 +120,87 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
             return;
         }
         const validatedData = validation.data;
-        const shipmentId = validatedData.shipmentId;
+        const { shipmentId } = validatedData, updatePayload = __rest(validatedData, ["shipmentId"]);
+        if (!shipmentId) {
+            res.status(400).send({ error: { status: 'INVALID_ARGUMENT', message: 'Shipment ID is required.' } });
+            return;
+        }
         const shipmentRef = db.collection('shipments').doc(shipmentId);
         try {
             const result = await db.runTransaction(async (transaction) => {
-                var _a, _b, _c;
+                var _a, _b, _c, _d, _e, _f, _g;
                 const shipmentDoc = await transaction.get(shipmentRef);
                 if (!shipmentDoc.exists) {
                     throw new functions.https.HttpsError("not-found", "Shipment not found.");
                 }
                 const shipmentData = shipmentDoc.data();
-                // Allow admin to edit any shipment, but courier/company can only edit their own.
-                const userRoleDoc = await db.collection('roles_admin').doc(userId).get();
-                const isAdmin = userRoleDoc.exists;
-                if (!isAdmin && shipmentData.assignedCourierId !== userId && shipmentData.companyId !== userId) {
+                const userDoc = await db.collection('users').doc(userId).get();
+                if (!userDoc.exists) {
+                    throw new functions.https.HttpsError("permission-denied", "User profile not found.");
+                }
+                const userProfile = userDoc.data();
+                if (userProfile.role !== 'admin' && shipmentData.assignedCourierId !== userId && shipmentData.companyId !== userId) {
                     throw new functions.https.HttpsError("permission-denied", "You are not assigned to this shipment.");
                 }
-                // Construct the final update object from validated, non-undefined data
-                const finalShipmentUpdate = {
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                };
-                // Courier is taking an action, so reset the retry flag.
-                if (validatedData.status) {
-                    finalShipmentUpdate.retryAttempt = false;
-                }
-                // Add all valid fields from the request to the update object
-                for (const key in validatedData) {
-                    if (Object.prototype.hasOwnProperty.call(validatedData, key) && validatedData[key] !== undefined && key !== 'shipmentId') {
-                        finalShipmentUpdate[key] = validatedData[key];
+                const finalUpdate = Object.assign(Object.assign({}, updatePayload), { updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+                // If status is being changed, we need to recalculate financial fields
+                if (updatePayload.status && updatePayload.status !== shipmentData.status) {
+                    finalUpdate.retryAttempt = false; // Reset retry flag on any status update
+                    const statusesSnap = await db.collection('shipment_statuses').get();
+                    const statusConfigs = statusesSnap.docs.map(doc => (Object.assign({ id: doc.id }, doc.data())));
+                    const newStatusConfig = statusConfigs.find(s => s.id === updatePayload.status);
+                    if (newStatusConfig) {
+                        let paidAmount = 0;
+                        const totalAmount = (_b = (_a = finalUpdate.totalAmount) !== null && _a !== void 0 ? _a : shipmentData.totalAmount) !== null && _b !== void 0 ? _b : 0;
+                        const collectedAmount = (_c = finalUpdate.collectedAmount) !== null && _c !== void 0 ? _c : 0;
+                        if (newStatusConfig.requiresFullCollection) {
+                            paidAmount = totalAmount;
+                        }
+                        else if (newStatusConfig.requiresPartialCollection) {
+                            paidAmount = collectedAmount;
+                        }
+                        finalUpdate.paidAmount = paidAmount;
+                        finalUpdate.collectedAmount = paidAmount; // Align collected with paid for consistency
+                        // Handle courier commission
+                        if (newStatusConfig.affectsCourierBalance) {
+                            const courierProfileDoc = shipmentData.assignedCourierId ? await db.collection('couriers').doc(shipmentData.assignedCourierId).get() : null;
+                            const commissionRate = (courierProfileDoc === null || courierProfileDoc === void 0 ? void 0 : courierProfileDoc.exists) ? courierProfileDoc.data().commissionRate || 0 : 0;
+                            finalUpdate.courierCommission = commissionRate;
+                        }
+                        else {
+                            finalUpdate.courierCommission = 0;
+                        }
+                        // Handle company commission
+                        if (newStatusConfig.affectsCompanyBalance) {
+                            const companyProfileDoc = await db.collection('companies').doc(shipmentData.companyId).get();
+                            const governorateCommissions = ((_d = companyProfileDoc.data()) === null || _d === void 0 ? void 0 : _d.governorateCommissions) || {};
+                            const commission = governorateCommissions[shipmentData.governorateId] || 0;
+                            finalUpdate.companyCommission = commission;
+                        }
+                        else {
+                            finalUpdate.companyCommission = 0;
+                        }
                     }
                 }
-                // If isCustomReturn is true and the status is a "delivered" status, make the paidAmount negative.
-                const isCustomReturn = shipmentData.isCustomReturn === true || validatedData.isCustomReturn === true;
-                const statusConfigDoc = await db.collection('shipment_statuses').doc(validatedData.status).get();
-                const isDeliveredStatus = statusConfigDoc.exists && ((_a = statusConfigDoc.data()) === null || _a === void 0 ? void 0 : _a.isDeliveredStatus) === true;
-                if (isCustomReturn && isDeliveredStatus) {
-                    const totalAmount = (_c = (_b = validatedData.totalAmount) !== null && _b !== void 0 ? _b : shipmentData.totalAmount) !== null && _c !== void 0 ? _c : 0;
-                    finalShipmentUpdate.paidAmount = -Math.abs(totalAmount);
-                    finalShipmentUpdate.collectedAmount = -Math.abs(totalAmount);
+                // Handle Custom Return logic - this overrides previous calculations if applicable
+                const isCustomReturn = (_e = finalUpdate.isCustomReturn) !== null && _e !== void 0 ? _e : shipmentData.isCustomReturn;
+                const statusesSnapForReturn = await db.collection('shipment_statuses').get();
+                const statusConfigsForReturn = statusesSnapForReturn.docs.map(doc => (Object.assign({ id: doc.id }, doc.data())));
+                const finalStatusConfig = statusConfigsForReturn.find(s => s.id === finalUpdate.status || shipmentData.status);
+                if (isCustomReturn && (finalStatusConfig === null || finalStatusConfig === void 0 ? void 0 : finalStatusConfig.isDeliveredStatus)) {
+                    const totalAmount = (_g = (_f = finalUpdate.totalAmount) !== null && _f !== void 0 ? _f : shipmentData.totalAmount) !== null && _g !== void 0 ? _g : 0;
+                    finalUpdate.paidAmount = -Math.abs(totalAmount);
+                    finalUpdate.collectedAmount = -Math.abs(totalAmount);
                 }
                 const historyRef = shipmentRef.collection('history').doc();
                 const historyEntry = {
-                    status: validatedData.status,
-                    reason: validatedData.reason || validatedData.amountChangeReason || '',
+                    status: finalUpdate.status || shipmentData.status,
+                    reason: finalUpdate.reason || finalUpdate.amountChangeReason || '',
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                     updatedBy: userName || userEmail,
                     userId: userId,
                 };
-                transaction.update(shipmentRef, finalShipmentUpdate);
+                transaction.update(shipmentRef, finalUpdate);
                 transaction.set(historyRef, historyEntry);
                 return { success: true, message: "Shipment updated successfully." };
             });
