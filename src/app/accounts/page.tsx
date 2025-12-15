@@ -28,7 +28,7 @@ type Transaction = {
 };
 
 const formatCurrency = (amount: number | undefined) => {
-    if (amount === undefined) return 'N/A';
+    if (amount === undefined) return '-';
     return new Intl.NumberFormat("ar-EG", {
         style: "currency",
         currency: "EGP",
@@ -60,10 +60,10 @@ function AccountStatementsPage() {
         let entityPayments: (CourierPayment | CompanyPayment)[];
 
         if (entityType === 'courier') {
-            entityShipments = shipments.filter(s => s.assignedCourierId === selectedId && (s.paidAmount || 0) > 0);
+            entityShipments = shipments.filter(s => s.assignedCourierId === selectedId && (s.paidAmount || 0) !== 0);
             entityPayments = courierPayments.filter(p => p.courierId === selectedId);
         } else { // company
-            entityShipments = shipments.filter(s => s.companyId === selectedId && (s.paidAmount || 0) > 0);
+            entityShipments = shipments.filter(s => s.companyId === selectedId && (s.paidAmount || 0) !== 0);
             entityPayments = companyPayments.filter(p => p.companyId === selectedId);
         }
         
@@ -92,7 +92,8 @@ function AccountStatementsPage() {
             if (entityType === 'courier') {
                 if (rawTx.type === 'shipment') {
                     const s = rawTx.data as Shipment;
-                    tx.description = `شحنة: ${s.recipientName} (${s.orderNumber})`;
+                    const descriptionPrefix = s.isCustomReturn ? "استرجاع مخصص" : "شحنة";
+                    tx.description = `${descriptionPrefix}: ${s.recipientName} (${s.orderNumber})`;
                     tx.totalAmount = s.totalAmount || 0;
                     tx.paidAmount = s.paidAmount || 0;
                     tx.courierCommission = s.courierCommission || 0;
@@ -109,7 +110,8 @@ function AccountStatementsPage() {
             } else { // company
                  if (rawTx.type === 'shipment') {
                     const s = rawTx.data as Shipment;
-                    tx.description = `شحنة: ${s.recipientName} (${s.orderNumber})`;
+                    const descriptionPrefix = s.isCustomReturn ? "استرجاع مخصص" : "شحنة";
+                    tx.description = `${descriptionPrefix}: ${s.recipientName} (${s.orderNumber})`;
                     tx.totalAmount = s.totalAmount || 0;
                     tx.paidAmount = s.paidAmount || 0;
                     tx.companyCommission = s.companyCommission || 0;
@@ -146,7 +148,7 @@ function AccountStatementsPage() {
           { accessorKey: "description", header: "البيان" },
           { accessorKey: "totalAmount", header: "إجمالي الشحنة" },
           { accessorKey: "paidAmount", header: "المبلغ المحصَّل" },
-          { accessorKey: "courierCommission", header: `عمولة ${entityType === 'courier' ? 'المندوب' : 'الشركة'}` },
+          { accessorKey: entityType === 'courier' ? "courierCommission" : "companyCommission", header: `العمولة` },
           { accessorKey: "netDue", header: "صافي المستحق" },
           { accessorKey: "balance", header: "الرصيد التراكمي" },
         ];
@@ -154,10 +156,10 @@ function AccountStatementsPage() {
         const dataToExport = transactions.map(tx => ({
             date: formatToCairoTime(tx.date),
             description: tx.description,
-            totalAmount: tx.totalAmount !== undefined ? formatCurrency(tx.totalAmount) : '-',
-            paidAmount: tx.paidAmount !== undefined ? formatCurrency(tx.paidAmount) : '-',
-            courierCommission: tx.courierCommission !== undefined ? formatCurrency(tx.courierCommission) : '-',
-            companyCommission: tx.companyCommission !== undefined ? formatCurrency(tx.companyCommission) : '-',
+            totalAmount: formatCurrency(tx.totalAmount),
+            paidAmount: formatCurrency(tx.paidAmount),
+            courierCommission: formatCurrency(tx.courierCommission),
+            companyCommission: formatCurrency(tx.companyCommission),
             netDue: formatCurrency(tx.netDue),
             balance: formatCurrency(tx.balance)
         }));
@@ -264,7 +266,7 @@ function AccountStatementsPage() {
                                         <TableCell>{formatToCairoTime(tx.date)}</TableCell>
                                         <TableCell className="max-w-xs truncate">{tx.description}</TableCell>
                                         <TableCell className="text-center font-mono">{formatCurrency(tx.totalAmount)}</TableCell>
-                                        <TableCell className="text-center font-mono">{formatCurrency(tx.paidAmount)}</TableCell>
+                                        <TableCell className={`text-center font-mono ${tx.paidAmount !== undefined && tx.paidAmount < 0 ? 'text-red-600' : ''}`}>{formatCurrency(tx.paidAmount)}</TableCell>
                                         <TableCell className="text-center font-mono">{formatCurrency(entityType === 'courier' ? tx.courierCommission : tx.companyCommission)}</TableCell>
                                         <TableCell className={`text-center font-mono font-bold ${tx.netDue > 0 ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(tx.netDue)}</TableCell>
                                         <TableCell className="text-center font-mono font-bold">{formatCurrency(tx.balance)}</TableCell>
@@ -279,7 +281,4 @@ function AccountStatementsPage() {
     );
 }
 
-// The default export now wraps the main component, satisfying Next.js page requirements.
-export default function Page() {
-    return <AccountStatementsPage />;
-}
+export default AccountStatementsPage;

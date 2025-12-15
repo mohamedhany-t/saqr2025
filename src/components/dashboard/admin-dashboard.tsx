@@ -1755,8 +1755,10 @@ const returnedToCompanyShipments = React.useMemo(() => {
             <TabsTrigger value="courier-management">إدارة المناديب</TabsTrigger>
             <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
             <TabsTrigger value="account-statements">
-              <FileSpreadsheet className="w-4 h-4 me-2"/>
-              كشوفات الحسابات
+                <Link href="/accounts" className="flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>كشوفات الحسابات</span>
+                </Link>
             </TabsTrigger>
             <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
              <TabsTrigger value="settings">
@@ -2158,7 +2160,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
                 </div>
         </TabsContent>
         <TabsContent value="account-statements">
-            <AccountStatementsPage />
+            <p className="p-4 text-center text-muted-foreground">يتم تحميل كشوفات الحسابات...</p>
         </TabsContent>
         <TabsContent value="user-management">
             <div className="mt-8">
