@@ -104,7 +104,7 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
                 }
                 const userProfile = userDoc.data() as User;
                 
-                if (userProfile.role !== 'admin' && shipmentData.assignedCourierId !== userId && shipmentData.companyId !== userId) {
+                if (userProfile.role !== 'admin' && userProfile.role !== 'customer-service' && shipmentData.assignedCourierId !== userId && shipmentData.companyId !== userId) {
                      throw new functions.https.HttpsError("permission-denied", "You are not assigned to this shipment.");
                 }
                 

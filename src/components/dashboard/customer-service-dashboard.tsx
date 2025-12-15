@@ -9,10 +9,10 @@ import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, query, where, doc, getDoc, writeBatch } from "firebase/firestore";
+import { collection, query, where, doc, getDoc, writeBatch, serverTimestamp } from "firebase/firestore";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
-import { AlertTriangle, CheckSquare, DollarSign, MessageSquare, Check, X, ScanLine } from "lucide-react";
+import { AlertTriangle, CheckSquare, DollarSign, MessageSquare, Check, X, ScanLine, FileUp, PlusCircle } from "lucide-react";
 import ChatInterface from "../chat/chat-interface";
 import { Badge } from "../ui/badge";
 import { differenceInDays, differenceInHours } from "date-fns";
@@ -32,6 +32,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ImportResult, ImportProgressDialog } from "@/components/shipments/import-progress-dialog";
+import { read, utils } from "xlsx";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { useFirebaseApp } from "@/firebase";
 
 const ProblemShipmentList = ({ title, icon, shipments, onEdit, children }: { title: string, icon: React.ReactNode, shipments: Shipment[], onEdit: (s: Shipment) => void, children?: (shipment: Shipment) => React.ReactNode }) => {
     if (shipments.length === 0) {
@@ -71,6 +75,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const { toast } = useToast();
   const firestore = useFirestore();
+  const app = useFirebaseApp();
   const { user: authUser } = useUser();
   const isMobile = useIsMobile();
   const router = useRouter();
@@ -78,6 +83,8 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
   const searchParams = useSearchParams();
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [showExitConfirm, setShowExitConfirm] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [importResult, setImportResult] = React.useState<ImportResult | null>(null);
 
   React.useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
@@ -182,16 +189,233 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
     setEditingShipment(shipment);
     setShipmentSheetOpen(true);
   };
-
-  const handleSaveShipment = () => {
-    // Customer service does not save/edit shipments.
-    toast({
-      title: "غير مصرح لك",
-      description: "دور خدمة العملاء لا يمتلك صلاحية تعديل الشحنات.",
-      variant: "destructive",
-    });
-    handleSheetOpenChange(false);
+  
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
   };
+
+  const parseExcelDate = (excelDate: any): Date | null => {
+    if (!excelDate) return null;
+    if (excelDate instanceof Date && !isNaN(excelDate.getTime())) {
+      return excelDate;
+    }
+    if (typeof excelDate === 'number') {
+      const date = new Date(Math.round((excelDate - 25569) * 86400 * 1000));
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+    if (typeof excelDate === 'string') {
+      const date = new Date(excelDate);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+    return null;
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !firestore || !authUser || !companies || !governorates) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = e.target?.result;
+            const workbook = read(data, { type: 'binary', cellDates: true });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const json = utils.sheet_to_json<any>(worksheet);
+
+            const result: ImportResult = {
+                added: 0,
+                updated: 0,
+                rejected: 0,
+                total: json.length,
+                errors: [],
+                processing: true
+            };
+            setImportResult(result);
+
+            const validRows: any[] = [];
+            const rejectedRows: any[] = [];
+            
+            // --- 1. Validation Phase ---
+            for (const row of json) {
+                let errorReason = "";
+                const recipientName = String(row['المرسل اليه'] || '').trim();
+                let recipientPhone = String(row['التليفون']?.toString() || '').trim();
+                const governorateName = String(row['المحافظة'] || '').trim();
+
+                if (recipientPhone.length === 10 && recipientPhone.startsWith("1")) {
+                    recipientPhone = "0" + recipientPhone;
+                    row['التليفون'] = recipientPhone; 
+                }
+
+                if (!recipientName) errorReason = "اسم المرسل إليه مفقود";
+                else if (!recipientPhone) errorReason = "رقم الهاتف مفقود";
+                else if (!governorateName) errorReason = "المحافظة مفقودة";
+                else if (governorates.find(g => g.name === governorateName) === undefined) errorReason = `المحافظة "${governorateName}" غير موجودة في النظام`;
+                
+                if (errorReason) {
+                    rejectedRows.push({ ...row, 'سبب الرفض': errorReason });
+                } else {
+                    validRows.push(row);
+                }
+            }
+            
+            result.rejected = rejectedRows.length;
+            result.errors = rejectedRows;
+            setImportResult({ ...result });
+
+            // --- 2. Processing Phase ---
+            const batch = writeBatch(firestore);
+            const shipmentsCollection = collection(firestore, 'shipments');
+
+            for (const row of validRows) {
+                const orderNumberValue = row['رقم الطلب']?.toString().trim();
+                const recipientNameValue = String(row['المرسل اليه'] || '').trim();
+                const recipientPhoneValue = String(row['التليفون']?.toString() || '').trim();
+                
+                let querySnapshot;
+                
+                const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
+                const foundCompany = companies.find(c => c.name === companyNameFromSheet);
+                if (!foundCompany) {
+                    result.rejected++;
+                    result.errors.push({ ...row, 'سبب الرفض': `الشركة "${companyNameFromSheet}" غير موجودة` });
+                    continue;
+                }
+                const companyIdForQuery = foundCompany.id;
+
+                if (orderNumberValue) {
+                    const q = query(shipmentsCollection, where("orderNumber", "==", orderNumberValue), where("companyId", "==", companyIdForQuery));
+                    querySnapshot = await getDoc(q);
+                }
+
+                if ((!querySnapshot || querySnapshot.empty) && recipientNameValue && recipientPhoneValue) {
+                    const q = query(shipmentsCollection, 
+                        where("recipientName", "==", recipientNameValue),
+                        where("recipientPhone", "==", recipientPhoneValue),
+                        where("companyId", "==", companyIdForQuery)
+                    );
+                     querySnapshot = await getDocs(q);
+                }
+                
+                const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
+                const creationDate = parseExcelDate(row['التاريخ']);
+                const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
+                const senderNameValue = row['الراسل'] || row['العميل الفرعى'];
+                
+                const codeFromSheet = row['كود الشحنة'] || row['رقم الشحنه'];
+                let shipmentCodeValue = codeFromSheet ? String(codeFromSheet).trim() : null;
+
+                if (!shipmentCodeValue) {
+                    const date = new Date();
+                    const dateString = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
+                    const randomNum = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+                    shipmentCodeValue = `SK-${dateString}-${randomNum}`;
+                }
+
+                const shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>> = {
+                    shipmentCode: shipmentCodeValue,
+                    senderName: senderNameValue,
+                    orderNumber: orderNumberValue,
+                    recipientName: recipientNameValue,
+                    recipientPhone: recipientPhoneValue,
+                    governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
+                    address: String(row['العنوان'] || 'N/A').trim(),
+                    totalAmount: parseFloat(String(totalAmountValue).replace(/[^0-9.]/g, '')),
+                    status: 'Pending',
+                    reason: String(row['السبب'] || ''),
+                    deliveryDate: deliveryDate || new Date(),
+                    isArchivedForCompany: false,
+                    isArchivedForCourier: false,
+                    companyId: companyIdForQuery,
+                };
+                const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+
+                if (!querySnapshot || querySnapshot.empty) {
+                    const docRef = doc(shipmentsCollection);
+                    batch.set(docRef, { ...cleanShipmentData, id: docRef.id, createdAt: creationDate || serverTimestamp(), updatedAt: serverTimestamp() });
+                    result.added++;
+                } else {
+                    const existingDoc = querySnapshot.docs[0];
+                    const existingShipment = existingDoc.data() as Shipment;
+
+                    let updateData: Partial<Shipment> = { ...cleanShipmentData, updatedAt: serverTimestamp() };
+                    
+                    if (existingShipment.assignedCourierId) {
+                      delete updateData.status;
+                      delete updateData.assignedCourierId;
+                    }
+
+                    batch.update(existingDoc.ref, updateData);
+                    result.updated++;
+                }
+                setImportResult({ ...result });
+            }
+
+            await batch.commit();
+            setImportResult(prev => prev ? { ...prev, processing: false } : null);
+
+        } catch (error: any) {
+            console.error("Error importing file:", error);
+            setImportResult(prev => prev ? { ...prev, processing: false, finalError: "حدث خطأ أثناء معالجة الملف. يرجى التحقق من تنسيق الملف." } : null);
+        } finally {
+            if (fileInputRef.current) fileInputRef.current.value = "";
+        }
+    };
+    reader.readAsBinaryString(file);
+};
+
+  const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
+    if (!firestore || !authUser || !app) {
+        toast({ title: "خطأ في المصادقة", variant: "destructive" });
+        return;
+    }
+
+    try {
+        const functions = getFunctions(app);
+        const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
+
+        const payload: any = {
+            shipmentId: id,
+            ...data,
+        };
+
+        if (!id) {
+            const newDocRef = doc(collection(firestore, "shipments"));
+            payload.shipmentId = newDocRef.id;
+        }
+
+        await handleShipmentUpdateFn(payload);
+
+        toast({
+            title: id ? "تم تحديث الشحنة" : "تم حفظ الشحنة",
+            description: "تمت العملية بنجاح",
+        });
+
+        handleSheetOpenChange(false);
+        
+        if (data.assignedCourierId && (!editingShipment || data.assignedCourierId !== editingShipment.assignedCourierId)) {
+            const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${payload.shipmentId}` : `/?edit=${payload.shipmentId}`;
+            sendPushNotification({
+                recipientId: data.assignedCourierId,
+                title: 'شحنة جديدة',
+                body: `تم تعيين شحنة جديدة لك: ${data.recipientName}`,
+                url: notificationUrl,
+            }).catch(console.error);
+        }
+    } catch (error: any) {
+        console.error("Error saving shipment via cloud function:", error);
+        toast({
+            title: "فشل تحديث الشحنة",
+            description: error.message || "حدث خطأ غير متوقع.",
+            variant: "destructive",
+        });
+    }
+};
 
   const handlePriceChangeDecision = (shipment: Shipment, approved: boolean) => {
     if (!firestore || !authUser) return;
@@ -200,7 +424,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
     const batch = writeBatch(firestore);
 
     let updatePayload: any = {
-        updatedAt: new Date(),
+        updatedAt: serverTimestamp(),
     };
     let historyReason = '';
     const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipment.id}` : `/?edit=${shipment.id}`;
@@ -211,7 +435,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
         historyReason = `تمت الموافقة على تعديل السعر من ${shipment.totalAmount} إلى ${shipment.requestedAmount}.`;
     } else {
         updatePayload.status = 'PriceChangeRejected';
-        historyReason = `تم رفض طلب تعديل السعر (السعر المقترح: ${shipment.requestedAmount}).`;
+        historyReason = `تم رفض طلب تعديل سعر الشحنة (السعر المقترح: ${shipment.requestedAmount}).`;
     }
 
     updatePayload.requestedAmount = null; 
@@ -223,7 +447,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
     const historyEntry: Omit<ShipmentHistory, 'id'> = {
         status: updatePayload.status,
         reason: historyReason,
-        updatedAt: new Date(),
+        updatedAt: serverTimestamp(),
         updatedBy: authUser.displayName || authUser.email || 'خدمة العملاء',
         userId: authUser.uid,
     };
@@ -363,7 +587,22 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
                     )}
                 </TabsTrigger>
             </TabsList>
-             <div className="ms-auto">
+             <div className="ms-auto flex items-center gap-2">
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    accept=".xlsx, .xls"
+                />
+                <Button variant="outline" size="sm" onClick={handleImportClick}>
+                    <FileUp className="h-4 w-4 me-2" />
+                    <span className="sr-only sm:not-sr-only">استيراد</span>
+                </Button>
+                <Button size="sm" onClick={() => openShipmentForm()}>
+                    <PlusCircle className="h-4 w-4 me-2" />
+                    <span className="sr-only sm:not-sr-only">شحنة جديدة</span>
+                </Button>
                 <Button asChild variant="outline" size="sm">
                     <Link href="/scan">
                         <ScanLine className="h-4 w-4 me-2" />
@@ -506,6 +745,12 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
       >
         <div />
       </ShipmentFormSheet>
+      {importResult && (
+        <ImportProgressDialog
+          result={importResult}
+          onClose={() => setImportResult(null)}
+        />
+      )}
     </div>
   );
 }
