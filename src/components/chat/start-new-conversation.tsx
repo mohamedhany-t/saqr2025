@@ -26,12 +26,10 @@ const StartNewConversation: React.FC<StartNewConversationProps> = ({ currentUser
     const usersQuery = useMemoFirebase(() => {
         if (!firestore) return null;
         let rolesToChatWith: string[] = [];
-        if (currentUser.role === 'admin') {
-            rolesToChatWith = ['courier', 'company', 'customer-service'];
-        } else if (currentUser.role === 'customer-service') {
-            rolesToChatWith = ['courier', 'company', 'admin'];
-        } else { // Courier and Company can only chat with Admin
-             rolesToChatWith = ['admin'];
+        if (currentUser.role === 'admin' || currentUser.role === 'customer-service') {
+            rolesToChatWith = ['courier', 'company', 'admin', 'customer-service'];
+        } else { // Courier and Company can only chat with Admin and customer-service
+             rolesToChatWith = ['admin', 'customer-service'];
         }
         return query(collection(firestore, 'users'), where('role', 'in', rolesToChatWith));
     }, [firestore, currentUser.role]);

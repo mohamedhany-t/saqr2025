@@ -98,6 +98,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   const isCourier = role === 'courier';
   const isAdmin = role === 'admin';
   const isCompany = role === 'company';
+  const isCustomerService = role === 'customer-service';
   
   const formSchema = shipmentSchema.superRefine((data, ctx) => {
     const selectedStatusConfig = statuses.find(s => s.id === data.status);
@@ -292,7 +293,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                         )}
                     />
 
-                    {(isAdmin || isCompany) && <>
+                    {(isAdmin || isCompany || isCustomerService) && <>
                       <FormField
                         control={form.control}
                         name="shipmentCode"
@@ -369,7 +370,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             )}
                         />
                     )}
-                    {isAdmin && companies && companies.length > 0 && <FormField
+                    {(isAdmin || isCustomerService) && companies && companies.length > 0 && <FormField
                         control={form.control}
                         name="companyId"
                         render={({ field }) => (
@@ -388,7 +389,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                             </FormItem>
                         )}
                     />}
-                     {(isAdmin || isCompany) && <FormField
+                     {(isAdmin || isCompany || isCustomerService) && <FormField
                         control={form.control}
                         name="assignedCourierId"
                         render={({ field }) => (
@@ -491,7 +492,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                     />
 
                     {/* Fields hidden for couriers */}
-                     {(isAdmin || isCompany) && <>
+                     {(isAdmin || isCompany || isCustomerService) && <>
                       <div className="grid grid-cols-4 items-center gap-4">
                           <FormLabel className="text-right">خيارات إضافية</FormLabel>
                           <div className="col-span-3 flex items-center gap-4 flex-wrap">
@@ -591,7 +592,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                         )}
                     />
                      </>}
-                     {isAdmin && (
+                     {(isAdmin || isCustomerService) && (
                         <FormField
                         control={form.control}
                         name="isLabelPrinted"

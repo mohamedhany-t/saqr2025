@@ -12,7 +12,7 @@ import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebas
 import { collection, query, where, doc, getDoc, writeBatch, serverTimestamp } from "firebase/firestore";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
-import { AlertTriangle, CheckSquare, DollarSign, MessageSquare, Check, X, ScanLine, FileUp, PlusCircle } from "lucide-react";
+import { AlertTriangle, CheckSquare, DollarSign, MessageSquare, Check, X, ScanLine, FileUp, PlusCircle, Printer } from "lucide-react";
 import ChatInterface from "../chat/chat-interface";
 import { Badge } from "../ui/badge";
 import { differenceInDays, differenceInHours } from "date-fns";
@@ -63,6 +63,82 @@ const ProblemShipmentList = ({ title, icon, shipments, onEdit, children }: { tit
     );
 };
 
+const PrintCenterPage = ({
+    shipments,
+    isLoading,
+    governorates,
+    companies,
+    courierUsers,
+    statuses,
+    onEdit,
+    role,
+    onGenericBulkUpdate,
+  }: {
+    shipments: Shipment[];
+    isLoading: boolean;
+    governorates: Governorate[];
+    companies: Company[];
+    courierUsers: User[];
+    statuses: ShipmentStatusConfig[];
+    onEdit: (shipment: Shipment) => void;
+    role: Role | null;
+    onGenericBulkUpdate: (selectedRows: Shipment[], update: Partial<Shipment>) => void;
+  }) => {
+    const unprintedShipments = React.useMemo(() => shipments.filter(s => !s.isLabelPrinted), [shipments]);
+    const printedShipments = React.useMemo(() => shipments.filter(s => s.isLabelPrinted), [shipments]);
+    const { toast } = useToast();
+  
+    const handlePrintAndUpdate = async (selectedRows: Shipment[]) => {
+      if (selectedRows.length === 0) {
+        toast({ title: 'لم يتم تحديد أي شحنات', variant: 'destructive' });
+        return;
+      }
+      // Step 1: Update Firestore
+      await onGenericBulkUpdate(selectedRows, { isLabelPrinted: true });
+  
+      // Step 2: Open print window
+      const ids = selectedRows.map(row => row.id);
+      const printUrl = `/print/bulk?ids=${ids.join(',')}`;
+      window.open(printUrl, '_blank', 'width=800,height=600');
+    };
+  
+    return (
+      <Tabs defaultValue="unprinted">
+        <TabsList>
+          <TabsTrigger value="unprinted">جاهزة للطباعة ({unprintedShipments.length})</TabsTrigger>
+          <TabsTrigger value="printed">تمت طباعتها ({printedShipments.length})</TabsTrigger>
+        </TabsList>
+        <TabsContent value="unprinted">
+          <ShipmentsTable
+            shipments={unprintedShipments}
+            isLoading={isLoading}
+            governorates={governorates}
+            companies={companies}
+            couriers={courierUsers}
+            statuses={statuses}
+            onEdit={onEdit}
+            role={role}
+            onBulkUpdate={onGenericBulkUpdate}
+            onBulkPrint={handlePrintAndUpdate}
+          />
+        </TabsContent>
+        <TabsContent value="printed">
+          <ShipmentsTable
+            shipments={printedShipments}
+            isLoading={isLoading}
+            governorates={governorates}
+            companies={companies}
+            couriers={courierUsers}
+            statuses={statuses}
+            onEdit={onEdit}
+            role={role}
+            onBulkUpdate={onGenericBulkUpdate}
+            onBulkPrint={handlePrintAndUpdate}
+          />
+        </TabsContent>
+      </Tabs>
+    );
+  };
 
 interface CustomerServiceDashboardProps {
   user: User;
@@ -290,7 +366,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
 
                 if (orderNumberValue) {
                     const q = query(shipmentsCollection, where("orderNumber", "==", orderNumberValue), where("companyId", "==", companyIdForQuery));
-                    querySnapshot = await getDoc(q);
+                    querySnapshot = await getDocs(q);
                 }
 
                 if ((!querySnapshot || querySnapshot.empty) && recipientNameValue && recipientPhoneValue) {
@@ -367,7 +443,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
         }
     };
     reader.readAsBinaryString(file);
-};
+  };
 
   const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
     if (!firestore || !authUser || !app) {
@@ -416,6 +492,45 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
         });
     }
 };
+
+ const handleGenericBulkUpdate = async (selectedRows: Shipment[], update: Partial<Shipment>) => {
+    if (!firestore || !authUser || !app) return;
+    
+    if (selectedRows.length === 0) {
+        toast({ title: 'لم يتم تحديد أي شحنات' });
+        return;
+    }
+  
+    const functions = getFunctions(app);
+    const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
+
+    toast({ title: `جاري تحديث ${selectedRows.length} شحنة...` });
+
+    const updatePromises = selectedRows.map(row => 
+        handleShipmentUpdateFn({ shipmentId: row.id, ...update })
+          .catch(error => ({ error, shipmentId: row.id }))
+    );
+
+    const results = await Promise.all(updatePromises);
+    const failedUpdates = results.filter(res => res && 'error' in res);
+
+    if (failedUpdates.length > 0) {
+        toast({ title: `فشل تحديث ${failedUpdates.length} شحنة`, variant: "destructive" });
+        console.error("Bulk update failures:", failedUpdates);
+    } else {
+        toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
+    }
+  
+    if (update.assignedCourierId && selectedRows.length > 0) {
+      const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
+      await sendPushNotification({
+        recipientId: update.assignedCourierId,
+        title: 'شحنات جديدة',
+        body: `تم تعيين ${selectedRows.length} شحنة جديدة لك.`,
+        url: notificationUrl,
+      });
+    }
+  };
 
   const handlePriceChangeDecision = (shipment: Shipment, approved: boolean) => {
     if (!firestore || !authUser) return;
@@ -571,8 +686,12 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
     <div className="flex flex-col w-full">
       <Tabs defaultValue="shipments">
         <div className="flex items-center">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="shipments">الشحنات</TabsTrigger>
+                <TabsTrigger value="print-center">
+                    <Printer className="w-4 h-4 me-2"/>
+                    مركز الطباعة
+                </TabsTrigger>
                 <TabsTrigger value="problem-inbox" className="relative">
                 صندوق المشاكل
                 {problemCount > 0 && (
@@ -650,6 +769,19 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
               {isMobile ? renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']), listIsLoading) : renderDesktopTable(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']), listIsLoading)}
             </TabsContent>
           </Tabs>
+        </TabsContent>
+        <TabsContent value="print-center">
+             <PrintCenterPage 
+                shipments={shipments || []}
+                isLoading={shipmentsLoading}
+                governorates={governorates || []}
+                companies={companies || []}
+                courierUsers={courierUsers || []}
+                statuses={statuses || []}
+                onEdit={openShipmentForm}
+                role={role}
+                onGenericBulkUpdate={handleGenericBulkUpdate}
+            />
         </TabsContent>
         <TabsContent value="problem-inbox">
             <div className="mt-4 space-y-6">
@@ -754,3 +886,5 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
     </div>
   );
 }
+
+    

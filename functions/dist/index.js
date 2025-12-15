@@ -139,7 +139,7 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
                     throw new functions.https.HttpsError("permission-denied", "User profile not found.");
                 }
                 const userProfile = userDoc.data();
-                if (userProfile.role !== 'admin' && shipmentData.assignedCourierId !== userId && shipmentData.companyId !== userId) {
+                if (userProfile.role !== 'admin' && userProfile.role !== 'customer-service' && shipmentData.assignedCourierId !== userId && shipmentData.companyId !== userId) {
                     throw new functions.https.HttpsError("permission-denied", "You are not assigned to this shipment.");
                 }
                 const finalUpdate = Object.assign(Object.assign({}, updatePayload), { updatedAt: admin.firestore.FieldValue.serverTimestamp() });
