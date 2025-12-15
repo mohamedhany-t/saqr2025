@@ -188,7 +188,7 @@ function AccountStatementsPage() {
             debit: formatCurrency(tx.debit),
             balance: formatCurrency(tx.balance),
             status: tx.status,
-            reason: tx.reason
+            reason: tx.type === 'custom_return' ? `استرجاع مخصص - ${tx.reason || ''}`.trim() : tx.reason
         }));
 
         exportToExcel(dataToExport, reportColumns, `kashf_hisab_${selectedEntity.name?.replace(/\s/g, '_')}`, governorates || [], companies || [], couriers, reportHeader);
