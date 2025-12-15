@@ -1,4 +1,3 @@
-
 "use client";
 import React, { useState, useMemo } from "react";
 import type { Shipment, User, Company, CourierPayment, CompanyPayment, Governorate, ShipmentStatusConfig } from "@/lib/types";
@@ -25,7 +24,9 @@ type Transaction = {
     debit: number;  // For Company: what admin owes them. For Courier: what they earn/get back.
     credit: number; // For Company: what they owe admin. For Courier: what they owe admin.
     balance: number;
-    relatedId: string; 
+    relatedId: string;
+    status?: string;
+    reason?: string;
 };
 
 const formatCurrency = (amount: number | undefined | null) => {
@@ -101,6 +102,7 @@ function AccountStatementsPage() {
             let debit = 0;  // The admin owes entity (decreases their debt)
             let description = '';
             let txType: TransactionType = 'shipment';
+            let status, reason;
 
             if (entityType === 'courier') {
                 if (rawTx.type === 'shipment') {
@@ -108,6 +110,8 @@ function AccountStatementsPage() {
                     description = `شحنة: ${s.recipientName} (${s.orderNumber})`;
                     credit = s.paidAmount || 0; // Courier collected money, they owe it
                     debit = s.courierCommission || 0; // Courier earned commission, they are owed it
+                    status = s.status;
+                    reason = s.reason;
                     if (s.isCustomReturn) {
                         txType = 'custom_return';
                     }
@@ -124,6 +128,8 @@ function AccountStatementsPage() {
                     description = `شحنة: ${s.recipientName} (${s.orderNumber})`;
                     debit = s.paidAmount || 0; // Admin owes company this amount
                     credit = s.companyCommission || 0; // Company owes admin this amount
+                    status = s.status;
+                    reason = s.reason;
                     if (s.isCustomReturn) {
                         txType = 'custom_return';
                     }
@@ -144,6 +150,8 @@ function AccountStatementsPage() {
                 debit,
                 balance: runningBalance,
                 relatedId: rawTx.data.id,
+                status,
+                reason
             });
         }
 
@@ -166,6 +174,8 @@ function AccountStatementsPage() {
         const reportColumns = [
           { accessorKey: "date", header: "التاريخ" },
           { accessorKey: "description", header: "البيان" },
+          { accessorKey: "status", header: "الحالة" },
+          { accessorKey: "reason", header: "السبب" },
           { accessorKey: "debit", header: entityType === 'courier' ? "مدين (له)" : "دائن (له)" },
           { accessorKey: "credit", header: entityType === 'courier' ? "دائن (عليه)" : "مدين (عليه)" },
           { accessorKey: "balance", header: "الرصيد" },
@@ -176,7 +186,9 @@ function AccountStatementsPage() {
             description: tx.description,
             credit: formatCurrency(tx.credit),
             debit: formatCurrency(tx.debit),
-            balance: formatCurrency(tx.balance)
+            balance: formatCurrency(tx.balance),
+            status: tx.status,
+            reason: tx.reason
         }));
 
         exportToExcel(dataToExport, reportColumns, `kashf_hisab_${selectedEntity.name?.replace(/\s/g, '_')}`, governorates || [], companies || [], couriers, reportHeader);
@@ -333,5 +345,3 @@ function AccountStatementsPage() {
 }
 
 export default AccountStatementsPage;
-
-    

@@ -30,6 +30,8 @@ const getHeader = (columnDef: ColumnDef<any, any>): string => {
             case 'balance': return 'الرصيد';
             case 'date': return 'التاريخ';
             case 'description': return 'البيان';
+            case 'status': return 'الحالة';
+            case 'reason': return 'السبب';
             default:
                 const result = key.replace(/([A-Z])/g, " $1");
                 return result.charAt(0).toUpperCase() + result.slice(1);
@@ -48,7 +50,7 @@ const getCellValue = (
     if (!accessorKey) return '';
     
     // Handle special calculation for financial reports
-    if (row[accessorKey] !== undefined && ['netDue', 'totalCollected', 'totalRevenue', 'totalCommission', 'totalCompanyCommission', 'totalPaidToCompany', 'totalPaidByAdmin', 'balance', 'date', 'description'].includes(accessorKey)) {
+    if (row[accessorKey] !== undefined && ['netDue', 'totalCollected', 'totalRevenue', 'totalCommission', 'totalCompanyCommission', 'totalPaidToCompany', 'totalPaidByAdmin', 'balance', 'date', 'description', 'reason'].includes(accessorKey)) {
         return row[accessorKey];
     }
 
@@ -145,7 +147,8 @@ export const exportToExcel = (
   // Adjust width for specific columns
   excelColumns.forEach(col => {
       if (col.key === 'address' || col.key === 'description') col.width = 40;
-      if (col.key && ['totalAmount', 'paidAmount', 'courierCommission', 'companyCommission', 'netDue', 'totalCollected', 'totalRevenue', 'totalCommission', 'totalCompanyCommission', 'totalPaidToCompany', 'totalPaidByAdmin', 'balance'].includes(col.key)) {
+      if (col.key === 'reason') col.width = 30;
+      if (col.key && ['totalAmount', 'paidAmount', 'courierCommission', 'companyCommission', 'netDue', 'totalCollected', 'totalRevenue', 'totalCommission', 'totalCompanyCommission', 'totalPaidToCompany', 'totalPaidByAdmin', 'balance', 'credit', 'debit'].includes(col.key)) {
           col.style = { numFmt: '#,##0.00 " EGP"' };
           col.width = 18;
       }
