@@ -1,3 +1,4 @@
+
 # نظام الصقر للخدمات اللوجستية | AlSaqr Logistics System
 
 **الصقر للخدمات اللوجستية** هو نظام متكامل لإدارة عمليات الشحن والتوصيل، تم تصميمه ليكون سريعًا، فعالًا، وقابلًا للتطوير. يدعم النظام تعدد المستخدمين بأدوار وصلاحيات مختلفة، ويوفر مجموعة قوية من الأدوات التي تجعل إدارة الشحنات والحسابات المالية والفرق الميدانية عملية سهلة ومنظمة.
@@ -76,3 +77,61 @@
 - **واجهة متجاوبة:** تصميم متكامل يعمل بكفاءة على شاشات الكمبيوتر والموبايل.
 - **دعم التحديث الجماعي على الموبايل:** تمكين المستخدمين من تحديد وتحديث مجموعة من الشحنات دفعة واحدة من هواتفهم.
 - **إشعارات صوتية:** تنبيهات صوتية عند وصول رسائل جديدة لضمان عدم تفويت أي تحديث مهم.
+
+---
+
+## خطوات النشر على Firebase App Hosting (لضمان عمل الإشعارات)
+
+عند نشر هذا التطبيق على Firebase App Hosting، يتم التعامل مع مفاتيح الخدمة (Service Account Keys) تلقائيًا. ولكن، يجب تكوين مفاتيح VAPID يدويًا لكي تعمل إشعارات الويب (Push Notifications).
+
+اتبع هذه الخطوات **بعد** نشر التطبيق لأول مرة:
+
+### الخطوة 1: تفعيل الخدمات المطلوبة
+
+1.  اذهب إلى [Google Cloud Console](https://console.cloud.google.com/) وتأكد من أنك في المشروع الصحيح المرتبط بـ Firebase.
+2.  ابحث عن "Secret Manager API" في شريط البحث وقم بتفعيله (Enable).
+3.  ابحث عن "Cloud Run API" وقم بتفعيله أيضًا إذا لم يكن مفعلًا.
+
+### الخطوة 2: إضافة مفاتيح VAPID إلى Secret Manager
+
+ستحتاج إلى إضافة مفتاحين سريين (Secrets) لمفاتيح VAPID العامة والخاصة.
+
+**للمفتاح الخاص (VAPID_PRIVATE_KEY):**
+
+1.  اذهب إلى [صفحة Secret Manager](https://console.cloud.google.com/security/secret-manager).
+2.  انقر على **Create Secret**.
+3.  **Name:** أدخل `VAPID_PRIVATE_KEY`. (الاسم مهم جدًا)
+4.  **Secret value:** الصق قيمة المفتاح الخاص الموجودة في ملف `.env` المحلي.
+5.  **Regions:** اتركها تلقائية (Automatic).
+6.  انقر على **Create Secret**.
+
+**للمفتاح العام (NEXT_PUBLIC_VAPID_PUBLIC_KEY):**
+
+1.  كرر نفس الخطوات: انقر على **Create Secret**.
+2.  **Name:** أدخل `NEXT_PUBLIC_VAPID_PUBLIC_KEY`. (الاسم مهم)
+3.  **Secret value:** الصق قيمة المفتاح العام الموجودة في ملف `.env` المحلي.
+4.  **Regions:** اتركها تلقائية.
+5.  انقر على **Create Secret**.
+
+### الخطوة 3: ربط الأسرار (Secrets) بخدمة Cloud Run
+
+يقوم Firebase App Hosting بتشغيل الـ Backend الخاص بك كخدمة Cloud Run. تحتاج إلى منح هذه الخدمة صلاحية الوصول إلى الأسرار التي أنشأتها.
+
+1.  اذهب إلى [صفحة Cloud Run](https://console.cloud.google.com/run).
+2.  ابحث عن الخدمة التي تم إنشاؤها لتطبيقك. غالبًا ما يكون اسمها شيئًا مثل `apphosting-...` أو اسم مشابه. انقر عليها.
+3.  انقر على **Edit & Deploy New Revision**.
+4.  اذهب إلى تبويب **Variables & Secrets**.
+5.  تحت قسم **Secrets**، انقر على **Reference a secret**.
+    *   **Secret:** اختر `VAPID_PRIVATE_KEY` الذي أنشأته.
+    *   **Reference method:** اختر **Exposed as environment variable**.
+    *   **Name:** أدخل `VAPID_PRIVATE_KEY`.
+    *   انقر **Done**.
+6.  كرر الخطوة السابقة لربط المفتاح العام:
+    *   انقر على **Reference a secret** مرة أخرى.
+    *   **Secret:** اختر `NEXT_PUBLIC_VAPID_PUBLIC_KEY`.
+    *   **Reference method:** اختر **Exposed as environment variable**.
+    *   **Name:** أدخل `NEXT_PUBLIC_VAPID_PUBLIC_KEY`.
+    *   انقر **Done**.
+7.  أخيرًا، انقر على **Deploy**.
+
+بعد اكتمال عملية النشر الجديدة (قد تستغرق دقيقة أو دقيقتين)، ستكون الإشعارات جاهزة للعمل في بيئة الإنتاج.

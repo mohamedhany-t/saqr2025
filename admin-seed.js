@@ -10,11 +10,10 @@ const { mockUsers, mockShipments } = require('./dist/lib/placeholder-data');
 let serviceAccount;
 try {
     // This will be used for local development
-    serviceAccount = require('./firebase-admin-sdk.json');
+    serviceAccount = require('../firebase-admin-sdk.json');
 } catch (e) {
     if (e.code === 'MODULE_NOT_FOUND') {
-        console.warn("firebase-admin-sdk.json not found. This is expected in production environments.");
-        // In a production environment (like Cloud Run), credentials might be automatically handled.
+        console.warn("firebase-admin-sdk.json not found. This is expected in production environments. The script will likely fail if not run locally.");
     } else {
         throw e;
     }
