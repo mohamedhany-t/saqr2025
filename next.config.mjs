@@ -1,7 +1,6 @@
+import 'dotenv/config';
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-    // Your existing Next.js config options here
-};
+const nextConfig = {};
 
 export default nextConfig;
