@@ -35,7 +35,7 @@ export default function LoginPage() {
         title: "تم تسجيل الدخول بنجاح",
         description: "أهلاً بك مرة أخرى! سيتم توجيهك إلى لوحة التحكم.",
       });
-      router.push('/');
+      router.replace('/'); // Use replace to prevent going back to login page
     } catch (error: any) {
       console.error(error);
       let description = "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.";

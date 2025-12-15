@@ -93,8 +93,40 @@ export default function CourierDashboard({ user, role, searchTerm, onSearchChang
   const [isScannerOpen, setIsScannerOpen] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState("active");
   const [showRetryPopup, setShowRetryPopup] = React.useState(false);
+  const [showExitConfirm, setShowExitConfirm] = React.useState(false);
 
   
+  React.useEffect(() => {
+    // Intercept back button for PWA exit confirmation
+    const handlePopState = (event: PopStateEvent) => {
+      // Check if we are on the root page, if so, show confirmation
+      if (window.location.pathname === '/') {
+        event.preventDefault(); // Prevent default back navigation
+        setShowExitConfirm(true);
+      }
+    };
+
+    // Push a state to history so we can catch the back event
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  const handleExitConfirm = (exit: boolean) => {
+    setShowExitConfirm(false);
+    if (exit) {
+      // Allow the user to exit. In some browsers, window.close() might work for PWAs.
+      window.close(); 
+    } else {
+      // If user cancels, re-push the state to be able to catch it again
+      window.history.pushState(null, '', window.location.href);
+    }
+  };
+
+
   const chatsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.id) return null;
     return query(
@@ -531,6 +563,21 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
             </div>
          </TabsContent>
        </Tabs>
+      
+       <AlertDialog open={showExitConfirm} onOpenChange={setShowExitConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد الخروج</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد أنك تريد الخروج من التطبيق؟
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => handleExitConfirm(false)}>البقاء</AlertDialogCancel>
+            <AlertDialogAction onClick={() => handleExitConfirm(true)}>الخروج</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={showRetryPopup} onOpenChange={setShowRetryPopup}>
         <AlertDialogContent>

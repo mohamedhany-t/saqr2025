@@ -22,6 +22,16 @@ import { sendPushNotification } from "@/lib/actions";
 import Link from "next/link";
 import { ShipmentFilters } from "./shipment-filters";
 import type { ColumnFiltersState } from "@tanstack/react-table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const ProblemShipmentList = ({ title, icon, shipments, onEdit, children }: { title: string, icon: React.ReactNode, shipments: Shipment[], onEdit: (s: Shipment) => void, children?: (shipment: Shipment) => React.ReactNode }) => {
     if (shipments.length === 0) {
@@ -67,6 +77,32 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [showExitConfirm, setShowExitConfirm] = React.useState(false);
+
+  React.useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (window.location.pathname === '/') {
+        event.preventDefault();
+        setShowExitConfirm(true);
+      }
+    };
+
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  const handleExitConfirm = (exit: boolean) => {
+    setShowExitConfirm(false);
+    if (exit) {
+      window.close();
+    } else {
+      window.history.pushState(null, '', window.location.href);
+    }
+  };
 
   // --- Data Fetching ---
   const shipmentsQuery = useMemoFirebase(() => {
@@ -441,6 +477,21 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
            <ChatInterface />
         </TabsContent>
       </Tabs>
+      
+      <AlertDialog open={showExitConfirm} onOpenChange={setShowExitConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد الخروج</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد أنك تريد الخروج من التطبيق؟
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => handleExitConfirm(false)}>البقاء</AlertDialogCancel>
+            <AlertDialogAction onClick={() => handleExitConfirm(true)}>الخروج</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ShipmentFormSheet
         open={isShipmentSheetOpen}
