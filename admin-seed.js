@@ -6,20 +6,25 @@ const { EGYPTIAN_GOVERNORATES } = require('./dist/lib/governorates');
 const { mockUsers, mockShipments } = require('./dist/lib/placeholder-data');
 
 // --- Configuration ---
-
-// Use environment variable for service account key
-const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-if (!serviceAccountString) {
-  throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY environment variable not set. Please check your .env file.");
+let serviceAccount;
+try {
+    // This will be used for local development
+    serviceAccount = require('./firebase-admin-sdk.json');
+} catch (e) {
+    if (e.code === 'MODULE_NOT_FOUND') {
+        console.warn("firebase-admin-sdk.json not found. This is expected in production environments.");
+        // In a production environment (like Cloud Run), credentials might be automatically handled.
+    } else {
+        throw e;
+    }
 }
-const serviceAccount = JSON.parse(serviceAccountString);
+
 
 // Initialize Firebase Admin SDK
 let app;
 try {
-    app = initializeApp({
-        credential: cert(serviceAccount)
-    });
+    const appConfig = serviceAccount ? { credential: cert(serviceAccount) } : {};
+    app = initializeApp(appConfig);
 } catch(e) {
     if (e.code === 'app/duplicate-app') {
         console.warn("Firebase app already initialized. This can happen during hot-reloads. The script will continue.");
