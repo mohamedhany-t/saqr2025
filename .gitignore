@@ -10,7 +10,7 @@ firestore-debug.log
 *.rules
 
 # Local Environment Variables
-.env
+
 .env*.local
 !.env.example
 
