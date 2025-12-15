@@ -103,7 +103,7 @@ export function ReportsPage({
             case 'company_returns':
                 return [...baseShipmentCols, { accessorKey: "companyCommission", header: "عمولة الشركة" }, { accessorKey: "netDue", header: "صافي المستحق" }];
             case 'company_update':
-                 return baseShipmentCols.filter(col => !['paidAmount', 'reason', 'companyCommission', 'courierCommission', 'netDue'].includes(col.accessorKey));
+                 return baseShipmentCols.filter(col => !['companyCommission', 'courierCommission', 'netDue'].includes(col.accessorKey));
             case 'courier_shipments':
                 return [...baseShipmentCols, { accessorKey: "courierCommission", header: "عمولة المندوب" }, { accessorKey: "netDue", header: "صافي المستحق" }];
             case 'delivered_shipments':

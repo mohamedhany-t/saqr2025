@@ -459,7 +459,7 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
                     <TabsTrigger value="retry" className="flex items-center gap-2 text-yellow-600 data-[state=active]:border-yellow-500 data-[state=active]:text-yellow-600">
                         <RefreshCw className="h-4 w-4" />
                         إعادة محاولة
-                        {filteredRetryShipments.length > 0 && <Badge variant="destructive" className="h-5 w-5 justify-center p-0">{filteredRetryShipments.length}</Badge>}
+                        {filteredRetryShipments.length > 0 && <Badge variant="destructive" className="h-5 w-5 justify-center p-0 ms-2">{filteredRetryShipments.length}</Badge>}
                     </TabsTrigger>
                     <TabsTrigger value="active" className="flex items-center gap-2">
                         <Truck className="h-4 w-4" />
