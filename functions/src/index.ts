@@ -135,6 +135,15 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
                         finalUpdate.paidAmount = paidAmount;
                         finalUpdate.collectedAmount = paidAmount; // Align collected with paid for consistency
 
+                        // --- Start of Custom Return Logic ---
+                        // This logic MUST come after initial paidAmount calculation but before commission calculation.
+                        const isCustomReturn = finalUpdate.isCustomReturn ?? shipmentData.isCustomReturn;
+                        if (isCustomReturn && newStatusConfig.isDeliveredStatus) {
+                            finalUpdate.paidAmount = -Math.abs(totalAmount);
+                            finalUpdate.collectedAmount = -Math.abs(totalAmount);
+                        }
+                        // --- End of Custom Return Logic ---
+
                         // Handle courier commission
                         if (newStatusConfig.affectsCourierBalance) {
                             const courierProfileDoc = shipmentData.assignedCourierId ? await db.collection('couriers').doc(shipmentData.assignedCourierId).get() : null;
@@ -156,19 +165,6 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
 
                     }
                 }
-                
-                // Handle Custom Return logic - this overrides previous calculations if applicable
-                const isCustomReturn = finalUpdate.isCustomReturn ?? shipmentData.isCustomReturn;
-                const statusesSnapForReturn = await db.collection('shipment_statuses').get();
-                const statusConfigsForReturn = statusesSnapForReturn.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ShipmentStatusConfig[];
-                const finalStatusConfig = statusConfigsForReturn.find(s => s.id === finalUpdate.status || shipmentData.status);
-                
-                if (isCustomReturn && finalStatusConfig?.isDeliveredStatus) {
-                    const totalAmount = finalUpdate.totalAmount ?? shipmentData.totalAmount ?? 0;
-                    finalUpdate.paidAmount = -Math.abs(totalAmount);
-                    finalUpdate.collectedAmount = -Math.abs(totalAmount);
-                }
-
 
                 const historyRef = shipmentRef.collection('history').doc();
                 const historyEntry = {
@@ -192,10 +188,3 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
         }
     });
 });
-
-// Define a simple type for the function to use, matching the one in admin-dashboard
-interface ShipmentStatusConfigLocal {
-  id: string;
-  isDeliveredStatus?: boolean;
-  isReturnedStatus?: boolean;
-}
