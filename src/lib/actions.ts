@@ -19,29 +19,30 @@ function initializeAdminApp(): App {
         return adminApp;
     }
 
+    let serviceAccount;
     try {
-        const serviceAccount = require('../../../firebase-admin-sdk.json');
+        // First, try to load the dedicated service account file. This is the most reliable method for local dev.
+        serviceAccount = require('../../firebase-admin-sdk.json');
         console.log("Found firebase-admin-sdk.json. Initializing with service account file...");
         return initializeApp({
             credential: cert(serviceAccount)
         }, 'admin');
     } catch (e: any) {
         if (e.code === 'MODULE_NOT_FOUND') {
-            console.warn("firebase-admin-sdk.json not found. This is expected in production if using default credentials.");
+            console.warn("firebase-admin-sdk.json not found. This is expected in production if using Application Default Credentials.");
         } else {
             console.error('Failed to parse firebase-admin-sdk.json.', e);
             throw new Error('Could not initialize Firebase Admin SDK due to invalid service account file.');
         }
     }
 
-    // Method 2: For Google Cloud environments (like Firebase App Hosting / Cloud Run)
-    // where Application Default Credentials are automatically available.
+    // Fallback for Google Cloud environments (like Firebase App Hosting / Cloud Run)
     console.log("Attempting to initialize with default credentials for Google Cloud environment...");
     try {
         // No config needed, it will use the environment's service account
         return initializeApp({}, 'admin');
     } catch(e) {
-        console.error("Default Firebase Admin initialization failed. This is expected if not in a Google Cloud environment. Ensure you have set up firebase-admin-sdk.json for local development.", e);
+        console.error("Default Firebase Admin initialization failed. This is expected if not in a Google Cloud environment.", e);
         // If all initialization methods fail, we throw an error.
         throw new Error("Could not initialize Firebase Admin SDK. Check server logs for details.");
     }
