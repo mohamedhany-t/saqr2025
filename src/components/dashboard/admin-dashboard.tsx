@@ -1647,7 +1647,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
     );
 
     const results = await Promise.all(updatePromises);
-    const failedUpdates = results.filter(res => res && res.error);
+    const failedUpdates = results.filter(res => res && 'error' in res);
 
     if (failedUpdates.length > 0) {
         toast({ title: `فشل تحديث ${failedUpdates.length} شحنة`, variant: "destructive" });

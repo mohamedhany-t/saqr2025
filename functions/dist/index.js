@@ -128,7 +128,7 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
         const shipmentRef = db.collection('shipments').doc(shipmentId);
         try {
             const result = await db.runTransaction(async (transaction) => {
-                var _a, _b, _c, _d, _e, _f, _g;
+                var _a, _b, _c, _d, _e;
                 const shipmentDoc = await transaction.get(shipmentRef);
                 if (!shipmentDoc.exists) {
                     throw new functions.https.HttpsError("not-found", "Shipment not found.");
@@ -161,6 +161,14 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
                         }
                         finalUpdate.paidAmount = paidAmount;
                         finalUpdate.collectedAmount = paidAmount; // Align collected with paid for consistency
+                        // --- Start of Custom Return Logic ---
+                        // This logic MUST come after initial paidAmount calculation but before commission calculation.
+                        const isCustomReturn = (_d = finalUpdate.isCustomReturn) !== null && _d !== void 0 ? _d : shipmentData.isCustomReturn;
+                        if (isCustomReturn && newStatusConfig.isDeliveredStatus) {
+                            finalUpdate.paidAmount = -Math.abs(totalAmount);
+                            finalUpdate.collectedAmount = -Math.abs(totalAmount);
+                        }
+                        // --- End of Custom Return Logic ---
                         // Handle courier commission
                         if (newStatusConfig.affectsCourierBalance) {
                             const courierProfileDoc = shipmentData.assignedCourierId ? await db.collection('couriers').doc(shipmentData.assignedCourierId).get() : null;
@@ -173,7 +181,7 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
                         // Handle company commission
                         if (newStatusConfig.affectsCompanyBalance) {
                             const companyProfileDoc = await db.collection('companies').doc(shipmentData.companyId).get();
-                            const governorateCommissions = ((_d = companyProfileDoc.data()) === null || _d === void 0 ? void 0 : _d.governorateCommissions) || {};
+                            const governorateCommissions = ((_e = companyProfileDoc.data()) === null || _e === void 0 ? void 0 : _e.governorateCommissions) || {};
                             const commission = governorateCommissions[shipmentData.governorateId] || 0;
                             finalUpdate.companyCommission = commission;
                         }
@@ -181,16 +189,6 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
                             finalUpdate.companyCommission = 0;
                         }
                     }
-                }
-                // Handle Custom Return logic - this overrides previous calculations if applicable
-                const isCustomReturn = (_e = finalUpdate.isCustomReturn) !== null && _e !== void 0 ? _e : shipmentData.isCustomReturn;
-                const statusesSnapForReturn = await db.collection('shipment_statuses').get();
-                const statusConfigsForReturn = statusesSnapForReturn.docs.map(doc => (Object.assign({ id: doc.id }, doc.data())));
-                const finalStatusConfig = statusConfigsForReturn.find(s => s.id === finalUpdate.status || shipmentData.status);
-                if (isCustomReturn && (finalStatusConfig === null || finalStatusConfig === void 0 ? void 0 : finalStatusConfig.isDeliveredStatus)) {
-                    const totalAmount = (_g = (_f = finalUpdate.totalAmount) !== null && _f !== void 0 ? _f : shipmentData.totalAmount) !== null && _g !== void 0 ? _g : 0;
-                    finalUpdate.paidAmount = -Math.abs(totalAmount);
-                    finalUpdate.collectedAmount = -Math.abs(totalAmount);
                 }
                 const historyRef = shipmentRef.collection('history').doc();
                 const historyEntry = {
