@@ -19,8 +19,9 @@ import { CompanyPaymentFormSheet } from "@/components/users/company-payment-form
 import { ImportResult, ImportProgressDialog } from "@/components/shipments/import-progress-dialog";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
-import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser, useFirebaseApp } from "@/firebase";
 import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc, deleteDoc, increment } from "firebase/firestore";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -600,6 +601,7 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const firestore = useFirestore();
+  const app = useFirebaseApp();
   const isMobile = useIsMobile();
   
   const router = useRouter();
@@ -917,71 +919,55 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     reader.readAsBinaryString(file);
 };
 
-
-  const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
-    if (!firestore || !authUser) {
-      toast({ title: "خطأ في المصادقة", variant: "destructive" });
-      return;
-    }
-  
-    // Clean up undefined values from the data object before sending to Firestore
-    const cleanData: { [key: string]: any } = {};
-    for (const key in data) {
-      if ((data as any)[key] !== undefined) {
-        cleanData[key] = (data as any)[key];
-      }
+const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
+    if (!firestore || !authUser || !app) {
+        toast({ title: "خطأ في المصادقة", variant: "destructive" });
+        return;
     }
 
-    const batch = writeBatch(firestore);
-    const shipmentRef = id ? doc(firestore, "shipments", id) : doc(collection(firestore, "shipments"));
-    let oldStatus: string | undefined;
-  
-    if (id) {
-      const docSnap = await getDoc(shipmentRef);
-      if (docSnap.exists()) oldStatus = docSnap.data().status;
-      batch.update(shipmentRef, { ...cleanData, updatedAt: serverTimestamp() });
-    } else {
-      batch.set(shipmentRef, { ...cleanData, id: shipmentRef.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-    }
-  
-    const newStatus = cleanData.status;
-    if (newStatus && newStatus !== oldStatus) {
-      const historyRef = doc(collection(shipmentRef, 'history'));
-      const historyEntry: Omit<ShipmentHistory, 'id'> = {
-        status: newStatus,
-        reason: cleanData.reason || 'تحديث من لوحة التحكم',
-        updatedAt: serverTimestamp(),
-        updatedBy: authUser.displayName || authUser.email || 'Admin',
-        userId: authUser.uid,
-      };
-      batch.set(historyRef, historyEntry);
-    }
-  
     try {
-      await batch.commit();
-      toast({
-        title: id ? "تم تحديث الشحنة" : "تم حفظ الشحنة",
-        description: "تمت العملية بنجاح",
-      });
-      handleSheetOpenChange(false);
-      if (cleanData.assignedCourierId && (!editingShipment || cleanData.assignedCourierId !== editingShipment.assignedCourierId)) {
-        const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${id || shipmentRef.id}` : `/?edit=${id || shipmentRef.id}`;
-        sendPushNotification({
-          recipientId: cleanData.assignedCourierId,
-          title: 'شحنة جديدة',
-          body: `تم تعيين شحنة جديدة لك: ${cleanData.recipientName}`,
-          url: notificationUrl,
-        }).catch(console.error);
-      }
-    } catch (error) {
-      console.error("Error saving shipment:", error);
-      toast({
-        title: "فشل تحديث الشحنة",
-        description: "حدث خطأ غير متوقع.",
-        variant: "destructive",
-      });
+        const functions = getFunctions(app);
+        const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
+
+        const payload: any = {
+            shipmentId: id,
+            ...data,
+        };
+
+        // When creating a new shipment, ensure an ID is generated and passed
+        if (!id) {
+            const newDocRef = doc(collection(firestore, "shipments"));
+            payload.shipmentId = newDocRef.id;
+        }
+
+        await handleShipmentUpdateFn(payload);
+
+        toast({
+            title: id ? "تم تحديث الشحنة" : "تم حفظ الشحنة",
+            description: "تمت العملية بنجاح",
+        });
+
+        handleSheetOpenChange(false);
+
+        // Send push notification if a courier is assigned/changed.
+        if (data.assignedCourierId && (!editingShipment || data.assignedCourierId !== editingShipment.assignedCourierId)) {
+            const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${payload.shipmentId}` : `/?edit=${payload.shipmentId}`;
+            sendPushNotification({
+                recipientId: data.assignedCourierId,
+                title: 'شحنة جديدة',
+                body: `تم تعيين شحنة جديدة لك: ${data.recipientName}`,
+                url: notificationUrl,
+            }).catch(console.error);
+        }
+    } catch (error: any) {
+        console.error("Error saving shipment via cloud function:", error);
+        toast({
+            title: "فشل تحديث الشحنة",
+            description: error.message || "حدث خطأ غير متوقع.",
+            variant: "destructive",
+        });
     }
-  };
+};
 
   const handleDeleteShipment = (shipmentsToDelete: Shipment[]) => {
     if (!firestore || shipmentsToDelete.length === 0) return;
@@ -1643,51 +1629,41 @@ const returnedToCompanyShipments = React.useMemo(() => {
   const currentCompanyNetDue = companyDues.find(c => c.id === payingCompany?.id)?.netDue;
   
   const handleGenericBulkUpdate = async (selectedRows: Shipment[], update: Partial<Shipment>) => {
-    if (!firestore || !authUser) return;
+    if (!firestore || !authUser || !app) return;
+    
+    if (selectedRows.length === 0) {
+        toast({ title: 'لم يتم تحديد أي شحنات' });
+        return;
+    }
   
-    const batch = writeBatch(firestore);
-    selectedRows.forEach(row => {
-      const shipmentRef = doc(firestore, 'shipments', row.id);
-      const finalUpdate: { [key: string]: any } = { ...update, updatedAt: serverTimestamp() };
-      
-      // Clean up undefined values
-      for (const key in finalUpdate) {
-        if (finalUpdate[key] === undefined) {
-          delete finalUpdate[key];
-        }
-      }
+    const functions = getFunctions(app);
+    const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
 
-      batch.update(shipmentRef, finalUpdate);
+    toast({ title: `جاري تحديث ${selectedRows.length} شحنة...` });
+
+    const updatePromises = selectedRows.map(row => 
+        handleShipmentUpdateFn({ shipmentId: row.id, ...update })
+          .catch(error => ({ error, shipmentId: row.id }))
+    );
+
+    const results = await Promise.all(updatePromises);
+    const failedUpdates = results.filter(res => res && res.error);
+
+    if (failedUpdates.length > 0) {
+        toast({ title: `فشل تحديث ${failedUpdates.length} شحنة`, variant: "destructive" });
+        console.error("Bulk update failures:", failedUpdates);
+    } else {
+        toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
+    }
   
-      if (update.status) {
-        const historyRef = doc(collection(shipmentRef, 'history'));
-        const historyEntry: Omit<ShipmentHistory, 'id'> = {
-          status: update.status,
-          reason: 'تحديث جماعي',
-          updatedAt: serverTimestamp(),
-          updatedBy: authUser.displayName || authUser.email!,
-          userId: authUser.uid,
-        };
-        batch.set(historyRef, historyEntry);
-      }
-    });
-  
-    try {
-      await batch.commit();
-      toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
-  
-      if (update.assignedCourierId && selectedRows.length > 0) {
-        const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
-        await sendPushNotification({
-          recipientId: update.assignedCourierId,
-          title: 'شحنات جديدة',
-          body: `تم تعيين ${selectedRows.length} شحنة جديدة لك.`,
-          url: notificationUrl,
-        });
-      }
-    } catch (error) {
-      console.error("Bulk update failed:", error);
-      toast({ title: "فشل التحديث المجمع", variant: "destructive" });
+    if (update.assignedCourierId && selectedRows.length > 0) {
+      const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
+      await sendPushNotification({
+        recipientId: update.assignedCourierId,
+        title: 'شحنات جديدة',
+        body: `تم تعيين ${selectedRows.length} شحنة جديدة لك.`,
+        url: notificationUrl,
+      });
     }
   };
 

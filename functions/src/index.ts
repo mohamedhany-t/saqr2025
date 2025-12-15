@@ -3,6 +3,7 @@ import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import { z } from "zod";
 import cors from "cors";
+import type { User, Company, Shipment, ShipmentStatusConfig } from "./types";
 
 try {
     admin.initializeApp();
@@ -15,32 +16,22 @@ try {
 const db = admin.firestore();
 const corsHandler = cors({ origin: true });
 
-// This flexible schema now accepts all possible fields from both
-// courier and admin roles, making them optional to avoid validation errors.
 const updateShipmentStatusSchema = z.object({
     shipmentId: z.string(),
-    status: z.string(),
+    // All other fields are optional because the logic will decide what to do
+    status: z.string().optional(),
     reason: z.string().optional(),
-    collectedAmount: z.number().optional(),
-    
-    // --- Fields for Courier's Price Change Request ---
-    requestedAmount: z.number().optional(),
+    collectedAmount: z.coerce.number().optional(),
+    requestedAmount: z.coerce.number().optional(),
     amountChangeReason: z.string().optional(),
-
-    // --- Optional fields that Admin OR COURIER can now send ---
-    paidAmount: z.number().optional(),
-    courierCommission: z.number().optional(),
-    
-    // --- Optional fields that only Admin can send ---
     recipientName: z.string().optional(),
     recipientPhone: z.string().optional(),
     address: z.string().optional(),
-    totalAmount: z.number().optional(),
+    totalAmount: z.coerce.number().optional(),
     governorateId: z.string().optional(),
     assignedCourierId: z.string().optional(),
     companyId: z.string().optional(),
     orderNumber: z.string().optional(),
-    companyCommission: z.number().optional(),
     isWarehouseReturn: z.boolean().optional(),
     isReturnedToCompany: z.boolean().optional(),
     isArchivedForCourier: z.boolean().optional(),
@@ -49,6 +40,8 @@ const updateShipmentStatusSchema = z.object({
     isCustomReturn: z.boolean().optional(),
     retryAttempt: z.boolean().optional(),
     isLabelPrinted: z.boolean().optional(),
+    isUrgent: z.boolean().optional(),
+    isExchange: z.boolean().optional(),
 });
 
 
@@ -87,7 +80,13 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
         }
 
         const validatedData = validation.data;
-        const shipmentId = validatedData.shipmentId;
+        const { shipmentId, ...updatePayload } = validatedData;
+        
+        if (!shipmentId) {
+             res.status(400).send({ error: { status: 'INVALID_ARGUMENT', message: 'Shipment ID is required.' } });
+             return;
+        }
+
         const shipmentRef = db.collection('shipments').doc(shipmentId);
 
         try {
@@ -99,53 +98,88 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
 
                 const shipmentData = shipmentDoc.data()!;
                 
-                // Allow admin to edit any shipment, but courier/company can only edit their own.
-                const userRoleDoc = await db.collection('roles_admin').doc(userId).get();
-                const isAdmin = userRoleDoc.exists;
+                const userDoc = await db.collection('users').doc(userId).get();
+                if (!userDoc.exists) {
+                    throw new functions.https.HttpsError("permission-denied", "User profile not found.");
+                }
+                const userProfile = userDoc.data() as User;
                 
-                if (!isAdmin && shipmentData.assignedCourierId !== userId && shipmentData.companyId !== userId) {
+                if (userProfile.role !== 'admin' && shipmentData.assignedCourierId !== userId && shipmentData.companyId !== userId) {
                      throw new functions.https.HttpsError("permission-denied", "You are not assigned to this shipment.");
                 }
                 
-                // Construct the final update object from validated, non-undefined data
-                const finalShipmentUpdate: { [key: string]: any } = {
+                const finalUpdate: { [key: string]: any } = {
+                    ...updatePayload, // Start with the data passed from the client
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 };
                 
-                // Courier is taking an action, so reset the retry flag.
-                if (validatedData.status) {
-                    finalShipmentUpdate.retryAttempt = false;
-                }
+                // If status is being changed, we need to recalculate financial fields
+                if (updatePayload.status && updatePayload.status !== shipmentData.status) {
+                    finalUpdate.retryAttempt = false; // Reset retry flag on any status update
 
+                    const statusesSnap = await db.collection('shipment_statuses').get();
+                    const statusConfigs = statusesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ShipmentStatusConfig[];
+                    const newStatusConfig = statusConfigs.find(s => s.id === updatePayload.status);
 
-                // Add all valid fields from the request to the update object
-                for (const key in validatedData) {
-                    if (Object.prototype.hasOwnProperty.call(validatedData, key) && (validatedData as any)[key] !== undefined && key !== 'shipmentId') {
-                        finalShipmentUpdate[key] = (validatedData as any)[key];
+                    if (newStatusConfig) {
+                        let paidAmount = 0;
+                        const totalAmount = finalUpdate.totalAmount ?? shipmentData.totalAmount ?? 0;
+                        const collectedAmount = finalUpdate.collectedAmount ?? 0;
+
+                        if (newStatusConfig.requiresFullCollection) {
+                            paidAmount = totalAmount;
+                        } else if (newStatusConfig.requiresPartialCollection) {
+                            paidAmount = collectedAmount;
+                        }
+                        
+                        finalUpdate.paidAmount = paidAmount;
+                        finalUpdate.collectedAmount = paidAmount; // Align collected with paid for consistency
+
+                        // Handle courier commission
+                        if (newStatusConfig.affectsCourierBalance) {
+                            const courierProfileDoc = shipmentData.assignedCourierId ? await db.collection('couriers').doc(shipmentData.assignedCourierId).get() : null;
+                            const commissionRate = courierProfileDoc?.exists ? (courierProfileDoc.data() as any).commissionRate || 0 : 0;
+                            finalUpdate.courierCommission = commissionRate;
+                        } else {
+                            finalUpdate.courierCommission = 0;
+                        }
+                        
+                        // Handle company commission
+                        if (newStatusConfig.affectsCompanyBalance) {
+                            const companyProfileDoc = await db.collection('companies').doc(shipmentData.companyId).get();
+                            const governorateCommissions = (companyProfileDoc.data() as any)?.governorateCommissions || {};
+                            const commission = governorateCommissions[shipmentData.governorateId] || 0;
+                            finalUpdate.companyCommission = commission;
+                        } else {
+                             finalUpdate.companyCommission = 0;
+                        }
+
                     }
                 }
-
-                // If isCustomReturn is true and the status is a "delivered" status, make the paidAmount negative.
-                const isCustomReturn = shipmentData.isCustomReturn === true || validatedData.isCustomReturn === true;
-                const statusConfigDoc = await db.collection('shipment_statuses').doc(validatedData.status).get();
-                const isDeliveredStatus = statusConfigDoc.exists && statusConfigDoc.data()?.isDeliveredStatus === true;
-
-                if (isCustomReturn && isDeliveredStatus) {
-                    const totalAmount = validatedData.totalAmount ?? shipmentData.totalAmount ?? 0;
-                    finalShipmentUpdate.paidAmount = -Math.abs(totalAmount);
-                    finalShipmentUpdate.collectedAmount = -Math.abs(totalAmount);
-                }
                 
+                // Handle Custom Return logic - this overrides previous calculations if applicable
+                const isCustomReturn = finalUpdate.isCustomReturn ?? shipmentData.isCustomReturn;
+                const statusesSnapForReturn = await db.collection('shipment_statuses').get();
+                const statusConfigsForReturn = statusesSnapForReturn.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ShipmentStatusConfig[];
+                const finalStatusConfig = statusConfigsForReturn.find(s => s.id === finalUpdate.status || shipmentData.status);
+                
+                if (isCustomReturn && finalStatusConfig?.isDeliveredStatus) {
+                    const totalAmount = finalUpdate.totalAmount ?? shipmentData.totalAmount ?? 0;
+                    finalUpdate.paidAmount = -Math.abs(totalAmount);
+                    finalUpdate.collectedAmount = -Math.abs(totalAmount);
+                }
+
+
                 const historyRef = shipmentRef.collection('history').doc();
                 const historyEntry = {
-                    status: validatedData.status,
-                    reason: validatedData.reason || validatedData.amountChangeReason || '',
+                    status: finalUpdate.status || shipmentData.status,
+                    reason: finalUpdate.reason || finalUpdate.amountChangeReason || '',
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                     updatedBy: userName || userEmail,
                     userId: userId,
                 };
 
-                transaction.update(shipmentRef, finalShipmentUpdate);
+                transaction.update(shipmentRef, finalUpdate);
                 transaction.set(historyRef, historyEntry);
 
                 return { success: true, message: "Shipment updated successfully." };
@@ -158,3 +192,10 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
         }
     });
 });
+
+// Define a simple type for the function to use, matching the one in admin-dashboard
+interface ShipmentStatusConfigLocal {
+  id: string;
+  isDeliveredStatus?: boolean;
+  isReturnedStatus?: boolean;
+}
