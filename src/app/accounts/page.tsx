@@ -9,30 +9,36 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileUp, Loader2 } from "lucide-react";
-import { formatToCairoTime } from "@/lib/utils";
+import { FileUp, Loader2, Package, HandCoins, MinusCircle } from "lucide-react";
+import { cn, formatToCairoTime } from "@/lib/utils";
 import { exportToExcel } from "@/lib/export";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query } from "firebase/firestore";
 
+type TransactionType = 'shipment' | 'payment' | 'custom_return';
+
 type Transaction = {
     date: Date;
     description: string;
-    totalAmount?: number;
-    paidAmount?: number;
-    courierCommission?: number;
-    companyCommission?: number;
-    netDue: number; 
+    type: TransactionType;
+    debit: number;  // Represents money out from the perspective of the selected entity's balance with the admin
+    credit: number; // Represents money in
     balance: number;
     relatedId: string; 
 };
 
-const formatCurrency = (amount: number | undefined) => {
-    if (amount === undefined) return '-';
+const formatCurrency = (amount: number | undefined | null) => {
+    if (amount === undefined || amount === null) return '-';
     return new Intl.NumberFormat("ar-EG", {
         style: "currency",
         currency: "EGP",
     }).format(amount);
+};
+
+const transactionIcons: Record<TransactionType, React.ReactNode> = {
+    shipment: <Package className="h-4 w-4 text-blue-500" />,
+    payment: <HandCoins className="h-4 w-4 text-green-600" />,
+    custom_return: <MinusCircle className="h-4 w-4 text-red-600" />
 };
 
 function AccountStatementsPage() {
@@ -56,27 +62,21 @@ function AccountStatementsPage() {
         if (!selectedId || !shipments || !courierPayments || !companyPayments) return [];
 
         let rawTransactions: { date: Date, type: 'shipment' | 'payment', data: any }[] = [];
-        let entityShipments: Shipment[];
-        let entityPayments: (CourierPayment | CompanyPayment)[];
 
         if (entityType === 'courier') {
-            entityShipments = shipments.filter(s => s.assignedCourierId === selectedId && (s.paidAmount || 0) !== 0);
-            entityPayments = courierPayments.filter(p => p.courierId === selectedId);
+            const entityShipments = shipments.filter(s => s.assignedCourierId === selectedId && !s.isArchivedForCourier && (s.paidAmount !== 0 || s.courierCommission !== 0));
+            const entityPayments = courierPayments.filter(p => p.courierId === selectedId && !p.isArchived);
+            
+            entityShipments.forEach(s => s.updatedAt?.toDate && rawTransactions.push({ date: s.updatedAt.toDate(), type: 'shipment', data: s }));
+            entityPayments.forEach(p => p.paymentDate?.toDate && rawTransactions.push({ date: p.paymentDate.toDate(), type: 'payment', data: p }));
+
         } else { // company
-            entityShipments = shipments.filter(s => s.companyId === selectedId && (s.paidAmount || 0) !== 0);
-            entityPayments = companyPayments.filter(p => p.companyId === selectedId);
+            const entityShipments = shipments.filter(s => s.companyId === selectedId && !s.isArchivedForCompany && s.paidAmount !== 0);
+            const entityPayments = companyPayments.filter(p => p.companyId === selectedId && !p.isArchived);
+
+            entityShipments.forEach(s => s.updatedAt?.toDate && rawTransactions.push({ date: s.updatedAt.toDate(), type: 'shipment', data: s }));
+            entityPayments.forEach(p => p.paymentDate?.toDate && rawTransactions.push({ date: p.paymentDate.toDate(), type: 'payment', data: p }));
         }
-        
-        entityShipments.forEach(s => {
-            if (s.updatedAt?.toDate) {
-                rawTransactions.push({ date: s.updatedAt.toDate(), type: 'shipment', data: s });
-            }
-        });
-        entityPayments.forEach(p => {
-             if (p.paymentDate?.toDate) {
-                rawTransactions.push({ date: p.paymentDate.toDate(), type: 'payment', data: p });
-             }
-        });
 
         rawTransactions.sort((a, b) => a.date.getTime() - b.date.getTime());
 
@@ -84,50 +84,55 @@ function AccountStatementsPage() {
         const processedTransactions: Transaction[] = [];
         
         for (const rawTx of rawTransactions) {
-            let tx: Partial<Transaction> = {
-                date: rawTx.date,
-                relatedId: rawTx.data.id,
-            };
+            let credit = 0; // Money the entity owes the admin (increases their debt)
+            let debit = 0;  // Money the admin owes the entity (decreases their debt)
+            let description = '';
+            let txType: TransactionType = 'shipment';
 
             if (entityType === 'courier') {
                 if (rawTx.type === 'shipment') {
                     const s = rawTx.data as Shipment;
-                    const descriptionPrefix = s.isCustomReturn ? "استرجاع مخصص" : "شحنة";
-                    tx.description = `${descriptionPrefix}: ${s.recipientName} (${s.orderNumber})`;
-                    tx.totalAmount = s.totalAmount || 0;
-                    tx.paidAmount = s.paidAmount || 0;
-                    tx.courierCommission = s.courierCommission || 0;
-                    // Net due for THIS shipment is what the courier collected minus their commission.
-                    tx.netDue = tx.paidAmount - tx.courierCommission;
-                    runningBalance += tx.netDue;
+                    description = `شحنة: ${s.recipientName} (${s.orderNumber})`;
+                    credit = s.paidAmount || 0;
+                    debit = s.courierCommission || 0;
+                    if (s.isCustomReturn) {
+                        txType = 'custom_return';
+                    }
                 } else { // payment
                     const p = rawTx.data as CourierPayment;
-                    tx.description = `دفعة مُسددة ${p.notes ? `(${p.notes})` : ''}`;
-                    // The courier paid money, so it reduces their due amount.
-                    tx.netDue = -p.amount;
-                    runningBalance += tx.netDue;
+                    description = `دفعة مُسددة ${p.notes ? `(${p.notes})` : ''}`;
+                    debit = p.amount; // Courier paid, so it's a debit from their balance
+                    txType = 'payment';
                 }
             } else { // company
                  if (rawTx.type === 'shipment') {
                     const s = rawTx.data as Shipment;
-                    const descriptionPrefix = s.isCustomReturn ? "استرجاع مخصص" : "شحنة";
-                    tx.description = `${descriptionPrefix}: ${s.recipientName} (${s.orderNumber})`;
-                    tx.totalAmount = s.totalAmount || 0;
-                    tx.paidAmount = s.paidAmount || 0;
-                    tx.companyCommission = s.companyCommission || 0;
-                    // Net due for THIS shipment is the revenue for the company minus the system's commission.
-                    tx.netDue = tx.paidAmount - tx.companyCommission;
-                    runningBalance += tx.netDue;
+                    description = `شحنة: ${s.recipientName} (${s.orderNumber})`;
+                    // For company, paidAmount is money for them, so it's a debit (admin owes them)
+                    debit = s.paidAmount || 0;
+                    // companyCommission is money for the admin, so it's a credit (company owes admin)
+                    credit = s.companyCommission || 0;
+                    if (s.isCustomReturn) {
+                        txType = 'custom_return';
+                    }
                  } else { // payment
                     const p = rawTx.data as CompanyPayment;
-                    tx.description = `دفعة مُستلمة ${p.notes ? `(${p.notes})` : ''}`;
-                    // Admin paid the company, so it reduces the balance owed TO them.
-                    tx.netDue = -p.amount;
-                    runningBalance += tx.netDue;
+                    description = `دفعة مُستلمة ${p.notes ? `(${p.notes})` : ''}`;
+                    credit = p.amount; // Admin paid them, so it's a credit to their balance from admin's POV
+                    txType = 'payment';
                  }
             }
-            tx.balance = runningBalance;
-            processedTransactions.push(tx as Transaction);
+            
+            runningBalance += (credit - debit);
+            processedTransactions.push({
+                date: rawTx.date,
+                description,
+                type: txType,
+                credit,
+                debit,
+                balance: runningBalance,
+                relatedId: rawTx.data.id,
+            });
         }
 
         return processedTransactions.reverse(); // Display newest first
@@ -146,21 +151,16 @@ function AccountStatementsPage() {
         const reportColumns = [
           { accessorKey: "date", header: "التاريخ" },
           { accessorKey: "description", header: "البيان" },
-          { accessorKey: "totalAmount", header: "إجمالي الشحنة" },
-          { accessorKey: "paidAmount", header: "المبلغ المحصَّل" },
-          { accessorKey: entityType === 'courier' ? "courierCommission" : "companyCommission", header: `العمولة` },
-          { accessorKey: "netDue", header: "صافي المستحق" },
-          { accessorKey: "balance", header: "الرصيد التراكمي" },
+          { accessorKey: "credit", header: "دائن (عليه)" },
+          { accessorKey: "debit", header: "مدين (له)" },
+          { accessorKey: "balance", header: "الرصيد" },
         ];
         
         const dataToExport = transactions.map(tx => ({
             date: formatToCairoTime(tx.date),
             description: tx.description,
-            totalAmount: formatCurrency(tx.totalAmount),
-            paidAmount: formatCurrency(tx.paidAmount),
-            courierCommission: formatCurrency(tx.courierCommission),
-            companyCommission: formatCurrency(tx.companyCommission),
-            netDue: formatCurrency(tx.netDue),
+            credit: formatCurrency(tx.credit),
+            debit: formatCurrency(tx.debit),
             balance: formatCurrency(tx.balance)
         }));
 
@@ -169,10 +169,28 @@ function AccountStatementsPage() {
 
     const finalBalance = transactions[0]?.balance || 0;
     let balanceDescription = '';
+    let balanceClass = '';
+
     if (entityType === 'courier') {
-        balanceDescription = finalBalance > 0 ? 'مستحق على المندوب' : (finalBalance < 0 ? 'مستحق للمندوب' : 'الحساب مُسوى');
+        if (finalBalance > 0) {
+            balanceDescription = 'مستحق على المندوب';
+            balanceClass = 'text-destructive';
+        } else if (finalBalance < 0) {
+            balanceDescription = 'مستحق للمندوب';
+            balanceClass = 'text-green-600';
+        } else {
+            balanceDescription = 'الحساب مُسوى';
+        }
     } else { // company
-        balanceDescription = finalBalance > 0 ? 'مستحق للشركة' : (finalBalance < 0 ? 'مستحق على الشركة' : 'الحساب مُسوى');
+        if (finalBalance > 0) {
+            balanceDescription = 'مستحق للشركة';
+            balanceClass = 'text-green-600';
+        } else if (finalBalance < 0) {
+            balanceDescription = 'مستحق على الشركة';
+            balanceClass = 'text-destructive';
+        } else {
+            balanceDescription = 'الحساب مُسوى';
+        }
     }
 
     if (isLoading) {
@@ -187,7 +205,7 @@ function AccountStatementsPage() {
         <div className="p-4 sm:p-6 md:p-8">
             <h1 className="text-3xl font-bold font-headline mb-2">كشوفات الحسابات المالية</h1>
             <p className="text-muted-foreground mb-6">
-                اختر مندوبًا أو شركة لعرض كشف حساب تفصيلي بجميع معاملاته المالية.
+                اختر مندوبًا أو شركة لعرض كشف حساب تفصيلي بجميع معاملاته المالية النشطة.
             </p>
 
             <Card>
@@ -227,12 +245,12 @@ function AccountStatementsPage() {
 
             {selectedId && (
                  <Card className="mt-8">
-                     <CardHeader className="flex flex-row items-start justify-between">
+                     <CardHeader className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                         <div>
                             <CardTitle>كشف حساب: {selectedEntity?.name}</CardTitle>
-                             <div className="text-sm text-muted-foreground">
+                             <div className="text-sm text-muted-foreground mt-1">
                                 <span>الرصيد النهائي {balanceDescription} هو </span>
-                                <Badge variant={finalBalance > 0 ? 'destructive' : 'default'} className="mx-1">{formatCurrency(Math.abs(finalBalance))}</Badge>
+                                <Badge variant={finalBalance === 0 ? 'default' : 'secondary'} className={cn("mx-1 text-base", balanceClass)}>{formatCurrency(Math.abs(finalBalance))}</Badge>
                             </div>
                         </div>
                         <Button variant="outline" onClick={handleExport} disabled={transactions.length === 0}>
@@ -241,39 +259,40 @@ function AccountStatementsPage() {
                         </Button>
                      </CardHeader>
                      <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>التاريخ</TableHead>
-                                    <TableHead>البيان</TableHead>
-                                    <TableHead className="text-center">إجمالي الشحنة</TableHead>
-                                    <TableHead className="text-center">المبلغ المحصَّل</TableHead>
-                                    <TableHead className="text-center">العمولة</TableHead>
-                                    <TableHead className="text-center font-bold">صافي المستحق</TableHead>
-                                    <TableHead className="text-center">الرصيد</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {transactions.length === 0 && (
+                        <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader>
                                     <TableRow>
-                                        <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
-                                            لا توجد حركات مالية لعرضها لهذا الحساب.
-                                        </TableCell>
+                                        <TableHead>التاريخ</TableHead>
+                                        <TableHead>البيان</TableHead>
+                                        <TableHead className="text-center text-red-600">دائن (عليه)</TableHead>
+                                        <TableHead className="text-center text-green-600">مدين (له)</TableHead>
+                                        <TableHead className="text-center font-bold">الرصيد</TableHead>
                                     </TableRow>
-                                )}
-                                {transactions.map((tx, index) => (
-                                    <TableRow key={`${tx.relatedId}-${index}`}>
-                                        <TableCell>{formatToCairoTime(tx.date)}</TableCell>
-                                        <TableCell className="max-w-xs truncate">{tx.description}</TableCell>
-                                        <TableCell className="text-center font-mono">{formatCurrency(tx.totalAmount)}</TableCell>
-                                        <TableCell className={`text-center font-mono ${tx.paidAmount !== undefined && tx.paidAmount < 0 ? 'text-red-600' : ''}`}>{formatCurrency(tx.paidAmount)}</TableCell>
-                                        <TableCell className="text-center font-mono">{formatCurrency(entityType === 'courier' ? tx.courierCommission : tx.companyCommission)}</TableCell>
-                                        <TableCell className={`text-center font-mono font-bold ${tx.netDue > 0 ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(tx.netDue)}</TableCell>
-                                        <TableCell className="text-center font-mono font-bold">{formatCurrency(tx.balance)}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {transactions.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
+                                                لا توجد حركات مالية لعرضها لهذا الحساب.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                    {transactions.map((tx, index) => (
+                                        <TableRow key={`${tx.relatedId}-${index}`}>
+                                            <TableCell className="whitespace-nowrap">{formatToCairoTime(tx.date)}</TableCell>
+                                            <TableCell className="max-w-xs truncate flex items-center gap-2">
+                                                {transactionIcons[tx.type]}
+                                                {tx.description}
+                                            </TableCell>
+                                            <TableCell className="text-center font-mono text-red-600">{formatCurrency(tx.credit || null)}</TableCell>
+                                            <TableCell className="text-center font-mono text-green-600">{formatCurrency(tx.debit || null)}</TableCell>
+                                            <TableCell className={cn("text-center font-mono font-bold", tx.balance > 0 ? "text-red-700" : "text-green-700")}>{formatCurrency(tx.balance)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
                      </CardContent>
                  </Card>
             )}
