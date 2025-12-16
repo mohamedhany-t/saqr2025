@@ -88,6 +88,8 @@ const updateShipmentStatusSchema = zod_1.z.object({
     isLabelPrinted: zod_1.z.boolean().optional(),
     isUrgent: zod_1.z.boolean().optional(),
     isExchange: zod_1.z.boolean().optional(),
+    shipmentCode: zod_1.z.string().optional(),
+    createdAt: zod_1.z.any().optional(), // Allow passing createdAt for new shipments
 });
 exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
@@ -130,19 +132,40 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
             const result = await db.runTransaction(async (transaction) => {
                 var _a, _b, _c, _d, _e;
                 const shipmentDoc = await transaction.get(shipmentRef);
-                if (!shipmentDoc.exists) {
-                    throw new functions.https.HttpsError("not-found", "Shipment not found.");
-                }
-                const shipmentData = shipmentDoc.data();
                 const userDoc = await db.collection('users').doc(userId).get();
                 if (!userDoc.exists) {
                     throw new functions.https.HttpsError("permission-denied", "User profile not found.");
                 }
                 const userProfile = userDoc.data();
-                if (userProfile.role !== 'admin' && userProfile.role !== 'customer-service' && shipmentData.assignedCourierId !== userId && shipmentData.companyId !== userId) {
-                    throw new functions.https.HttpsError("permission-denied", "You are not assigned to this shipment.");
+                const isCreating = !shipmentDoc.exists;
+                // Authorization check
+                let isAuthorized = false;
+                if (userProfile.role === 'admin') {
+                    isAuthorized = true;
+                }
+                else if (isCreating) {
+                    if (['company', 'customer-service'].includes(userProfile.role)) {
+                        isAuthorized = true;
+                    }
+                }
+                else { // Editing existing shipment
+                    const shipmentData = shipmentDoc.data();
+                    if (userProfile.role === 'courier' && shipmentData.assignedCourierId === userId) {
+                        isAuthorized = true;
+                    }
+                    else if (userProfile.role === 'company' && shipmentData.companyId === userId) {
+                        isAuthorized = true;
+                    }
+                    else if (userProfile.role === 'customer-service') {
+                        // Customer service can edit any shipment, similar to admin but check is explicit
+                        isAuthorized = true;
+                    }
+                }
+                if (!isAuthorized) {
+                    throw new functions.https.HttpsError("permission-denied", "You do not have permission to perform this action.");
                 }
                 const finalUpdate = Object.assign(Object.assign({}, updatePayload), { updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+                const shipmentData = isCreating ? {} : shipmentDoc.data();
                 // If status is being changed, we need to recalculate financial fields
                 if (updatePayload.status && updatePayload.status !== shipmentData.status) {
                     finalUpdate.retryAttempt = false; // Reset retry flag on any status update
@@ -162,7 +185,6 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
                         finalUpdate.paidAmount = paidAmount;
                         finalUpdate.collectedAmount = paidAmount; // Align collected with paid for consistency
                         // --- Start of Custom Return Logic ---
-                        // This logic MUST come after initial paidAmount calculation but before commission calculation.
                         const isCustomReturn = (_d = finalUpdate.isCustomReturn) !== null && _d !== void 0 ? _d : shipmentData.isCustomReturn;
                         if (isCustomReturn && newStatusConfig.isDeliveredStatus) {
                             finalUpdate.paidAmount = -Math.abs(totalAmount);
@@ -171,7 +193,8 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
                         // --- End of Custom Return Logic ---
                         // Handle courier commission
                         if (newStatusConfig.affectsCourierBalance) {
-                            const courierProfileDoc = shipmentData.assignedCourierId ? await db.collection('couriers').doc(shipmentData.assignedCourierId).get() : null;
+                            const courierId = finalUpdate.assignedCourierId || shipmentData.assignedCourierId;
+                            const courierProfileDoc = courierId ? await db.collection('couriers').doc(courierId).get() : null;
                             const commissionRate = (courierProfileDoc === null || courierProfileDoc === void 0 ? void 0 : courierProfileDoc.exists) ? courierProfileDoc.data().commissionRate || 0 : 0;
                             finalUpdate.courierCommission = commissionRate;
                         }
@@ -180,9 +203,11 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
                         }
                         // Handle company commission
                         if (newStatusConfig.affectsCompanyBalance) {
-                            const companyProfileDoc = await db.collection('companies').doc(shipmentData.companyId).get();
+                            const companyId = finalUpdate.companyId || shipmentData.companyId;
+                            const companyProfileDoc = await db.collection('companies').doc(companyId).get();
                             const governorateCommissions = ((_e = companyProfileDoc.data()) === null || _e === void 0 ? void 0 : _e.governorateCommissions) || {};
-                            const commission = governorateCommissions[shipmentData.governorateId] || 0;
+                            const governorateId = finalUpdate.governorateId || shipmentData.governorateId;
+                            const commission = governorateCommissions[governorateId] || 0;
                             finalUpdate.companyCommission = commission;
                         }
                         else {
@@ -192,15 +217,23 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
                 }
                 const historyRef = shipmentRef.collection('history').doc();
                 const historyEntry = {
-                    status: finalUpdate.status || shipmentData.status,
+                    status: finalUpdate.status || shipmentData.status || 'Pending',
                     reason: finalUpdate.reason || finalUpdate.amountChangeReason || '',
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                     updatedBy: userName || userEmail,
                     userId: userId,
                 };
-                transaction.update(shipmentRef, finalUpdate);
+                if (isCreating) {
+                    if (!finalUpdate.createdAt) {
+                        finalUpdate.createdAt = admin.firestore.FieldValue.serverTimestamp();
+                    }
+                    transaction.set(shipmentRef, finalUpdate);
+                }
+                else {
+                    transaction.update(shipmentRef, finalUpdate);
+                }
                 transaction.set(historyRef, historyEntry);
-                return { success: true, message: "Shipment updated successfully." };
+                return { success: true, message: isCreating ? "Shipment created successfully." : "Shipment updated successfully." };
             });
             res.status(200).send({ data: result });
         }
