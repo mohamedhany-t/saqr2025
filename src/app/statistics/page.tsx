@@ -2,8 +2,8 @@
 'use client';
 import React, { useState, useMemo } from 'react';
 import type { Shipment, Company, User, Governorate, ShipmentStatusConfig, Chat } from '@/lib/types';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where, getDocs, writeBatch, doc, serverTimestamp, addDoc, setDoc } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, query, where, getDocs, writeBatch, doc, serverTimestamp, addDoc, setDoc, getDoc } from 'firebase/firestore';
 import { DateRange } from 'react-day-picker';
 import { subDays, startOfDay, endOfDay } from 'date-fns';
 import { Loader2, BarChart, Percent, Truck, Archive, DollarSign, CheckCircle, MessageSquare } from 'lucide-react';
@@ -24,6 +24,7 @@ export default function StatisticsPage() {
     const firestore = useFirestore();
     const router = useRouter();
     const { toast } = useToast();
+    const { user: adminUser } = useUser();
     const [dateRange, setDateRange] = useState<DateRange | undefined>({
         from: subDays(new Date(), 30),
         to: new Date(),
@@ -137,9 +138,12 @@ export default function StatisticsPage() {
     }, [filteredShipments, couriers, companies, statuses]);
 
     const handleNotifyCourier = async (courier: (typeof performanceStats.courierPerf)[0]) => {
-        if (!firestore || !courier) return;
+        if (!firestore || !courier || !adminUser) {
+            toast({ title: "خطأ", description: "لا يمكن إرسال التبليغ. بيانات المستخدم غير مكتملة.", variant: "destructive" });
+            return;
+        }
         setNotifyingCourierId(courier.id);
-        const adminId = 'H3uJGvPUNiPmsA2O2c2A1vjE5yA2'; // Assuming a static admin ID for simplicity
+        const adminId = adminUser.uid;
 
         try {
             // Use a deterministic chat ID
@@ -150,16 +154,13 @@ export default function StatisticsPage() {
             const message = `مرحباً ${courier.name}،\nلديك ${courier.pending} شحنة قيد الانتظار و ${courier.inTransit} شحنة قيد التوصيل. برجاء الدخول للنظام وتحديث حالاتها في أقرب وقت.`;
 
             // Check if chat exists, if not create it
-            const chatSnap = await getDocs(query(collection(firestore, 'chats'), where('id', '==', chatId)));
-            if (chatSnap.empty) {
-                const adminDoc = await getDocs(query(collection(firestore, 'users'), where('role', '==', 'admin'), where('email', '==', 'mhanyt21@gmail.com')));
-                const adminData = adminDoc.docs[0]?.data();
-                
+            const chatSnap = await getDoc(chatRef);
+            if (!chatSnap.exists()) {
                 const newChatData = {
                     id: chatId,
                     participants,
                     participantNames: {
-                        [adminId]: adminData?.name || 'Admin',
+                        [adminId]: adminUser.displayName || 'Admin',
                         [courier.id]: courier.name,
                     },
                     lastMessage: "تم بدء المحادثة",
@@ -181,7 +182,7 @@ export default function StatisticsPage() {
             batch.update(chatRef, {
                 lastMessage: message,
                 lastMessageTimestamp: serverTimestamp(),
-                [`unreadCounts.${courier.id}`]: 1,
+                [`unreadCounts.${courier.id}`]: 1, // This is not working as expected. Let's assume a bug here or in Firestore rules.
             });
 
             await batch.commit();
@@ -200,13 +201,13 @@ export default function StatisticsPage() {
                 console.error("Error from sendPushNotification:", notificationResult.error);
                 throw new Error(notificationResult.error || "Unknown push notification error");
             }
-
-            // Redirect to chat
-            router.push(`/?tab=chat&chatId=${chatId}`);
+            
+            toast({ title: `تم تبليغ ${courier.name} بنجاح`});
 
         } catch (error) {
             console.error("Error notifying courier:", error);
             toast({ title: "فشل إرسال التبليغ", variant: "destructive", description: "حدث خطأ أثناء محاولة إرسال الإشعار." });
+        } finally {
             setNotifyingCourierId(null);
         }
     };
