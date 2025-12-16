@@ -10,7 +10,7 @@ import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, query, where, doc, getDoc, writeBatch, serverTimestamp, getDocs } from "firebase/firestore";
+import { collection, query, where, doc, getDoc, writeBatch, serverTimestamp, getDocs, deleteField } from "firebase/firestore";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
 import { AlertTriangle, CheckSquare, DollarSign, MessageSquare, Check, X, ScanLine, FileUp, PlusCircle, Printer } from "lucide-react";
@@ -540,37 +540,44 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
     }
   };
 
-  const handlePriceChangeDecision = (shipment: Shipment, approved: boolean) => {
-    if (!firestore || !authUser) return;
-    
-    let updatePayload: any = {};
-    const historyReason = approved 
-      ? `تمت الموافقة على تعديل السعر من ${shipment.totalAmount} إلى ${shipment.requestedAmount}.`
-      : `تم رفض طلب تعديل السعر (السعر المقترح: ${shipment.requestedAmount}).`;
-    
-    updatePayload = {
-      status: approved ? 'In-Transit' : 'PriceChangeRejected',
-      ...(approved && { totalAmount: shipment.requestedAmount }),
-      requestedAmount: null,
-      amountChangeReason: null,
-      reason: historyReason,
-    };
-    
-    handleSaveShipment(updatePayload, shipment.id);
+    const handlePriceChangeDecision = (shipment: Shipment, approved: boolean) => {
+        if (!firestore || !authUser) return;
+        
+        let updatePayload: any = {};
+        if (approved) {
+            updatePayload = {
+                totalAmount: shipment.requestedAmount,
+                status: 'In-Transit',
+                reason: `تمت الموافقة على تعديل السعر من ${shipment.totalAmount} إلى ${shipment.requestedAmount}.`,
+            };
+        } else {
+            updatePayload = {
+                status: 'PriceChangeRejected',
+                reason: `تم رفض طلب تعديل السعر (السعر المقترح: ${shipment.requestedAmount}).`,
+            };
+        }
+        
+        const finalUpdate = {
+            ...updatePayload,
+            requestedAmount: deleteField(),
+            amountChangeReason: deleteField(),
+        };
 
-    if (shipment.assignedCourierId) {
-        const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipment.id}` : `/?edit=${shipment.id}`;
-        const message = approved 
-            ? `تمت الموافقة على طلب تعديل سعر شحنة ${shipment.recipientName}.`
-            : `تم رفض طلب تعديل سعر شحنة ${shipment.recipientName}.`;
-        sendPushNotification({
-            recipientId: shipment.assignedCourierId,
-            title: 'تحديث بخصوص طلب تعديل السعر',
-            body: message,
-            url: notificationUrl,
-        }).catch(console.error);
-    }
-  };
+        handleSaveShipment(finalUpdate, shipment.id);
+
+        if (shipment.assignedCourierId) {
+            const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipment.id}` : `/?edit=${shipment.id}`;
+            const message = approved 
+                ? `تمت الموافقة على طلب تعديل سعر شحنة ${shipment.recipientName}.`
+                : `تم رفض طلب تعديل سعر شحنة ${shipment.recipientName}.`;
+            sendPushNotification({
+                recipientId: shipment.assignedCourierId,
+                title: 'تحديث بخصوص طلب تعديل السعر',
+                body: message,
+                url: notificationUrl,
+            }).catch(console.error);
+        }
+    };
   
   const filteredShipments = React.useMemo(() => {
     if (!shipments) return [];
@@ -879,5 +886,3 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
     </div>
   );
 }
-
-    

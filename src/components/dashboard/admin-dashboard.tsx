@@ -20,7 +20,7 @@ import { ImportResult, ImportProgressDialog } from "@/components/shipments/impor
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser, useFirebaseApp } from "@/firebase";
-import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc, deleteDoc, increment, orderBy, limit, startAfter, endBefore, limitToLast, DocumentSnapshot, DocumentData } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc, deleteDoc, increment, orderBy, limit, startAfter, endBefore, limitToLast, DocumentSnapshot, DocumentData, deleteField } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import {
   AlertDialog,
@@ -1456,7 +1456,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
         const timeA = a.updatedAt?.toDate?.()?.getTime() || 0;
         const timeB = b.updatedAt?.toDate?.()?.getTime() || 0;
         return timeB - timeA;
-    }).slice(0, 50); // Get the last 50 updated shipments
+    });
 }, [allShipmentsForStats]);
 
 
@@ -1665,45 +1665,46 @@ const returnedToCompanyShipments = React.useMemo(() => {
     return companyDues.filter(c => c.name?.toLowerCase().includes(managementSearchTerm.toLowerCase()));
   }, [companyDues, managementSearchTerm]);
 
-  const handlePriceChangeDecision = (shipment: Shipment, approved: boolean) => {
-    if (!firestore || !authUser) return;
-    
-    let updatePayload: any = {};
-    if (approved) {
-        updatePayload = {
-            totalAmount: shipment.requestedAmount,
-            status: 'In-Transit',
-            reason: `تمت الموافقة على تعديل السعر من ${shipment.totalAmount} إلى ${shipment.requestedAmount}.`,
+    const handlePriceChangeDecision = (shipment: Shipment, approved: boolean) => {
+        if (!firestore || !authUser) return;
+        
+        let updatePayload: any = {};
+        if (approved) {
+            updatePayload = {
+                totalAmount: shipment.requestedAmount,
+                status: 'In-Transit',
+                reason: `تمت الموافقة على تعديل السعر من ${shipment.totalAmount} إلى ${shipment.requestedAmount}.`,
+            };
+        } else {
+            updatePayload = {
+                status: 'PriceChangeRejected',
+                reason: `تم رفض طلب تعديل السعر (السعر المقترح: ${shipment.requestedAmount}).`,
+            };
+        }
+        
+        // Use deleteField() for Firestore to remove fields instead of setting them to null
+        const finalUpdate = {
+            ...updatePayload,
+            requestedAmount: deleteField(), 
+            amountChangeReason: deleteField(),
         };
-    } else {
-        updatePayload = {
-            status: 'PriceChangeRejected',
-            reason: `تم رفض طلب تعديل السعر (السعر المقترح: ${shipment.requestedAmount}).`,
-        };
-    }
 
-    const finalUpdate = {
-        ...updatePayload,
-        requestedAmount: null,
-        amountChangeReason: null,
+        handleSaveShipment(finalUpdate, shipment.id);
+
+        // Send notification to the courier
+        if (shipment.assignedCourierId) {
+            const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipment.id}` : `/?edit=${shipment.id}`;
+            const message = approved 
+                ? `تمت الموافقة على طلب تعديل سعر شحنة ${shipment.recipientName}.`
+                : `تم رفض طلب تعديل سعر شحنة ${shipment.recipientName}.`;
+            sendPushNotification({
+                recipientId: shipment.assignedCourierId,
+                title: 'تحديث بخصوص طلب تعديل السعر',
+                body: message,
+                url: notificationUrl,
+            }).catch(console.error);
+        }
     };
-
-    handleSaveShipment(finalUpdate, shipment.id);
-
-    // Send notification to the courier
-    if (shipment.assignedCourierId) {
-        const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipment.id}` : `/?edit=${shipment.id}`;
-        const message = approved 
-            ? `تمت الموافقة على طلب تعديل سعر شحنة ${shipment.recipientName}.`
-            : `تم رفض طلب تعديل سعر شحنة ${shipment.recipientName}.`;
-        sendPushNotification({
-            recipientId: shipment.assignedCourierId,
-            title: 'تحديث بخصوص طلب تعديل السعر',
-            body: message,
-            url: notificationUrl,
-        }).catch(console.error);
-    }
-  };
 
 
   return (
