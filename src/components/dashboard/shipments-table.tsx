@@ -835,5 +835,3 @@ export function ShipmentsTable({
     </div>
   )
 }
-
-    

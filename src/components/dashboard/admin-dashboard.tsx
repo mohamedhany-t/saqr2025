@@ -624,25 +624,11 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
 
   const allShipmentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    let q = query(collection(firestore, 'shipments'), orderBy('createdAt', 'desc'));
-
-    // Apply server-side filtering only if filters are present
-    if (columnFilters.length > 0) {
-      columnFilters.forEach(filter => {
-        const { id, value } = filter;
-        if (Array.isArray(value) && value.length > 0) {
-          q = query(q, where(id, 'in', value));
-        } else if (id === 'isAssigned') {
-          if(value === 'assigned') q = query(q, where('assignedCourierId', '!=', null));
-          if(value === 'unassigned') q = query(q, where('assignedCourierId', '==', null));
-        }
-      });
-    }
-
-    return q;
-  }, [firestore, columnFilters]);
-
+    return query(collection(firestore, 'shipments'), orderBy('createdAt', 'desc'));
+  }, [firestore]);
+  
   const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(allShipmentsQuery);
+
 
   const allShipmentsForStatsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -1443,8 +1429,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
 
   const filteredShipments = React.useMemo(() => {
     let baseShipments = shipments || [];
-
-    // All filtering is now done server-side via the query, except for search term
+    
     if (!searchTerm) return baseShipments;
     
     const lowercasedTerm = searchTerm.toLowerCase();
