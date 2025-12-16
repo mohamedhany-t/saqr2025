@@ -1,7 +1,7 @@
 
 "use client";
 import React, { Suspense } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import type { User } from "@/lib/types";
 import { useUser, useUserProfile } from "@/firebase";
@@ -16,7 +16,12 @@ function PageContent() {
   const { user: authUser, isUserLoading: isAuthLoading } = useUser();
   const { userProfile, isProfileLoading } = useUserProfile();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [searchTerm, setSearchTerm] = React.useState('');
+  
+  const tab = searchParams.get('tab');
+  const chatId = searchParams.get('chatId');
+
 
   const isLoading = isAuthLoading || isProfileLoading;
   
@@ -49,16 +54,24 @@ function PageContent() {
     }
     
     const { role } = userProfile;
+    
+    const dashboardProps = {
+      user: userProfile,
+      role: role,
+      searchTerm: searchTerm,
+      initialTab: tab,
+      initialChatId: chatId,
+    };
 
     switch (role) {
       case "admin":
-        return <AdminDashboard user={userProfile} role={role} searchTerm={searchTerm} />;
+        return <AdminDashboard {...dashboardProps} />;
       case "company":
         return <CompanyDashboard user={userProfile} role={role} searchTerm={searchTerm} />;
       case "courier":
         return <CourierDashboard user={userProfile} role={role} searchTerm={searchTerm} onSearchChange={setSearchTerm} />;
       case "customer-service":
-        return <CustomerServiceDashboard user={userProfile} role={role} searchTerm={searchTerm} />;
+        return <CustomerServiceDashboard {...dashboardProps} />;
       default:
          return (
              <div className="flex min-h-screen w-full items-center justify-center bg-muted/30">

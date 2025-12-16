@@ -1,12 +1,12 @@
 
 'use client';
 import React, { useState, useMemo } from 'react';
-import type { Shipment, Company, User, Governorate, ShipmentStatusConfig } from '@/lib/types';
+import type { Shipment, Company, User, Governorate, ShipmentStatusConfig, Chat } from '@/lib/types';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, getDocs, writeBatch, doc, serverTimestamp, addDoc } from 'firebase/firestore';
 import { DateRange } from 'react-day-picker';
 import { subDays, startOfDay, endOfDay } from 'date-fns';
-import { Loader2, BarChart, Percent, Truck, Archive, DollarSign, CheckCircle } from 'lucide-react';
+import { Loader2, BarChart, Percent, Truck, Archive, DollarSign, CheckCircle, MessageSquare } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -14,15 +14,21 @@ import { Calendar } from '@/components/ui/calendar';
 import { ar } from 'date-fns/locale';
 import { ResponsiveContainer, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart as RechartsBarChart, PieChart, Pie, Cell } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useRouter } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
+import { sendPushNotification } from '@/lib/actions';
 
 const PRESET_COLORS = ["#2563eb", "#f97316", "#16a34a", "#dc2626", "#9333ea", "#facc15", "#db2777", "#14b8a6", "#64748b"];
 
 export default function StatisticsPage() {
     const firestore = useFirestore();
+    const router = useRouter();
+    const { toast } = useToast();
     const [dateRange, setDateRange] = useState<DateRange | undefined>({
         from: subDays(new Date(), 30),
         to: new Date(),
     });
+    const [notifyingCourierId, setNotifyingCourierId] = useState<string | null>(null);
 
     const { data: allShipments, isLoading: shipmentsLoading } = useCollection<Shipment>(useMemoFirebase(() => firestore ? query(collection(firestore, 'shipments')) : null, [firestore]));
     const { data: companies, isLoading: companiesLoading } = useCollection<Company>(useMemoFirebase(() => firestore ? query(collection(firestore, 'companies')) : null, [firestore]));
@@ -101,10 +107,15 @@ export default function StatisticsPage() {
             const courierShipments = filteredShipments.filter(s => s.assignedCourierId === courier.id);
             if (courierShipments.length === 0) return null;
             const delivered = courierShipments.filter(s => deliveredStatuses.includes(s.status)).length;
+            const pending = courierShipments.filter(s => s.status === 'Pending').length;
+            const inTransit = courierShipments.filter(s => s.status === 'In-Transit').length;
             return {
+                id: courier.id,
                 name: courier.name,
                 total: courierShipments.length,
                 delivered: delivered,
+                pending: pending,
+                inTransit: inTransit,
                 successRate: courierShipments.length > 0 ? (delivered / courierShipments.length) * 100 : 0
             };
         }).filter(Boolean).sort((a, b) => b!.total - a!.total);
@@ -124,6 +135,79 @@ export default function StatisticsPage() {
         return { courierPerf, companyPerf };
 
     }, [filteredShipments, couriers, companies, statuses]);
+
+    const handleNotifyCourier = async (courier: (typeof performanceStats.courierPerf)[0]) => {
+        if (!firestore) return;
+        setNotifyingCourierId(courier.id);
+        const adminId = 'H3uJGvPUNiPmsA2O2c2A1vjE5yA2'; // Assuming a static admin ID for simplicity
+
+        try {
+            // Find existing chat
+            const participants = [adminId, courier.id].sort();
+            const q = query(collection(firestore, 'chats'), where('participants', '==', participants));
+            const existingChatsSnap = await getDocs(q);
+
+            let chatId: string;
+            const message = `مرحباً ${courier.name}،\nلديك ${courier.pending} شحنة قيد الانتظار و ${courier.inTransit} شحنة قيد التوصيل. برجاء الدخول للنظام وتحديث حالاتها في أقرب وقت.`;
+
+            if (!existingChatsSnap.empty) {
+                chatId = existingChatsSnap.docs[0].id;
+            } else {
+                // Create new chat
+                const adminDoc = await getDocs(query(collection(firestore, 'users'), where('role', '==', 'admin'), where('email', '==', 'mhanyt21@gmail.com')));
+                const adminData = adminDoc.docs[0]?.data();
+                
+                const newChatData = {
+                    participants,
+                    participantNames: {
+                        [adminId]: adminData?.name || 'Admin',
+                        [courier.id]: courier.name,
+                    },
+                    lastMessage: "تم بدء المحادثة",
+                    lastMessageTimestamp: serverTimestamp(),
+                    unreadCounts: { [adminId]: 0, [courier.id]: 0 },
+                };
+                const newChatRef = await addDoc(collection(firestore, 'chats'), newChatData);
+                chatId = newChatRef.id;
+            }
+
+            // Send the message
+            const messagesCollection = collection(firestore, 'chats', chatId, 'messages');
+            const chatDocRef = doc(firestore, 'chats', chatId);
+
+            const batch = writeBatch(firestore);
+            const newMessageRef = doc(messagesCollection);
+            batch.set(newMessageRef, {
+                senderId: adminId,
+                text: message,
+                timestamp: serverTimestamp(),
+            });
+            batch.update(chatDocRef, {
+                lastMessage: message,
+                lastMessageTimestamp: serverTimestamp(),
+                [`unreadCounts.${courier.id}`]: 1,
+            });
+
+            await batch.commit();
+
+            // Send push notification
+            await sendPushNotification({
+                recipientId: courier.id,
+                title: 'متابعة من الإدارة',
+                body: `لديك ${courier.pending + courier.inTransit} شحنة تتطلب تحديث.`,
+                url: '/',
+            });
+
+            // Redirect to chat
+            router.push(`/?tab=chat&chatId=${chatId}`);
+
+        } catch (error) {
+            console.error("Error notifying courier:", error);
+            toast({ title: "فشل إرسال التبليغ", variant: "destructive" });
+            setNotifyingCourierId(null);
+        }
+    };
+
 
     if (isLoading) {
         return (
@@ -203,10 +287,36 @@ export default function StatisticsPage() {
                     <CardHeader><CardTitle>أداء المناديب</CardTitle></CardHeader>
                     <CardContent>
                          <Table>
-                            <TableHeader><TableRow><TableHead>المندوب</TableHead><TableHead>الإجمالي</TableHead><TableHead>التسليمات</TableHead><TableHead>نسبة النجاح</TableHead></TableRow></TableHeader>
+                            <TableHeader><TableRow>
+                                <TableHead>المندوب</TableHead>
+                                <TableHead>قيد الانتظار</TableHead>
+                                <TableHead>قيد التوصيل</TableHead>
+                                <TableHead>الإجمالي</TableHead>
+                                <TableHead>التسليمات</TableHead>
+                                <TableHead>نسبة النجاح</TableHead>
+                                <TableHead>إجراء</TableHead>
+                            </TableRow></TableHeader>
                             <TableBody>
                                 {performanceStats.courierPerf.map((c: any) => (
-                                    <TableRow key={c.name}><TableCell>{c.name}</TableCell><TableCell>{c.total}</TableCell><TableCell>{c.delivered}</TableCell><TableCell>{c.successRate.toFixed(1)}%</TableCell></TableRow>
+                                    <TableRow key={c.name}>
+                                        <TableCell>{c.name}</TableCell>
+                                        <TableCell>{c.pending}</TableCell>
+                                        <TableCell>{c.inTransit}</TableCell>
+                                        <TableCell>{c.total}</TableCell>
+                                        <TableCell>{c.delivered}</TableCell>
+                                        <TableCell>{c.successRate.toFixed(1)}%</TableCell>
+                                        <TableCell>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleNotifyCourier(c)}
+                                                disabled={notifyingCourierId === c.id || (c.pending === 0 && c.inTransit === 0)}
+                                            >
+                                                {notifyingCourierId === c.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4 me-2" />}
+                                                تبليغ
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
                                 ))}
                             </TableBody>
                          </Table>

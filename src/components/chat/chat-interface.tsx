@@ -12,10 +12,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "../ui/button";
 
-export default function ChatInterface() {
+interface ChatInterfaceProps {
+    initialChatId?: string | null;
+}
+
+export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     const { userProfile, isProfileLoading } = useUserProfile();
-    const [activeChatId, setActiveChatId] = React.useState<string | null>(null);
+    const [activeChatId, setActiveChatId] = React.useState<string | null>(initialChatId || null);
     const isMobile = useIsMobile();
+
+    React.useEffect(() => {
+        if(initialChatId) {
+            setActiveChatId(initialChatId);
+        }
+    }, [initialChatId])
 
     if (isProfileLoading || !userProfile) {
         return (

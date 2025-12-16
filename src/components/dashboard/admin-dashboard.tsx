@@ -37,7 +37,7 @@ import ChatInterface from "@/components/chat/chat-interface";
 import { Badge } from "../ui/badge";
 import AccountStatementsPage from "@/app/accounts/page";
 import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotification } from "@/lib/actions";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { ShipmentCard } from "../shipments/shipment-card";
 import { ColumnFiltersState } from "@tanstack/react-table";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
@@ -586,8 +586,10 @@ interface AdminDashboardProps {
   user: User;
   role: Role;
   searchTerm: string;
+  initialTab?: string | null;
+  initialChatId?: string | null;
 }
-export default function AdminDashboard({ user, role, searchTerm }: AdminDashboardProps) {
+export default function AdminDashboard({ user, role, searchTerm, initialTab, initialChatId }: AdminDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
   const [isCourierPaymentSheetOpen, setIsCourierPaymentSheetOpen] = React.useState(false);
@@ -619,6 +621,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = React.useState(initialTab || "shipments");
+
 
   const [importResult, setImportResult] = React.useState<ImportResult | null>(null);
 
@@ -1806,7 +1810,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
 
   return (
     <div className="flex flex-col w-full">
-        <Tabs defaultValue="shipments">
+        <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
         <div className="flex items-center">
             <TabsList className="flex-nowrap overflow-x-auto justify-start">
             <TabsTrigger value="shipments">الشحنات</TabsTrigger>
@@ -2309,7 +2313,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
              />
         </TabsContent>
         <TabsContent value="chat">
-           <ChatInterface />
+           <ChatInterface initialChatId={initialChatId}/>
         </TabsContent>
         </Tabs>
       <ShipmentFormSheet
