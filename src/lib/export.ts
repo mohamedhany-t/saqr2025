@@ -74,7 +74,7 @@ const getCellValue = (
                 'Partially Delivered': 'تم التسليم جزئياً',
                 'Evasion (Phone)': 'تهرب من الاستلام هاتفيا',
                 'Evasion (Delivery Attempt)': 'تهرب بعدالتنسيق والوصول',
-                Cancelled: 'تم الإلغاء',
+                Cancelled: 'فشل التسليم',
                 Returned: 'مرتجع',
                 Postponed: 'مؤجل',
                 'Returned to Sender': 'تم الرجوع للراسل',
