@@ -622,17 +622,21 @@ export function ShipmentsTable({
   return (
     <div className="w-full">
         <div className="flex items-center justify-between py-4 gap-2 flex-wrap">
-            { onFiltersChange && (
-              <div className="flex items-center gap-2 flex-wrap">
-                  <ShipmentFilters 
-                    governorates={governorates}
-                    companies={companies}
-                    courierUsers={couriers}
-                    statuses={statuses}
-                    onFiltersChange={onFiltersChange}
-                  />
-              </div>
-            )}
+            <div className="flex items-center gap-2 flex-wrap">
+                { onFiltersChange && (
+                    <ShipmentFilters 
+                        governorates={governorates}
+                        companies={companies}
+                        courierUsers={couriers}
+                        statuses={statuses}
+                        onFiltersChange={onFiltersChange}
+                    />
+                )}
+                 <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleExport}>
+                    <FileUp className="h-3.5 w-3.5" />
+                    <span className="sr-only sm:not-sr-only">تصدير Excel</span>
+                </Button>
+            </div>
             {table.getFilteredSelectedRowModel().rows.length > 0 && (
                  <div className="flex items-center gap-2 flex-wrap justify-end">
                     <span className="text-sm text-muted-foreground hidden lg:inline">
