@@ -624,17 +624,10 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
 
   const allShipmentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'shipments'), orderBy('createdAt', 'desc'));
-  }, [firestore]);
-  
-  const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(allShipmentsQuery);
-
-
-  const allShipmentsForStatsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
     return query(collection(firestore, 'shipments'));
   }, [firestore]);
-  const { data: allShipmentsForStats, isLoading: allShipmentsLoading } = useCollection<Shipment>(allShipmentsForStatsQuery);
+  
+  const { data: allShipmentsForStats, isLoading: allShipmentsLoading } = useCollection<Shipment>(allShipmentsQuery);
 
 
   const chatsQuery = useMemoFirebase(() => {
@@ -833,23 +826,8 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
             for (const row of validRows) {
                 const codeFromSheet = row['كود الشحنة'] || row['رقم الشحنه'];
                 let shipmentCodeValue = codeFromSheet ? String(codeFromSheet).trim() : null;
-
-                const recipientNameValue = String(row['المرسل اليه'] || '').trim();
-                const recipientPhoneValue = String(row['التليفون']?.toString() || '').trim();
                 
                 let querySnapshot;
-                
-                const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
-                const foundCompany = companies.find(c => c.name === companyNameFromSheet);
-                
-                // If company doesn't exist, use the current admin's UID as a fallback ONLY IF they are admin.
-                const companyIdForQuery = foundCompany ? foundCompany.id : (user.role === 'admin' ? user.id : null);
-                
-                if(!companyIdForQuery) {
-                    result.rejected++;
-                    result.errors.push({ ...row, 'سبب الرفض': `الشركة "${companyNameFromSheet}" غير موجودة وأنت لا تملك صلاحية الإنشاء بدون شركة.` });
-                    continue;
-                }
                 
                 // Priority 1: Find by shipmentCode (if it exists)
                 if (shipmentCodeValue) {
@@ -857,22 +835,23 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
                     querySnapshot = await getDocs(q);
                 }
 
-                // Priority 2: Find by Recipient Name + Phone (if shipmentCode not found or doesn't exist)
-                if ((!querySnapshot || querySnapshot.empty) && recipientNameValue && recipientPhoneValue) {
-                    const q = query(collection(firestore, 'shipments'), 
-                        where("recipientName", "==", recipientNameValue),
-                        where("recipientPhone", "==", recipientPhoneValue),
-                        where("companyId", "==", companyIdForQuery)
-                    );
-                     querySnapshot = await getDocs(q);
+                const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
+                const foundCompany = companies.find(c => c.name === companyNameFromSheet);
+                const companyIdForQuery = foundCompany ? foundCompany.id : (user.role === 'admin' ? user.id : null);
+                if(!companyIdForQuery) {
+                    result.rejected++;
+                    result.errors.push({ ...row, 'سبب الرفض': `الشركة "${companyNameFromSheet}" غير موجودة وأنت لا تملك صلاحية الإنشاء بدون شركة.` });
+                    continue;
                 }
-                
+
                 const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
                 const creationDate = parseExcelDate(row['التاريخ']);
                 const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
                 const senderNameValue = row['الراسل'] || row['العميل الفرعى'];
                 const orderNumberValue = row['رقم الطلب']?.toString().trim();
-                
+                const recipientNameValue = String(row['المرسل اليه'] || '').trim();
+                const recipientPhoneValue = String(row['التليفون']?.toString() || '').trim();
+
                 if (!shipmentCodeValue) {
                     const date = new Date();
                     const dateString = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
@@ -942,7 +921,6 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
         const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
 
         const payload: any = {
-            shipmentId: id,
             ...data,
         };
 
@@ -950,6 +928,8 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
         if (!id) {
             const newDocRef = doc(collection(firestore, "shipments"));
             payload.shipmentId = newDocRef.id;
+        } else {
+            payload.shipmentId = id;
         }
 
         await handleShipmentUpdateFn(payload);
@@ -1428,19 +1408,18 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
 
 
   const filteredShipments = React.useMemo(() => {
-    let baseShipments = shipments || [];
-    
-    if (!searchTerm) return baseShipments;
+    if (!allShipmentsForStats) return [];
+    if (!searchTerm) return allShipmentsForStats;
     
     const lowercasedTerm = searchTerm.toLowerCase();
-    return baseShipments.filter(shipment => 
+    return allShipmentsForStats.filter(shipment => 
         String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
     );
-  }, [shipments, searchTerm]);
+  }, [allShipmentsForStats, searchTerm]);
   
   const unassignedShipments = React.useMemo(() => filteredShipments.filter(s => !s.assignedCourierId), [filteredShipments]);
   const assignedShipments = React.useMemo(() => filteredShipments.filter(s => !!s.assignedCourierId), [filteredShipments]);
@@ -1673,7 +1652,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
     return filteredShipments.filter(s => statuses.includes(s.status));
   }
   
-  const listIsLoading = shipmentsLoading || governoratesLoading || companiesLoading || usersLoading || statusesLoading;
+  const listIsLoading = allShipmentsLoading || governoratesLoading || companiesLoading || usersLoading || statusesLoading;
 
   // Filtered data for management tabs
   const filteredCourierDues = React.useMemo(() => {
