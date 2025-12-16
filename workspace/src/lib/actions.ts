@@ -193,7 +193,7 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
         
         await Promise.all(allPromises);
         
-        return { success: true };
+        return { success: true, message: "Notifications dispatched." };
 
     } catch (error: any) {
         console.error("Failed to send push notification:", error);
