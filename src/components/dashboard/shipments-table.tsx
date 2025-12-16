@@ -1,5 +1,4 @@
 
-
 "use client"
 import * as React from "react"
 import type {
@@ -499,7 +498,7 @@ export function ShipmentsTable({
     },
     initialState: {
         pagination: {
-            pageSize: 50, 
+            pageSize: 5000, 
         },
         columnVisibility: {
           companyId: role !== 'admin',
@@ -833,24 +832,8 @@ export function ShipmentsTable({
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end space-x-2 py-4 gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-        >
-          السابق
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-        >
-          التالي
-        </Button>
-      </div>
     </div>
   )
 }
+
+    
