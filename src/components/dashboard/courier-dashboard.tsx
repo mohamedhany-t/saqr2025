@@ -1,4 +1,5 @@
 
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -8,7 +9,7 @@ import { ShipmentsTable } from "@/components/dashboard/shipments-table";
 import type { Role, Shipment, Company, Governorate, Courier, ShipmentStatusKey, User, CourierPayment, Chat, ShipmentHistory, ShipmentStatusConfig } from "@/lib/types";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { useToast } from "@/hooks/use-toast";
-import { useCollection, useFirestore, useMemoFirebase, useUser, useFirebaseApp } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, useUser, useFirebaseApp, useDoc } from "@/firebase";
 import { collection, serverTimestamp, doc, query, where, updateDoc, getDoc, writeBatch } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -95,6 +96,7 @@ export default function CourierDashboard({ user, role, searchTerm, onSearchChang
   const [showRetryPopup, setShowRetryPopup] = React.useState(false);
   const [showExitConfirm, setShowExitConfirm] = React.useState(false);
 
+  const [showAdminNote, setShowAdminNote] = React.useState(false);
   
   React.useEffect(() => {
     // Intercept back button for PWA exit confirmation
@@ -124,6 +126,26 @@ export default function CourierDashboard({ user, role, searchTerm, onSearchChang
       // If user cancels, re-push the state to be able to catch it again
       window.history.pushState(null, '', window.location.href);
     }
+  };
+
+  const courierDocRef = useMemoFirebase(() => {
+    if (!firestore || !user?.id) return null;
+    return doc(firestore, 'couriers', user.id);
+  }, [firestore, user?.id]);
+  const { data: courierData, isLoading: isCourierDataLoading } = useDoc<Courier>(courierDocRef);
+  
+  // Show admin note dialog if there's a new, unread message
+  React.useEffect(() => {
+    if (courierData && courierData.adminNote && !courierData.adminNote.isRead) {
+      setShowAdminNote(true);
+    }
+  }, [courierData]);
+
+  const handleAdminNoteRead = () => {
+    if (!courierDocRef) return;
+    updateDoc(courierDocRef, { 'adminNote.isRead': true })
+      .then(() => setShowAdminNote(false))
+      .catch(console.error);
   };
 
 
@@ -563,6 +585,20 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
             </div>
          </TabsContent>
        </Tabs>
+       
+       <AlertDialog open={showAdminNote} onOpenChange={setShowAdminNote}>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitle>رسالة من الإدارة</AlertDialogTitle>
+                  <AlertDialogDescription className="text-lg text-foreground whitespace-pre-wrap py-4">
+                    {courierData?.adminNote?.message}
+                  </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                  <AlertDialogAction onClick={handleAdminNoteRead}>تم الاطلاع</AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
       
        <AlertDialog open={showExitConfirm} onOpenChange={setShowExitConfirm}>
         <AlertDialogContent>

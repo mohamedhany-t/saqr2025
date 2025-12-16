@@ -1,8 +1,9 @@
 
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing, ChevronLeft, ChevronRight, BarChart } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing, ChevronLeft, ChevronRight, BarChart, MessageSquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
@@ -48,6 +49,7 @@ import Link from "next/link";
 import { exportToExcel } from "@/lib/export";
 import { ShipmentFilters } from './shipment-filters';
 import { CompanySettlementDialog } from "../users/company-settlement-dialog";
+import { AdminNoteDialog } from "../users/admin-note-dialog";
 
 
 const MobileShipmentsView = ({
@@ -582,12 +584,14 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
   const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
   const [isCourierPaymentSheetOpen, setIsCourierPaymentSheetOpen] = React.useState(false);
   const [isCompanyPaymentSheetOpen, setIsCompanyPaymentSheetOpen] = React.useState(false);
+  const [isAdminNoteDialogOpen, setIsAdminNoteDialogOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const [editingUser, setEditingUser] = React.useState<User | undefined>(undefined);
   const [editingCompany, setEditingCompany] = React.useState<Company | undefined>(undefined);
   
   const [payingCourier, setPayingCourier] = React.useState<User | undefined>(undefined);
   const [editingCourierPayment, setEditingCourierPayment] = React.useState<CourierPayment | undefined>(undefined);
+  const [notingCourier, setNotingCourier] = React.useState<User | undefined>(undefined);
   
   const [payingCompany, setPayingCompany] = React.useState<Company | undefined>(undefined);
   const [editingCompanyPayment, setEditingCompanyPayment] = React.useState<CompanyPayment | undefined>(undefined);
@@ -698,6 +702,12 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
     return query(collection(firestore, 'users'));
   }, [firestore, user]);
   const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
+  
+  const couriersQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'couriers'));
+  }, [firestore]);
+  const { data: couriersData, isLoading: couriersDataLoading } = useCollection<Courier>(couriersQuery);
 
   const courierPaymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -735,6 +745,11 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
     setEditingCourierPayment(payment);
     setIsCourierPaymentSheetOpen(true);
   }
+  
+  const openAdminNoteDialog = (courier: User) => {
+    setNotingCourier(courier);
+    setIsAdminNoteDialogOpen(true);
+  };
   
     const openCompanyPaymentForm = (company: Company, payment?: CompanyPayment) => {
     setPayingCompany(company);
@@ -1080,7 +1095,12 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
             userPayload.companyId = newUid;
         } else if (data.role === 'courier') {
             const courierRef = doc(firestore, 'couriers', newUid);
-            const courierData = { id: newUid, name: data.name, commissionRate: data.commissionRate || 0 };
+            const courierData: Courier = { 
+                id: newUid, 
+                name: data.name, 
+                commissionRate: data.commissionRate || 0,
+                adminNote: { message: "", isRead: true, updatedAt: serverTimestamp() }
+            };
             batch.set(courierRef, courierData);
             if (data.commissionRate) {
                 userPayload.commissionRate = data.commissionRate;
@@ -1654,7 +1674,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
     return filteredShipments.filter(s => statuses.includes(s.status));
   }
   
-  const listIsLoading = allShipmentsLoading || governoratesLoading || companiesLoading || usersLoading || statusesLoading;
+  const listIsLoading = allShipmentsLoading || governoratesLoading || companiesLoading || usersLoading || statusesLoading || couriersDataLoading;
 
   // Filtered data for management tabs
   const filteredCourierDues = React.useMemo(() => {
@@ -2009,10 +2029,15 @@ const returnedToCompanyShipments = React.useMemo(() => {
                                     </div>
                                 </CardContent>
                                 <CardFooter className="flex flex-col items-stretch gap-2">
-                                    <Button variant="outline" className="w-full" onClick={() => openCourierPaymentForm(courier)} disabled={courier.netDue <= 0}>
-                                        <HandCoins className="me-2 h-4 w-4" />
-                                        تسوية الحساب
-                                    </Button>
+                                     <div className="flex gap-2 w-full">
+                                        <Button variant="outline" className="w-full" onClick={() => openCourierPaymentForm(courier)} disabled={courier.netDue <= 0}>
+                                            <HandCoins className="me-2 h-4 w-4" />
+                                            تسوية الحساب
+                                        </Button>
+                                        <Button variant="outline" size="icon" onClick={() => openAdminNoteDialog(courier)}>
+                                            <MessageSquarePlus className="h-4 w-4" />
+                                        </Button>
+                                    </div>
                                     {courier.totalShipments > 0 && (
                                         <Button variant="secondary" className="w-full" onClick={() => setCourierToArchive(courier)}>
                                             <Archive className="me-2 h-4 w-4" />
@@ -2344,6 +2369,32 @@ const returnedToCompanyShipments = React.useMemo(() => {
         payment={editingCompanyPayment}
         onSave={handleSaveCompanyPayment}
         netDue={currentCompanyNetDue}
+      />
+      <AdminNoteDialog
+        open={isAdminNoteDialogOpen}
+        onOpenChange={setIsAdminNoteDialogOpen}
+        courier={notingCourier}
+        onSend={(message) => {
+          if (!firestore || !notingCourier) return;
+          const courierDocRef = doc(firestore, 'couriers', notingCourier.id);
+          const notePayload = {
+            message,
+            isRead: false,
+            updatedAt: serverTimestamp(),
+          };
+          updateDoc(courierDocRef, { adminNote: notePayload })
+            .then(() => {
+              toast({ title: 'تم إرسال الملاحظة بنجاح' });
+              sendPushNotification({
+                recipientId: notingCourier.id,
+                title: 'رسالة جديدة من الإدارة',
+                body: message.substring(0, 100),
+                url: typeof window !== 'undefined' ? `${window.location.origin}/` : '/',
+                badgeCount: 1,
+              });
+            })
+            .catch(() => toast({ title: 'فشل إرسال الملاحظة', variant: 'destructive' }));
+        }}
       />
        {importResult && (
         <ImportProgressDialog

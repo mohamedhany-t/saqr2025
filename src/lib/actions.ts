@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getAuth, Auth } from 'firebase-admin/auth';
@@ -14,7 +15,6 @@ try {
     // This is the recommended way for Google Cloud environments like App Hosting.
     // It automatically uses the service account associated with the environment.
     adminApp = getApps().find(app => app.name === 'admin') || initializeApp({}, 'admin');
-    console.log("Firebase Admin SDK initialized successfully with default credentials.");
 } catch (error) {
     console.error("Firebase Admin SDK initialization failed. This is a critical error.", error);
     // In a real-world scenario, you might want to throw an error here
@@ -40,7 +40,6 @@ const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
 
 if (vapidPublicKey && vapidPrivateKey) {
-    console.log("VAPID keys found, configuring web-push.");
     webpush.setVapidDetails(
         'mailto:support@alsaqr-logistics.com',
         vapidPublicKey,
@@ -73,6 +72,7 @@ const pushNotificationSchema = z.object({
     title: z.string(),
     body: z.string(),
     url: z.string().url(),
+    badgeCount: z.number().optional(),
 });
 
 const companySettlementSchema = z.object({
@@ -127,7 +127,6 @@ export async function deleteAuthUser(userData: z.infer<typeof deleteUserSchema>)
 
 
 export async function sendPushNotification(notificationData: z.infer<typeof pushNotificationSchema>) {
-    // VAPID keys are now checked and set at the module level.
     if (!vapidPublicKey || !vapidPrivateKey) {
         console.error("Cannot send push notification because VAPID keys are not configured.");
         return { success: false, error: "VAPID keys not set on server." };
@@ -139,13 +138,12 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
         return { success: false, error: JSON.stringify(validation.error.issues) };
     }
 
-    const { recipientId, title, body, url } = validation.data;
+    const { recipientId, title, body, url, badgeCount } = validation.data;
     
     try {
         const db = getAdminFirestore();
         let recipientIds: string[] = [];
 
-        // If recipientId is a role (like 'admin'), fetch all user IDs with that role
         if (['admin', 'company', 'courier', 'customer-service'].includes(recipientId)) {
             const roleCollectionName = `roles_${recipientId}`;
             const rolesSnapshot = await db.collection(roleCollectionName).get();
@@ -156,11 +154,14 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
                  return { success: true, message: `No users found with role '${recipientId}'.` };
             }
         } else {
-            // It's a specific user ID
             recipientIds.push(recipientId);
         }
         
-        const payload = JSON.stringify({ title, body, url });
+        const payload = JSON.stringify({ title, body, url, badge: badgeCount });
+        const options = {
+            gcmAPIKey: process.env.FCM_SERVER_KEY, // If you use FCM
+            TTL: 60,
+        };
 
         const allPromises: Promise<any>[] = [];
 
@@ -173,9 +174,8 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
             
             const userPromises = subscriptionsSnap.docs.map(doc => {
                 const subscription = doc.data() as PushSubscription;
-                return webpush.sendNotification(subscription, payload).catch(error => {
+                return webpush.sendNotification(subscription, payload, options).catch(error => {
                     console.error(`Error sending notification to endpoint for user ${id}:`, error.statusCode, error.body);
-                    // If subscription is expired or invalid, delete it
                     if (error.statusCode === 410 || error.statusCode === 404) {
                         console.log(`Subscription for user ${id} is invalid. Deleting.`);
                         return doc.ref.delete();
@@ -205,7 +205,6 @@ export async function settleCompanyAccount(data: z.infer<typeof companySettlemen
     const db = getAdminFirestore();
     const batch = db.batch();
 
-    // 1. Create a settlement payment record if there is an amount to settle.
     if (paymentAmount !== 0) {
         const paymentRef = db.collection('company_payments').doc();
         batch.set(paymentRef, {
@@ -214,11 +213,10 @@ export async function settleCompanyAccount(data: z.infer<typeof companySettlemen
             paymentDate: FieldValue.serverTimestamp(),
             recordedById: adminId,
             notes: settlementNote,
-            isArchived: true, // Archive settlement payment immediately
+            isArchived: true,
         });
     }
 
-    // 2. Archive the selected shipments for the company.
     shipmentIdsToArchive.forEach(shipmentId => {
         const shipmentRef = db.collection('shipments').doc(shipmentId);
         batch.update(shipmentRef, { isArchivedForCompany: true });

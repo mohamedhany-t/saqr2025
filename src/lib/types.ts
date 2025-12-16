@@ -1,4 +1,5 @@
 
+
 import type { User as AuthUser } from 'firebase/auth';
 
 export type Role = "admin" | "company" | "courier" | "customer-service";
@@ -100,6 +101,11 @@ export interface Courier {
   id: string;
   name: string;
   commissionRate?: number;
+  adminNote?: {
+    message: string;
+    isRead: boolean;
+    updatedAt: any;
+  }
 }
 
 export interface Governorate {
