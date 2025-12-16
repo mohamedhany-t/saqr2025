@@ -1,5 +1,4 @@
 
-
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -37,7 +36,7 @@ import ChatInterface from "@/components/chat/chat-interface";
 import { Badge } from "../ui/badge";
 import AccountStatementsPage from "@/app/accounts/page";
 import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotification } from "@/lib/actions";
-import { useIsMobile } from "@/hooks/use-is-mobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "../shipments/shipment-card";
 import { ColumnFiltersState } from "@tanstack/react-table";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
@@ -737,7 +736,7 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
     setIsCourierPaymentSheetOpen(true);
   }
   
-  const openCompanyPaymentForm = (company: Company, payment?: CompanyPayment) => {
+    const openCompanyPaymentForm = (company: Company, payment?: CompanyPayment) => {
     setPayingCompany(company);
     setEditingCompanyPayment(payment);
     setIsCompanyPaymentSheetOpen(true);
