@@ -1,4 +1,5 @@
 
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -190,6 +191,12 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
   };
 
   // --- Data Fetching ---
+  const allShipmentsForStatsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'shipments'));
+  }, [firestore]);
+  const { data: allShipmentsForStats, isLoading: allShipmentsLoading } = useCollection<Shipment>(allShipmentsForStatsQuery);
+  
   const shipmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, 'shipments')); // Customer service sees all shipments
@@ -597,10 +604,10 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
   }, [shipments, searchTerm, columnFilters]);
 
   // --- Problem Inbox Data ---
-  const returnedShipmentsNeedingAction = React.useMemo(() => shipments?.filter(s => s.status === 'Returned' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
-  const longPostponedShipments = React.useMemo(() => shipments?.filter(s => s.status === 'Postponed' && s.updatedAt && differenceInDays(new Date(), s.updatedAt.toDate()) > 3 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
-  const staleInTransitShipments = React.useMemo(() => shipments?.filter(s => s.status === 'In-Transit' && s.updatedAt && differenceInHours(new Date(), s.updatedAt.toDate()) > 24 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
-  const priceChangeRequests = React.useMemo(() => shipments?.filter(s => s.status === 'PriceChangeRequested' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
+  const returnedShipmentsNeedingAction = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'Returned' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
+  const longPostponedShipments = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'Postponed' && s.updatedAt && differenceInDays(new Date(), s.updatedAt.toDate()) > 3 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
+  const staleInTransitShipments = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'In-Transit' && s.updatedAt && differenceInHours(new Date(), s.updatedAt.toDate()) > 24 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
+  const priceChangeRequests = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'PriceChangeRequested' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
   
   const problemCount = returnedShipmentsNeedingAction.length + longPostponedShipments.length + staleInTransitShipments.length + priceChangeRequests.length;
 
@@ -708,7 +715,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
                 </Button>
             </div>
         </div>
-        <StatsCards shipments={shipments || []} role={role} />
+        <StatsCards shipments={allShipmentsForStats || []} role={role} />
         <TabsContent value="shipments">
           <Tabs defaultValue="all-shipments">
             <div className="flex items-center gap-4 flex-wrap mt-4">

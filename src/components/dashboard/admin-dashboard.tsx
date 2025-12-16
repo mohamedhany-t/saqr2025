@@ -636,6 +636,13 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   // We use useUser here to get the auth user (with .uid) for the import logic.
   const { user: authUser } = useUser();
 
+  const allShipmentsForStatsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'shipments'));
+  }, [firestore]);
+  const { data: allShipmentsForStats, isLoading: allShipmentsLoading } = useCollection<Shipment>(allShipmentsForStatsQuery);
+
+
   const chatsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.id) return null;
     return query(
@@ -1416,7 +1423,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
 
       // Step 3: Archive finished shipments for this courier
       const finishedStatuses = statuses.filter(s => s.requiresFullCollection || s.requiresPartialCollection || s.affectsCourierBalance).map(s => s.id);
-      const courierShipmentsToArchive = shipments?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchivedForCourier && finishedStatuses.includes(s.status)) || [];
+      const courierShipmentsToArchive = allShipmentsForStats?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchivedForCourier && finishedStatuses.includes(s.status)) || [];
       courierShipmentsToArchive.forEach(shipment => {
           const shipmentRef = doc(firestore, 'shipments', shipment.id);
           batch.update(shipmentRef, { isArchivedForCourier: true });
@@ -1475,7 +1482,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
   
     // Step 3: Archive finished shipments for this company
     const finishedStatuses = statuses.filter(s => s.requiresFullCollection || s.requiresPartialCollection || s.affectsCourierBalance).map(s => s.id);
-    const companyShipmentsToArchive = shipments?.filter(s => s.companyId === companyToArchive.id && !s.isArchivedForCompany && finishedStatuses.includes(s.status)) || [];
+    const companyShipmentsToArchive = allShipmentsForStats?.filter(s => s.companyId === companyToArchive.id && !s.isArchivedForCompany && finishedStatuses.includes(s.status)) || [];
     companyShipmentsToArchive.forEach(shipment => {
       const shipmentRef = doc(firestore, 'shipments', shipment.id);
       batch.update(shipmentRef, { isArchivedForCompany: true });
@@ -1516,7 +1523,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
   const assignedShipments = React.useMemo(() => filteredShipments.filter(s => !!s.assignedCourierId), [filteredShipments]);
 
     const archivedShipmentsCompany = React.useMemo(() => {
-        const archived = shipments?.filter(s => s.isArchivedForCompany) || [];
+        const archived = allShipmentsForStats?.filter(s => s.isArchivedForCompany) || [];
         if (!searchTerm) return archived;
         const lowercasedTerm = searchTerm.toLowerCase();
         return archived.filter(shipment =>
@@ -1526,10 +1533,10 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
             String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
             String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
         );
-    }, [shipments, searchTerm]);
+    }, [allShipmentsForStats, searchTerm]);
 
     const archivedShipmentsCourier = React.useMemo(() => {
-        const archived = shipments?.filter(s => s.isArchivedForCourier) || [];
+        const archived = allShipmentsForStats?.filter(s => s.isArchivedForCourier) || [];
         if (!searchTerm) return archived;
         const lowercasedTerm = searchTerm.toLowerCase();
         return archived.filter(shipment =>
@@ -1539,38 +1546,38 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
             String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
             String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
         );
-    }, [shipments, searchTerm]);
+    }, [allShipmentsForStats, searchTerm]);
 
   const recentlyUpdatedShipments = React.useMemo(() => {
-    const activeShipments = shipments?.filter(shipment => !shipment.isArchivedForCompany && !shipment.isArchivedForCourier) || [];
+    const activeShipments = allShipmentsForStats?.filter(shipment => !shipment.isArchivedForCompany && !shipment.isArchivedForCourier) || [];
     return activeShipments.sort((a, b) => {
         const timeA = a.updatedAt?.toDate?.()?.getTime() || 0;
         const timeB = b.updatedAt?.toDate?.()?.getTime() || 0;
         return timeB - timeA;
     }).slice(0, 50); // Get the last 50 updated shipments
-}, [shipments]);
+}, [allShipmentsForStats]);
 
 
 const returnedShipmentStatuses = React.useMemo(() => statuses?.filter(s => s.isReturnedStatus).map(s => s.id) || [], [statuses]);
 
 const returnsWithCouriers = React.useMemo(() => {
-    return shipments?.filter(s => returnedShipmentStatuses.includes(s.status) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCourier) || [];
-}, [shipments, returnedShipmentStatuses]);
+    return allShipmentsForStats?.filter(s => returnedShipmentStatuses.includes(s.status) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCourier) || [];
+}, [allShipmentsForStats, returnedShipmentStatuses]);
 
 const inWarehouseShipments = React.useMemo(() => {
-    return shipments?.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCompany) || [];
-}, [shipments]);
+    return allShipmentsForStats?.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCompany) || [];
+}, [allShipmentsForStats]);
 
 const returnedToCompanyShipments = React.useMemo(() => {
-    return shipments?.filter(s => s.isReturnedToCompany && !s.isArchivedForCompany) || [];
-}, [shipments]);
+    return allShipmentsForStats?.filter(s => s.isReturnedToCompany && !s.isArchivedForCompany) || [];
+}, [allShipmentsForStats]);
 
 
   const courierDues = React.useMemo(() => {
-    if (!users || !shipments || !courierPayments || !statuses) return [];
+    if (!users || !allShipmentsForStats || !courierPayments || !statuses) return [];
 
     return courierUsers.map(courier => {
-        const activeShipments = shipments?.filter(s => s.assignedCourierId === courier.id && !s.isArchivedForCourier) || [];
+        const activeShipments = allShipmentsForStats?.filter(s => s.assignedCourierId === courier.id && !s.isArchivedForCourier) || [];
         const activePayments = courierPayments?.filter(p => p.courierId === courier.id && !p.isArchived) || [];
         
         const totalCollected = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
@@ -1595,13 +1602,13 @@ const returnedToCompanyShipments = React.useMemo(() => {
             paymentHistory: allPaymentsForCourier.sort((a, b) => (b.paymentDate?.toDate?.() || 0) - (a.paymentDate?.toDate?.() || 0)),
         }
     })
-  }, [users, shipments, courierUsers, courierPayments, statuses]);
+  }, [users, allShipmentsForStats, courierUsers, courierPayments, statuses]);
   
   const companyDues = React.useMemo(() => {
-    if (!companies || !shipments || !companyPayments) return [];
+    if (!companies || !allShipmentsForStats || !companyPayments) return [];
     
     return companies.map(company => {
-        const activeShipments = shipments?.filter(s => s.companyId === company.id && !s.isArchivedForCompany) || [];
+        const activeShipments = allShipmentsForStats?.filter(s => s.companyId === company.id && !s.isArchivedForCompany) || [];
         const activePayments = companyPayments?.filter(p => p.companyId === company.id && !p.isArchived) || [];
         
         const totalRevenue = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
@@ -1622,20 +1629,20 @@ const returnedToCompanyShipments = React.useMemo(() => {
             paymentHistory: allPaymentsForCompany.sort((a, b) => (b.paymentDate?.toDate?.() || 0) - (a.paymentDate?.toDate?.() || 0)),
         }
     })
-  }, [companies, shipments, companyPayments]);
+  }, [companies, allShipmentsForStats, companyPayments]);
 
   const shownNotificationsRef = React.useRef<Set<string>>(new Set());
 
-  const returnedShipmentsNeedingAction = React.useMemo(() => shipments?.filter(s => s.status === 'Returned' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
-  const longPostponedShipments = React.useMemo(() => shipments?.filter(s => s.status === 'Postponed' && s.updatedAt && differenceInDays(new Date(), s.updatedAt.toDate()) > 3 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
-  const staleInTransitShipments = React.useMemo(() => shipments?.filter(s => s.status === 'In-Transit' && s.updatedAt && differenceInHours(new Date(), s.updatedAt.toDate()) > 24 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
-  const priceChangeRequests = React.useMemo(() => shipments?.filter(s => s.status === 'PriceChangeRequested' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [shipments]);
+  const returnedShipmentsNeedingAction = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'Returned' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
+  const longPostponedShipments = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'Postponed' && s.updatedAt && differenceInDays(new Date(), s.updatedAt.toDate()) > 3 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
+  const staleInTransitShipments = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'In-Transit' && s.updatedAt && differenceInHours(new Date(), s.updatedAt.toDate()) > 24 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
+  const priceChangeRequests = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'PriceChangeRequested' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
   
   const problemCount = returnedShipmentsNeedingAction.length + longPostponedShipments.length + staleInTransitShipments.length + priceChangeRequests.length;
 
 
   React.useEffect(() => {
-    if (usersLoading || shipmentsLoading || companiesLoading) return;
+    if (usersLoading || allShipmentsLoading || companiesLoading) return;
   
     // Check for high courier dues
     courierDues.forEach(courier => {
@@ -1652,7 +1659,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
 
     // Check for overloaded couriers
     courierUsers.forEach(courier => {
-        const activeShipmentCount = shipments?.filter(s => s.assignedCourierId === courier.id && !s.isArchivedForCourier).length || 0;
+        const activeShipmentCount = allShipmentsForStats?.filter(s => s.assignedCourierId === courier.id && !s.isArchivedForCourier).length || 0;
         const notificationId = `overload_${courier.id}`;
         if (activeShipmentCount > 20 && !shownNotificationsRef.current.has(notificationId)) {
             toast({
@@ -1667,7 +1674,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     companies?.forEach(company => {
       const notificationId = `returns_${company.id}_${today}`;
-      const todaysReturns = shipments?.filter(s => {
+      const todaysReturns = allShipmentsForStats?.filter(s => {
         if (s.companyId !== company.id || (s.status !== 'Returned' && s.status !== 'Refused (Unpaid)')) return false;
         const updatedAt = s.updatedAt?.toDate();
         return updatedAt && updatedAt.toISOString().split('T')[0] === today;
@@ -1683,7 +1690,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
       }
     });
 
-  }, [courierDues, courierUsers, shipments, companies, toast, usersLoading, shipmentsLoading, companiesLoading]);
+  }, [courierDues, courierUsers, allShipmentsForStats, companies, toast, usersLoading, allShipmentsLoading, companiesLoading]);
   
 
   const currentCourierNetDue = courierDues.find(c => c.id === payingCourier?.id)?.netDue;
@@ -1864,7 +1871,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
                 </Button>
             </div>
         </div>
-        <StatsCards shipments={shipments || []} role={role} />
+        <StatsCards shipments={allShipmentsForStats || []} role={role} />
         <TabsContent value="shipments" className={isMobile ? "pb-20" : ""}>
             {isMobile ? 
                 <MobileShipmentsView 
@@ -1924,8 +1931,8 @@ const returnedToCompanyShipments = React.useMemo(() => {
         </TabsContent>
         <TabsContent value="print-center">
             <PrintCenterPage 
-                shipments={shipments || []}
-                isLoading={shipmentsLoading}
+                shipments={allShipmentsForStats || []}
+                isLoading={allShipmentsLoading}
                 governorates={governorates || []}
                 companies={companies || []}
                 courierUsers={courierUsers || []}
@@ -2278,7 +2285,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
         <TabsContent value="audit-log">
              <AuditLogPage 
                 users={users || []}
-                shipments={shipments || []}
+                shipments={allShipmentsForStats || []}
                 companies={companies || []}
                 governorates={governorates || []}
                 isLoading={listIsLoading}
@@ -2286,7 +2293,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
         </TabsContent>
         <TabsContent value="reports">
              <ReportsPage 
-                shipments={shipments || []}
+                shipments={allShipmentsForStats || []}
                 companies={companies || []}
                 couriers={courierUsers || []}
                 governorates={governorates || []}
