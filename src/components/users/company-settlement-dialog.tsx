@@ -36,7 +36,7 @@ type FileAnalysis = {
   fileName: string;
   totalInSheet: number;
   matchedShipments: Shipment[];
-  unmatchedCodes: string[];
+  unmatchedShipments: { code: string; reason: string; }[];
   totalToSettle: number;
 };
 
@@ -54,11 +54,7 @@ export function CompanySettlementDialog({
   const { toast } = useToast();
 
   const finishedStatusIds = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
-  const companyActiveShipments = allShipments.filter(s =>
-    s.companyId === company.id &&
-    !s.isArchivedForCompany &&
-    finishedStatusIds.includes(s.status)
-  );
+  const companyShipments = allShipments.filter(s => s.companyId === company.id);
 
   const resetState = () => {
     setIsProcessing(false);
@@ -79,7 +75,6 @@ export function CompanySettlementDialog({
       
       let jsonData: any[][] = utils.sheet_to_json(worksheet, { header: 1, blankrows: false });
 
-      // Find the header row by looking for a specific column name
       const headerKeywords = ['رقم الشحنة', 'كود الشحنة'];
       let headerRowIndex = -1;
       let headers: string[] = [];
@@ -97,9 +92,7 @@ export function CompanySettlementDialog({
           throw new Error("لم يتم العثور على صف العناوين في الملف. تأكد من وجود عمود 'رقم الشحنة' أو 'كود الشحنة'.");
       }
       
-      // Get data rows *after* the header
       const dataRows = jsonData.slice(headerRowIndex + 1);
-      // Convert rows to objects using the found headers
       const finalJson = dataRows.map(row => {
           const obj: {[key: string]: any} = {};
           headers.forEach((header, index) => {
@@ -121,14 +114,21 @@ export function CompanySettlementDialog({
       }
       
       const matchedShipments: Shipment[] = [];
-      const unmatchedCodes: string[] = [];
+      const unmatchedShipments: { code: string; reason: string; }[] = [];
 
       shipmentCodesInSheet.forEach(code => {
-        const foundShipment = companyActiveShipments.find(s => s.shipmentCode === code);
+        const foundShipment = companyShipments.find(s => s.shipmentCode === code);
         if (foundShipment) {
-          matchedShipments.push(foundShipment);
+            if(foundShipment.isArchivedForCompany) {
+                unmatchedShipments.push({ code, reason: "تمت أرشفتها مسبقًا" });
+            } else if (!finishedStatusIds.includes(foundShipment.status)) {
+                const statusLabel = statuses.find(s => s.id === foundShipment.status)?.label || foundShipment.status;
+                unmatchedShipments.push({ code, reason: `حالة غير نهائية (${statusLabel})` });
+            } else {
+                matchedShipments.push(foundShipment);
+            }
         } else {
-          unmatchedCodes.push(code);
+          unmatchedShipments.push({ code, reason: "غير موجودة في النظام" });
         }
       });
       
@@ -138,7 +138,7 @@ export function CompanySettlementDialog({
         fileName: file.name,
         totalInSheet: shipmentCodesInSheet.size,
         matchedShipments,
-        unmatchedCodes,
+        unmatchedShipments,
         totalToSettle,
       });
 
@@ -152,7 +152,7 @@ export function CompanySettlementDialog({
     } finally {
       setIsProcessing(false);
     }
-  }, [companyActiveShipments, company.id, toast]);
+  }, [companyShipments, toast, finishedStatusIds, statuses]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: handleFileDrop,
@@ -236,11 +236,11 @@ export function CompanySettlementDialog({
                 </div>
                 <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
                   <p className="text-2xl font-bold text-green-700 dark:text-green-400">{analysis.matchedShipments.length}</p>
-                  <p className="text-sm text-green-600 dark:text-green-500">شحنة تمت مطابقتها</p>
+                  <p className="text-sm text-green-600 dark:text-green-500">شحنة ستتم تسويتها</p>
                 </div>
                 <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                  <p className="text-2xl font-bold text-red-700 dark:text-red-400">{analysis.unmatchedCodes.length}</p>
-                  <p className="text-sm text-red-600 dark:text-red-500">شحنة لم تطابق</p>
+                  <p className="text-2xl font-bold text-red-700 dark:text-red-400">{analysis.unmatchedShipments.length}</p>
+                  <p className="text-sm text-red-600 dark:text-red-500">شحنة تم استبعادها</p>
                 </div>
                  <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
                   <p className="text-lg font-bold text-blue-700 dark:text-blue-400">{analysis.totalToSettle.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</p>
@@ -252,34 +252,57 @@ export function CompanySettlementDialog({
              {analysis.matchedShipments.length > 0 && (
                 <div>
                     <h4 className="font-semibold text-green-600">معاينة الشحنات التي ستتم تسويتها:</h4>
-                    <ScrollArea className="h-32 mt-2 border rounded">
+                    <ScrollArea className="h-48 mt-2 border rounded">
                         <Table>
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>كود الشحنة</TableHead>
                                     <TableHead>العميل</TableHead>
-                                    <TableHead>المبلغ المستحق</TableHead>
+                                    <TableHead>الإجمالي</TableHead>
+                                    <TableHead>المدفوع</TableHead>
+                                    <TableHead>عمولة الشركة</TableHead>
+                                    <TableHead>صافي المستحق</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {analysis.matchedShipments.map(s => (
+                                {analysis.matchedShipments.map(s => {
+                                  const netDue = (s.paidAmount || 0) - (s.companyCommission || 0);
+                                  return (
                                     <TableRow key={s.id}>
-                                        <TableCell>{s.shipmentCode}</TableCell>
+                                        <TableCell className="font-mono">{s.shipmentCode}</TableCell>
                                         <TableCell>{s.recipientName}</TableCell>
-                                        <TableCell>{((s.paidAmount || 0) - (s.companyCommission || 0)).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                        <TableCell>{(s.totalAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                        <TableCell>{(s.paidAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                        <TableCell className="text-red-600">{((s.companyCommission || 0)).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                        <TableCell className="font-semibold">{netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
                                     </TableRow>
-                                ))}
+                                )})}
                             </TableBody>
                         </Table>
                     </ScrollArea>
                 </div>
              )}
 
-            {analysis.unmatchedCodes.length > 0 && (
+            {analysis.unmatchedShipments.length > 0 && (
                 <div>
-                    <h4 className="font-semibold text-amber-600">شحنات لم تتم مطابقتها:</h4>
-                    <ScrollArea className="h-24 mt-2 border rounded p-2 text-sm text-muted-foreground font-mono">
-                        {analysis.unmatchedCodes.join(', ')}
+                    <h4 className="font-semibold text-amber-600">الشحنات المستبعدة وسبب الاستبعاد:</h4>
+                     <ScrollArea className="h-32 mt-2 border rounded">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>كود الشحنة</TableHead>
+                                    <TableHead>السبب</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {analysis.unmatchedShipments.map((item, index) => (
+                                    <TableRow key={`${item.code}-${index}`}>
+                                        <TableCell className="font-mono">{item.code}</TableCell>
+                                        <TableCell>{item.reason}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
                     </ScrollArea>
                 </div>
             )}
