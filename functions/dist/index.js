@@ -90,7 +90,6 @@ const updateShipmentStatusSchema = zod_1.z.object({
     isExchange: zod_1.z.boolean().optional(),
     shipmentCode: zod_1.z.string().optional(),
     createdAt: zod_1.z.any().optional(), // Allow passing createdAt for new shipments
-    isPriceChangeDecision: zod_1.z.boolean().optional(),
 });
 exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
@@ -162,13 +161,6 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
                     throw new functions.https.HttpsError("permission-denied", "You do not have permission to perform this action.");
                 }
                 const finalUpdate = Object.assign(Object.assign({}, updatePayload), { updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-                // Server-side logic for price change decision
-                if (finalUpdate.isPriceChangeDecision) {
-                    finalUpdate.requestedAmount = admin.firestore.FieldValue.delete();
-                    finalUpdate.amountChangeReason = admin.firestore.FieldValue.delete();
-                }
-                // Clean up the flag itself
-                delete finalUpdate.isPriceChangeDecision;
                 const shipmentData = isCreating ? {} : shipmentDoc.data();
                 // If status is being changed, we need to recalculate financial fields
                 if (updatePayload.status && updatePayload.status !== shipmentData.status) {
