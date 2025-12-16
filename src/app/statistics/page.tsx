@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import type { Shipment, Company, User, Governorate, ShipmentStatusConfig } from '@/lib/types';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import { DateRange } from 'react-day-picker';
 import { subDays, startOfDay, endOfDay } from 'date-fns';
 import { Loader2, BarChart, Percent, Truck, Archive, DollarSign, CheckCircle } from 'lucide-react';
@@ -229,4 +229,3 @@ export default function StatisticsPage() {
         </div>
     );
 }
-
