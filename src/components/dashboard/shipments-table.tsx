@@ -1,4 +1,5 @@
 
+
 "use client"
 import * as React from "react"
 import type {
@@ -43,7 +44,9 @@ import {
     ArchiveRestore,
     Warehouse,
     Edit,
-    BellRing
+    BellRing,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -448,6 +451,10 @@ export function ShipmentsTable({
     filters,
     onFiltersChange,
     activeTab = 'none',
+    handleNextPage,
+    handlePrevPage,
+    hasMore,
+    page
 }: { 
     shipments: Shipment[], 
     isLoading: boolean, 
@@ -463,6 +470,10 @@ export function ShipmentsTable({
     filters?: ColumnFiltersState,
     onFiltersChange?: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
     activeTab?: 'none' | 'company' | 'courier' | 'returns-with-couriers' | 'returns-in-warehouse' | 'returned-to-company',
+    handleNextPage?: () => void;
+    handlePrevPage?: () => void;
+    hasMore?: boolean;
+    page?: number;
 }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -482,11 +493,12 @@ export function ShipmentsTable({
     onSortingChange: setSorting,
     onColumnFiltersChange: onFiltersChange || setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
+    manualPagination: true,
+    pageCount: -1, // We don't know the total number of pages
     state: {
       sorting,
       columnFilters: filters || columnFilters,
@@ -495,7 +507,7 @@ export function ShipmentsTable({
     },
     initialState: {
         pagination: {
-            pageSize: 500,
+            pageSize: 50, // This is now just for display purposes
         },
         columnVisibility: {
           companyId: role !== 'admin',
@@ -619,126 +631,17 @@ export function ShipmentsTable({
   return (
     <div className="w-full">
         <div className="flex items-center justify-between py-4 gap-2 flex-wrap">
-            <div className="flex items-center gap-2 flex-wrap">
-                 {(role === 'admin' || role === 'company') && <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleExport}>
-                    <FileUp className="h-3.5 w-3.5" />
-                    <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                        تصدير
-                    </span>
-                </Button>}
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-8 gap-1">
-                            <ChevronDown className="h-3.5 w-3.5 ms-1" />
-                            <span>
-                                الحالة
-                                {statusFilterValue && statusFilterValue.length > 0 && ` (${statusFilterValue.length})`}
-                            </span>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                        {statuses.filter(s => s.enabled).map((status) => (
-                            <DropdownMenuCheckboxItem
-                                key={status.id}
-                                checked={statusFilterValue?.includes(status.id)}
-                                onCheckedChange={(checked) => {
-                                    const current = statusFilterValue || [];
-                                    const newFilter = checked
-                                        ? [...current, status.id]
-                                        : current.filter((id) => id !== status.id);
-                                    handleSetFilter("status", newFilter.length ? newFilter : undefined);
-                                }}
-                            >
-                                {status.label}
-                            </DropdownMenuCheckboxItem>
-                        ))}
-                    </DropdownMenuContent>
-                </DropdownMenu>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-8 gap-1">
-                            <ChevronDown className="h-3.5 w-3.5 ms-1" />
-                            <span>
-                                المحافظة
-                                {governorateFilterValue && governorateFilterValue.length > 0 && ` (${governorateFilterValue.length})`}
-                            </span>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                        {governorates.map((governorate) => (
-                        <DropdownMenuCheckboxItem
-                            key={governorate.id}
-                            checked={governorateFilterValue?.includes(governorate.id)}
-                            onCheckedChange={(checked) => {
-                                const current = governorateFilterValue || [];
-                                const newFilter = checked
-                                    ? [...current, governorate.id]
-                                    : current.filter((id) => id !== governorate.id);
-                                handleSetFilter("governorateId", newFilter.length ? newFilter : undefined);
-                            }}
-                        >
-                            {governorate.name}
-                        </DropdownMenuCheckboxItem>
-                        ))}
-                    </DropdownMenuContent>
-                </DropdownMenu>
-                {role === 'admin' && <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-8 gap-1">
-                             <ChevronDown className="h-3.5 w-3.5 ms-1" />
-                            <span>
-                                الشركة
-                                {companyFilterValue && companyFilterValue.length > 0 && ` (${companyFilterValue.length})`}
-                            </span>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                        {companies.map((company) => (
-                        <DropdownMenuCheckboxItem
-                            key={company.id}
-                            checked={companyFilterValue?.includes(company.id)}
-                            onCheckedChange={(checked) => {
-                                const current = companyFilterValue || [];
-                                const newFilter = checked
-                                    ? [...current, company.id]
-                                    : current.filter((id) => id !== company.id);
-                                handleSetFilter("companyId", newFilter.length ? newFilter : undefined);
-                            }}
-                        >
-                            {company.name}
-                        </DropdownMenuCheckboxItem>
-                        ))}
-                    </DropdownMenuContent>
-                </DropdownMenu>}
-                {(role === 'admin' || role === 'company') && <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-8 gap-1">
-                             <ChevronDown className="h-3.5 w-3.5 ms-1" />
-                            <span>
-                                المندوب
-                                {courierFilterValue && courierFilterValue.length > 0 && ` (${courierFilterValue.length})`}
-                            </span>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                        {couriers.map((courier) => (
-                        <DropdownMenuCheckboxItem
-                            key={courier.id}
-                            checked={courierFilterValue?.includes(courier.id)}
-                            onCheckedChange={(checked) => {
-                                const current = courierFilterValue || [];
-                                const newFilter = checked
-                                    ? [...current, courier.id]
-                                    : current.filter((id) => id !== courier.id);
-                                handleSetFilter("assignedCourierId", newFilter.length ? newFilter : undefined);
-                            }}
-                        >
-                            {courier.name}
-                        </DropdownMenuCheckboxItem>
-                        ))}
-                    </DropdownMenuContent>
-                </DropdownMenu>}
-            </div>
+            { onFiltersChange && (
+              <div className="flex items-center gap-2 flex-wrap">
+                  <ShipmentFilters 
+                    governorates={governorates}
+                    companies={companies}
+                    courierUsers={couriers}
+                    statuses={statuses}
+                    onFiltersChange={onFiltersChange}
+                  />
+              </div>
+            )}
             {table.getFilteredSelectedRowModel().rows.length > 0 && (
                  <div className="flex items-center gap-2 flex-wrap justify-end">
                     <span className="text-sm text-muted-foreground hidden lg:inline">
@@ -939,28 +842,31 @@ export function ShipmentsTable({
         </Table>
       </div>
       <div className="flex items-center justify-end space-x-2 py-4 gap-2">
-        <div className="flex-1 text-sm text-muted-foreground">
-          {table.getFilteredSelectedRowModel().rows.length} من{" "}
-          {table.getFilteredRowModel().rows.length} صفوف محددة.
-        </div>
-        <div className="space-x-2 flex">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            السابق
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            التالي
-          </Button>
-        </div>
+        {handlePrevPage && handleNextPage && (
+          <>
+            <span className="text-sm text-muted-foreground">صفحة {page}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrevPage}
+              disabled={page === 1}
+              className="px-2 py-1 h-8"
+            >
+              <ChevronRight className="h-4 w-4" />
+              السابق
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNextPage}
+              disabled={!hasMore}
+              className="px-2 py-1 h-8"
+            >
+              التالي
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          </>
+        )}
       </div>
     </div>
   )

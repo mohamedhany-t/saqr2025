@@ -3,7 +3,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
@@ -20,7 +20,7 @@ import { ImportResult, ImportProgressDialog } from "@/components/shipments/impor
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser, useFirebaseApp } from "@/firebase";
-import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc, deleteDoc, increment } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc, deleteDoc, increment, orderBy, limit, startAfter, endBefore, limitToLast, DocumentSnapshot, DocumentData } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import {
   AlertDialog,
@@ -390,6 +390,10 @@ const DesktopShipmentsView = ({
     handleBulkPrint,
     columnFilters,
     setColumnFilters,
+    handleNextPage,
+    handlePrevPage,
+    hasMore,
+    page,
   }: {
     listIsLoading: boolean;
     role: Role | null;
@@ -413,6 +417,10 @@ const DesktopShipmentsView = ({
     handleBulkPrint: (selectedRows: Shipment[]) => void;
     columnFilters: ColumnFiltersState,
     setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
+    handleNextPage: () => void;
+    handlePrevPage: () => void;
+    hasMore: boolean;
+    page: number;
   }) => {
     const renderShipmentTable = (shipmentList: Shipment[], activeTab: 'none' | 'company' | 'courier' | 'returns-with-couriers' | 'returns-in-warehouse' | 'returned-to-company' = 'none') => (
         <ShipmentsTable 
@@ -430,6 +438,10 @@ const DesktopShipmentsView = ({
           filters={columnFilters}
           onFiltersChange={setColumnFilters}
           activeTab={activeTab}
+          handleNextPage={handleNextPage}
+          handlePrevPage={handlePrevPage}
+          hasMore={hasMore}
+          page={page}
         />
     );
 
@@ -615,6 +627,12 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
   // State for search terms in management tabs
   const [managementSearchTerm, setManagementSearchTerm] = React.useState('');
 
+  const [page, setPage] = React.useState(1);
+  const [lastVisible, setLastVisible] = React.useState<DocumentSnapshot<DocumentData> | null>(null);
+  const [firstVisible, setFirstVisible] = React.useState<DocumentSnapshot<DocumentData> | null>(null);
+  const [pageHistory, setPageHistory] = React.useState<(DocumentSnapshot<DocumentData> | null)[]>([null]);
+  const [hasMore, setHasMore] = React.useState(true);
+
   // We use useUser here to get the auth user (with .uid) for the import logic.
   const { user: authUser } = useUser();
 
@@ -667,12 +685,75 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
     }
   };
 
+  const PAGE_SIZE = 50;
 
   const shipmentsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'shipments'));
-  }, [firestore, user]);
-  const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
+    if (!firestore) return null;
+    
+    let q = query(collection(firestore, 'shipments'));
+
+    // Apply server-side filtering
+    columnFilters.forEach(filter => {
+      const { id, value } = filter;
+      if (Array.isArray(value) && value.length > 0) {
+        q = query(q, where(id, 'in', value));
+      } else if (id === 'isAssigned') {
+        if(value === 'assigned') q = query(q, where('assignedCourierId', '!=', null));
+        if(value === 'unassigned') q = query(q, where('assignedCourierId', '==', null));
+      }
+    });
+
+    // Apply server-side ordering for pagination
+    q = query(q, orderBy('createdAt', 'desc'));
+
+    // Apply pagination
+    const currentStart = pageHistory[page - 1];
+    if (currentStart) {
+        q = query(q, startAfter(currentStart));
+    }
+    q = query(q, limit(PAGE_SIZE + 1)); // Fetch one extra to check if there are more pages
+
+    return q;
+  }, [firestore, columnFilters, page, pageHistory]);
+
+  const [shipments, setShipments] = React.useState<Shipment[]>([]);
+  const [shipmentsLoading, setShipmentsLoading] = React.useState(true);
+  
+  React.useEffect(() => {
+    if (shipmentsQuery) {
+        setShipmentsLoading(true);
+        getDocs(shipmentsQuery).then(snapshot => {
+            const newShipments = snapshot.docs.map(d => ({ ...d.data(), id: d.id })) as Shipment[];
+
+            if(newShipments.length > PAGE_SIZE) {
+                setHasMore(true);
+                newShipments.pop(); // Remove the extra one
+            } else {
+                setHasMore(false);
+            }
+            
+            setShipments(newShipments);
+            setLastVisible(snapshot.docs[snapshot.docs.length - 2] || snapshot.docs[snapshot.docs.length - 1] || null);
+            setFirstVisible(snapshot.docs[0] || null);
+            setShipmentsLoading(false);
+        }).catch(error => {
+            console.error("Error fetching shipments:", error);
+            setShipmentsLoading(false);
+        });
+    }
+  }, [shipmentsQuery]);
+
+  const handleNextPage = () => {
+    if (!hasMore) return;
+    setPageHistory(prev => [...prev, lastVisible]);
+    setPage(prev => prev + 1);
+  };
+  
+  const handlePrevPage = () => {
+    if (page === 1) return;
+    setPageHistory(prev => prev.slice(0, -1));
+    setPage(prev => prev - 1);
+  };
 
   const governoratesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -815,8 +896,8 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
             setImportResult({ ...result });
 
             // --- 2. Processing Phase ---
-            const batch = writeBatch(firestore);
-            const shipmentsCollection = collection(firestore, 'shipments');
+            const functions = getFunctions(app);
+            const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
 
             for (const row of validRows) {
                 const orderNumberValue = row['رقم الطلب']?.toString().trim();
@@ -827,17 +908,25 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 
                 const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
                 const foundCompany = companies.find(c => c.name === companyNameFromSheet);
-                const companyIdForQuery = foundCompany ? foundCompany.id : authUser.uid;
+                
+                // If company doesn't exist, use the current admin's UID as a fallback ONLY IF they are admin.
+                const companyIdForQuery = foundCompany ? foundCompany.id : (user.role === 'admin' ? user.id : null);
+                
+                if(!companyIdForQuery) {
+                    result.rejected++;
+                    result.errors.push({ ...row, 'سبب الرفض': `الشركة "${companyNameFromSheet}" غير موجودة وأنت لا تملك صلاحية الإنشاء بدون شركة.` });
+                    continue;
+                }
 
                 // Priority 1: Find by Order Number (if it exists)
                 if (orderNumberValue) {
-                    const q = query(shipmentsCollection, where("orderNumber", "==", orderNumberValue), where("companyId", "==", companyIdForQuery));
+                    const q = query(collection(firestore, 'shipments'), where("orderNumber", "==", orderNumberValue), where("companyId", "==", companyIdForQuery));
                     querySnapshot = await getDocs(q);
                 }
 
                 // Priority 2: Find by Recipient Name + Phone (if order number not found or doesn't exist)
                 if ((!querySnapshot || querySnapshot.empty) && recipientNameValue && recipientPhoneValue) {
-                    const q = query(shipmentsCollection, 
+                    const q = query(collection(firestore, 'shipments'), 
                         where("recipientName", "==", recipientNameValue),
                         where("recipientPhone", "==", recipientPhoneValue),
                         where("companyId", "==", companyIdForQuery)
@@ -850,7 +939,6 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
                 const senderNameValue = row['الراسل'] || row['العميل الفرعى'];
                 
-                // Prioritize 'كود الشحنة', then 'رقم الشحنه'
                 const codeFromSheet = row['كود الشحنة'] || row['رقم الشحنه'];
                 let shipmentCodeValue = codeFromSheet ? String(codeFromSheet).trim() : null;
 
@@ -880,32 +968,25 @@ export default function AdminDashboard({ user, role, searchTerm }: AdminDashboar
                 const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
 
                 if (!querySnapshot || querySnapshot.empty) {
-                    const docRef = doc(shipmentsCollection);
-                    batch.set(docRef, { ...cleanShipmentData, id: docRef.id, createdAt: creationDate || serverTimestamp(), updatedAt: serverTimestamp() });
+                     const newDocRef = doc(collection(firestore, "shipments"));
+                    await handleShipmentUpdateFn({ shipmentId: newDocRef.id, ...cleanShipmentData, createdAt: creationDate || serverTimestamp() });
                     result.added++;
                 } else {
                     const existingDoc = querySnapshot.docs[0];
                     const existingShipment = existingDoc.data() as Shipment;
 
-                    let updateData: Partial<Shipment> = { ...cleanShipmentData, updatedAt: serverTimestamp() };
+                    let updateData: Partial<Shipment> = { ...cleanShipmentData };
                     
-                    // Smart Update: If shipment is already assigned, don't change its status or courier
                     if (existingShipment.assignedCourierId) {
                       delete updateData.status;
                       delete updateData.assignedCourierId;
                     }
 
-                    batch.update(existingDoc.ref, updateData);
+                    await handleShipmentUpdateFn({ shipmentId: existingDoc.id, ...updateData });
                     result.updated++;
                 }
                 setImportResult({ ...result });
             }
-
-            await batch.commit().catch(serverError => {
-              if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
-                  errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'shipments', operation: 'write', requestResourceData: {note: "Batch import operation failed"} }));
-              }
-            });
 
             setImportResult(prev => prev ? { ...prev, processing: false } : null);
 
@@ -1418,27 +1499,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
   const filteredShipments = React.useMemo(() => {
     let baseShipments = shipments || [];
 
-    // Apply column filters
-    if (columnFilters.length > 0) {
-        baseShipments = baseShipments.filter(shipment => {
-            return columnFilters.every(filter => {
-                const value = (shipment as any)[filter.id];
-                if (filter.id === 'isAssigned') {
-                    const filterValue = filter.value;
-                    if (filterValue === 'assigned') return !!shipment.assignedCourierId;
-                    if (filterValue === 'unassigned') return !shipment.assignedCourierId;
-                    return true;
-                }
-                if (!value && filter.id !== 'status') return false;
-                const filterValue = filter.value as string[];
-                if (Array.isArray(filterValue) && filterValue.length > 0) {
-                  return filterValue.includes(value);
-                }
-                return true;
-            });
-        });
-    }
-
+    // All filtering is now done server-side via the query, except for search term
     if (!searchTerm) return baseShipments;
     
     const lowercasedTerm = searchTerm.toLowerCase();
@@ -1449,7 +1510,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
         String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
     );
-  }, [shipments, searchTerm, columnFilters]);
+  }, [shipments, searchTerm]);
   
   const unassignedShipments = React.useMemo(() => filteredShipments.filter(s => !s.assignedCourierId), [filteredShipments]);
   const assignedShipments = React.useMemo(() => filteredShipments.filter(s => !!s.assignedCourierId), [filteredShipments]);
@@ -1854,6 +1915,10 @@ const returnedToCompanyShipments = React.useMemo(() => {
                     handleBulkPrint={handleBulkPrint}
                     columnFilters={columnFilters}
                     setColumnFilters={setColumnFilters}
+                    handleNextPage={handleNextPage}
+                    handlePrevPage={handlePrevPage}
+                    hasMore={hasMore}
+                    page={page}
                 />
             }
         </TabsContent>
