@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import type { Shipment, Company, User, Governorate, ShipmentStatusConfig, Chat } from '@/lib/types';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where, getDocs, writeBatch, doc, serverTimestamp, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, writeBatch, doc, serverTimestamp, addDoc, setDoc } from 'firebase/firestore';
 import { DateRange } from 'react-day-picker';
 import { subDays, startOfDay, endOfDay } from 'date-fns';
 import { Loader2, BarChart, Percent, Truck, Archive, DollarSign, CheckCircle, MessageSquare } from 'lucide-react';
@@ -142,22 +142,21 @@ export default function StatisticsPage() {
         const adminId = 'H3uJGvPUNiPmsA2O2c2A1vjE5yA2'; // Assuming a static admin ID for simplicity
 
         try {
-            // Find existing chat
+            // Use a deterministic chat ID
             const participants = [adminId, courier.id].sort();
-            const q = query(collection(firestore, 'chats'), where('participants', '==', participants));
-            const existingChatsSnap = await getDocs(q);
+            const chatId = `chat_${participants[0]}_${participants[1]}`;
+            const chatRef = doc(firestore, 'chats', chatId);
 
-            let chatId: string;
             const message = `مرحباً ${courier.name}،\nلديك ${courier.pending} شحنة قيد الانتظار و ${courier.inTransit} شحنة قيد التوصيل. برجاء الدخول للنظام وتحديث حالاتها في أقرب وقت.`;
 
-            if (!existingChatsSnap.empty) {
-                chatId = existingChatsSnap.docs[0].id;
-            } else {
-                // Create new chat
+            // Check if chat exists, if not create it
+            const chatSnap = await getDocs(query(collection(firestore, 'chats'), where('id', '==', chatId)));
+            if (chatSnap.empty) {
                 const adminDoc = await getDocs(query(collection(firestore, 'users'), where('role', '==', 'admin'), where('email', '==', 'mhanyt21@gmail.com')));
                 const adminData = adminDoc.docs[0]?.data();
                 
                 const newChatData = {
+                    id: chatId,
                     participants,
                     participantNames: {
                         [adminId]: adminData?.name || 'Admin',
@@ -167,14 +166,11 @@ export default function StatisticsPage() {
                     lastMessageTimestamp: serverTimestamp(),
                     unreadCounts: { [adminId]: 0, [courier.id]: 0 },
                 };
-                const newChatRef = await addDoc(collection(firestore, 'chats'), newChatData);
-                chatId = newChatRef.id;
+                await setDoc(chatRef, newChatData);
             }
 
             // Send the message
             const messagesCollection = collection(firestore, 'chats', chatId, 'messages');
-            const chatDocRef = doc(firestore, 'chats', chatId);
-
             const batch = writeBatch(firestore);
             const newMessageRef = doc(messagesCollection);
             batch.set(newMessageRef, {
@@ -182,7 +178,7 @@ export default function StatisticsPage() {
                 text: message,
                 timestamp: serverTimestamp(),
             });
-            batch.update(chatDocRef, {
+            batch.update(chatRef, {
                 lastMessage: message,
                 lastMessageTimestamp: serverTimestamp(),
                 [`unreadCounts.${courier.id}`]: 1,

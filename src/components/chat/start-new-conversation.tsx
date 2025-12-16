@@ -2,7 +2,7 @@
 "use client";
 import React, { useState } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, query, where, addDoc, getDocs, serverTimestamp, writeBatch, doc } from 'firebase/firestore';
+import { collection, query, where, addDoc, getDocs, serverTimestamp, writeBatch, doc, setDoc } from 'firebase/firestore';
 import type { User } from '@/lib/types';
 import { Button } from '../ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
@@ -40,33 +40,24 @@ const StartNewConversation: React.FC<StartNewConversationProps> = ({ currentUser
         if (!selectedUserId || !firestore) return;
 
         try {
-            // Check if a chat already exists
+            // Use a deterministic chat ID
             const participants = [currentUser.id, selectedUserId].sort();
-            const q = query(
-                collection(firestore, 'chats'),
-                where('participants', '==', participants)
-            );
+            const chatId = `chat_${participants[0]}_${participants[1]}`;
+            const chatRef = doc(firestore, 'chats', chatId);
+
+            // Check if a chat already exists by its ID
+            const chatSnap = await getDocs(query(collection(firestore, 'chats'), where('id', '==', chatId)));
             
-            const existingChatsSnap = await getDocs(q).catch(serverError => {
-                const permissionError = new FirestorePermissionError({
-                    path: `chats`,
-                    operation: 'list',
-                    requestResourceData: { note: `Query for existing chat between ${currentUser.id} and ${selectedUserId}` }
-                });
-                errorEmitter.emit('permission-error', permissionError);
-                throw serverError; // Propagate error
-            });
-            
-            if (!existingChatsSnap.empty) {
+            if (!chatSnap.empty) {
                 // Chat already exists, select it
-                onNewChat(existingChatsSnap.docs[0].id);
+                onNewChat(chatSnap.docs[0].id);
             } else {
                 // Create a new chat
                 const selectedUser = users?.find(u => u.id === selectedUserId);
                 if (!selectedUser) return;
 
-                const chatDocRefCollection = collection(firestore, 'chats');
                 const newChatData = {
+                    id: chatId,
                     participants,
                     participantNames: {
                         [currentUser.id]: currentUser.name || currentUser.email,
@@ -76,19 +67,14 @@ const StartNewConversation: React.FC<StartNewConversationProps> = ({ currentUser
                     lastMessageTimestamp: serverTimestamp(),
                     unreadCounts: {
                         [currentUser.id]: 0,
-                        [selectedUserId]: 1,
+                        [selectedUserId]: 0,
                     },
                 };
                 
-                const docRef = doc(chatDocRefCollection);
-                const batch = writeBatch(firestore);
-
-                batch.set(docRef, { ...newChatData, id: docRef.id });
-                
-                await batch.commit()
+                await setDoc(chatRef, newChatData)
                   .catch(serverError => {
                     const permissionError = new FirestorePermissionError({
-                        path: docRef.path,
+                        path: chatRef.path,
                         operation: 'create',
                         requestResourceData: newChatData
                     });
@@ -96,7 +82,7 @@ const StartNewConversation: React.FC<StartNewConversationProps> = ({ currentUser
                     throw serverError;
                   });
 
-                onNewChat(docRef.id);
+                onNewChat(chatId);
             }
             
             setSelectedUserId('');
@@ -149,7 +135,7 @@ const StartNewConversation: React.FC<StartNewConversationProps> = ({ currentUser
                                                 selectedUserId === user.id ? "opacity-100" : "opacity-0"
                                             )}
                                         />
-                                        {user.name} ({user.role === 'admin' ? 'مسؤول' : user.role === 'company' ? 'شركة' : 'مندوب'})
+                                        {user.name} ({user.role === 'admin' ? 'مسؤول' : user.role === 'company' ? 'شركة' : user.role === 'customer-service' ? 'خدمة عملاء' : 'مندوب'})
                                     </CommandItem>
                                 )))}
                             </CommandGroup>
