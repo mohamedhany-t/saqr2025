@@ -4,13 +4,19 @@ import React, { useState, useEffect } from 'react';
 import type { Shipment, Company, User, Governorate, CourierPayment, CompanyPayment, ShipmentStatusConfig } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../ui/card';
 import { Button } from '../ui/button';
-import { FileUp, Loader2, ChevronDown } from 'lucide-react';
+import { FileUp, Loader2, ChevronDown, CalendarIcon } from 'lucide-react';
 import { exportToExcel } from '@/lib/export';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
+import { DateRange } from 'react-day-picker';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Calendar } from '../ui/calendar';
+import { format } from 'date-fns';
+import { ar } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 interface ReportsPageProps {
     shipments: Shipment[];
@@ -37,12 +43,19 @@ export function ReportsPage({
     
     // States for Supply Sheet
     const [companyReportStatuses, setCompanyReportStatuses] = useState<string[]>([]);
+    const [supplySheetDateRange, setSupplySheetDateRange] = useState<DateRange | undefined>();
 
     // States for Update Sheet
     const [selectedCompanyForUpdateId, setSelectedCompanyForUpdateId] = useState<string | null>(null);
     const [companyUpdateStatuses, setCompanyUpdateStatuses] = useState<string[]>([]);
+    const [updateSheetDateRange, setUpdateSheetDateRange] = useState<DateRange | undefined>();
     
+    // States for Returns Sheet
+    const [returnsSheetDateRange, setReturnsSheetDateRange] = useState<DateRange | undefined>();
+
+    // States for Courier Report
     const [courierReportStatuses, setCourierReportStatuses] = useState<string[]>([]);
+    const [courierReportDateRange, setCourierReportDateRange] = useState<DateRange | undefined>();
 
     const { toast } = useToast();
     const firestore = useFirestore();
@@ -132,6 +145,24 @@ export function ReportsPage({
                 return [];
         }
     }
+    
+    const filterByDateRange = (shipmentsToFilter: Shipment[], dateRange?: DateRange): Shipment[] => {
+        if (!dateRange || (!dateRange.from && !dateRange.to)) {
+            return shipmentsToFilter;
+        }
+        return shipmentsToFilter.filter(s => {
+            const shipmentDate = s.createdAt?.toDate();
+            if (!shipmentDate) return false;
+            
+            const from = dateRange.from ? new Date(dateRange.from.setHours(0,0,0,0)) : null;
+            const to = dateRange.to ? new Date(dateRange.to.setHours(23,59,59,999)) : null;
+
+            if (from && shipmentDate < from) return false;
+            if (to && shipmentDate > to) return false;
+            
+            return true;
+        });
+    };
 
     const deliveredShipmentStatuses = statuses?.filter(s => s.isDeliveredStatus).map(s => s.id) || [];
     const returnedShipmentStatuses = statuses?.filter(s => s.isReturnedStatus).map(s => s.id) || [];
@@ -201,6 +232,7 @@ export function ReportsPage({
     const handleExportCompanyReport = (type: 'supply' | 'update') => {
         const companyId = type === 'supply' ? selectedCompanyId : selectedCompanyForUpdateId;
         const statusFilters = type === 'supply' ? companyReportStatuses : companyUpdateStatuses;
+        const dateRange = type === 'supply' ? supplySheetDateRange : updateSheetDateRange;
         const reportType = type === 'supply' ? 'company_shipments' : 'company_update';
         const fileNamePrefix = type === 'supply' ? 'شيت توريد' : 'شيت ابديت';
 
@@ -208,7 +240,9 @@ export function ReportsPage({
         const company = companies.find(c => c.id === companyId);
         if (!company) return;
         
-        const companyShipments = shipments.filter(s => s.companyId === companyId && !s.isArchivedForCompany);
+        let companyShipments = shipments.filter(s => s.companyId === companyId && !s.isArchivedForCompany);
+        companyShipments = filterByDateRange(companyShipments, dateRange);
+        
         const filteredData = filterShipmentsByStatus(companyShipments, statusFilters);
         
         const dataToExport = filteredData.map(shipment => getEnhancedShipmentData(shipment, 'company'));
@@ -229,7 +263,10 @@ export function ReportsPage({
         if (!selectedCourierId) return;
         const courier = couriers.find(c => c.id === selectedCourierId);
         if (!courier) return;
-        const courierShipments = shipments.filter(s => s.assignedCourierId === selectedCourierId && !s.isArchivedForCourier);
+        
+        let courierShipments = shipments.filter(s => s.assignedCourierId === selectedCourierId && !s.isArchivedForCourier);
+        courierShipments = filterByDateRange(courierShipments, courierReportDateRange);
+        
         const filteredData = filterShipmentsByStatus(courierShipments, courierReportStatuses);
         
         const dataToExport = filteredData.map(shipment => getEnhancedShipmentData(shipment, 'courier'));
@@ -246,11 +283,12 @@ export function ReportsPage({
         const company = companies.find(c => c.id === selectedCompanyForReturnsId);
         if (!company) return;
 
-        const companyReturnsInWarehouse = shipments.filter(s => 
+        let companyReturnsInWarehouse = shipments.filter(s => 
             s.companyId === selectedCompanyForReturnsId &&
             s.isWarehouseReturn === true &&
             !s.isReturnedToCompany
         );
+        companyReturnsInWarehouse = filterByDateRange(companyReturnsInWarehouse, returnsSheetDateRange);
 
         const today = new Date();
         const dateString = `${today.getDate().toString().padStart(2, '0')}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getFullYear()}`;
@@ -299,7 +337,7 @@ export function ReportsPage({
                  <div className="mt-4">
                      <Card>
                         <CardContent className="pt-6">
-                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
                                  <div className="md:col-span-2">
                                      <label className="text-sm font-medium mb-2 block">اختر الشركة</label>
                                      <Select dir="rtl" onValueChange={setSelectedCompanyId} value={selectedCompanyId || ''}>
@@ -310,6 +348,45 @@ export function ReportsPage({
                                              {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                                          </SelectContent>
                                      </Select>
+                                 </div>
+                                  <div>
+                                     <label className="text-sm font-medium mb-2 block">فلترة حسب التاريخ</label>
+                                     <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button
+                                            variant={"outline"}
+                                            className={cn(
+                                              "w-full justify-start text-right font-normal",
+                                              !supplySheetDateRange && "text-muted-foreground"
+                                            )}
+                                          >
+                                            <CalendarIcon className="ml-2 h-4 w-4" />
+                                            {supplySheetDateRange?.from ? (
+                                              supplySheetDateRange.to ? (
+                                                <>
+                                                  {format(supplySheetDateRange.from, "LLL dd, y", { locale: ar })} -{' '}
+                                                  {format(supplySheetDateRange.to, "LLL dd, y", { locale: ar })}
+                                                </>
+                                              ) : (
+                                                format(supplySheetDateRange.from, "LLL dd, y", { locale: ar })
+                                              )
+                                            ) : (
+                                              <span>اختر تاريخ</span>
+                                            )}
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                          <Calendar
+                                            initialFocus
+                                            mode="range"
+                                            defaultMonth={supplySheetDateRange?.from}
+                                            selected={supplySheetDateRange}
+                                            onSelect={setSupplySheetDateRange}
+                                            numberOfMonths={2}
+                                            locale={ar}
+                                          />
+                                        </PopoverContent>
+                                      </Popover>
                                  </div>
                                  <div>
                                      <label className="text-sm font-medium mb-2 block">فلترة حسب الحالة</label>
@@ -361,7 +438,7 @@ export function ReportsPage({
                 <div className="mt-4">
                     <Card>
                         <CardContent className="pt-6">
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
                                 <div className="md:col-span-2">
                                     <label className="text-sm font-medium mb-2 block">اختر الشركة</label>
                                     <Select dir="rtl" onValueChange={setSelectedCompanyForUpdateId} value={selectedCompanyForUpdateId || ''}>
@@ -373,6 +450,45 @@ export function ReportsPage({
                                         </SelectContent>
                                     </Select>
                                 </div>
+                                 <div>
+                                     <label className="text-sm font-medium mb-2 block">فلترة حسب التاريخ</label>
+                                     <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button
+                                            variant={"outline"}
+                                            className={cn(
+                                              "w-full justify-start text-right font-normal",
+                                              !updateSheetDateRange && "text-muted-foreground"
+                                            )}
+                                          >
+                                            <CalendarIcon className="ml-2 h-4 w-4" />
+                                            {updateSheetDateRange?.from ? (
+                                              updateSheetDateRange.to ? (
+                                                <>
+                                                  {format(updateSheetDateRange.from, "LLL dd, y", { locale: ar })} -{' '}
+                                                  {format(updateSheetDateRange.to, "LLL dd, y", { locale: ar })}
+                                                </>
+                                              ) : (
+                                                format(updateSheetDateRange.from, "LLL dd, y", { locale: ar })
+                                              )
+                                            ) : (
+                                              <span>اختر تاريخ</span>
+                                            )}
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                          <Calendar
+                                            initialFocus
+                                            mode="range"
+                                            defaultMonth={updateSheetDateRange?.from}
+                                            selected={updateSheetDateRange}
+                                            onSelect={setUpdateSheetDateRange}
+                                            numberOfMonths={2}
+                                            locale={ar}
+                                          />
+                                        </PopoverContent>
+                                      </Popover>
+                                 </div>
                                 <div>
                                     <label className="text-sm font-medium mb-2 block">فلترة حسب الحالة</label>
                                     <DropdownMenu>
@@ -423,7 +539,7 @@ export function ReportsPage({
                 <div className="mt-4">
                     <Card>
                         <CardContent className="pt-6">
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
                                 <div className="md:col-span-3">
                                     <label className="text-sm font-medium mb-2 block">اختر الشركة</label>
                                     <Select dir="rtl" onValueChange={setSelectedCompanyForReturnsId} value={selectedCompanyForReturnsId || ''}>
@@ -435,6 +551,45 @@ export function ReportsPage({
                                         </SelectContent>
                                     </Select>
                                 </div>
+                                 <div>
+                                     <label className="text-sm font-medium mb-2 block">فلترة حسب التاريخ</label>
+                                     <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button
+                                            variant={"outline"}
+                                            className={cn(
+                                              "w-full justify-start text-right font-normal",
+                                              !returnsSheetDateRange && "text-muted-foreground"
+                                            )}
+                                          >
+                                            <CalendarIcon className="ml-2 h-4 w-4" />
+                                            {returnsSheetDateRange?.from ? (
+                                              returnsSheetDateRange.to ? (
+                                                <>
+                                                  {format(returnsSheetDateRange.from, "LLL dd, y", { locale: ar })} -{' '}
+                                                  {format(returnsSheetDateRange.to, "LLL dd, y", { locale: ar })}
+                                                </>
+                                              ) : (
+                                                format(returnsSheetDateRange.from, "LLL dd, y", { locale: ar })
+                                              )
+                                            ) : (
+                                              <span>اختر تاريخ</span>
+                                            )}
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                          <Calendar
+                                            initialFocus
+                                            mode="range"
+                                            defaultMonth={returnsSheetDateRange?.from}
+                                            selected={returnsSheetDateRange}
+                                            onSelect={setReturnsSheetDateRange}
+                                            numberOfMonths={2}
+                                            locale={ar}
+                                          />
+                                        </PopoverContent>
+                                      </Popover>
+                                 </div>
                                 <Button onClick={handleExportCompanyReturns} disabled={!selectedCompanyForReturnsId}>
                                     <FileUp className="me-2 h-4 w-4" />
                                     إنشاء شيت مرتجعات
@@ -453,7 +608,7 @@ export function ReportsPage({
                 <div className="mt-4">
                      <Card>
                         <CardContent className="pt-6">
-                              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
                                   <div className="md:col-span-2">
                                      <label className="text-sm font-medium mb-2 block">اختر المندوب</label>
                                      <Select dir="rtl" onValueChange={setSelectedCourierId} value={selectedCourierId || ''}>
@@ -465,6 +620,45 @@ export function ReportsPage({
                                          </SelectContent>
                                      </Select>
                                   </div>
+                                   <div>
+                                     <label className="text-sm font-medium mb-2 block">فلترة حسب التاريخ</label>
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button
+                                            variant={"outline"}
+                                            className={cn(
+                                              "w-full justify-start text-right font-normal",
+                                              !courierReportDateRange && "text-muted-foreground"
+                                            )}
+                                          >
+                                            <CalendarIcon className="ml-2 h-4 w-4" />
+                                            {courierReportDateRange?.from ? (
+                                              courierReportDateRange.to ? (
+                                                <>
+                                                  {format(courierReportDateRange.from, "LLL dd, y", { locale: ar })} -{' '}
+                                                  {format(courierReportDateRange.to, "LLL dd, y", { locale: ar })}
+                                                </>
+                                              ) : (
+                                                format(courierReportDateRange.from, "LLL dd, y", { locale: ar })
+                                              )
+                                            ) : (
+                                              <span>اختر تاريخ</span>
+                                            )}
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                          <Calendar
+                                            initialFocus
+                                            mode="range"
+                                            defaultMonth={courierReportDateRange?.from}
+                                            selected={courierReportDateRange}
+                                            onSelect={setCourierReportDateRange}
+                                            numberOfMonths={2}
+                                            locale={ar}
+                                          />
+                                        </PopoverContent>
+                                      </Popover>
+                                 </div>
                                    <div>
                                      <label className="text-sm font-medium mb-2 block">فلترة حسب الحالة</label>
                                       <DropdownMenu>
