@@ -78,6 +78,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { sendPushNotification } from "@/lib/actions"
 import { cn, formatToCairoTime } from "@/lib/utils"
 import { ShipmentDetailsDialog } from "../shipments/shipment-details-dialog"
+import { ShipmentFilters } from "./shipment-filters"
 
 export const statusIcons: Record<string, React.ReactNode> = {
     Pending: <Hourglass className="h-4 w-4 text-yellow-500" />,
