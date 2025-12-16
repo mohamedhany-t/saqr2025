@@ -14,7 +14,7 @@ import { collection } from 'firebase/firestore';
 import { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Calendar } from '../ui/calendar';
-import { format } from 'date-fns';
+import { format as formatDate, isSameDay } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -155,7 +155,7 @@ export function ReportsPage({
             if (!shipmentDate) return false;
             
             const from = dateRange.from ? new Date(dateRange.from.setHours(0,0,0,0)) : null;
-            const to = dateRange.to ? new Date(dateRange.to.setHours(23,59,59,999)) : null;
+            const to = dateRange.to ? new Date(dateRange.to.setHours(23,59,59,999)) : from; // If no 'to', use 'from' as end of day
 
             if (from && shipmentDate < from) return false;
             if (to && shipmentDate > to) return false;
@@ -229,6 +229,27 @@ export function ReportsPage({
         return { ...shipment, netDue };
     }
 
+    const formatDateForDisplay = (date?: Date) => {
+        if (!date) return '';
+        return formatDate(date, "yyyy-MM-dd");
+    }
+
+    const formatDateRangeForDisplay = (dateRange?: DateRange) => {
+        if (!dateRange || !dateRange.from) return 'الكل';
+        if (dateRange.to && !isSameDay(dateRange.from, dateRange.to)) {
+            return `${formatDateForDisplay(dateRange.from)} إلى ${formatDateForDisplay(dateRange.to)}`;
+        }
+        return formatDateForDisplay(dateRange.from);
+    }
+    
+    const formatDateForFilename = (dateRange?: DateRange) => {
+        if (!dateRange || !dateRange.from) return formatDateForDisplay(new Date());
+        if (dateRange.to && !isSameDay(dateRange.from, dateRange.to)) {
+            return `${formatDateForDisplay(dateRange.from)}_to_${formatDateForDisplay(dateRange.to)}`;
+        }
+        return formatDateForDisplay(dateRange.from);
+    }
+
     const handleExportCompanyReport = (type: 'supply' | 'update') => {
         const companyId = type === 'supply' ? selectedCompanyId : selectedCompanyForUpdateId;
         const statusFilters = type === 'supply' ? companyReportStatuses : companyUpdateStatuses;
@@ -247,13 +268,12 @@ export function ReportsPage({
         
         const dataToExport = filteredData.map(shipment => getEnhancedShipmentData(shipment, 'company'));
 
-        const today = new Date();
-        const dateString = `${today.getDate().toString().padStart(2, '0')}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getFullYear()}`;
-        const fileName = `${fileNamePrefix} - ${company.name} - ${dateString}`;
+        const dateStringForFilename = formatDateForFilename(dateRange);
+        const fileName = `${fileNamePrefix} - ${company.name} - ${dateStringForFilename}`;
         
         const reportHeader = {
             title: `${fileNamePrefix} شركة: ${company.name}`,
-            date: `تاريخ التقرير: ${dateString.replace(/-/g, '/')}`
+            date: `تاريخ التقرير: ${formatDateRangeForDisplay(dateRange)}`
         };
 
         handleExport(dataToExport, reportType, fileName, reportHeader);
@@ -272,10 +292,15 @@ export function ReportsPage({
         const dataToExport = filteredData.map(shipment => getEnhancedShipmentData(shipment, 'courier'));
         
         const statusString = courierReportStatuses.length > 0 ? courierReportStatuses.map(s => enabledStatuses.find(es => es.id === s)?.label || s).join('_') : 'الكل';
-        const dateString = new Date().toISOString().split('T')[0];
+        const dateString = formatDateForFilename(courierReportDateRange);
         const fileName = `شحنات_${courier.name?.replace(/\s/g, '_')}_${statusString}_${dateString}`;
+        
+        const reportHeader = {
+            title: `تقرير شحنات المندوب: ${courier.name}`,
+            date: `الفترة: ${formatDateRangeForDisplay(courierReportDateRange)}`
+        };
 
-        handleExport(dataToExport, 'courier_shipments', fileName);
+        handleExport(dataToExport, 'courier_shipments', fileName, reportHeader);
     };
 
     const handleExportCompanyReturns = () => {
@@ -290,13 +315,12 @@ export function ReportsPage({
         );
         companyReturnsInWarehouse = filterByDateRange(companyReturnsInWarehouse, returnsSheetDateRange);
 
-        const today = new Date();
-        const dateString = `${today.getDate().toString().padStart(2, '0')}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getFullYear()}`;
+        const dateString = formatDateForFilename(returnsSheetDateRange);
         const fileName = `شيت مرتجعات - ${company.name} - ${dateString}`;
 
         const reportHeader = {
             title: `شيت مرتجعات شركة: ${company.name}`,
-            date: `تاريخ التقرير: ${dateString.replace(/-/g, '/')}`
+            date: `تاريخ التقرير: ${formatDateRangeForDisplay(returnsSheetDateRange)}`
         };
 
         handleExport(companyReturnsInWarehouse, 'company_returns', fileName, reportHeader);
@@ -362,13 +386,13 @@ export function ReportsPage({
                                           >
                                             <CalendarIcon className="ml-2 h-4 w-4" />
                                             {supplySheetDateRange?.from ? (
-                                              supplySheetDateRange.to ? (
+                                              supplySheetDateRange.to && !isSameDay(supplySheetDateRange.from, supplySheetDateRange.to) ? (
                                                 <>
-                                                  {format(supplySheetDateRange.from, "LLL dd, y", { locale: ar })} -{' '}
-                                                  {format(supplySheetDateRange.to, "LLL dd, y", { locale: ar })}
+                                                  {formatDate(supplySheetDateRange.from, "LLL dd, y", { locale: ar })} -{' '}
+                                                  {formatDate(supplySheetDateRange.to, "LLL dd, y", { locale: ar })}
                                                 </>
                                               ) : (
-                                                format(supplySheetDateRange.from, "LLL dd, y", { locale: ar })
+                                                formatDate(supplySheetDateRange.from, "LLL dd, y", { locale: ar })
                                               )
                                             ) : (
                                               <span>اختر تاريخ</span>
@@ -463,13 +487,13 @@ export function ReportsPage({
                                           >
                                             <CalendarIcon className="ml-2 h-4 w-4" />
                                             {updateSheetDateRange?.from ? (
-                                              updateSheetDateRange.to ? (
+                                              updateSheetDateRange.to && !isSameDay(updateSheetDateRange.from, updateSheetDateRange.to) ? (
                                                 <>
-                                                  {format(updateSheetDateRange.from, "LLL dd, y", { locale: ar })} -{' '}
-                                                  {format(updateSheetDateRange.to, "LLL dd, y", { locale: ar })}
+                                                  {formatDate(updateSheetDateRange.from, "LLL dd, y", { locale: ar })} -{' '}
+                                                  {formatDate(updateSheetDateRange.to, "LLL dd, y", { locale: ar })}
                                                 </>
                                               ) : (
-                                                format(updateSheetDateRange.from, "LLL dd, y", { locale: ar })
+                                                formatDate(updateSheetDateRange.from, "LLL dd, y", { locale: ar })
                                               )
                                             ) : (
                                               <span>اختر تاريخ</span>
@@ -564,13 +588,13 @@ export function ReportsPage({
                                           >
                                             <CalendarIcon className="ml-2 h-4 w-4" />
                                             {returnsSheetDateRange?.from ? (
-                                              returnsSheetDateRange.to ? (
+                                              returnsSheetDateRange.to && !isSameDay(returnsSheetDateRange.from, returnsSheetDateRange.to) ? (
                                                 <>
-                                                  {format(returnsSheetDateRange.from, "LLL dd, y", { locale: ar })} -{' '}
-                                                  {format(returnsSheetDateRange.to, "LLL dd, y", { locale: ar })}
+                                                  {formatDate(returnsSheetDateRange.from, "LLL dd, y", { locale: ar })} -{' '}
+                                                  {formatDate(returnsSheetDateRange.to, "LLL dd, y", { locale: ar })}
                                                 </>
                                               ) : (
-                                                format(returnsSheetDateRange.from, "LLL dd, y", { locale: ar })
+                                                formatDate(returnsSheetDateRange.from, "LLL dd, y", { locale: ar })
                                               )
                                             ) : (
                                               <span>اختر تاريخ</span>
@@ -633,13 +657,13 @@ export function ReportsPage({
                                           >
                                             <CalendarIcon className="ml-2 h-4 w-4" />
                                             {courierReportDateRange?.from ? (
-                                              courierReportDateRange.to ? (
+                                              courierReportDateRange.to && !isSameDay(courierReportDateRange.from, courierReportDateRange.to) ? (
                                                 <>
-                                                  {format(courierReportDateRange.from, "LLL dd, y", { locale: ar })} -{' '}
-                                                  {format(courierReportDateRange.to, "LLL dd, y", { locale: ar })}
+                                                  {formatDate(courierReportDateRange.from, "LLL dd, y", { locale: ar })} -{' '}
+                                                  {formatDate(courierReportDateRange.to, "LLL dd, y", { locale: ar })}
                                                 </>
                                               ) : (
-                                                format(courierReportDateRange.from, "LLL dd, y", { locale: ar })
+                                                formatDate(courierReportDateRange.from, "LLL dd, y", { locale: ar })
                                               )
                                             ) : (
                                               <span>اختر تاريخ</span>
