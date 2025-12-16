@@ -1,4 +1,5 @@
 
+
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import { z } from "zod";
@@ -44,6 +45,7 @@ const updateShipmentStatusSchema = z.object({
     isExchange: z.boolean().optional(),
     shipmentCode: z.string().optional(),
     createdAt: z.any().optional(), // Allow passing createdAt for new shipments
+    isPriceChangeDecision: z.boolean().optional(),
 });
 
 
@@ -129,6 +131,15 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
                     ...updatePayload, // Start with the data passed from the client
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 };
+
+                // Server-side logic for price change decision
+                if (finalUpdate.isPriceChangeDecision) {
+                    finalUpdate.requestedAmount = admin.firestore.FieldValue.delete();
+                    finalUpdate.amountChangeReason = admin.firestore.FieldValue.delete();
+                }
+                // Clean up the flag itself
+                delete finalUpdate.isPriceChangeDecision;
+
 
                 const shipmentData = isCreating ? {} : shipmentDoc.data()!;
                 

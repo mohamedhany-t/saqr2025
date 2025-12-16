@@ -1665,41 +1665,41 @@ const returnedToCompanyShipments = React.useMemo(() => {
     return companyDues.filter(c => c.name?.toLowerCase().includes(managementSearchTerm.toLowerCase()));
   }, [companyDues, managementSearchTerm]);
 
-    const handlePriceChangeDecision = (shipment: Shipment, approved: boolean) => {
-        if (!firestore || !authUser) return;
-        
-        let updatePayload: any = {};
-        if (approved) {
-            updatePayload = {
-                totalAmount: shipment.requestedAmount,
-                status: 'In-Transit',
-                reason: `تمت الموافقة على تعديل السعر من ${shipment.totalAmount} إلى ${shipment.requestedAmount}.`,
-                isPriceChangeDecision: true,
-            };
-        } else {
-            updatePayload = {
-                status: 'PriceChangeRejected',
-                reason: `تم رفض طلب تعديل السعر (السعر المقترح: ${shipment.requestedAmount}).`,
-                isPriceChangeDecision: true,
-            };
-        }
+  const handlePriceChangeDecision = (shipment: Shipment, approved: boolean) => {
+    if (!firestore || !authUser) return;
+    
+    let updatePayload: any = {};
+    if (approved) {
+        updatePayload = {
+            totalAmount: shipment.requestedAmount,
+            status: 'In-Transit',
+            reason: `تمت الموافقة على تعديل السعر من ${shipment.totalAmount} إلى ${shipment.requestedAmount}.`,
+            isPriceChangeDecision: true,
+        };
+    } else {
+        updatePayload = {
+            status: 'PriceChangeRejected',
+            reason: `تم رفض طلب تعديل السعر (السعر المقترح: ${shipment.requestedAmount}).`,
+            isPriceChangeDecision: true,
+        };
+    }
 
-        handleSaveShipment(updatePayload, shipment.id);
+    handleSaveShipment(updatePayload, shipment.id);
 
-        // Send notification to the courier
-        if (shipment.assignedCourierId) {
-            const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipment.id}` : `/?edit=${shipment.id}`;
-            const message = approved 
-                ? `تمت الموافقة على طلب تعديل سعر شحنة ${shipment.recipientName}.`
-                : `تم رفض طلب تعديل سعر شحنة ${shipment.recipientName}.`;
-            sendPushNotification({
-                recipientId: shipment.assignedCourierId,
-                title: 'تحديث بخصوص طلب تعديل السعر',
-                body: message,
-                url: notificationUrl,
-            }).catch(console.error);
-        }
-    };
+    // Send notification to the courier
+    if (shipment.assignedCourierId) {
+        const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipment.id}` : `/?edit=${shipment.id}`;
+        const message = approved 
+            ? `تمت الموافقة على طلب تعديل سعر شحنة ${shipment.recipientName}.`
+            : `تم رفض طلب تعديل سعر شحنة ${shipment.recipientName}.`;
+        sendPushNotification({
+            recipientId: shipment.assignedCourierId,
+            title: 'تحديث بخصوص طلب تعديل السعر',
+            body: message,
+            url: notificationUrl,
+        }).catch(console.error);
+    }
+};
 
 
   return (
