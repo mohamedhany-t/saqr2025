@@ -140,11 +140,11 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
                 const isCreating = !shipmentDoc.exists;
                 // Authorization check
                 let isAuthorized = false;
-                if (userProfile.role === 'admin') {
+                if (userProfile.role === 'admin' || userProfile.role === 'customer-service') {
                     isAuthorized = true;
                 }
                 else if (isCreating) {
-                    if (['company', 'customer-service'].includes(userProfile.role)) {
+                    if (userProfile.role === 'company') {
                         isAuthorized = true;
                     }
                 }
@@ -154,10 +154,6 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
                         isAuthorized = true;
                     }
                     else if (userProfile.role === 'company' && shipmentData.companyId === userId) {
-                        isAuthorized = true;
-                    }
-                    else if (userProfile.role === 'customer-service') {
-                        // Customer service can edit any shipment, similar to admin but check is explicit
                         isAuthorized = true;
                     }
                 }

@@ -36,6 +36,7 @@ import { ImportResult, ImportProgressDialog } from "@/components/shipments/impor
 import { read, utils } from "xlsx";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { useFirebaseApp } from "@/firebase";
+import StartNewConversation from "../chat/start-new-conversation";
 
 const ProblemShipmentList = ({ title, icon, shipments, onEdit, children }: { title: string, icon: React.ReactNode, shipments: Shipment[], onEdit: (s: Shipment) => void, children?: (shipment: Shipment) => React.ReactNode }) => {
     if (shipments.length === 0) {
@@ -161,6 +162,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
   const [showExitConfirm, setShowExitConfirm] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [importResult, setImportResult] = React.useState<ImportResult | null>(null);
+   const [activeChatId, setActiveChatId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
@@ -821,6 +823,14 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
           </div>
         </TabsContent>
         <TabsContent value="chat">
+            <Card className="mt-4">
+                <CardContent className="p-4">
+                     <StartNewConversation 
+                        currentUser={user} 
+                        onNewChat={setActiveChatId} 
+                    />
+                </CardContent>
+            </Card>
            <ChatInterface />
         </TabsContent>
       </Tabs>
@@ -862,3 +872,5 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
     </div>
   );
 }
+
+    
