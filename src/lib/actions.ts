@@ -8,56 +8,29 @@ import webpush, { type PushSubscription } from 'web-push';
 import { z } from 'zod';
 
 // --- Centralized Admin App Initialization ---
+let adminApp: App;
 
-// This function initializes the Firebase Admin SDK.
-// It ensures that initialization happens only once.
-function initializeAdminApp(): App {
-    const apps = getApps();
-    // Check if the app named 'admin' is already initialized.
-    const adminApp = apps.find(app => app.name === 'admin');
-    if (adminApp) {
-        return adminApp;
-    }
-
-    let serviceAccount;
-    try {
-        // First, try to load the dedicated service account file. This is the most reliable method for local dev.
-        serviceAccount = require('../../../firebase-admin-sdk.json');
-        console.log("Found firebase-admin-sdk.json. Initializing with service account file...");
-        return initializeApp({
-            credential: cert(serviceAccount)
-        }, 'admin');
-    } catch (e: any) {
-        if (e.code === 'MODULE_NOT_FOUND') {
-            console.warn("firebase-admin-sdk.json not found. This is expected in production. Attempting to use Application Default Credentials.");
-        } else {
-            console.error('Failed to parse firebase-admin-sdk.json.', e);
-            // We don't throw here, we let it fall through to the next method.
-        }
-    }
-
-    // Fallback for Google Cloud environments (like Firebase App Hosting / Cloud Run)
-    console.log("Attempting to initialize with default credentials for Google Cloud environment...");
-    try {
-        // No config needed, it will use the environment's service account
-        return initializeApp({}, 'admin');
-    } catch(e: any) {
-        console.error("Default Firebase Admin initialization failed. This is expected if not in a Google Cloud environment.", e);
-        // If all initialization methods fail, we throw an error.
-        throw new Error("Could not initialize Firebase Admin SDK. Ensure firebase-admin-sdk.json exists for local dev or that the app is running in a configured Google Cloud environment.");
-    }
+try {
+    // This is the recommended way for Google Cloud environments like App Hosting.
+    // It automatically uses the service account associated with the environment.
+    adminApp = getApps().find(app => app.name === 'admin') || initializeApp({}, 'admin');
+    console.log("Firebase Admin SDK initialized successfully with default credentials.");
+} catch (error) {
+    console.error("Firebase Admin SDK initialization failed. This is a critical error.", error);
+    // In a real-world scenario, you might want to throw an error here
+    // or have a fallback for local development if needed, but for App Hosting,
+    // this should work out of the box if permissions are set correctly.
 }
 
 
-// Initialize the app once when the module is loaded.
-const adminApp = initializeAdminApp();
-
 // Helper functions to get initialized services.
 function getAdminAuth(): Auth {
+    if (!adminApp) throw new Error("Admin App not initialized");
     return getAuth(adminApp);
 }
 
 function getAdminFirestore(): Firestore {
+    if (!adminApp) throw new Error("Admin App not initialized");
     return getFirestore(adminApp);
 }
 
@@ -211,5 +184,37 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
     } catch (error: any) {
         console.error("Failed to send push notification:", error);
         return { success: false, error: error.message };
+    }
+}
+
+export async function settleCompanyAccount(companyId: string, paymentAmount: number, shipmentIdsToArchive: string[], settlementNote: string, adminId: string) {
+    const db = getAdminFirestore();
+    const batch = db.batch();
+
+    // 1. Create a settlement payment record if there is an amount to settle.
+    if (paymentAmount !== 0) {
+        const paymentRef = db.collection('company_payments').doc();
+        batch.set(paymentRef, {
+            companyId,
+            amount: paymentAmount,
+            paymentDate: new Date(),
+            recordedById: adminId,
+            notes: settlementNote,
+            isArchived: true, // Archive settlement payment immediately
+        });
+    }
+
+    // 2. Archive the selected shipments for the company.
+    shipmentIdsToArchive.forEach(shipmentId => {
+        const shipmentRef = db.collection('shipments').doc(shipmentId);
+        batch.update(shipmentRef, { isArchivedForCompany: true });
+    });
+
+    try {
+        await batch.commit();
+        return { success: true, message: `تمت تسوية حساب الشركة وأرشفة ${shipmentIdsToArchive.length} شحنة بنجاح.` };
+    } catch (error: any) {
+        console.error("Error settling company account:", error);
+        return { success: false, error: "حدث خطأ أثناء تنفيذ التسوية على الخادم." };
     }
 }

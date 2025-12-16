@@ -37,7 +37,7 @@ import ChatInterface from "@/components/chat/chat-interface";
 import { Badge } from "../ui/badge";
 import AccountStatementsPage from "@/app/accounts/page";
 import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotification } from "@/lib/actions";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { ShipmentCard } from "../shipments/shipment-card";
 import { ColumnFiltersState } from "@tanstack/react-table";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
@@ -48,6 +48,7 @@ import { AuditLogPage } from "../audit-log/audit-log-page";
 import Link from "next/link";
 import { exportToExcel } from "@/lib/export";
 import { ShipmentFilters } from './shipment-filters';
+import { CompanySettlementDialog } from "../users/company-settlement-dialog";
 
 
 const MobileShipmentsView = ({
@@ -591,6 +592,8 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
   
   const [payingCompany, setPayingCompany] = React.useState<Company | undefined>(undefined);
   const [editingCompanyPayment, setEditingCompanyPayment] = React.useState<CompanyPayment | undefined>(undefined);
+  const [settlingCompany, setSettlingCompany] = React.useState<Company | undefined>(undefined);
+
 
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
   const [shipmentToDelete, setShipmentToDelete] = React.useState<Shipment | null>(null);
@@ -824,7 +827,7 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
             const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
 
             for (const row of validRows) {
-                const codeFromSheet = row['كود الشحنة'] || row['رقم الشحنه'];
+                const codeFromSheet = row['كود الشحنة'] || row['رقم الشحنة'];
                 let shipmentCodeValue = codeFromSheet ? String(codeFromSheet).trim() : null;
                 
                 let querySnapshot;
@@ -2115,9 +2118,21 @@ const returnedToCompanyShipments = React.useMemo(() => {
                                     </div>
                                 </CardContent>
                                 <CardFooter className="flex flex-col items-stretch gap-2">
+                                     <CompanySettlementDialog
+                                        company={company}
+                                        allShipments={allShipmentsForStats || []}
+                                        adminUser={user}
+                                        statuses={statuses || []}
+                                        onSettlementComplete={() => {}}
+                                    >
+                                        <Button variant="default" className="w-full">
+                                            <FileSpreadsheet className="me-2 h-4 w-4" />
+                                            تسوية عبر شيت
+                                        </Button>
+                                    </CompanySettlementDialog>
                                     <Button variant="outline" className="w-full" onClick={() => openCompanyPaymentForm(company)} disabled={company.netDue <= 0}>
                                         <Banknote className="me-2 h-4 w-4" />
-                                        تسوية الحساب
+                                        تسوية يدوية
                                     </Button>
                                     {company.totalShipments > 0 && (
                                         <Button variant="secondary" className="w-full" onClick={() => setCompanyToArchive(company)}>
@@ -2340,5 +2355,3 @@ const returnedToCompanyShipments = React.useMemo(() => {
     </div>
   );
 }
-
-    
