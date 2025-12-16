@@ -3,7 +3,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing, ChevronLeft, ChevronRight } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing, ChevronLeft, ChevronRight, BarChart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
@@ -1822,6 +1822,12 @@ const returnedToCompanyShipments = React.useMemo(() => {
             </TabsTrigger>
             <TabsTrigger value="courier-management">إدارة المناديب</TabsTrigger>
             <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
+             <TabsTrigger value="statistics">
+                <Link href="/statistics" className="flex items-center gap-2">
+                    <BarChart className="w-4 h-4" />
+                    <span>الإحصائيات</span>
+                </Link>
+            </TabsTrigger>
             <TabsTrigger value="account-statements">
                 <Link href="/accounts" className="flex items-center gap-2">
                     <FileSpreadsheet className="w-4 h-4" />

@@ -6,6 +6,7 @@ import "./globals.css";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
 import React, { Suspense } from 'react';
 import { Loader2 } from "lucide-react";
+import { ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const cairo = Cairo({ subsets: ["arabic"], variable: "--font-cairo", weight: ['400', '700'] });
