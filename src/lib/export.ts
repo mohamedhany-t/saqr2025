@@ -85,6 +85,7 @@ const getCellValue = (
              return statusTextMap[statusKey] || value;
         case 'createdAt':
         case 'deliveryDate':
+             // Handle both Firestore Timestamp and JS Date objects
              const date = value?.toDate ? value.toDate() : value;
              return formatToCairoTime(date);
         default:

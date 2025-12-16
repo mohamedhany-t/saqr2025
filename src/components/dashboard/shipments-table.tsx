@@ -319,7 +319,9 @@ export const getColumns = ({
     ),
     cell: ({ row }) => {
        const createdAt = row.getValue("createdAt") as any;
-       return <div>{formatToCairoTime(createdAt?.toDate())}</div>;
+       // Handle both Firestore Timestamp and JS Date objects
+       const date = createdAt?.toDate ? createdAt.toDate() : createdAt;
+       return <div>{formatToCairoTime(date)}</div>;
     },
   },
   {
@@ -498,7 +500,7 @@ export function ShipmentsTable({
     },
     initialState: {
         pagination: {
-            pageSize: 5000, 
+            pageSize: shipments.length > 0 ? shipments.length : 10,
         },
         columnVisibility: {
           companyId: role !== 'admin',
