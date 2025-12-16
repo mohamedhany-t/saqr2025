@@ -151,8 +151,14 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
         console.error("Cannot send push notification because VAPID keys are not configured.");
         return { success: false, error: "VAPID keys not set on server." };
     }
+    
+    const validation = pushNotificationSchema.safeParse(notificationData);
+    if (!validation.success) {
+        console.error("Push notification validation failed:", validation.error.issues);
+        return { success: false, error: JSON.stringify(validation.error.issues) };
+    }
 
-    const { recipientId, title, body, url } = pushNotificationSchema.parse(notificationData);
+    const { recipientId, title, body, url } = validation.data;
     
     try {
         const db = getAdminFirestore();
@@ -200,7 +206,7 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
         
         await Promise.all(allPromises);
         
-        return { success: true };
+        return { success: true, message: "Notifications dispatched." };
 
     } catch (error: any) {
         console.error("Failed to send push notification:", error);

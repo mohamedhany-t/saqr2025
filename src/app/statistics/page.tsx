@@ -118,7 +118,7 @@ export default function StatisticsPage() {
                 inTransit: inTransit,
                 successRate: courierShipments.length > 0 ? (delivered / courierShipments.length) * 100 : 0
             };
-        }).filter(Boolean).sort((a, b) => b!.total - a!.total);
+        }).filter((c): c is NonNullable<typeof c> => c !== null).sort((a, b) => b!.total - a!.total);
 
         const companyPerf = companies.map(company => {
             const companyShipments = filteredShipments.filter(s => s.companyId === company.id);
@@ -130,14 +130,14 @@ export default function StatisticsPage() {
                 delivered: delivered,
                 successRate: companyShipments.length > 0 ? (delivered / companyShipments.length) * 100 : 0
             };
-        }).filter(Boolean).sort((a, b) => b!.total - a!.total);
+        }).filter((c): c is NonNullable<typeof c> => c !== null).sort((a, b) => b!.total - a!.total);
 
         return { courierPerf, companyPerf };
 
     }, [filteredShipments, couriers, companies, statuses]);
 
     const handleNotifyCourier = async (courier: (typeof performanceStats.courierPerf)[0]) => {
-        if (!firestore) return;
+        if (!firestore || !courier) return;
         setNotifyingCourierId(courier.id);
         const adminId = 'H3uJGvPUNiPmsA2O2c2A1vjE5yA2'; // Assuming a static admin ID for simplicity
 
@@ -191,19 +191,26 @@ export default function StatisticsPage() {
             await batch.commit();
 
             // Send push notification
-            await sendPushNotification({
+            const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?tab=chat&chatId=${chatId}` : 'https://alsaqr-logistics-system.web.app/';
+
+            const notificationResult = await sendPushNotification({
                 recipientId: courier.id,
                 title: 'متابعة من الإدارة',
                 body: `لديك ${courier.pending + courier.inTransit} شحنة تتطلب تحديث.`,
-                url: '/',
+                url: notificationUrl,
             });
+            
+            if (!notificationResult.success) {
+                console.error("Error from sendPushNotification:", notificationResult.error);
+                throw new Error(notificationResult.error || "Unknown push notification error");
+            }
 
             // Redirect to chat
             router.push(`/?tab=chat&chatId=${chatId}`);
 
         } catch (error) {
             console.error("Error notifying courier:", error);
-            toast({ title: "فشل إرسال التبليغ", variant: "destructive" });
+            toast({ title: "فشل إرسال التبليغ", variant: "destructive", description: "حدث خطأ أثناء محاولة إرسال الإشعار." });
             setNotifyingCourierId(null);
         }
     };
@@ -297,8 +304,8 @@ export default function StatisticsPage() {
                                 <TableHead>إجراء</TableHead>
                             </TableRow></TableHeader>
                             <TableBody>
-                                {performanceStats.courierPerf.map((c: any) => (
-                                    <TableRow key={c.name}>
+                                {performanceStats.courierPerf.map((c) => (
+                                    <TableRow key={c.id}>
                                         <TableCell>{c.name}</TableCell>
                                         <TableCell>{c.pending}</TableCell>
                                         <TableCell>{c.inTransit}</TableCell>
@@ -328,7 +335,7 @@ export default function StatisticsPage() {
                          <Table>
                             <TableHeader><TableRow><TableHead>الشركة</TableHead><TableHead>الإجمالي</TableHead><TableHead>التسليمات</TableHead><TableHead>نسبة النجاح</TableHead></TableRow></TableHeader>
                             <TableBody>
-                                {performanceStats.companyPerf.map((c: any) => (
+                                {performanceStats.companyPerf.map((c) => (
                                     <TableRow key={c.name}><TableCell>{c.name}</TableCell><TableCell>{c.total}</TableCell><TableCell>{c.delivered}</TableCell><TableCell>{c.successRate.toFixed(1)}%</TableCell></TableRow>
                                 ))}
                             </TableBody>
