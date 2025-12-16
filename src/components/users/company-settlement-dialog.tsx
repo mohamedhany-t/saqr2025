@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useCallback } from 'react';
@@ -20,6 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { settleCompanyAccount } from '@/lib/actions';
 import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 
 interface CompanySettlementDialogProps {
   company: Company;
@@ -75,7 +77,7 @@ export function CompanySettlementDialog({
       const workbook = read(data);
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       
-      let jsonData: any[] = utils.sheet_to_json(worksheet, { header: 1 });
+      let jsonData: any[][] = utils.sheet_to_json(worksheet, { header: 1, blankrows: false });
 
       // Find the header row by looking for a specific column name
       const headerKeywords = ['رقم الشحنة', 'كود الشحنة'];
@@ -86,7 +88,7 @@ export function CompanySettlementDialog({
         const row = jsonData[i] as string[];
         if(row.some(cell => typeof cell === 'string' && headerKeywords.some(kw => cell.includes(kw)))) {
             headerRowIndex = i;
-            headers = row;
+            headers = row.map(h => String(h));
             break;
         }
       }
@@ -95,8 +97,16 @@ export function CompanySettlementDialog({
           throw new Error("لم يتم العثور على صف العناوين في الملف. تأكد من وجود عمود 'رقم الشحنة' أو 'كود الشحنة'.");
       }
       
+      // Get data rows *after* the header
       const dataRows = jsonData.slice(headerRowIndex + 1);
-      const finalJson = utils.sheet_to_json(worksheet, { header: headers, range: headerRowIndex });
+      // Convert rows to objects using the found headers
+      const finalJson = dataRows.map(row => {
+          const obj: {[key: string]: any} = {};
+          headers.forEach((header, index) => {
+              obj[header] = row[index];
+          });
+          return obj;
+      });
 
       const shipmentCodeColumn = headers.find(h => h.includes('رقم الشحنة')) || headers.find(h => h.includes('كود الشحنة'));
       
@@ -104,7 +114,7 @@ export function CompanySettlementDialog({
         throw new Error("لم يتم العثور على عمود 'رقم الشحنة' أو 'كود الشحنة'.");
       }
       
-      const shipmentCodesInSheet = new Set(finalJson.map((row: any) => String(row[shipmentCodeColumn]).trim()).filter(Boolean));
+      const shipmentCodesInSheet = new Set(finalJson.map((row: any) => String(row[shipmentCodeColumn] || '').trim()).filter(Boolean));
 
       if (shipmentCodesInSheet.size === 0) {
         throw new Error("لم يتم العثور على شحنات صالحة في الملف.");
@@ -157,13 +167,13 @@ export function CompanySettlementDialog({
     if (!analysis || analysis.matchedShipments.length === 0 || !adminUser) return;
     setIsProcessing(true);
 
-    const result = await settleCompanyAccount(
-        company.id,
-        analysis.totalToSettle,
-        analysis.matchedShipments.map(s => s.id),
-        `تسوية تلقائية عبر شيت: ${analysis.fileName}`,
-        adminUser.uid
-    );
+    const result = await settleCompanyAccount({
+        companyId: company.id,
+        paymentAmount: analysis.totalToSettle,
+        shipmentIdsToArchive: analysis.matchedShipments.map(s => s.id),
+        settlementNote: `تسوية تلقائية عبر شيت: ${analysis.fileName}`,
+        adminId: adminUser.id
+    });
     
     if (result.success) {
         toast({
@@ -188,7 +198,7 @@ export function CompanySettlementDialog({
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-3xl" dir="rtl">
+      <DialogContent className="sm:max-w-4xl" dir="rtl">
         <DialogHeader>
           <DialogTitle>تسوية حساب شركة: {company.name}</DialogTitle>
           <DialogDescription>
@@ -238,6 +248,33 @@ export function CompanySettlementDialog({
                 </div>
               </div>
             </div>
+             
+             {analysis.matchedShipments.length > 0 && (
+                <div>
+                    <h4 className="font-semibold text-green-600">معاينة الشحنات التي ستتم تسويتها:</h4>
+                    <ScrollArea className="h-32 mt-2 border rounded">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>كود الشحنة</TableHead>
+                                    <TableHead>العميل</TableHead>
+                                    <TableHead>المبلغ المستحق</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {analysis.matchedShipments.map(s => (
+                                    <TableRow key={s.id}>
+                                        <TableCell>{s.shipmentCode}</TableCell>
+                                        <TableCell>{s.recipientName}</TableCell>
+                                        <TableCell>{((s.paidAmount || 0) - (s.companyCommission || 0)).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </ScrollArea>
+                </div>
+             )}
+
             {analysis.unmatchedCodes.length > 0 && (
                 <div>
                     <h4 className="font-semibold text-amber-600">شحنات لم تتم مطابقتها:</h4>

@@ -3,7 +3,7 @@
 
 import { getAuth, Auth } from 'firebase-admin/auth';
 import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
-import { getFirestore, Firestore } from 'firebase-admin/firestore';
+import { getFirestore, Firestore, FieldValue } from 'firebase-admin/firestore';
 import webpush, { type PushSubscription } from 'web-push';
 import { z } from 'zod';
 
@@ -74,6 +74,14 @@ const pushNotificationSchema = z.object({
     body: z.string(),
     url: z.string().url(),
 });
+
+const companySettlementSchema = z.object({
+    companyId: z.string(),
+    paymentAmount: z.number(),
+    shipmentIdsToArchive: z.array(z.string()),
+    settlementNote: z.string(),
+    adminId: z.string(),
+})
 
 // --- Server Actions ---
 
@@ -187,7 +195,13 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
     }
 }
 
-export async function settleCompanyAccount(companyId: string, paymentAmount: number, shipmentIdsToArchive: string[], settlementNote: string, adminId: string) {
+export async function settleCompanyAccount(data: z.infer<typeof companySettlementSchema>) {
+    const validation = companySettlementSchema.safeParse(data);
+    if (!validation.success) {
+        return { success: false, error: JSON.stringify(validation.error.issues) };
+    }
+    const { companyId, paymentAmount, shipmentIdsToArchive, settlementNote, adminId } = validation.data;
+
     const db = getAdminFirestore();
     const batch = db.batch();
 
@@ -197,7 +211,7 @@ export async function settleCompanyAccount(companyId: string, paymentAmount: num
         batch.set(paymentRef, {
             companyId,
             amount: paymentAmount,
-            paymentDate: new Date(),
+            paymentDate: FieldValue.serverTimestamp(),
             recordedById: adminId,
             notes: settlementNote,
             isArchived: true, // Archive settlement payment immediately
