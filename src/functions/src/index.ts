@@ -111,8 +111,8 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
                     } else if (userProfile.role === 'company' && shipmentData.companyId === userId) {
                         isAuthorized = true;
                     }
-                } else if (userProfile.role === 'company') {
-                    // Company creating a new shipment
+                } else if (userProfile.role === 'company' || userProfile.role === 'customer-service' || userProfile.role === 'admin') {
+                    // Allow creation by company, customer-service, or admin
                     isAuthorized = true;
                 }
 
