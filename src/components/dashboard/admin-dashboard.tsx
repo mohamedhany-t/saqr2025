@@ -20,7 +20,7 @@ import { ImportResult, ImportProgressDialog } from "@/components/shipments/impor
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser, useFirebaseApp } from "@/firebase";
-import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc, deleteDoc, increment, orderBy, limit, startAfter, endBefore, limitToLast, DocumentSnapshot, DocumentData, deleteField } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc, deleteDoc, increment, orderBy, limit, startAfter, endBefore, limitToLast, DocumentSnapshot, DocumentData } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import {
   AlertDialog,
@@ -1674,22 +1674,17 @@ const returnedToCompanyShipments = React.useMemo(() => {
                 totalAmount: shipment.requestedAmount,
                 status: 'In-Transit',
                 reason: `تمت الموافقة على تعديل السعر من ${shipment.totalAmount} إلى ${shipment.requestedAmount}.`,
+                isPriceChangeDecision: true,
             };
         } else {
             updatePayload = {
                 status: 'PriceChangeRejected',
                 reason: `تم رفض طلب تعديل السعر (السعر المقترح: ${shipment.requestedAmount}).`,
+                isPriceChangeDecision: true,
             };
         }
-        
-        // Use deleteField() for Firestore to remove fields instead of setting them to null
-        const finalUpdate = {
-            ...updatePayload,
-            requestedAmount: deleteField(), 
-            amountChangeReason: deleteField(),
-        };
 
-        handleSaveShipment(finalUpdate, shipment.id);
+        handleSaveShipment(updatePayload, shipment.id);
 
         // Send notification to the courier
         if (shipment.assignedCourierId) {

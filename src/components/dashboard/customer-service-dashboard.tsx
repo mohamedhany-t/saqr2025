@@ -10,7 +10,7 @@ import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, query, where, doc, getDoc, writeBatch, serverTimestamp, getDocs, deleteField } from "firebase/firestore";
+import { collection, query, where, doc, getDoc, writeBatch, serverTimestamp, getDocs } from "firebase/firestore";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
 import { AlertTriangle, CheckSquare, DollarSign, MessageSquare, Check, X, ScanLine, FileUp, PlusCircle, Printer } from "lucide-react";
@@ -549,21 +549,17 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
                 totalAmount: shipment.requestedAmount,
                 status: 'In-Transit',
                 reason: `تمت الموافقة على تعديل السعر من ${shipment.totalAmount} إلى ${shipment.requestedAmount}.`,
+                isPriceChangeDecision: true,
             };
         } else {
             updatePayload = {
                 status: 'PriceChangeRejected',
                 reason: `تم رفض طلب تعديل السعر (السعر المقترح: ${shipment.requestedAmount}).`,
+                isPriceChangeDecision: true,
             };
         }
-        
-        const finalUpdate = {
-            ...updatePayload,
-            requestedAmount: deleteField(),
-            amountChangeReason: deleteField(),
-        };
 
-        handleSaveShipment(finalUpdate, shipment.id);
+        handleSaveShipment(updatePayload, shipment.id);
 
         if (shipment.assignedCourierId) {
             const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipment.id}` : `/?edit=${shipment.id}`;
