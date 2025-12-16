@@ -9,7 +9,7 @@ import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, query, where, doc, getDoc, writeBatch, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, doc, getDoc, writeBatch, serverTimestamp, getDocs } from "firebase/firestore";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
 import { AlertTriangle, CheckSquare, DollarSign, MessageSquare, Check, X, ScanLine, FileUp, PlusCircle, Printer } from "lucide-react";
@@ -345,8 +345,8 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
             setImportResult({ ...result });
 
             // --- 2. Processing Phase ---
-            const batch = writeBatch(firestore);
-            const shipmentsCollection = collection(firestore, 'shipments');
+            const functions = getFunctions(app);
+            const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
 
             for (const row of validRows) {
                 const orderNumberValue = row['رقم الطلب']?.toString().trim();
@@ -365,12 +365,12 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
                 const companyIdForQuery = foundCompany.id;
 
                 if (orderNumberValue) {
-                    const q = query(shipmentsCollection, where("orderNumber", "==", orderNumberValue), where("companyId", "==", companyIdForQuery));
+                    const q = query(collection(firestore, 'shipments'), where("orderNumber", "==", orderNumberValue), where("companyId", "==", companyIdForQuery));
                     querySnapshot = await getDocs(q);
                 }
 
                 if ((!querySnapshot || querySnapshot.empty) && recipientNameValue && recipientPhoneValue) {
-                    const q = query(shipmentsCollection, 
+                    const q = query(collection(firestore, 'shipments'), 
                         where("recipientName", "==", recipientNameValue),
                         where("recipientPhone", "==", recipientPhoneValue),
                         where("companyId", "==", companyIdForQuery)
@@ -381,7 +381,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
                 const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
                 const creationDate = parseExcelDate(row['التاريخ']);
                 const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
-                const senderNameValue = row['الراسل'] || row['العميل الفرعى'];
+                const senderNameValue = row['الراسل'] || row['العميل الفرعي'];
                 
                 const codeFromSheet = row['كود الشحنة'] || row['رقم الشحنه'];
                 let shipmentCodeValue = codeFromSheet ? String(codeFromSheet).trim() : null;
@@ -412,27 +412,26 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
                 const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
 
                 if (!querySnapshot || querySnapshot.empty) {
-                    const docRef = doc(shipmentsCollection);
-                    batch.set(docRef, { ...cleanShipmentData, id: docRef.id, createdAt: creationDate || serverTimestamp(), updatedAt: serverTimestamp() });
+                    const newDocRef = doc(collection(firestore, "shipments"));
+                    await handleShipmentUpdateFn({ shipmentId: newDocRef.id, ...cleanShipmentData, createdAt: creationDate || serverTimestamp() });
                     result.added++;
                 } else {
                     const existingDoc = querySnapshot.docs[0];
                     const existingShipment = existingDoc.data() as Shipment;
 
-                    let updateData: Partial<Shipment> = { ...cleanShipmentData, updatedAt: serverTimestamp() };
+                    let updateData: Partial<Shipment> = { ...cleanShipmentData };
                     
                     if (existingShipment.assignedCourierId) {
                       delete updateData.status;
                       delete updateData.assignedCourierId;
                     }
 
-                    batch.update(existingDoc.ref, updateData);
+                    await handleShipmentUpdateFn({ shipmentId: existingDoc.id, ...updateData });
                     result.updated++;
                 }
                 setImportResult({ ...result });
             }
 
-            await batch.commit();
             setImportResult(prev => prev ? { ...prev, processing: false } : null);
 
         } catch (error: any) {
@@ -535,57 +534,33 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
   const handlePriceChangeDecision = (shipment: Shipment, approved: boolean) => {
     if (!firestore || !authUser) return;
     
-    const shipmentRef = doc(firestore, 'shipments', shipment.id);
-    const batch = writeBatch(firestore);
-
-    let updatePayload: any = {
-        updatedAt: serverTimestamp(),
-    };
-    let historyReason = '';
-    const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipment.id}` : `/?edit=${shipment.id}`;
-
-    if (approved) {
-        updatePayload.totalAmount = shipment.requestedAmount;
-        updatePayload.status = 'In-Transit'; // Ready for delivery
-        historyReason = `تمت الموافقة على تعديل السعر من ${shipment.totalAmount} إلى ${shipment.requestedAmount}.`;
-    } else {
-        updatePayload.status = 'PriceChangeRejected';
-        historyReason = `تم رفض طلب تعديل سعر الشحنة (السعر المقترح: ${shipment.requestedAmount}).`;
-    }
-
-    updatePayload.requestedAmount = null; 
-    updatePayload.amountChangeReason = null;
+    let updatePayload: any = {};
+    const historyReason = approved 
+      ? `تمت الموافقة على تعديل السعر من ${shipment.totalAmount} إلى ${shipment.requestedAmount}.`
+      : `تم رفض طلب تعديل السعر (السعر المقترح: ${shipment.requestedAmount}).`;
     
-    batch.update(shipmentRef, updatePayload);
-
-    const historyRef = doc(collection(shipmentRef, 'history'));
-    const historyEntry: Omit<ShipmentHistory, 'id'> = {
-        status: updatePayload.status,
-        reason: historyReason,
-        updatedAt: serverTimestamp(),
-        updatedBy: authUser.displayName || authUser.email || 'خدمة العملاء',
-        userId: authUser.uid,
+    updatePayload = {
+      status: approved ? 'In-Transit' : 'PriceChangeRejected',
+      ...(approved && { totalAmount: shipment.requestedAmount }),
+      requestedAmount: null,
+      amountChangeReason: null,
+      reason: historyReason,
     };
-    batch.set(historyRef, historyEntry);
+    
+    handleSaveShipment(updatePayload, shipment.id);
 
-    batch.commit().then(() => {
-        toast({
-            title: `تم ${approved ? 'قبول' : 'رفض'} الطلب`,
-            description: `تم تحديث حالة الشحنة بنجاح.`,
-        });
-
-        if (shipment.assignedCourierId) {
-            const message = approved 
-                ? `تمت الموافقة على طلب تعديل سعر شحنة ${shipment.recipientName}.`
-                : `تم رفض طلب تعديل سعر شحنة ${shipment.recipientName}.`;
-            sendPushNotification({
-                recipientId: shipment.assignedCourierId,
-                title: 'تحديث بخصوص طلب تعديل السعر',
-                body: message,
-                url: notificationUrl,
-            }).catch(console.error);
-        }
-    }).catch(console.error);
+    if (shipment.assignedCourierId) {
+        const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipment.id}` : `/?edit=${shipment.id}`;
+        const message = approved 
+            ? `تمت الموافقة على طلب تعديل سعر شحنة ${shipment.recipientName}.`
+            : `تم رفض طلب تعديل سعر شحنة ${shipment.recipientName}.`;
+        sendPushNotification({
+            recipientId: shipment.assignedCourierId,
+            title: 'تحديث بخصوص طلب تعديل السعر',
+            body: message,
+            url: notificationUrl,
+        }).catch(console.error);
+    }
   };
   
   const filteredShipments = React.useMemo(() => {
@@ -673,6 +648,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
       couriers={courierUsers || []}
       statuses={statuses || []}
       onEdit={openShipmentForm}
+      onBulkUpdate={handleGenericBulkUpdate}
       role={role}
     />
   );
@@ -886,5 +862,3 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
     </div>
   );
 }
-
-    
