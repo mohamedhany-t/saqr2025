@@ -8,49 +8,29 @@ import webpush, { type PushSubscription } from 'web-push';
 import { z } from 'zod';
 
 // --- Centralized Admin App Initialization ---
+let adminApp: App;
 
-// This function initializes the Firebase Admin SDK.
-// It ensures that initialization happens only once.
-function initializeAdminApp(): App {
-    const apps = getApps();
-    const adminApp = apps.find(app => app.name === 'admin');
-    if (adminApp) {
-        return adminApp;
-    }
-
-    const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-
-    if (serviceAccountString) {
-        try {
-            const serviceAccount = JSON.parse(serviceAccountString);
-            return initializeApp({
-                credential: cert(serviceAccount)
-            }, 'admin');
-        } catch (e: any) {
-            console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY. Please ensure it is a valid JSON string.', e);
-            throw new Error('Could not initialize Firebase Admin SDK due to invalid service account key.');
-        }
-    } else {
-        console.log("FIREBASE_SERVICE_ACCOUNT_KEY not found. Attempting to initialize with default credentials for Google Cloud environment...");
-        try {
-            return initializeApp({}, 'admin');
-        } catch (e) {
-            console.error("Default Firebase Admin initialization failed. This is expected if not in a Google Cloud environment. Ensure you have set up FIREBASE_SERVICE_ACCOUNT_KEY in your .env file for local development.", e);
-            throw new Error("Could not initialize Firebase Admin SDK. Check server logs for details.");
-        }
-    }
+try {
+    // This is the recommended way for Google Cloud environments like App Hosting.
+    // It automatically uses the service account associated with the environment.
+    adminApp = getApps().find(app => app.name === 'admin') || initializeApp({}, 'admin');
+    console.log("Firebase Admin SDK initialized successfully with default credentials.");
+} catch (error) {
+    console.error("Firebase Admin SDK initialization failed. This is a critical error.", error);
+    // In a real-world scenario, you might want to throw an error here
+    // or have a fallback for local development if needed, but for App Hosting,
+    // this should work out of the box if permissions are set correctly.
 }
 
 
-// Initialize the app once when the module is loaded.
-const adminApp = initializeAdminApp();
-
 // Helper functions to get initialized services.
 function getAdminAuth(): Auth {
+    if (!adminApp) throw new Error("Admin App not initialized");
     return getAuth(adminApp);
 }
 
 function getAdminFirestore(): Firestore {
+    if (!adminApp) throw new Error("Admin App not initialized");
     return getFirestore(adminApp);
 }
 
@@ -144,8 +124,14 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
         console.error("Cannot send push notification because VAPID keys are not configured.");
         return { success: false, error: "VAPID keys not set on server." };
     }
+    
+    const validation = pushNotificationSchema.safeParse(notificationData);
+    if (!validation.success) {
+        console.error("Push notification validation failed:", validation.error.issues);
+        return { success: false, error: JSON.stringify(validation.error.issues) };
+    }
 
-    const { recipientId, title, body, url } = pushNotificationSchema.parse(notificationData);
+    const { recipientId, title, body, url } = validation.data;
     
     try {
         const db = getAdminFirestore();
@@ -198,5 +184,35 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
     } catch (error: any) {
         console.error("Failed to send push notification:", error);
         return { success: false, error: error.message };
+    }
+}
+
+export async function settleCompanyAccount(companyId: string, paymentAmount: number, shipmentIdsToArchive: string[], settlementNote: string, adminId: string) {
+    const db = getAdminFirestore();
+    const batch = db.batch();
+
+    // 1. Create a settlement payment record.
+    const paymentRef = db.collection('company_payments').doc();
+    batch.set(paymentRef, {
+        companyId,
+        amount: paymentAmount,
+        paymentDate: new Date(),
+        recordedById: adminId,
+        notes: settlementNote,
+        isArchived: true, // Archive settlement payment immediately
+    });
+
+    // 2. Archive the selected shipments for the company.
+    shipmentIdsToArchive.forEach(shipmentId => {
+        const shipmentRef = db.collection('shipments').doc(shipmentId);
+        batch.update(shipmentRef, { isArchivedForCompany: true });
+    });
+
+    try {
+        await batch.commit();
+        return { success: true, message: `تمت تسوية حساب الشركة وأرشفة ${shipmentIdsToArchive.length} شحنة بنجاح.` };
+    } catch (error: any) {
+        console.error("Error settling company account:", error);
+        return { success: false, error: "حدث خطأ أثناء تنفيذ التسوية على الخادم." };
     }
 }
