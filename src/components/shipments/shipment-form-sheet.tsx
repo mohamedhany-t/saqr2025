@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import * as React from 'react';
@@ -102,7 +103,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   
   const formSchema = shipmentSchema.superRefine((data, ctx) => {
     const selectedStatusConfig = statuses.find(s => s.id === data.status);
-    if (selectedStatusConfig?.requiresPartialCollection && (data.collectedAmount === undefined)) {
+    if (selectedStatusConfig?.requiresPartialCollection && (data.collectedAmount === undefined || isNaN(data.collectedAmount))) {
         ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: "المبلغ المحصّل مطلوب في هذه الحالة",
@@ -457,7 +458,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                 <FormItem className="grid grid-cols-4 items-center gap-4">
                                     <FormLabel className="text-right">المبلغ المحصّل</FormLabel>
                                     <FormControl className="col-span-3">
-                                        <Input type="number" step="any" {...field} placeholder="أدخل المبلغ المحصل (يمكن أن يكون سالبًا)" />
+                                        <Input type="number" step="any" {...field} placeholder="أدخل المبلغ المحصل (يمكن أن يكون سالبًا)" value={field.value ?? ''} />
                                     </FormControl>
                                     <FormMessage className="col-span-3 col-start-2" />
                                 </FormItem>

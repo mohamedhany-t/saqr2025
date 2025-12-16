@@ -390,10 +390,6 @@ const DesktopShipmentsView = ({
     handleBulkPrint,
     columnFilters,
     setColumnFilters,
-    handleNextPage,
-    handlePrevPage,
-    hasMore,
-    page,
   }: {
     listIsLoading: boolean;
     role: Role | null;
@@ -417,10 +413,6 @@ const DesktopShipmentsView = ({
     handleBulkPrint: (selectedRows: Shipment[]) => void;
     columnFilters: ColumnFiltersState,
     setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
-    handleNextPage: () => void;
-    handlePrevPage: () => void;
-    hasMore: boolean;
-    page: number;
   }) => {
     const renderShipmentTable = (shipmentList: Shipment[], activeTab: 'none' | 'company' | 'courier' | 'returns-with-couriers' | 'returns-in-warehouse' | 'returned-to-company' = 'none') => (
         <ShipmentsTable 
@@ -438,10 +430,6 @@ const DesktopShipmentsView = ({
           filters={columnFilters}
           onFiltersChange={setColumnFilters}
           activeTab={activeTab}
-          handleNextPage={handleNextPage}
-          handlePrevPage={handlePrevPage}
-          hasMore={hasMore}
-          page={page}
         />
     );
 
@@ -631,14 +619,30 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
   // State for search terms in management tabs
   const [managementSearchTerm, setManagementSearchTerm] = React.useState('');
 
-  const [page, setPage] = React.useState(1);
-  const [lastVisible, setLastVisible] = React.useState<DocumentSnapshot<DocumentData> | null>(null);
-  const [firstVisible, setFirstVisible] = React.useState<DocumentSnapshot<DocumentData> | null>(null);
-  const [pageHistory, setPageHistory] = React.useState<(DocumentSnapshot<DocumentData> | null)[]>([null]);
-  const [hasMore, setHasMore] = React.useState(true);
-
   // We use useUser here to get the auth user (with .uid) for the import logic.
   const { user: authUser } = useUser();
+
+  const allShipmentsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    let q = query(collection(firestore, 'shipments'), orderBy('createdAt', 'desc'));
+
+    // Apply server-side filtering only if filters are present
+    if (columnFilters.length > 0) {
+      columnFilters.forEach(filter => {
+        const { id, value } = filter;
+        if (Array.isArray(value) && value.length > 0) {
+          q = query(q, where(id, 'in', value));
+        } else if (id === 'isAssigned') {
+          if(value === 'assigned') q = query(q, where('assignedCourierId', '!=', null));
+          if(value === 'unassigned') q = query(q, where('assignedCourierId', '==', null));
+        }
+      });
+    }
+
+    return q;
+  }, [firestore, columnFilters]);
+
+  const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(allShipmentsQuery);
 
   const allShipmentsForStatsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -694,76 +698,6 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
         router.replace(`${pathname}?${newParams.toString()}`);
       }
     }
-  };
-
-  const PAGE_SIZE = 50;
-
-  const shipmentsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    
-    let q = query(collection(firestore, 'shipments'));
-
-    // Apply server-side filtering
-    columnFilters.forEach(filter => {
-      const { id, value } = filter;
-      if (Array.isArray(value) && value.length > 0) {
-        q = query(q, where(id, 'in', value));
-      } else if (id === 'isAssigned') {
-        if(value === 'assigned') q = query(q, where('assignedCourierId', '!=', null));
-        if(value === 'unassigned') q = query(q, where('assignedCourierId', '==', null));
-      }
-    });
-
-    // Apply server-side ordering for pagination
-    q = query(q, orderBy('createdAt', 'desc'));
-
-    // Apply pagination
-    const currentStart = pageHistory[page - 1];
-    if (currentStart) {
-        q = query(q, startAfter(currentStart));
-    }
-    q = query(q, limit(PAGE_SIZE + 1)); // Fetch one extra to check if there are more pages
-
-    return q;
-  }, [firestore, columnFilters, page, pageHistory]);
-
-  const [shipments, setShipments] = React.useState<Shipment[]>([]);
-  const [shipmentsLoading, setShipmentsLoading] = React.useState(true);
-  
-  React.useEffect(() => {
-    if (shipmentsQuery) {
-        setShipmentsLoading(true);
-        getDocs(shipmentsQuery).then(snapshot => {
-            const newShipments = snapshot.docs.map(d => ({ ...d.data(), id: d.id })) as Shipment[];
-
-            if(newShipments.length > PAGE_SIZE) {
-                setHasMore(true);
-                newShipments.pop(); // Remove the extra one
-            } else {
-                setHasMore(false);
-            }
-            
-            setShipments(newShipments);
-            setLastVisible(snapshot.docs[snapshot.docs.length - 2] || snapshot.docs[snapshot.docs.length - 1] || null);
-            setFirstVisible(snapshot.docs[0] || null);
-            setShipmentsLoading(false);
-        }).catch(error => {
-            console.error("Error fetching shipments:", error);
-            setShipmentsLoading(false);
-        });
-    }
-  }, [shipmentsQuery]);
-
-  const handleNextPage = () => {
-    if (!hasMore) return;
-    setPageHistory(prev => [...prev, lastVisible]);
-    setPage(prev => prev + 1);
-  };
-  
-  const handlePrevPage = () => {
-    if (page === 1) return;
-    setPageHistory(prev => prev.slice(0, -1));
-    setPage(prev => prev - 1);
   };
 
   const governoratesQuery = useMemoFirebase(() => {
@@ -911,7 +845,9 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
             const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
 
             for (const row of validRows) {
-                const orderNumberValue = row['رقم الطلب']?.toString().trim();
+                const codeFromSheet = row['كود الشحنة'] || row['رقم الشحنه'];
+                let shipmentCodeValue = codeFromSheet ? String(codeFromSheet).trim() : null;
+
                 const recipientNameValue = String(row['المرسل اليه'] || '').trim();
                 const recipientPhoneValue = String(row['التليفون']?.toString() || '').trim();
                 
@@ -928,14 +864,14 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
                     result.errors.push({ ...row, 'سبب الرفض': `الشركة "${companyNameFromSheet}" غير موجودة وأنت لا تملك صلاحية الإنشاء بدون شركة.` });
                     continue;
                 }
-
-                // Priority 1: Find by Order Number (if it exists)
-                if (orderNumberValue) {
-                    const q = query(collection(firestore, 'shipments'), where("orderNumber", "==", orderNumberValue), where("companyId", "==", companyIdForQuery));
+                
+                // Priority 1: Find by shipmentCode (if it exists)
+                if (shipmentCodeValue) {
+                    const q = query(collection(firestore, 'shipments'), where("shipmentCode", "==", shipmentCodeValue));
                     querySnapshot = await getDocs(q);
                 }
 
-                // Priority 2: Find by Recipient Name + Phone (if order number not found or doesn't exist)
+                // Priority 2: Find by Recipient Name + Phone (if shipmentCode not found or doesn't exist)
                 if ((!querySnapshot || querySnapshot.empty) && recipientNameValue && recipientPhoneValue) {
                     const q = query(collection(firestore, 'shipments'), 
                         where("recipientName", "==", recipientNameValue),
@@ -949,10 +885,8 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
                 const creationDate = parseExcelDate(row['التاريخ']);
                 const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
                 const senderNameValue = row['الراسل'] || row['العميل الفرعى'];
+                const orderNumberValue = row['رقم الطلب']?.toString().trim();
                 
-                const codeFromSheet = row['كود الشحنة'] || row['رقم الشحنه'];
-                let shipmentCodeValue = codeFromSheet ? String(codeFromSheet).trim() : null;
-
                 if (!shipmentCodeValue) {
                     const date = new Date();
                     const dateString = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
@@ -1932,10 +1866,6 @@ const returnedToCompanyShipments = React.useMemo(() => {
                     handleBulkPrint={handleBulkPrint}
                     columnFilters={columnFilters}
                     setColumnFilters={setColumnFilters}
-                    handleNextPage={handleNextPage}
-                    handlePrevPage={handlePrevPage}
-                    hasMore={hasMore}
-                    page={page}
                 />
             }
         </TabsContent>

@@ -452,10 +452,6 @@ export function ShipmentsTable({
     filters,
     onFiltersChange,
     activeTab = 'none',
-    handleNextPage,
-    handlePrevPage,
-    hasMore,
-    page
 }: { 
     shipments: Shipment[], 
     isLoading: boolean, 
@@ -471,10 +467,6 @@ export function ShipmentsTable({
     filters?: ColumnFiltersState,
     onFiltersChange?: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
     activeTab?: 'none' | 'company' | 'courier' | 'returns-with-couriers' | 'returns-in-warehouse' | 'returned-to-company',
-    handleNextPage?: () => void;
-    handlePrevPage?: () => void;
-    hasMore?: boolean;
-    page?: number;
 }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -494,12 +486,11 @@ export function ShipmentsTable({
     onSortingChange: setSorting,
     onColumnFiltersChange: onFiltersChange || setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
-    manualPagination: true,
-    pageCount: -1, // We don't know the total number of pages
     state: {
       sorting,
       columnFilters: filters || columnFilters,
@@ -508,7 +499,7 @@ export function ShipmentsTable({
     },
     initialState: {
         pagination: {
-            pageSize: 50, // This is now just for display purposes
+            pageSize: 50, 
         },
         columnVisibility: {
           companyId: role !== 'admin',
@@ -843,31 +834,22 @@ export function ShipmentsTable({
         </Table>
       </div>
       <div className="flex items-center justify-end space-x-2 py-4 gap-2">
-        {handlePrevPage && handleNextPage && (
-          <>
-            <span className="text-sm text-muted-foreground">صفحة {page}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handlePrevPage}
-              disabled={page === 1}
-              className="px-2 py-1 h-8"
-            >
-              <ChevronRight className="h-4 w-4" />
-              السابق
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleNextPage}
-              disabled={!hasMore}
-              className="px-2 py-1 h-8"
-            >
-              التالي
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-          </>
-        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => table.previousPage()}
+          disabled={!table.getCanPreviousPage()}
+        >
+          السابق
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => table.nextPage()}
+          disabled={!table.getCanNextPage()}
+        >
+          التالي
+        </Button>
       </div>
     </div>
   )
