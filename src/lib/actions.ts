@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { getAuth, Auth } from 'firebase-admin/auth';
@@ -16,7 +15,9 @@ const getServiceAccount = () => {
     try {
         const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
         if (!serviceAccountKey) {
-            throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set.");
+            // This is not an error in environments like App Hosting where default creds are used.
+            console.log("FIREBASE_SERVICE_ACCOUNT_KEY not found. Attempting to use default application credentials.");
+            return null;
         }
         return JSON.parse(serviceAccountKey);
     } catch (error) {
@@ -32,7 +33,7 @@ try {
 
     if (getApps().every(app => app.name !== appName)) {
         if (serviceAccount) {
-            // Initialize with explicit credentials
+            // Initialize with explicit credentials for local dev or specific environments
             adminApp = initializeApp({
                 credential: cert(serviceAccount)
             }, appName);
@@ -63,7 +64,6 @@ function getAdminFirestore(): Firestore {
 }
 
 // --- VAPID Keys Initialization ---
-// Configure web-push once when the module is loaded.
 const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
 
@@ -74,7 +74,6 @@ if (vapidPublicKey && vapidPrivateKey) {
         vapidPrivateKey
     );
 } else {
-    // This log will appear in the server logs (Vercel Functions logs) if keys are missing
     console.error("VAPID keys are NOT set on the server. Push notifications will fail.");
 }
 
@@ -172,7 +171,11 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
         const db = getAdminFirestore();
         let recipientIds: string[] = [];
 
-        if (['admin', 'company', 'courier', 'customer-service'].includes(recipientId)) {
+        // Check if recipientId is a generic role
+        const isRole = ['admin', 'company', 'courier', 'customer-service'].includes(recipientId);
+        
+        if (isRole) {
+            // If it's a role, fetch all users with that role
             const roleCollectionName = `roles_${recipientId}`;
             const rolesSnapshot = await db.collection(roleCollectionName).get();
             if (!rolesSnapshot.empty) {
@@ -182,13 +185,14 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
                  return { success: true, message: `No users found with role '${recipientId}'.` };
             }
         } else {
+            // Otherwise, it's a specific user ID
             recipientIds.push(recipientId);
         }
         
         const payload = JSON.stringify({ title, body, url, badge: badgeCount });
         const options = {
             gcmAPIKey: process.env.FCM_SERVER_KEY, // If you use FCM
-            TTL: 60,
+            TTL: 60 * 60, // 1 hour
         };
 
         const allPromises: Promise<any>[] = [];
