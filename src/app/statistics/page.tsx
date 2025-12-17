@@ -42,8 +42,16 @@ export default function StatisticsPage() {
     const filteredShipments = useMemo(() => {
         if (!allShipments) return [];
         return allShipments.filter(s => {
-            const shipmentDate = s.createdAt?.toDate();
-            if (!shipmentDate) return false;
+            const createdAt = s.createdAt;
+            let shipmentDate: Date | null = null;
+            if (createdAt?.toDate) { // Firestore Timestamp
+                shipmentDate = createdAt.toDate();
+            } else if (createdAt) { // JS Date object or ISO string
+                shipmentDate = new Date(createdAt);
+            }
+
+            if (!shipmentDate || isNaN(shipmentDate.getTime())) return false;
+            
             const from = dateRange?.from ? startOfDay(dateRange.from) : null;
             const to = dateRange?.to ? endOfDay(dateRange.to) : null;
             if (from && shipmentDate < from) return false;
@@ -343,5 +351,7 @@ export default function StatisticsPage() {
         </div>
     );
 }
+
+    
 
     
