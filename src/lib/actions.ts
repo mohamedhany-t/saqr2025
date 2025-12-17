@@ -26,7 +26,7 @@ const getServiceAccount = () => {
 };
 
 const initializeAdminApp = () => {
-    const appName = 'admin';
+    const appName = 'admin-actions'; // Use a unique name for this instance
     const existingApp = getApps().find(app => app.name === appName);
     
     if (existingApp) {
@@ -36,23 +36,14 @@ const initializeAdminApp = () => {
     const serviceAccount = getServiceAccount();
 
     if (serviceAccount) {
-        // Initialize with explicit credentials (local dev, or environments with explicit keys)
-        console.log("Initializing Firebase Admin SDK with explicit service account credentials.");
+        console.log("Initializing Firebase Admin SDK for actions with explicit service account credentials.");
         return initializeApp({
             credential: cert(serviceAccount)
         }, appName);
     }
     
-    // Fallback for environments where service account might be implicitly available (like older Cloud Functions)
-    // but App Hosting and modern environments prefer explicit setup.
-    try {
-        console.log("Attempting to initialize Firebase Admin SDK with default credentials.");
-        return initializeApp({}, appName);
-    } catch (e) {
-        console.error("CRITICAL: Firebase Admin SDK initialization failed completely. No explicit or default credentials found.", e);
-        // This will cause getAdminAuth/getAdminFirestore to throw, which is intended behavior if init fails.
-        return null; 
-    }
+    console.error("CRITICAL: Firebase Admin SDK (actions) initialization failed. No explicit credentials found.");
+    return null; 
 };
 
 adminApp = initializeAdminApp()!;
@@ -60,12 +51,12 @@ adminApp = initializeAdminApp()!;
 
 // Helper functions to get initialized services.
 function getAdminAuth(): Auth {
-    if (!adminApp) throw new Error("Admin App not initialized. Check server logs for critical errors.");
+    if (!adminApp) throw new Error("Admin App (actions) not initialized. Check server logs for critical errors.");
     return getAuth(adminApp);
 }
 
 function getAdminFirestore(): Firestore {
-    if (!adminApp) throw new Error("Admin App not initialized. Check server logs for critical errors.");
+    if (!adminApp) throw new Error("Admin App (actions) not initialized. Check server logs for critical errors.");
     return getFirestore(adminApp);
 }
 
@@ -197,13 +188,11 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
         }
 
         const allPromises = recipientIds.map(async (id) => {
-            const subscriptionsSnap = await db.collection(`users/${id}/pushSubscriptions`).get();
-
+            const subscriptionsSnap = await db.collection('users').doc(id).collection('pushSubscriptions').get();
             if (subscriptionsSnap.empty) {
                 console.log(`No push subscriptions found for user ${id}.`);
-                return []; // Return empty array to avoid issues with Promise.all
+                return [];
             }
-
             const userPromises = subscriptionsSnap.docs.map(doc => {
                 const subscription = doc.data() as PushSubscription;
                 return webpush.sendNotification(subscription, payload, options).catch(error => {
