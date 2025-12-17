@@ -15,7 +15,6 @@ const getServiceAccount = () => {
     try {
         const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
         if (!serviceAccountKey) {
-            // This is not an error in environments like App Hosting where default creds are used.
             console.log("FIREBASE_SERVICE_ACCOUNT_KEY not found. Attempting to use default application credentials.");
             return null;
         }
@@ -31,9 +30,12 @@ try {
     const serviceAccount = getServiceAccount();
     const appName = 'admin';
 
-    if (getApps().every(app => app.name !== appName)) {
+    // Check if the app is already initialized to prevent errors
+    const existingApp = getApps().find(app => app.name === appName);
+
+    if (!existingApp) {
         if (serviceAccount) {
-            // Initialize with explicit credentials for local dev or specific environments
+            // Initialize with explicit credentials (local dev, or environments with explicit keys)
             adminApp = initializeApp({
                 credential: cert(serviceAccount)
             }, appName);
@@ -44,7 +46,7 @@ try {
             console.log("Firebase Admin SDK initialized successfully with default credentials.");
         }
     } else {
-        adminApp = getApps().find(app => app.name === appName)!;
+        adminApp = existingApp;
     }
 
 } catch (error) {
@@ -169,39 +171,33 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
     
     try {
         const db = getAdminFirestore();
-        let recipientIds: string[] = [];
+        const payload = JSON.stringify({ title, body, url, badge: badgeCount });
+        const options = { TTL: 60 * 60 }; // 1 hour
 
-        // Check if recipientId is a generic role
         const isRole = ['admin', 'company', 'courier', 'customer-service'].includes(recipientId);
+
+        let recipientIds: string[] = [];
         
         if (isRole) {
-            // If it's a role, fetch all users with that role
             const roleCollectionName = `roles_${recipientId}`;
             const rolesSnapshot = await db.collection(roleCollectionName).get();
             if (!rolesSnapshot.empty) {
                 recipientIds = rolesSnapshot.docs.map(doc => doc.id);
-            } else {
-                 console.log(`No users found with role '${recipientId}'.`);
-                 return { success: true, message: `No users found with role '${recipientId}'.` };
             }
         } else {
-            // Otherwise, it's a specific user ID
             recipientIds.push(recipientId);
         }
-        
-        const payload = JSON.stringify({ title, body, url, badge: badgeCount });
-        const options = {
-            gcmAPIKey: process.env.FCM_SERVER_KEY, // If you use FCM
-            TTL: 60 * 60, // 1 hour
-        };
 
-        const allPromises: Promise<any>[] = [];
+        if (recipientIds.length === 0) {
+            console.log(`No recipients found for ID/role: '${recipientId}'.`);
+            return { success: true, message: `No recipients to notify.` };
+        }
 
-        for (const id of recipientIds) {
+        const allPromises = recipientIds.map(async (id) => {
             const subscriptionsSnap = await db.collection(`users/${id}/pushSubscriptions`).get();
             if (subscriptionsSnap.empty) {
                 console.log(`No push subscriptions found for user ${id}.`);
-                continue;
+                return;
             }
             
             const userPromises = subscriptionsSnap.docs.map(doc => {
@@ -214,8 +210,8 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
                     }
                 });
             });
-            allPromises.push(...userPromises);
-        }
+            return Promise.all(userPromises);
+        });
         
         await Promise.all(allPromises);
         
