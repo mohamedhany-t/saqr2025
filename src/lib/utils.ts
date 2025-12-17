@@ -7,8 +7,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export const formatToCairoTime = (date: Date | string | number | undefined | null): string => {
+export const formatToCairoTime = (date: any): string => {
   if (!date) return 'غير محدد';
+  
+  // Handle Firebase Timestamp object
+  if (typeof date.toDate === 'function') {
+    date = date.toDate();
+  }
+
   try {
     const timeZone = 'Africa/Cairo';
     const dateObj = toDate(date, { timeZone });
