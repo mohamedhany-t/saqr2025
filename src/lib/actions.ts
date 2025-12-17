@@ -194,7 +194,7 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
         }
 
         const allPromises = recipientIds.map(async (id) => {
-            const subscriptionsSnap = await db.collection(`users/${id}/pushSubscriptions`).get();
+            const subscriptionsSnap = await db.collection('users').doc(id).collection('pushSubscriptions').get();
             if (subscriptionsSnap.empty) {
                 console.log(`No push subscriptions found for user ${id}.`);
                 return;
@@ -258,3 +258,5 @@ export async function settleCompanyAccount(data: z.infer<typeof companySettlemen
         return { success: false, error: "حدث خطأ أثناء تنفيذ التسوية على الخادم." };
     }
 }
+
+    
