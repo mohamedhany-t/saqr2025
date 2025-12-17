@@ -896,7 +896,11 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
 
                 if (!querySnapshot || querySnapshot.empty) {
                      const newDocRef = doc(collection(firestore, "shipments"));
-                    await handleShipmentUpdateFn({ shipmentId: newDocRef.id, ...cleanShipmentData, createdAt: creationDate || serverTimestamp() });
+                    await handleShipmentUpdateFn({ 
+                        shipmentId: newDocRef.id, 
+                        ...cleanShipmentData, 
+                        createdAt: creationDate ? creationDate.toISOString() : new Date().toISOString() 
+                    });
                     result.added++;
                 } else {
                     const existingDoc = querySnapshot.docs[0];
