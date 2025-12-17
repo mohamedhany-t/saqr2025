@@ -71,7 +71,12 @@ export function StatsCards({ shipments, payments, role }: StatsCardsProps) {
     // For Courier Dashboard
     const totalCourierCommission = shipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
     const totalPaidByCourier = payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-    const netDueForCourier = (totalRevenue - totalCourierCommission) - totalPaidByCourier;
+    
+    // For calculating net due, we only use ACTIVE (non-archived) payments.
+    const activePayments = payments?.filter(p => !p.isArchived) || [];
+    const totalActivePaidByCourier = activePayments.reduce((acc, p) => acc + p.amount, 0);
+    const netDueForCourier = (totalRevenue - totalCourierCommission) - totalActivePaidByCourier;
+
 
     const adminStatsList = [
         { title: "إجمالي الإيرادات", value: `${totalRevenue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}`, icon: CircleDollarSign, description: "" },

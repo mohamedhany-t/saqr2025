@@ -586,7 +586,7 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
                 ) : (
-                    <StatsCards shipments={activeShipmentsForStats || []} payments={activePaymentsForStats || []} role={role} />
+                    <StatsCards shipments={activeShipmentsForStats || []} payments={payments || []} role={role} />
                 )}
             </div>
          </TabsContent>
