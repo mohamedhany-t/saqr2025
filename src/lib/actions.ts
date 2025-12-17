@@ -11,15 +11,43 @@ import { z } from 'zod';
 // --- Centralized Admin App Initialization ---
 let adminApp: App;
 
+// Function to get service account credentials from environment variables
+const getServiceAccount = () => {
+    try {
+        const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+        if (!serviceAccountKey) {
+            throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set.");
+        }
+        return JSON.parse(serviceAccountKey);
+    } catch (error) {
+        console.error("Error parsing FIREBASE_SERVICE_ACCOUNT_KEY:", error);
+        return null;
+    }
+};
+
+
 try {
-    // This is the recommended way for Google Cloud environments like App Hosting.
-    // It automatically uses the service account associated with the environment.
-    adminApp = getApps().find(app => app.name === 'admin') || initializeApp({}, 'admin');
+    const serviceAccount = getServiceAccount();
+    const appName = 'admin';
+
+    if (getApps().every(app => app.name !== appName)) {
+        if (serviceAccount) {
+            // Initialize with explicit credentials
+            adminApp = initializeApp({
+                credential: cert(serviceAccount)
+            }, appName);
+            console.log("Firebase Admin SDK initialized successfully with service account credentials.");
+        } else {
+             // Fallback to default credentials for environments like App Hosting
+            adminApp = initializeApp({}, appName);
+            console.log("Firebase Admin SDK initialized successfully with default credentials.");
+        }
+    } else {
+        adminApp = getApps().find(app => app.name === appName)!;
+    }
+
 } catch (error) {
     console.error("Firebase Admin SDK initialization failed. This is a critical error.", error);
-    // In a real-world scenario, you might want to throw an error here
-    // or have a fallback for local development if needed, but for App Hosting,
-    // this should work out of the box if permissions are set correctly.
 }
 
 
