@@ -15,53 +15,57 @@ const getServiceAccount = () => {
     try {
         const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
         if (!serviceAccountKey) {
-            console.log("FIREBASE_SERVICE_ACCOUNT_KEY not found. Attempting to use default application credentials.");
-            return null;
+            console.error("CRITICAL: FIREBASE_SERVICE_ACCOUNT_KEY environment variable not set.");
+            return null; // Return null to indicate failure
         }
         return JSON.parse(serviceAccountKey);
     } catch (error) {
-        console.error("Error parsing FIREBASE_SERVICE_ACCOUNT_KEY:", error);
-        return null;
+        console.error("CRITICAL: Error parsing FIREBASE_SERVICE_ACCOUNT_KEY:", error);
+        return null; // Return null on parsing error
     }
 };
 
-
-try {
-    const serviceAccount = getServiceAccount();
+const initializeAdminApp = () => {
     const appName = 'admin';
-
-    // Check if the app is already initialized to prevent errors
     const existingApp = getApps().find(app => app.name === appName);
-
-    if (!existingApp) {
-        if (serviceAccount) {
-            // Initialize with explicit credentials (local dev, or environments with explicit keys)
-            adminApp = initializeApp({
-                credential: cert(serviceAccount)
-            }, appName);
-            console.log("Firebase Admin SDK initialized successfully with service account credentials.");
-        } else {
-             // Fallback to default credentials for environments like App Hosting
-            adminApp = initializeApp({}, appName);
-            console.log("Firebase Admin SDK initialized successfully with default credentials.");
-        }
-    } else {
-        adminApp = existingApp;
+    
+    if (existingApp) {
+        return existingApp;
     }
 
-} catch (error) {
-    console.error("Firebase Admin SDK initialization failed. This is a critical error.", error);
-}
+    const serviceAccount = getServiceAccount();
+
+    if (serviceAccount) {
+        // Initialize with explicit credentials (local dev, or environments with explicit keys)
+        console.log("Initializing Firebase Admin SDK with explicit service account credentials.");
+        return initializeApp({
+            credential: cert(serviceAccount)
+        }, appName);
+    }
+    
+    // Fallback for environments where service account might be implicitly available (like older Cloud Functions)
+    // but App Hosting and modern environments prefer explicit setup.
+    try {
+        console.log("Attempting to initialize Firebase Admin SDK with default credentials.");
+        return initializeApp({}, appName);
+    } catch (e) {
+        console.error("CRITICAL: Firebase Admin SDK initialization failed completely. No explicit or default credentials found.", e);
+        // This will cause getAdminAuth/getAdminFirestore to throw, which is intended behavior if init fails.
+        return null; 
+    }
+};
+
+adminApp = initializeAdminApp()!;
 
 
 // Helper functions to get initialized services.
 function getAdminAuth(): Auth {
-    if (!adminApp) throw new Error("Admin App not initialized");
+    if (!adminApp) throw new Error("Admin App not initialized. Check server logs for critical errors.");
     return getAuth(adminApp);
 }
 
 function getAdminFirestore(): Firestore {
-    if (!adminApp) throw new Error("Admin App not initialized");
+    if (!adminApp) throw new Error("Admin App not initialized. Check server logs for critical errors.");
     return getFirestore(adminApp);
 }
 
@@ -160,7 +164,7 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
         console.error("Cannot send push notification because VAPID keys are not configured.");
         return { success: false, error: "VAPID keys not set on server." };
     }
-    
+
     const validation = pushNotificationSchema.safeParse(notificationData);
     if (!validation.success) {
         console.error("Push notification validation failed:", validation.error.issues);
@@ -168,16 +172,15 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
     }
 
     const { recipientId, title, body, url, badgeCount } = validation.data;
-    
+
     try {
         const db = getAdminFirestore();
         const payload = JSON.stringify({ title, body, url, badge: badgeCount });
         const options = { TTL: 60 * 60 }; // 1 hour
 
         const isRole = ['admin', 'company', 'courier', 'customer-service'].includes(recipientId);
-
         let recipientIds: string[] = [];
-        
+
         if (isRole) {
             const roleCollectionName = `roles_${recipientId}`;
             const rolesSnapshot = await db.collection(roleCollectionName).get();
@@ -190,16 +193,17 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
 
         if (recipientIds.length === 0) {
             console.log(`No recipients found for ID/role: '${recipientId}'.`);
-            return { success: true, message: `No recipients to notify.` };
+            return { success: true, message: "No recipients to notify." };
         }
 
         const allPromises = recipientIds.map(async (id) => {
-            const subscriptionsSnap = await db.collection('users').doc(id).collection('pushSubscriptions').get();
+            const subscriptionsSnap = await db.collection(`users/${id}/pushSubscriptions`).get();
+
             if (subscriptionsSnap.empty) {
                 console.log(`No push subscriptions found for user ${id}.`);
-                return;
+                return []; // Return empty array to avoid issues with Promise.all
             }
-            
+
             const userPromises = subscriptionsSnap.docs.map(doc => {
                 const subscription = doc.data() as PushSubscription;
                 return webpush.sendNotification(subscription, payload, options).catch(error => {
@@ -212,9 +216,9 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
             });
             return Promise.all(userPromises);
         });
-        
+
         await Promise.all(allPromises);
-        
+
         return { success: true, message: "Notifications dispatched." };
 
     } catch (error: any) {
@@ -258,5 +262,3 @@ export async function settleCompanyAccount(data: z.infer<typeof companySettlemen
         return { success: false, error: "حدث خطأ أثناء تنفيذ التسوية على الخادم." };
     }
 }
-
-    
