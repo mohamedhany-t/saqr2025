@@ -181,7 +181,7 @@ export function ShipmentCard({
         }
     };
 
-    const timeAgo = formatToCairoTime(createdAt?.toDate());
+    const timeAgo = formatToCairoTime(createdAt);
     
     const canEdit = isAdmin || isCourier;
     const isPriceChangePending = status === 'PriceChangeRequested';
