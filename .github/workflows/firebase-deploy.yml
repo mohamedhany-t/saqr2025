@@ -42,5 +42,6 @@ jobs:
       - name: Deploy to Firebase
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
         run: |
           firebase deploy --only hosting --project studio-9762882993-dc7cd --token "$FIREBASE_TOKEN"
