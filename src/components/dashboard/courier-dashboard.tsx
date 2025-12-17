@@ -223,12 +223,18 @@ export default function CourierDashboard({ user, role, searchTerm, onSearchChang
         !s.isReturnedToCompany
     ) || [];
   }, [allShipmentsForCourier]);
+  
+  const activeShipmentsForStats = React.useMemo(() => allShipmentsForCourier?.filter(s => !s.isArchivedForCourier) || [], [allShipmentsForCourier]);
+
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, 'courier_payments'), where("courierId", "==", user.id));
   }, [firestore, user]);
   const { data: payments, isLoading: paymentsLoading } = useCollection<CourierPayment>(paymentsQuery);
+  
+  const activePaymentsForStats = React.useMemo(() => payments?.filter(p => !p.isArchived) || [], [payments]);
+
 
   const governoratesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -580,7 +586,7 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
                 ) : (
-                    <StatsCards shipments={allShipmentsForCourier || []} payments={payments || []} role={role} />
+                    <StatsCards shipments={activeShipmentsForStats || []} payments={activePaymentsForStats || []} role={role} />
                 )}
             </div>
          </TabsContent>
@@ -673,3 +679,4 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
     </>
   );
 }
+

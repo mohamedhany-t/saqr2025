@@ -1,4 +1,5 @@
 
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Truck, CheckCircle2, CircleDollarSign, Building, Wallet, BadgeDollarSign, Archive, HandCoins, Loader2 } from "lucide-react";
 import type { Shipment, Role, CourierPayment, ShipmentStatusConfig } from "@/lib/types";
@@ -69,7 +70,7 @@ export function StatsCards({ shipments, payments, role }: StatsCardsProps) {
 
     // For Courier Dashboard
     const totalCourierCommission = shipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
-    const totalPaidByCourier = payments?.filter(p => !p.isArchived).reduce((acc, p) => acc + p.amount, 0) || 0;
+    const totalPaidByCourier = payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
     const netDueForCourier = (totalRevenue - totalCourierCommission) - totalPaidByCourier;
 
     const adminStatsList = [
