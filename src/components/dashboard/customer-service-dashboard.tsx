@@ -38,6 +38,24 @@ import { read, utils } from "xlsx";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { useFirebaseApp } from "@/firebase";
 
+const getSafeDate = (date: any): Date | null => {
+    if (!date) return null;
+    // Handle Firestore Timestamp
+    if (typeof date.toDate === 'function') {
+      return date.toDate();
+    }
+    // Handle JS Date object
+    if (date instanceof Date) {
+      return date;
+    }
+    // Handle ISO string or other date string formats
+    const parsedDate = new Date(date);
+    if (!isNaN(parsedDate.getTime())) {
+      return parsedDate;
+    }
+    return null;
+  };
+
 const ProblemShipmentList = ({ title, icon, shipments, onEdit, children }: { title: string, icon: React.ReactNode, shipments: Shipment[], onEdit: (s: Shipment) => void, children?: (shipment: Shipment) => React.ReactNode }) => {
     if (shipments.length === 0) {
         return null;
@@ -606,8 +624,18 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
 
   // --- Problem Inbox Data ---
   const returnedShipmentsNeedingAction = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'Returned' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
-  const longPostponedShipments = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'Postponed' && s.updatedAt && differenceInDays(new Date(), s.updatedAt.toDate()) > 3 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
-  const staleInTransitShipments = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'In-Transit' && s.updatedAt && differenceInHours(new Date(), s.updatedAt.toDate()) > 24 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
+  const longPostponedShipments = React.useMemo(() => {
+      return allShipmentsForStats?.filter(s => {
+          const updatedAt = getSafeDate(s.updatedAt);
+          return s.status === 'Postponed' && updatedAt && differenceInDays(new Date(), updatedAt) > 3 && !s.isArchivedForCompany && !s.isArchivedForCourier;
+      }) || [];
+  }, [allShipmentsForStats]);
+  const staleInTransitShipments = React.useMemo(() => {
+      return allShipmentsForStats?.filter(s => {
+          const updatedAt = getSafeDate(s.updatedAt);
+          return s.status === 'In-Transit' && updatedAt && differenceInHours(new Date(), updatedAt) > 24 && !s.isArchivedForCompany && !s.isArchivedForCourier;
+      }) || [];
+  }, [allShipmentsForStats]);
   const priceChangeRequests = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'PriceChangeRequested' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
   
   const problemCount = returnedShipmentsNeedingAction.length + longPostponedShipments.length + staleInTransitShipments.length + priceChangeRequests.length;
@@ -805,10 +833,11 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
                 <ProblemShipmentList title="شحنات مؤجلة لفترة طويلة" icon={<AlertTriangle className="h-5 w-5 text-destructive" />} shipments={longPostponedShipments} onEdit={openShipmentForm}>
                      {(s: Shipment) => {
                          const companyName = companies?.find(c => c.id === s.companyId)?.name || "N/A";
-                         const lastUpdate = s.updatedAt?.toDate ? differenceInDays(new Date(), s.updatedAt.toDate()) : 0;
+                         const lastUpdateDate = getSafeDate(s.updatedAt);
+                         const daysAgo = lastUpdateDate ? differenceInDays(new Date(), lastUpdateDate) : 0;
                         return (<div>
                             <p className="font-bold">{s.recipientName} - <span className="text-primary">{companyName}</span></p>
-                            <p className="text-xs text-amber-600">مؤجلة منذ {lastUpdate} أيام</p>
+                            <p className="text-xs text-amber-600">مؤجلة منذ {daysAgo} أيام</p>
                         </div>)
                     }}
                 </ProblemShipmentList>
