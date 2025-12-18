@@ -78,11 +78,11 @@ function AccountStatementsPage() {
                 shipmentHistory.forEach(h => {
                     const statusConfig = statuses.find(st => st.id === h.status);
                     if (statusConfig && statusConfig.affectsCourierBalance) {
-                        rawTransactions.push({ date: (h.updatedAt as any)?.toDate(), type: 'shipment', data: { shipment: s, history: h } });
+                        rawTransactions.push({ date: h.updatedAt as Date, type: 'shipment', data: { shipment: s, history: h } });
                     }
                 });
             });
-            entityPayments.forEach(p => rawTransactions.push({ date: (p.paymentDate as any)?.toDate(), type: 'payment', data: p }));
+            entityPayments.forEach(p => rawTransactions.push({ date: p.paymentDate as Date, type: 'payment', data: p }));
 
         } else { // company
             const entityShipments = shipments.filter(s => s.companyId === selectedId);
@@ -93,11 +93,11 @@ function AccountStatementsPage() {
                  shipmentHistory.forEach(h => {
                      const statusConfig = statuses.find(st => st.id === h.status);
                      if (statusConfig && statusConfig.affectsCompanyBalance) {
-                         rawTransactions.push({ date: (h.updatedAt as any)?.toDate(), type: 'shipment', data: { shipment: s, history: h } });
+                         rawTransactions.push({ date: h.updatedAt as Date, type: 'shipment', data: { shipment: s, history: h } });
                      }
                  });
             });
-            entityPayments.forEach(p => rawTransactions.push({ date: (p.paymentDate as any)?.toDate(), type: 'payment', data: p }));
+            entityPayments.forEach(p => rawTransactions.push({ date: p.paymentDate as Date, type: 'payment', data: p }));
         }
         
         rawTransactions = rawTransactions.filter(tx => tx.date); // Filter out transactions with invalid dates
@@ -361,3 +361,5 @@ function AccountStatementsPage() {
 }
 
 export default AccountStatementsPage;
+
+    
