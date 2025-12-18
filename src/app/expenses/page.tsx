@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
-import { startOfMonth, endOfMonth, startOfToday, endOfToday, startOfDay } from 'date-fns';
+import { startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 import { expenseCategories, expenseEntities } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -67,7 +67,7 @@ export default function ExpensesPage() {
         : exp.expenseDate?.toDate();
       if (!expenseDate) return false;
       if (dateRange?.from && expenseDate < startOfDay(dateRange.from)) return false;
-      if (dateRange?.to && expenseDate > endOfToday(dateRange.to)) return false;
+      if (dateRange?.to && expenseDate > endOfDay(dateRange.to)) return false;
 
       // Courier filter
       if (selectedCourier !== 'all' && exp.relatedUserId !== selectedCourier) return false;
@@ -136,8 +136,8 @@ export default function ExpensesPage() {
     const today = new Date();
     const startOfThisMonth = startOfMonth(today);
     const endOfThisMonth = endOfMonth(today);
-    const startOfThisDay = startOfToday();
-    const endOfThisDay = endOfToday();
+    const startOfThisDay = startOfDay(today);
+    const endOfThisDay = endOfDay(today);
 
     let todayTotal = 0;
     let monthTotal = 0;
