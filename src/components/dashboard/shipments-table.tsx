@@ -78,6 +78,7 @@ import { sendPushNotification } from "@/lib/actions"
 import { cn, formatToCairoTime } from "@/lib/utils"
 import { ShipmentDetailsDialog } from "../shipments/shipment-details-dialog"
 import { ShipmentFilters } from "./shipment-filters"
+import type { DateRange } from "react-day-picker"
 
 export const statusIcons: Record<string, React.ReactNode> = {
     Pending: <Hourglass className="h-4 w-4 text-yellow-500" />,
@@ -324,8 +325,23 @@ export const getColumns = ({
        return <div>{formatToCairoTime(date)}</div>;
     },
      filterFn: (row, id, value: DateRange) => {
-        const date = row.original.createdAt?.toDate();
+        const createdAt = row.original.createdAt;
+        if (!createdAt) return false;
+        
+        let date: Date | null = null;
+        if (typeof createdAt.toDate === 'function') { // It's a Firestore Timestamp
+            date = createdAt.toDate();
+        } else if (createdAt instanceof Date) { // It's already a Date object
+            date = createdAt;
+        } else { // It might be a string or number, try to parse it
+            const parsedDate = new Date(createdAt);
+            if (!isNaN(parsedDate.getTime())) {
+                date = parsedDate;
+            }
+        }
+        
         if (!date) return false;
+
         if (value.from && date < value.from) return false;
         if (value.to && date > value.to) return false;
         return true;
@@ -614,7 +630,7 @@ export function ShipmentsTable({
                  <ShipmentFilters 
                     governorates={governorates}
                     companies={companies}
-                    couriers={couriers}
+                    courierUsers={couriers}
                     statuses={statuses}
                     onFiltersChange={onFiltersChange}
                 />
