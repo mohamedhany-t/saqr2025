@@ -156,6 +156,12 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
   React.useEffect(() => {
     if (open) {
       if (isEditing && shipment) {
+        const deliveryDateValue = shipment.deliveryDate 
+            ? (shipment.deliveryDate as any).toDate 
+                ? (shipment.deliveryDate as any).toDate() 
+                : new Date(shipment.deliveryDate)
+            : undefined;
+
         form.reset({
           ...shipment,
           shipmentCode: shipment.shipmentCode ?? '',
@@ -169,7 +175,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           paidAmount: shipment.paidAmount ?? 0,
           status: shipment.status ?? 'Pending',
           reason: shipment.reason ?? '',
-          deliveryDate: shipment.deliveryDate ? (shipment.deliveryDate as any).toDate() : undefined,
+          deliveryDate: deliveryDateValue,
           assignedCourierId: shipment.assignedCourierId ?? '',
           companyId: shipment.companyId ?? '',
           collectedAmount: shipment.collectedAmount ?? 0,
