@@ -6,6 +6,7 @@ import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
 import { getFirestore, Firestore, FieldValue } from 'firebase-admin/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getApp, getApps as getClientApps, initializeApp as initializeClientApp } from 'firebase/app';
+import { getAuth as getClientAuth } from 'firebase/auth'; // Import client auth
 import { firebaseConfig } from '@/firebase/config';
 import webpush, { type PushSubscription } from 'web-push';
 import { z } from 'zod';
@@ -239,13 +240,32 @@ export async function settleCompanyAccountByCloudFunction(data: z.infer<typeof c
 
     try {
         const clientApp = getClientApp();
+        const clientAuth = getClientAuth(clientApp);
+        const currentUser = clientAuth.currentUser;
+
+        if (!currentUser) {
+            return { success: false, error: "User is not authenticated on the client." };
+        }
+
+        const idToken = await currentUser.getIdToken();
+
         const functions = getFunctions(clientApp);
-        // Call the NEW function name
         const callSettlement = httpsCallable(functions, 'executeCompanySettlement');
-        const result = await callSettlement(data);
+
+        const result = await callSettlement(data, {
+            headers: { Authorization: `Bearer ${idToken}` }
+        });
+        
         return result.data as { success: boolean; message?: string; error?: string };
+
     } catch (error: any) {
         console.error("Error calling executeCompanySettlement cloud function:", error);
+        
+        // Handle specific Firebase Functions error codes
+        if (error.code === 'unauthenticated') {
+             return { success: false, error: "The function must be called while authenticated." };
+        }
+        
         return { success: false, error: error.message || "An unknown error occurred while calling the cloud function." };
     }
 }

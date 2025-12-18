@@ -47,7 +47,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handleShipmentUpdate = exports.settleCompanyAccount = void 0;
+exports.handleShipmentUpdate = exports.executeCompanySettlement = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const zod_1 = require("zod");
@@ -105,7 +105,8 @@ const runtimeOpts = {
     timeoutSeconds: 540, // 9 minutes
     memory: '256MB',
 };
-exports.settleCompanyAccount = functions.runWith(runtimeOpts).https.onRequest((req, res) => {
+// NEW FUNCTION with a NEW NAME to avoid deployment conflicts
+exports.executeCompanySettlement = functions.runWith(runtimeOpts).https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
         var _a;
         if (req.method !== 'POST') {
@@ -127,7 +128,7 @@ exports.settleCompanyAccount = functions.runWith(runtimeOpts).https.onRequest((r
             return;
         }
         // --- End Authentication Check ---
-        const validation = companySettlementSchema.safeParse(req.body.data);
+        const validation = companySettlementSchema.safeParse(req.body);
         if (!validation.success) {
             res.status(400).send({ error: { status: 'INVALID_ARGUMENT', message: 'The data provided is invalid.' } });
             return;
