@@ -96,7 +96,6 @@ export function DetailedHistoryCard({
 
     const formatValue = (field: string, value: any): string => {
         if (value === null || value === undefined || value === '') {
-            // For boolean fields, undefined/null/false should be "لا"
             if (['isUrgent', 'isExchange', 'isCustomReturn', 'retryAttempt', 'isWarehouseReturn', 'isReturnedToCompany', 'isLabelPrinted'].includes(field)) {
                 return 'لا';
             }
@@ -210,3 +209,4 @@ export function DetailedHistoryCard({
         </Card>
     );
 }
+
