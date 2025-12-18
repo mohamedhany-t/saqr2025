@@ -2251,6 +2251,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
                 shipments={allShipmentsForStats || []}
                 companies={companies || []}
                 governorates={governorates || []}
+                statuses={statuses || []}
                 isLoading={listIsLoading}
              />
         </TabsContent>
