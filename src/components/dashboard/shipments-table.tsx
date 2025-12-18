@@ -537,19 +537,17 @@ export function ShipmentsTable({
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 90,
+    estimateSize: () => 90, // Increased estimated size
     overscan: 5,
     measureElement:
-      typeof window !== 'undefined' &&
-      navigator.userAgent.indexOf('Firefox') === -1
-        ? element => element?.getBoundingClientRect().height
+        typeof window !== 'undefined' &&
+        navigator.userAgent.indexOf('Firefox') === -1
+        ? (element) => element?.getBoundingClientRect().height
         : undefined,
   })
 
   const virtualRows = rowVirtualizer.getVirtualItems()
   const totalSize = rowVirtualizer.getTotalSize()
-  const paddingTop = virtualRows.length > 0 ? virtualRows?.[0]?.start || 0 : 0
-  const paddingBottom = virtualRows.length > 0 ? totalSize - (virtualRows?.[virtualRows.length - 1]?.end || 0) : 0
   
   React.useEffect(() => {
     table.getColumn('companyId')?.toggleVisibility(role === 'admin');
@@ -804,13 +802,13 @@ export function ShipmentsTable({
             )}
         </div>
       <div ref={parentRef} className="rounded-md border bg-card overflow-auto" style={{ height: `calc(100vh - 25rem)` }}>
-        <Table style={{ height: `${totalSize}px` }}>
-          <TableHeader className="sticky top-0 bg-card z-10">
+        <Table>
+          <TableHeader className="sticky top-0 bg-card z-10 grid">
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+              <TableRow key={headerGroup.id} className="flex w-full">
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id} className="text-right whitespace-nowrap">
+                    <TableHead key={header.id} className="text-right whitespace-nowrap flex items-center" style={{ width: header.getSize() }}>
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -823,7 +821,7 @@ export function ShipmentsTable({
               </TableRow>
             ))}
           </TableHeader>
-          <TableBody style={{ position: 'relative' }}>
+          <TableBody style={{ height: `${totalSize}px`, position: 'relative' }}>
             {isLoading ? (
                 Array.from({length: 10}).map((_, i) => (
                     <TableRow key={i}>
@@ -838,15 +836,22 @@ export function ShipmentsTable({
                     <TableRow
                       key={row.id}
                       data-state={row.getIsSelected() && "selected"}
-                      ref={(node) => rowVirtualizer.measureElement(node)}
+                      ref={node => virtualRow.measureElement(node)}
                       data-index={virtualRow.index}
-                      className={cn("absolute w-full", row.original.retryAttempt ? "bg-yellow-100/50 dark:bg-yellow-900/20" : "")}
+                      className={cn(
+                        "flex absolute w-full",
+                        row.original.retryAttempt ? "bg-yellow-100/50 dark:bg-yellow-900/20" : ""
+                      )}
                       style={{
                         transform: `translateY(${virtualRow.start}px)`,
                       }}
                     >
                       {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id} className={cn("text-right align-middle p-4", cell.column.id === 'status' && 'min-w-[180px]')}>
+                        <TableCell 
+                            key={cell.id} 
+                            className={cn("text-right p-4 flex items-center")}
+                            style={{ width: cell.column.getSize() }}
+                        >
                           {flexRender(
                             cell.column.columnDef.cell,
                             cell.getContext()
