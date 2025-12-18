@@ -1,7 +1,7 @@
 
 "use client";
-import React, { useState, useMemo } from "react";
-import type { Shipment, User, Company, CourierPayment, CompanyPayment, Governorate, ShipmentStatusConfig } from "@/lib/types";
+import React, { useState, useMemo, useEffect } from "react";
+import type { Shipment, User, Company, CourierPayment, CompanyPayment, Governorate, ShipmentStatusConfig, ShipmentHistory } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -13,8 +13,8 @@ import { Button } from "@/components/ui/button";
 import { FileUp, Loader2, Package, HandCoins, MinusCircle, ArrowDown, ArrowUp } from "lucide-react";
 import { cn, formatToCairoTime } from "@/lib/utils";
 import { exportToExcel } from "@/lib/export";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query } from "firebase/firestore";
+import { useCollection, useFirestore, useMemoFirebase, WithIdAndRef } from "@/firebase";
+import { collection, query, collectionGroup } from "firebase/firestore";
 
 type TransactionType = 'shipment' | 'payment' | 'custom_return';
 
@@ -48,6 +48,7 @@ function AccountStatementsPage() {
     const firestore = useFirestore();
 
     const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(useMemoFirebase(() => firestore ? query(collection(firestore, 'shipments')) : null, [firestore]));
+    const { data: history, isLoading: historyLoading } = useCollection<ShipmentHistory>(useMemoFirebase(() => firestore ? query(collectionGroup(firestore, 'history')) : null, [firestore]));
     const { data: governorates, isLoading: governoratesLoading } = useCollection<Governorate>(useMemoFirebase(() => firestore ? query(collection(firestore, 'governorates')) : null, [firestore]));
     const { data: companies, isLoading: companiesLoading } = useCollection<Company>(useMemoFirebase(() => firestore ? query(collection(firestore, 'companies')) : null, [firestore]));
     const { data: users, isLoading: usersLoading } = useCollection<User>(useMemoFirebase(() => firestore ? query(collection(firestore, 'users')) : null, [firestore]));
@@ -56,7 +57,7 @@ function AccountStatementsPage() {
     const { data: statuses, isLoading: statusesLoading } = useCollection<ShipmentStatusConfig>(useMemoFirebase(() => firestore ? query(collection(firestore, 'shipment_statuses')) : null, [firestore]));
     
     const couriers = useMemo(() => users?.filter(u => u.role === 'courier') || [], [users]);
-    const isLoading = shipmentsLoading || governoratesLoading || companiesLoading || usersLoading || courierPaymentsLoading || companyPaymentsLoading || statusesLoading;
+    const isLoading = shipmentsLoading || historyLoading || governoratesLoading || companiesLoading || usersLoading || courierPaymentsLoading || companyPaymentsLoading || statusesLoading;
     
     const [entityType, setEntityType] = useState<"courier" | "company">("courier");
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -64,33 +65,42 @@ function AccountStatementsPage() {
     const [includeArchived, setIncludeArchived] = useState(false);
 
     const transactions = useMemo((): Transaction[] => {
-        if (!selectedId || !shipments || !courierPayments || !companyPayments) return [];
+        if (!selectedId || !shipments || !history || !courierPayments || !companyPayments || !statuses) return [];
 
         let rawTransactions: { date: Date, type: 'shipment' | 'payment', data: any }[] = [];
 
         if (entityType === 'courier') {
-            const entityShipments = shipments.filter(s => 
-                s.assignedCourierId === selectedId && 
-                (includeArchived || !s.isArchivedForCourier) &&
-                (statusFilter === 'all' || s.status === statusFilter)
-            );
+            const entityShipments = shipments.filter(s => s.assignedCourierId === selectedId);
             const entityPayments = courierPayments.filter(p => p.courierId === selectedId && (includeArchived || !p.isArchived));
-            
-            entityShipments.forEach(s => s.updatedAt?.toDate && rawTransactions.push({ date: s.updatedAt.toDate(), type: 'shipment', data: s }));
-            entityPayments.forEach(p => p.paymentDate?.toDate && rawTransactions.push({ date: p.paymentDate.toDate(), type: 'payment', data: p }));
+
+            entityShipments.forEach(s => {
+                const shipmentHistory = history.filter(h => h.ref.parent.parent?.id === s.id && (includeArchived || !s.isArchivedForCourier));
+                shipmentHistory.forEach(h => {
+                    const statusConfig = statuses.find(st => st.id === h.status);
+                    if (statusConfig && statusConfig.affectsCourierBalance) {
+                        rawTransactions.push({ date: (h.updatedAt as any)?.toDate(), type: 'shipment', data: { shipment: s, history: h } });
+                    }
+                });
+            });
+            entityPayments.forEach(p => rawTransactions.push({ date: (p.paymentDate as any)?.toDate(), type: 'payment', data: p }));
 
         } else { // company
-            const entityShipments = shipments.filter(s => 
-                s.companyId === selectedId && 
-                (includeArchived || !s.isArchivedForCompany) &&
-                (statusFilter === 'all' || s.status === statusFilter)
-            );
+            const entityShipments = shipments.filter(s => s.companyId === selectedId);
             const entityPayments = companyPayments.filter(p => p.companyId === selectedId && (includeArchived || !p.isArchived));
 
-            entityShipments.forEach(s => s.updatedAt?.toDate && rawTransactions.push({ date: s.updatedAt.toDate(), type: 'shipment', data: s }));
-            entityPayments.forEach(p => p.paymentDate?.toDate && rawTransactions.push({ date: p.paymentDate.toDate(), type: 'payment', data: p }));
+            entityShipments.forEach(s => {
+                 const shipmentHistory = history.filter(h => h.ref.parent.parent?.id === s.id && (includeArchived || !s.isArchivedForCompany));
+                 shipmentHistory.forEach(h => {
+                     const statusConfig = statuses.find(st => st.id === h.status);
+                     if (statusConfig && statusConfig.affectsCompanyBalance) {
+                         rawTransactions.push({ date: (h.updatedAt as any)?.toDate(), type: 'shipment', data: { shipment: s, history: h } });
+                     }
+                 });
+            });
+            entityPayments.forEach(p => rawTransactions.push({ date: (p.paymentDate as any)?.toDate(), type: 'payment', data: p }));
         }
-
+        
+        rawTransactions = rawTransactions.filter(tx => tx.date); // Filter out transactions with invalid dates
         rawTransactions.sort((a, b) => a.date.getTime() - b.date.getTime());
 
         let runningBalance = 0;
@@ -101,44 +111,46 @@ function AccountStatementsPage() {
             let debit = 0;  // The admin owes entity (decreases their debt)
             let description = '';
             let txType: TransactionType = 'shipment';
-            let status, reason;
+            let status, reason, relatedId;
 
-            if (entityType === 'courier') {
-                if (rawTx.type === 'shipment') {
-                    const s = rawTx.data as Shipment;
-                    description = `شحنة: ${s.recipientName} (${s.orderNumber})`;
-                    credit = s.paidAmount || 0; // Courier collected money, they owe it
-                    debit = s.courierCommission || 0; // Courier earned commission, they are owed it
-                    status = s.status;
-                    reason = s.reason;
-                    if (s.isCustomReturn) {
-                        txType = 'custom_return';
+            if (rawTx.type === 'shipment') {
+                const s = rawTx.data.shipment as Shipment;
+                const h = rawTx.data.history as WithIdAndRef<ShipmentHistory>;
+                relatedId = `${s.id}-${h.id}`;
+                status = h.status;
+                reason = h.reason;
+                description = `شحنة: ${s.recipientName} (${s.orderNumber}) - حالة: ${statuses.find(st => st.id === h.status)?.label || h.status}`;
+                const statusConfig = statuses.find(st => st.id === h.status);
+                
+                if (statusConfig) {
+                    if (entityType === 'courier') {
+                        credit = statusConfig.requiresFullCollection ? s.totalAmount : (statusConfig.requiresPartialCollection ? (s.collectedAmount || 0) : 0);
+                        debit = statusConfig.affectsCourierBalance ? (s.courierCommission || 0) : 0;
+                         if (s.isCustomReturn && statusConfig.isDeliveredStatus) {
+                            credit = -Math.abs(s.totalAmount);
+                        }
+                    } else { // company
+                        debit = statusConfig.requiresFullCollection ? s.totalAmount : (statusConfig.requiresPartialCollection ? (s.collectedAmount || 0) : 0);
+                        credit = statusConfig.affectsCompanyBalance ? (s.companyCommission || 0) : 0;
+                        if (s.isCustomReturn && statusConfig.isDeliveredStatus) {
+                            debit = -Math.abs(s.totalAmount);
+                        }
                     }
-                } else { // payment
-                    const p = rawTx.data as CourierPayment;
-                    description = `دفعة مُسددة ${p.notes ? `(${p.notes})` : ''}`;
-                    debit = p.amount; // Courier paid admin, so their debt decreases
-                    txType = 'payment';
                 }
+                if (s.isCustomReturn) txType = 'custom_return';
+                
+            } else { // payment
+                const p = rawTx.data as (CourierPayment | CompanyPayment);
+                relatedId = p.id;
+                description = `دفعة ${p.notes ? `(${p.notes})` : ''}`;
+                debit = p.amount;
+                txType = 'payment';
+            }
+            
+            if (entityType === 'courier') {
                 runningBalance += (credit - debit);
-            } else { // company
-                 if (rawTx.type === 'shipment') {
-                    const s = rawTx.data as Shipment;
-                    description = `شحنة: ${s.recipientName} (${s.orderNumber})`;
-                    debit = s.paidAmount || 0; // Admin owes company this amount
-                    credit = s.companyCommission || 0; // Company owes admin this amount
-                    status = s.status;
-                    reason = s.reason;
-                    if (s.isCustomReturn) {
-                        txType = 'custom_return';
-                    }
-                 } else { // payment
-                    const p = rawTx.data as CompanyPayment;
-                    description = `دفعة مُستلمة ${p.notes ? `(${p.notes})` : ''}`;
-                    debit = p.amount; // Admin paid company, admin's debt to them decreases
-                    txType = 'payment';
-                 }
-                 runningBalance += (debit - credit); // For company, balance is what admin owes them
+            } else {
+                 runningBalance += (debit - credit);
             }
             
             processedTransactions.push({
@@ -148,14 +160,19 @@ function AccountStatementsPage() {
                 credit,
                 debit,
                 balance: runningBalance,
-                relatedId: rawTx.data.id,
+                relatedId,
                 status,
                 reason
             });
         }
+        
+        // Final filter based on shipment status if selected
+        const finalFiltered = statusFilter === 'all' 
+            ? processedTransactions 
+            : processedTransactions.filter(tx => tx.type === 'payment' || tx.status === statusFilter);
 
-        return processedTransactions.reverse(); // Display newest first
-    }, [selectedId, entityType, shipments, courierPayments, companyPayments, statusFilter, includeArchived]);
+        return finalFiltered.reverse(); // Display newest first
+    }, [selectedId, entityType, shipments, history, courierPayments, companyPayments, statuses, statusFilter, includeArchived]);
 
     const selectedEntity = entityType === 'courier' 
         ? couriers.find(c => c.id === selectedId)
@@ -186,7 +203,7 @@ function AccountStatementsPage() {
             credit: formatCurrency(tx.credit),
             debit: formatCurrency(tx.debit),
             balance: formatCurrency(tx.balance),
-            status: tx.status,
+            status: tx.status ? (statuses?.find(s => s.id === tx.status)?.label || tx.status) : 'دفعة',
             reason: tx.type === 'custom_return' ? `استرجاع مخصص - ${tx.reason || ''}`.trim() : tx.reason
         }));
 
