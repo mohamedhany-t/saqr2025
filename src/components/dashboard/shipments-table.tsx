@@ -398,7 +398,7 @@ export const getColumns = ({
         const shipment = row.original;
         const statusLabel = statuses.find(s => s.id === statusKey)?.label || statusText[statusKey] || statusKey;
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-[180px]">
             <Badge variant={statusVariants[statusKey]} className="capitalize flex gap-2">
                 {statusIcons[statusKey]}
                 <span>{statusLabel}</span>
@@ -534,17 +534,28 @@ export function ShipmentsTable({
 
   const { rows } = table.getRowModel()
 
+  const rowMeasurements = React.useRef(new Map());
+
+  const measureElement = React.useCallback(
+    (element: HTMLElement | null) => {
+      if (!element) return;
+      const index = Number(element.getAttribute('data-index'));
+      const rect = element.getBoundingClientRect();
+      const existing = rowMeasurements.current.get(index);
+      if (!existing || existing.height !== rect.height) {
+        rowMeasurements.current.set(index, rect);
+        rowVirtualizer.measure();
+      }
+    },
+    []
+  );
+
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 90, // Increased estimated size
+    estimateSize: () => 100, // Adjusted estimate
     overscan: 5,
-    measureElement:
-        typeof window !== 'undefined' &&
-        navigator.userAgent.indexOf('Firefox') === -1
-        ? (element) => element?.getBoundingClientRect().height
-        : undefined,
-  })
+  });
 
   const virtualRows = rowVirtualizer.getVirtualItems()
   const totalSize = rowVirtualizer.getTotalSize()
@@ -836,7 +847,7 @@ export function ShipmentsTable({
                     <TableRow
                       key={row.id}
                       data-state={row.getIsSelected() && "selected"}
-                      ref={node => virtualRow.measureElement(node)}
+                      ref={measureElement}
                       data-index={virtualRow.index}
                       className={cn(
                         "flex absolute w-full",
