@@ -51,7 +51,8 @@ function getAdminApp(): App {
             console.log("Firebase Admin SDK initialized successfully using service account key (fallback).");
             return adminApp;
 
-        } catch (error: any) {
+        } catch (error: any)
+{
             console.error("CRITICAL: Firebase Admin SDK initialization failed completely.", error.message);
             throw new Error(`Failed to initialize Firebase Admin SDK: ${error.message}`);
         }
