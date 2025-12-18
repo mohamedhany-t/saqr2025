@@ -59,6 +59,7 @@ export function DetailedHistoryCard({
 
     const formatValue = (field: string, value: any): string => {
         if (value === null || value === undefined || value === '') return 'فارغ';
+        
         switch (field) {
             case 'status':
                 return statuses.find(s => s.id === value)?.label || value;
@@ -78,13 +79,17 @@ export function DetailedHistoryCard({
             case 'totalAmount':
             case 'paidAmount':
             case 'collectedAmount':
-                 return new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(value);
+            case 'requestedAmount':
+                 if (typeof value === 'number') {
+                     return new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(value);
+                 }
+                 return String(value);
             default:
                 return String(value);
         }
     };
     
-    // Legacy support for old history entries
+    // Legacy support for old history entries which had a single 'status' change
     const hasDetailedChanges = historyEntry.changes && historyEntry.changes.length > 0;
     const legacyChange = historyEntry.status
         ? { field: 'status', oldValue: 'غير معروف', newValue: historyEntry.status }
@@ -137,7 +142,7 @@ export function DetailedHistoryCard({
                             <span className="col-span-4 font-bold text-primary truncate">{formatValue(change.field, change.newValue)}</span>
                         </div>
                     ))}
-                    {historyEntry.reason && !historyEntry.changes?.some(c => c.field === 'reason') && (
+                    {historyEntry.reason && !changesToShow.some(c => c.field === 'reason') && (
                          <div className="grid grid-cols-12 gap-2 items-center">
                             <span className="col-span-3 font-semibold text-muted-foreground">السبب:</span>
                             <span className="col-span-9 font-bold">{historyEntry.reason}</span>

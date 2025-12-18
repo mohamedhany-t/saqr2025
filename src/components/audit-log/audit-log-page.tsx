@@ -3,21 +3,17 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import type { Shipment, ShipmentHistory, User, Company, Governorate } from '@/lib/types';
+import type { Shipment, ShipmentHistory, User, Company, Governorate, ShipmentStatusConfig } from '@/lib/types';
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, WithIdAndRef } from '@/firebase';
 import { collectionGroup, query, orderBy, where, Timestamp, getDoc, doc, deleteDoc, writeBatch } from 'firebase/firestore';
-import { Loader2, Filter, Pencil, FileText, Trash2 } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+import { Loader2, Filter, Pencil, FileText, Trash2, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { formatToCairoTime } from '@/lib/utils';
 import { ar } from 'date-fns/locale';
 import type { DateRange } from 'react-day-picker';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { statusText, statusIcons } from '../dashboard/shipments-table';
 import { ShipmentDetailsDialog } from '../shipments/shipment-details-dialog';
 import {
   AlertDialog,
@@ -30,10 +26,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useToast } from '@/hooks/use-toast';
+import { DetailedHistoryCard } from './detailed-history-card';
 
 
 interface ExtendedShipmentHistory extends WithIdAndRef<ShipmentHistory> {
   shipmentId: string;
+  shipment?: Shipment;
 }
 
 interface AuditLogPageProps {
@@ -41,10 +39,11 @@ interface AuditLogPageProps {
   shipments: Shipment[];
   companies: Company[];
   governorates: Governorate[];
+  statuses: ShipmentStatusConfig[];
   isLoading: boolean;
 }
 
-export function AuditLogPage({ users, shipments, companies, governorates, isLoading }: AuditLogPageProps) {
+export function AuditLogPage({ users, shipments, companies, governorates, statuses, isLoading }: AuditLogPageProps) {
   const firestore = useFirestore();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
@@ -67,7 +66,6 @@ export function AuditLogPage({ users, shipments, companies, governorates, isLoad
         q = query(q, where('updatedAt', '>=', Timestamp.fromDate(dateRange.from)));
     }
     if (dateRange?.to) {
-        // To include the whole day, we set the time to the end of the day.
         const toDate = new Date(dateRange.to);
         toDate.setHours(23, 59, 59, 999);
         q = query(q, where('updatedAt', '<=', Timestamp.fromDate(toDate)));
@@ -78,10 +76,9 @@ export function AuditLogPage({ users, shipments, companies, governorates, isLoad
 
   const { data: history, isLoading: historyLoading } = useCollection<ShipmentHistory>(historyQuery);
 
-  const enrichedHistory = useMemo(() => {
+  const enrichedHistory: ExtendedShipmentHistory[] = useMemo(() => {
     if (!history || !shipments) return [];
     return history.map(log => {
-      // The ref path is like 'shipments/shipmentId/history/historyId'
       const pathSegments = log.ref.path.split('/');
       const shipmentId = pathSegments.length > 1 ? pathSegments[1] : ''; 
       const shipment = shipments.find(s => s.id === shipmentId);
@@ -105,7 +102,6 @@ export function AuditLogPage({ users, shipments, companies, governorates, isLoad
 
    const handleDeleteHistoryEntry = () => {
     if (!firestore || !historyToDelete) return;
-    // The ref property is on the historyToDelete object from useCollection
     deleteDoc(historyToDelete.ref)
         .then(() => {
             toast({ title: `تم حذف سجل التغيير بنجاح` });
@@ -144,9 +140,12 @@ export function AuditLogPage({ users, shipments, companies, governorates, isLoad
     <div className="p-4 sm:p-6 md:p-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <div>
-          <h1 className="text-3xl font-bold font-headline">سجل التغييرات</h1>
+          <h1 className="text-3xl font-bold font-headline flex items-center gap-2">
+            <History className="h-8 w-8 text-primary" />
+            سجل التعديلات المفصل
+          </h1>
           <p className="text-muted-foreground mt-2">
-            عرض لجميع التغييرات التي حدثت على الشحنات في النظام.
+            عرض مفصل لجميع التغييرات التي حدثت على الشحنات في النظام.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -183,70 +182,31 @@ export function AuditLogPage({ users, shipments, companies, governorates, isLoad
         </div>
       </div>
 
-      <div className="rounded-md border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>الشحنة (رقم الطلب)</TableHead>
-              <TableHead>التغيير</TableHead>
-              <TableHead>السبب/الملاحظات</TableHead>
-              <TableHead>المستخدم</TableHead>
-              <TableHead>الوقت</TableHead>
-              <TableHead>إجراءات</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {enrichedHistory.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
-                  لا توجد سجلات تطابق الفلاتر المحددة.
-                </TableCell>
-              </TableRow>
-            ) : (
-              enrichedHistory.map(log => (
-                <TableRow key={log.id}>
-                  <TableCell>
-                    {log.shipment ? (
-                      <Button variant="link" className="p-0 h-auto" onClick={() => handleShowDetails(log.shipment!)}>
-                        {log.shipment.orderNumber || log.shipment.trackingNumber}
-                      </Button>
-                    ) : (
-                      <span className="text-muted-foreground">شحنة محذوفة</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="flex gap-2 items-center">
-                       {statusIcons[log.status]}
-                       <span>{statusText[log.status] || log.status}</span>
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground max-w-xs truncate">{log.reason || '-'}</TableCell>
-                  <TableCell>{log.updatedBy}</TableCell>
-                  <TableCell>{log.updatedAt?.toDate ? formatToCairoTime(log.updatedAt.toDate()) : 'الآن...'}</TableCell>
-                  <TableCell>
-                    {log.shipment && (
-                      <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600" onClick={() => handleShowDetails(log.shipment!)}>
-                            <FileText className="h-4 w-4" />
-                            <span className="sr-only">عرض التفاصيل</span>
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditShipment(log.shipmentId)}>
-                            <Pencil className="h-4 w-4" />
-                            <span className="sr-only">تعديل</span>
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setHistoryToDelete(log)}>
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">حذف</span>
-                          </Button>
-                      </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+        {enrichedHistory.length === 0 ? (
+            <div className="flex flex-col items-center justify-center text-center py-16 bg-muted/40 rounded-lg">
+                <History className="h-16 w-16 text-muted-foreground mb-4" />
+                <h3 className="text-2xl font-bold">لا توجد سجلات</h3>
+                <p className="text-muted-foreground mt-2">لم يتم العثور على أي تعديلات تطابق الفلاتر المحددة.</p>
+            </div>
+        ) : (
+            <div className="space-y-4">
+                {enrichedHistory.map(log => (
+                    <DetailedHistoryCard 
+                        key={log.id}
+                        historyEntry={log}
+                        shipment={log.shipment}
+                        onShowDetails={handleShowDetails}
+                        onEdit={handleEditShipment}
+                        onDelete={setHistoryToDelete}
+                        governorates={governorates}
+                        companies={companies}
+                        couriers={users}
+                        statuses={statuses}
+                    />
+                ))}
+            </div>
+        )}
+
       {detailsShipment && (
         <ShipmentDetailsDialog 
             open={!!detailsShipment}
@@ -262,7 +222,7 @@ export function AuditLogPage({ users, shipments, companies, governorates, isLoad
                 <AlertDialogHeader>
                     <AlertDialogTitle>هل أنت متأكد من حذف هذا السجل؟</AlertDialogTitle>
                     <AlertDialogDescription>
-                        سيتم حذف هذا الإدخال المحدد ({historyToDelete?.status ? statusText[historyToDelete.status] : ''}) من سجل تتبع الشحنة بشكل نهائي. لا يمكن التراجع عن هذا الإجراء.
+                        سيتم حذف هذا الإدخال من سجل تتبع الشحنة بشكل نهائي. لا يمكن التراجع عن هذا الإجراء.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
