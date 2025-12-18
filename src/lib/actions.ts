@@ -7,65 +7,42 @@ import { getFirestore, Firestore, FieldValue } from 'firebase-admin/firestore';
 import webpush, { type PushSubscription } from 'web-push';
 import { z } from 'zod';
 
-// --- Centralized Admin App Initialization ---
-let adminApp: App | null = null;
+// --- Robust, On-Demand Admin App Initialization ---
 
-// Function to get service account credentials from environment variables safely
-const getServiceAccount = () => {
-    try {
-        const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-        if (!serviceAccountKey || serviceAccountKey.trim() === '') {
-            console.error("CRITICAL: FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set or is empty.");
-            return null; // Return null to indicate failure
-        }
-        // Check if the key is a valid JSON
-        JSON.parse(serviceAccountKey);
-        return serviceAccountKey;
-    } catch (error) {
-        console.error("CRITICAL: Error parsing FIREBASE_SERVICE_ACCOUNT_KEY. It might be a malformed JSON.", error);
-        return null; // Return null on parsing error
-    }
-};
-
-const initializeAdminApp = (): App | null => {
-    const appName = 'admin-actions'; // Use a unique name for this instance
+const getAdminApp = (): App => {
+    const appName = 'admin-actions';
     const existingApp = getApps().find(app => app.name === appName);
-    
     if (existingApp) {
         return existingApp;
     }
 
-    const serviceAccountString = getServiceAccount();
-
-    if (serviceAccountString) {
-        try {
-            const serviceAccount = JSON.parse(serviceAccountString);
-            console.log("Initializing Firebase Admin SDK for actions with explicit service account credentials.");
-            return initializeApp({
-                credential: cert(serviceAccount)
-            }, appName);
-        } catch (e) {
-             console.error("CRITICAL: Final attempt to initialize Firebase Admin SDK failed.", e);
-             return null;
+    try {
+        const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+        if (!serviceAccountKey) {
+            throw new Error("CRITICAL: FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set.");
         }
+        const serviceAccount = JSON.parse(serviceAccountKey);
+        
+        console.log("Initializing new Firebase Admin SDK instance for server actions.");
+        return initializeApp({
+            credential: cert(serviceAccount)
+        }, appName);
+    } catch (error: any) {
+        console.error("CRITICAL: Firebase Admin SDK initialization failed.", error.message);
+        // This will now throw a more descriptive error if initialization fails,
+        // preventing the vague 'not initialized' error later on.
+        throw new Error(`Failed to initialize Firebase Admin SDK: ${error.message}`);
     }
-    
-    console.error("CRITICAL: Firebase Admin SDK (actions) initialization failed. No valid credentials found.");
-    return null; 
 };
 
-// Initialize app when module is loaded
-adminApp = initializeAdminApp();
-
-
-// Helper functions to get initialized services.
+// Helper functions to get initialized services on-demand.
 function getAdminAuth(): Auth {
-    if (!adminApp) throw new Error("Admin App (actions) not initialized. Check server logs for critical errors.");
+    const adminApp = getAdminApp();
     return getAuth(adminApp);
 }
 
 function getAdminFirestore(): Firestore {
-    if (!adminApp) throw new Error("Admin App (actions) not initialized. Check server logs for critical errors.");
+    const adminApp = getAdminApp();
     return getFirestore(adminApp);
 }
 
