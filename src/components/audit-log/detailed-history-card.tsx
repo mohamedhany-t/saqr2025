@@ -1,7 +1,7 @@
 
 'use client';
 import React from 'react';
-import type { Shipment, ShipmentHistory, Governorate, Company, User, ShipmentStatusConfig } from '@/lib/types';
+import type { Shipment, ShipmentHistory, Governorate, Company, User, ShipmentStatusConfig, ShipmentHistoryEntry } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { formatToCairoTime } from '@/lib/utils';
@@ -50,7 +50,7 @@ const fieldLabels: { [key: string]: string } = {
 };
 
 // Function to generate a human-readable title for the change
-const getActionTitle = (changes: ShipmentHistory['changes'] | undefined, oldStatusLabel: string, newStatusLabel: string): string => {
+const getActionTitle = (changes: ShipmentHistoryEntry[] | undefined, oldStatusLabel: string, newStatusLabel: string): string => {
     if (!changes || changes.length === 0) {
         return "تحديث شحنة";
     }
@@ -138,7 +138,7 @@ export function DetailedHistoryCard({
     const hasDetailedChanges = historyEntry.changes && historyEntry.changes.length > 0;
     
     const legacyChange = historyEntry.status && !hasDetailedChanges
-        ? { field: 'status', oldValue: 'غير معروف', newValue: historyEntry.status }
+        ? { field: 'status', oldValue: 'غير معروف', newValue: historyEntry.status } as ShipmentHistoryEntry
         : null;
 
     const changesToShow = hasDetailedChanges ? historyEntry.changes : (legacyChange ? [legacyChange] : []);
@@ -209,4 +209,3 @@ export function DetailedHistoryCard({
         </Card>
     );
 }
-

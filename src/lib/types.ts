@@ -82,13 +82,20 @@ export type Shipment = {
   isLabelPrinted?: boolean; // To track if the shipping label has been printed
 };
 
+export interface ShipmentHistoryEntry {
+    field: string;
+    oldValue: any;
+    newValue: any;
+}
+
 export type ShipmentHistory = {
   id: string;
-  status: string;
-  reason?: string;
+  status?: string; // Will be deprecated but kept for old records
+  reason?: string; // Will be deprecated
   updatedAt: any;
   updatedBy: string; // User's name
   userId: string; // User's ID
+  changes: ShipmentHistoryEntry[]; // The new detailed changes
 }
 
 export interface Company {
