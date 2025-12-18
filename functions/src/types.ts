@@ -62,6 +62,22 @@ export type Shipment = {
   isLabelPrinted?: boolean; 
 };
 
+export interface ShipmentHistoryEntry {
+    field: string;
+    oldValue: any;
+    newValue: any;
+}
+
+export type ShipmentHistory = {
+  id: string;
+  status?: string;
+  reason?: string;
+  updatedAt: any;
+  updatedBy: string;
+  userId: string;
+  changes: ShipmentHistoryEntry[];
+}
+
 export interface Company {
   id: string;
   name: string;
