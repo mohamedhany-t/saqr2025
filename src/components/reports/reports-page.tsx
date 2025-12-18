@@ -320,7 +320,7 @@ export function ReportsPage({
         let companyReturnsInWarehouse = shipments.filter(s => 
             s.companyId === selectedCompanyForReturnsId &&
             s.isWarehouseReturn === true &&
-            !s.isReturnedToCompany
+            s.isReturnedToCompany !== true
         );
         companyReturnsInWarehouse = filterByDateRange(companyReturnsInWarehouse, returnsSheetDateRange);
 
