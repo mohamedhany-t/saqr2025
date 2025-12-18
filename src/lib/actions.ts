@@ -239,11 +239,14 @@ export async function settleCompanyAccount(data: z.infer<typeof companySettlemen
     const { companyId, paymentAmount, shipmentIdsToArchive, settlementNote, adminId } = validation.data;
 
     const db = getAdminFirestore();
-    const batch = db.batch();
+    const allBatches: Promise<any>[] = [];
+    const BATCH_SIZE = 400; // Firestore batch limit is 500, we use 400 to be safe.
 
+    // --- Create and commit the first batch for the payment ---
+    let initialBatch = db.batch();
     if (paymentAmount !== 0) {
         const paymentRef = db.collection('company_payments').doc();
-        batch.set(paymentRef, {
+        initialBatch.set(paymentRef, {
             companyId,
             amount: paymentAmount,
             paymentDate: FieldValue.serverTimestamp(),
@@ -252,17 +255,30 @@ export async function settleCompanyAccount(data: z.infer<typeof companySettlemen
             isArchived: true,
         });
     }
+    // Commit the payment batch immediately to ensure it's recorded
+    if (paymentAmount !== 0) {
+        allBatches.push(initialBatch.commit());
+    }
 
-    shipmentIdsToArchive.forEach(shipmentId => {
-        const shipmentRef = db.collection('shipments').doc(shipmentId);
-        batch.update(shipmentRef, { isArchivedForCompany: true });
-    });
+
+    // --- Create and commit subsequent batches for archiving shipments ---
+    for (let i = 0; i < shipmentIdsToArchive.length; i += BATCH_SIZE) {
+        const chunk = shipmentIdsToArchive.slice(i, i + BATCH_SIZE);
+        const batch = db.batch();
+        chunk.forEach(shipmentId => {
+            const shipmentRef = db.collection('shipments').doc(shipmentId);
+            batch.update(shipmentRef, { isArchivedForCompany: true });
+        });
+        allBatches.push(batch.commit());
+    }
 
     try {
-        await batch.commit();
+        await Promise.all(allBatches);
         return { success: true, message: `تمت تسوية حساب الشركة وأرشفة ${shipmentIdsToArchive.length} شحنة بنجاح.` };
     } catch (error: any) {
         console.error("Error settling company account:", error);
         return { success: false, error: "حدث خطأ أثناء تنفيذ التسوية على الخادم." };
     }
 }
+
+    
