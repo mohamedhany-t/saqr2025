@@ -537,7 +537,7 @@ export function ShipmentsTable({
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 90, // Increased estimated row height
+    estimateSize: () => 90,
     overscan: 5,
   })
 
@@ -827,19 +827,27 @@ export function ShipmentsTable({
                 ))
             ) : virtualRows.length > 0 ? (
                 virtualRows.map((virtualRow) => {
-                  const row = rows[virtualRow.index] as Row<Shipment>
+                  const row = rows[virtualRow.index] as Row<Shipment>;
+                  const rowRef = React.useRef<HTMLTableRowElement>(null);
+
+                  React.useEffect(() => {
+                      if (rowRef.current) {
+                          virtualRow.measureElement(rowRef.current);
+                      }
+                  }, [rowRef, virtualRow]);
+
                   return (
                     <TableRow
                       key={row.id}
+                      ref={rowRef}
                       data-state={row.getIsSelected() && "selected"}
                       className={cn("absolute w-full", row.original.retryAttempt ? "bg-yellow-100/50 dark:bg-yellow-900/20" : "")}
                       style={{
-                        height: `${virtualRow.size}px`,
                         transform: `translateY(${virtualRow.start}px)`,
                       }}
                     >
                       {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id} className={cn("text-right align-middle", cell.column.id === 'status' && 'min-w-[180px]')}>
+                        <TableCell key={cell.id} className={cn("text-right align-middle p-4", cell.column.id === 'status' && 'min-w-[180px]')}>
                           {flexRender(
                             cell.column.columnDef.cell,
                             cell.getContext()
