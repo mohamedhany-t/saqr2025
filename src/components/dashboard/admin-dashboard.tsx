@@ -71,7 +71,7 @@ const getSafeDate = (date: any): Date | null => {
 };
 
 const MobileShipmentsView = ({
-    allShipments,
+    shipments,
     listIsLoading,
     governorates,
     companies,
@@ -86,9 +86,8 @@ const MobileShipmentsView = ({
     columnFilters,
     setColumnFilters,
     role,
-    searchTerm,
   }: {
-    allShipments: Shipment[];
+    shipments: Shipment[];
     listIsLoading: boolean;
     governorates: Governorate[];
     companies: Company[];
@@ -103,84 +102,36 @@ const MobileShipmentsView = ({
     columnFilters: ColumnFiltersState;
     setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>;
     role: Role | null;
-    searchTerm: string;
   }) => {
 
     const [activeTab, setActiveTab] = React.useState("all-shipments");
     const [mobileRowSelection, setMobileRowSelection] = React.useState<Record<string, boolean>>({});
     const { toast } = useToast();
 
-    const filteredShipments = React.useMemo(() => {
-        if (!allShipments) return [];
-        let baseShipments = allShipments;
-
-        // Apply column filters first
-        if (columnFilters.length > 0) {
-            baseShipments = baseShipments.filter(shipment => {
-                return columnFilters.every(filter => {
-                    const value = (shipment as any)[filter.id];
-                    
-                    if (filter.id === 'createdAt') {
-                        const { from, to } = filter.value as DateRange;
-                        const createdAt = getSafeDate(shipment.createdAt);
-                        if (!createdAt) return false;
-                        if (from && createdAt < from) return false;
-                        if (to && createdAt > to) return false;
-                        return true;
-                    }
-                    if (filter.id === 'address') {
-                        const searchTerms = String(filter.value).split('-').map(term => term.trim().toLowerCase()).filter(Boolean);
-                        if(searchTerms.length === 0) return true;
-                        const addressValue = String(shipment.address || '').toLowerCase();
-                        return searchTerms.some(term => addressValue.includes(term));
-                    }
-                    
-                    const filterValue = filter.value as string[];
-                    if (Array.isArray(filterValue) && filterValue.length > 0) {
-                        return filterValue.includes(value);
-                    }
-                    return true;
-                });
-            });
-        }
-        
-        // Then apply search term
-        if (!searchTerm) return baseShipments;
-    
-        const lowercasedTerm = searchTerm.toLowerCase();
-        return baseShipments.filter(shipment => 
-            String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm)
-            // Address search is now handled by columnFilters
-        );
-    }, [allShipments, columnFilters, searchTerm]);
-
     const selectedCount = Object.values(mobileRowSelection).filter(Boolean).length;
     
     const getShipmentsByStatus = (status: string | string[]) => {
         const statuses = Array.isArray(status) ? status : [status];
-        return filteredShipments.filter(s => statuses.includes(s.status));
+        return shipments.filter(s => statuses.includes(s.status));
     }
     
     const returnedShipmentStatuses = React.useMemo(() => statuses?.filter(s => s.isReturnedStatus).map(s => s.id) || [], [statuses]);
     
     const recentlyUpdatedShipments = React.useMemo(() => {
-        return [...filteredShipments].sort((a, b) => {
+        return [...shipments].sort((a, b) => {
             const timeA = getSafeDate(a.updatedAt)?.getTime() || 0;
             const timeB = getSafeDate(b.updatedAt)?.getTime() || 0;
             return timeB - timeA;
         });
-    }, [filteredShipments]);
+    }, [shipments]);
     
-    const unassignedShipments = React.useMemo(() => filteredShipments.filter(s => !s.assignedCourierId), [filteredShipments]);
-    const assignedShipments = React.useMemo(() => filteredShipments.filter(s => !!s.assignedCourierId), [filteredShipments]);
-    const returnsWithCouriers = React.useMemo(() => filteredShipments.filter(s => returnedShipmentStatuses.includes(s.status) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCourier), [filteredShipments, returnedShipmentStatuses]);
-    const inWarehouseShipments = React.useMemo(() => filteredShipments.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCompany), [filteredShipments]);
-    const returnedToCompanyShipments = React.useMemo(() => filteredShipments.filter(s => s.isReturnedToCompany && !s.isArchivedForCompany), [filteredShipments]);
-    const archivedShipmentsCompany = React.useMemo(() => filteredShipments.filter(s => s.isArchivedForCompany), [filteredShipments]);
-    const archivedShipmentsCourier = React.useMemo(() => filteredShipments.filter(s => s.isArchivedForCourier), [filteredShipments]);
+    const unassignedShipments = React.useMemo(() => shipments.filter(s => !s.assignedCourierId), [shipments]);
+    const assignedShipments = React.useMemo(() => shipments.filter(s => !!s.assignedCourierId), [shipments]);
+    const returnsWithCouriers = React.useMemo(() => shipments.filter(s => returnedShipmentStatuses.includes(s.status) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCourier), [shipments, returnedShipmentStatuses]);
+    const inWarehouseShipments = React.useMemo(() => shipments.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCompany), [shipments]);
+    const returnedToCompanyShipments = React.useMemo(() => shipments.filter(s => s.isReturnedToCompany && !s.isArchivedForCompany), [shipments]);
+    const archivedShipmentsCompany = React.useMemo(() => shipments.filter(s => s.isArchivedForCompany), [shipments]);
+    const archivedShipmentsCourier = React.useMemo(() => shipments.filter(s => s.isArchivedForCourier), [shipments]);
 
 
     const getCurrentShipmentList = () => {
@@ -196,7 +147,7 @@ const MobileShipmentsView = ({
         case "archived-company": return archivedShipmentsCompany;
         case "archived-courier": return archivedShipmentsCourier;
         case "all-shipments":
-        default: return filteredShipments;
+        default: return shipments;
       }
     };
     
@@ -357,7 +308,7 @@ const MobileShipmentsView = ({
                     )}
                 </div>
             </div>
-            <TabsContent value="all-shipments"><VirtualizedShipmentList shipmentList={filteredShipments} /></TabsContent>
+            <TabsContent value="all-shipments"><VirtualizedShipmentList shipmentList={shipments} /></TabsContent>
             <TabsContent value="unassigned"><VirtualizedShipmentList shipmentList={unassignedShipments} /></TabsContent>
             <TabsContent value="assigned"><VirtualizedShipmentList shipmentList={assignedShipments} /></TabsContent>
             <TabsContent value="recently-updated"><VirtualizedShipmentList shipmentList={recentlyUpdatedShipments} /></TabsContent>
@@ -1532,52 +1483,57 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
       .finally(() => setCompanyToArchive(null));
   };
 
-
   const filteredShipments = React.useMemo(() => {
     if (!allShipmentsForStats) return [];
-    
+  
     let baseShipments = allShipmentsForStats;
-
+  
+    // Apply column filters first
     if (columnFilters.length > 0) {
-        baseShipments = baseShipments.filter(shipment => {
-            return columnFilters.every(filter => {
-                const value = (shipment as any)[filter.id];
-                
-                if (filter.id === 'createdAt') {
-                    const { from, to } = filter.value as DateRange;
-                    const createdAt = getSafeDate(shipment.createdAt);
-                    if (!createdAt) return false;
-                    if (from && createdAt < from) return false;
-                    if (to && createdAt > to) return false;
-                    return true;
-                }
-
-                if (filter.id === 'address') {
-                    const searchTerms = String(filter.value).split('-').map(term => term.trim().toLowerCase()).filter(Boolean);
-                    if(searchTerms.length === 0) return true;
-                    const addressValue = String(shipment.address || '').toLowerCase();
-                    return searchTerms.some(term => addressValue.includes(term));
-                }
-
-                const filterValue = filter.value as string[];
-                if (Array.isArray(filterValue) && filterValue.length > 0) {
-                    return filterValue.includes(value);
-                }
-
-                return true;
-            });
+      baseShipments = baseShipments.filter(shipment => {
+        return columnFilters.every(filter => {
+          const value = (shipment as any)[filter.id];
+  
+          if (filter.id === 'createdAt') {
+            const { from, to } = filter.value as DateRange;
+            const createdAt = getSafeDate(shipment.createdAt);
+            if (!createdAt) return false;
+            if (from && createdAt < from) return false;
+            if (to && createdAt > to) return false;
+            return true;
+          }
+  
+          if (filter.id === 'address') {
+            const searchTerms = String(filter.value)
+              .split('-')
+              .map(term => term.trim().toLowerCase())
+              .filter(Boolean); // This removes empty strings from the array
+  
+            if (searchTerms.length === 0) return true;
+  
+            const addressValue = String(shipment.address || '').toLowerCase();
+            return searchTerms.some(term => addressValue.includes(term));
+          }
+  
+          const filterValue = filter.value as string[];
+          if (Array.isArray(filterValue) && filterValue.length > 0) {
+            return filterValue.includes(value);
+          }
+  
+          return true;
         });
+      });
     }
-
+  
+    // Then apply global search term
     if (!searchTerm) return baseShipments;
-    
+  
     const lowercasedTerm = searchTerm.toLowerCase();
-    return baseShipments.filter(shipment => 
-        String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm)
-        // Address search is now handled by columnFilters
+    return baseShipments.filter(shipment =>
+      String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
+      String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
+      String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
+      String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm)
     );
   }, [allShipmentsForStats, searchTerm, columnFilters]);
   
@@ -1937,7 +1893,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
         <TabsContent value="shipments" className={isMobile ? "pb-20" : ""}>
             {isMobile ? 
                 <MobileShipmentsView 
-                    allShipments={allShipmentsForStats || []}
+                    shipments={filteredShipments || []}
                     listIsLoading={listIsLoading}
                     governorates={governorates || []}
                     companies={companies || []}
@@ -1952,7 +1908,6 @@ const returnedToCompanyShipments = React.useMemo(() => {
                     columnFilters={columnFilters}
                     setColumnFilters={setColumnFilters}
                     role={role}
-                    searchTerm={searchTerm}
                 /> : 
                 <DesktopShipmentsView
                     listIsLoading={listIsLoading}
