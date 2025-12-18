@@ -16,7 +16,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage }) 
     isOwnMessage ? 'bg-primary text-primary-foreground self-end rounded-br-none' : 'bg-muted text-foreground self-start rounded-bl-none'
   );
   
-  const time = formatToCairoTime(message.timestamp?.toDate());
+  const time = formatToCairoTime(message.timestamp);
 
   return (
     <div className={cn("flex flex-col", isOwnMessage ? "items-end" : "items-start")}>
