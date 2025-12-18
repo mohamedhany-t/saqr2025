@@ -21,7 +21,6 @@ interface DetailedHistoryCardProps {
     statuses?: ShipmentStatusConfig[];
 }
 
-// A helper map to provide user-friendly labels for field names
 const fieldLabels: { [key: string]: string } = {
   status: 'الحالة',
   reason: 'السبب / الملاحظة',
@@ -45,6 +44,39 @@ const fieldLabels: { [key: string]: string } = {
   isReturnedToCompany: 'مرتجع للشركة',
 };
 
+// Function to generate a human-readable title for the change
+const getActionTitle = (changes: ShipmentHistory['changes'] | undefined, oldStatusLabel: string, newStatusLabel: string): string => {
+    if (!changes || changes.length === 0) {
+        return "تحديث شحنة";
+    }
+
+    const changedFields = new Set(changes.map(c => c.field));
+
+    if (changedFields.has('status')) {
+        return `قام بتغيير حالة الشحنة من "${oldStatusLabel}" إلى "${newStatusLabel}"`;
+    }
+    if (changedFields.has('assignedCourierId')) {
+        return "قام بتغيير المندوب المسؤول";
+    }
+    if (changedFields.has('totalAmount')) {
+        return "قام بتعديل مبلغ الشحنة";
+    }
+    if (changedFields.has('address') || changedFields.has('recipientName') || changedFields.has('recipientPhone')) {
+        return "قام بتعديل بيانات العميل";
+    }
+    if (changedFields.has('isWarehouseReturn') && changes.find(c => c.field === 'isWarehouseReturn')?.newValue === true) {
+        return "قام بتحديد الشحنة كمرتجع للمخزن";
+    }
+    if (changes.length === 1) {
+        const singleChange = changes[0];
+        const fieldLabel = fieldLabels[singleChange.field] || singleChange.field;
+        return `قام بتحديث "${fieldLabel}"`;
+    }
+
+    return `قام بتحديث ${changes.length} حقول`;
+};
+
+
 export function DetailedHistoryCard({ 
     historyEntry, 
     shipment,
@@ -58,7 +90,13 @@ export function DetailedHistoryCard({
 }: DetailedHistoryCardProps) {
 
     const formatValue = (field: string, value: any): string => {
-        if (value === null || value === undefined || value === '') return 'فارغ';
+        if (value === null || value === undefined || value === '') {
+            // For boolean fields, undefined/null/false should be "لا"
+            if (['isUrgent', 'isExchange', 'isCustomReturn', 'retryAttempt', 'isWarehouseReturn', 'isReturnedToCompany'].includes(field)) {
+                return 'لا';
+            }
+            return 'فارغ';
+        }
         
         switch (field) {
             case 'status':
@@ -91,14 +129,22 @@ export function DetailedHistoryCard({
     
     // Legacy support for old history entries which had a single 'status' change
     const hasDetailedChanges = historyEntry.changes && historyEntry.changes.length > 0;
-    const legacyChange = historyEntry.status
+    
+    const legacyChange = historyEntry.status && !hasDetailedChanges
         ? { field: 'status', oldValue: 'غير معروف', newValue: historyEntry.status }
         : null;
+
     const changesToShow = hasDetailedChanges ? historyEntry.changes : (legacyChange ? [legacyChange] : []);
+
+    const statusChange = changesToShow.find(c => c.field === 'status');
+    const oldStatusLabel = statusChange ? formatValue('status', statusChange.oldValue) : '';
+    const newStatusLabel = statusChange ? formatValue('status', statusChange.newValue) : '';
+    const actionTitle = getActionTitle(changesToShow, oldStatusLabel, newStatusLabel);
+
 
     return (
         <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
                 <div className="flex items-center gap-3">
                     <Avatar>
                         <AvatarFallback>{historyEntry.updatedBy?.charAt(0) || '?'}</AvatarFallback>
@@ -132,7 +178,10 @@ export function DetailedHistoryCard({
                 )}
             </CardHeader>
             <CardContent>
-                <Separator className="my-2" />
+                 <div className="pb-2">
+                    <p className="font-semibold text-primary">{actionTitle}</p>
+                 </div>
+                <Separator />
                 <div className="space-y-2 pt-2 text-sm">
                     {changesToShow.map((change, index) => (
                         <div key={index} className="grid grid-cols-12 gap-2 items-center">
