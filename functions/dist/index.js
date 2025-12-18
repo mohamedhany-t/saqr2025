@@ -271,9 +271,6 @@ exports.handleShipmentUpdate = functions.runWith(runtimeOpts).https.onRequest((r
                 // Combine keys from old and new data to catch all changes
                 const allKeys = new Set([...Object.keys(oldData), ...Object.keys(finalUpdateData)]);
                 for (const key of allKeys) {
-                    // We only care about fields that are part of the update payload or calculated by the function
-                    if (!Object.prototype.hasOwnProperty.call(finalUpdateData, key))
-                        continue;
                     const oldValue = oldData[key];
                     const newValue = newData[key];
                     // Simple comparison, ignoring objects like Timestamps for now
