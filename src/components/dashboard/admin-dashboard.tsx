@@ -50,6 +50,7 @@ import { exportToExcel } from "@/lib/export";
 import { ShipmentFilters } from './shipment-filters';
 import { CompanySettlementDialog } from "../users/company-settlement-dialog";
 import { AdminNoteDialog } from "../users/admin-note-dialog";
+import type { DateRange } from "react-day-picker";
 
 
 const MobileShipmentsView = ({
@@ -68,6 +69,7 @@ const MobileShipmentsView = ({
     columnFilters,
     setColumnFilters,
     role,
+    searchTerm,
   }: {
     allShipments: Shipment[];
     listIsLoading: boolean;
@@ -84,6 +86,7 @@ const MobileShipmentsView = ({
     columnFilters: ColumnFiltersState;
     setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>;
     role: Role | null;
+    searchTerm: string;
   }) => {
 
     const [activeTab, setActiveTab] = React.useState("all-shipments");
@@ -92,29 +95,44 @@ const MobileShipmentsView = ({
 
     const filteredShipments = React.useMemo(() => {
         if (!allShipments) return [];
-        if (columnFilters.length === 0) return allShipments;
-        
-        return allShipments.filter(shipment => {
-            return columnFilters.every(filter => {
-                const value = (shipment as any)[filter.id];
-                const filterValue = filter.value as string[];
-                
-                if (filter.id === 'createdAt') {
-                    const { from, to } = filter.value as DateRange;
-                    const createdAt = getSafeDate(shipment.createdAt);
-                    if (!createdAt) return false;
-                    if (from && createdAt < from) return false;
-                    if (to && createdAt > to) return false;
+        let baseShipments = allShipments;
+
+        // Apply column filters first
+        if (columnFilters.length > 0) {
+            baseShipments = baseShipments.filter(shipment => {
+                return columnFilters.every(filter => {
+                    const value = (shipment as any)[filter.id];
+                    
+                    if (filter.id === 'createdAt') {
+                        const { from, to } = filter.value as DateRange;
+                        const createdAt = getSafeDate(shipment.createdAt);
+                        if (!createdAt) return false;
+                        if (from && createdAt < from) return false;
+                        if (to && createdAt > to) return false;
+                        return true;
+                    }
+                    
+                    const filterValue = filter.value as string[];
+                    if (Array.isArray(filterValue) && filterValue.length > 0) {
+                        return filterValue.includes(value);
+                    }
                     return true;
-                }
-                
-                if (Array.isArray(filterValue) && filterValue.length > 0) {
-                    return filterValue.includes(value);
-                }
-                return true;
+                });
             });
-        });
-    }, [allShipments, columnFilters]);
+        }
+        
+        // Then apply search term
+        if (!searchTerm) return baseShipments;
+    
+        const lowercasedTerm = searchTerm.toLowerCase();
+        return baseShipments.filter(shipment => 
+            String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
+        );
+    }, [allShipments, columnFilters, searchTerm]);
 
     const selectedCount = Object.values(mobileRowSelection).filter(Boolean).length;
     
@@ -1793,7 +1811,9 @@ const returnedToCompanyShipments = React.useMemo(() => {
         <div className="flex items-center">
             <TabsList className="flex-nowrap overflow-x-auto justify-start">
             <TabsTrigger value="shipments">الشحنات</TabsTrigger>
-            <TabsTrigger value="expenses">المصروفات</TabsTrigger>
+            <TabsTrigger value="expenses">
+                <Link href="/expenses">المصروفات</Link>
+            </TabsTrigger>
             <TabsTrigger value="print-center">
                 <Printer className="w-4 h-4 me-2"/>
                 مركز الطباعة
@@ -1880,6 +1900,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
                     columnFilters={columnFilters}
                     setColumnFilters={setColumnFilters}
                     role={role}
+                    searchTerm={searchTerm}
                 /> : 
                 <DesktopShipmentsView
                     listIsLoading={listIsLoading}
@@ -1908,9 +1929,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
             }
         </TabsContent>
         <TabsContent value="expenses">
-            <Button asChild variant="link">
-                <Link href="/expenses">الانتقال إلى صفحة المصروفات</Link>
-            </Button>
+            <p className="p-4 text-center text-muted-foreground">يتم تحميل المصروفات...</p>
         </TabsContent>
         <TabsContent value="print-center">
             <PrintCenterPage 
