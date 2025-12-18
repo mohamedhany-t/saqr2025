@@ -37,7 +37,7 @@ import ChatInterface from "@/components/chat/chat-interface";
 import { Badge } from "../ui/badge";
 import AccountStatementsPage from "@/app/accounts/page";
 import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotification } from "@/lib/actions";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { ShipmentCard } from "../shipments/shipment-card";
 import { ColumnFiltersState } from "@tanstack/react-table";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
@@ -248,7 +248,7 @@ const MobileShipmentsView = ({
                     <TabsTrigger value="archived-courier">مؤرشف المناديب</TabsTrigger>
                 </TabsList>
                 <div className="flex items-center gap-4">
-                    <ShipmentFilters governorates={governorates || []} companies={companies || []} courierUsers={courierUsers} statuses={statuses} onFiltersChange={setColumnFilters} />
+                    <ShipmentFilters governorates={governorates || []} companies={companies || []} courierUsers={courierUsers || []} statuses={statuses} onFiltersChange={setColumnFilters} />
                     {currentList.length > 0 && (
                         <Button variant="outline" size="sm" onClick={handleSelectAll} className="h-8 gap-1">
                             <ListChecks className="h-3.5 w-3.5" />
@@ -1481,7 +1481,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
     return activeShipments.sort((a, b) => {
         const timeA = a.updatedAt?.toDate?.()?.getTime() || 0;
         const timeB = b.updatedAt?.toDate?.()?.getTime() || 0;
-        return timeB - timeA;
+        return timeB - a;
     });
 }, [allShipmentsForStats]);
 
