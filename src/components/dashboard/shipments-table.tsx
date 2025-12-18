@@ -539,6 +539,11 @@ export function ShipmentsTable({
     getScrollElement: () => parentRef.current,
     estimateSize: () => 90,
     overscan: 5,
+    measureElement:
+      typeof window !== 'undefined' &&
+      navigator.userAgent.indexOf('Firefox') === -1
+        ? element => element?.getBoundingClientRect().height
+        : undefined,
   })
 
   const virtualRows = rowVirtualizer.getVirtualItems()
@@ -828,19 +833,13 @@ export function ShipmentsTable({
             ) : virtualRows.length > 0 ? (
                 virtualRows.map((virtualRow) => {
                   const row = rows[virtualRow.index] as Row<Shipment>;
-                  const rowRef = React.useRef<HTMLTableRowElement>(null);
-
-                  React.useEffect(() => {
-                      if (rowRef.current) {
-                          virtualRow.measureElement(rowRef.current);
-                      }
-                  }, [rowRef, virtualRow]);
-
+                  
                   return (
                     <TableRow
                       key={row.id}
-                      ref={rowRef}
                       data-state={row.getIsSelected() && "selected"}
+                      ref={(node) => rowVirtualizer.measureElement(node)}
+                      data-index={virtualRow.index}
                       className={cn("absolute w-full", row.original.retryAttempt ? "bg-yellow-100/50 dark:bg-yellow-900/20" : "")}
                       style={{
                         transform: `translateY(${virtualRow.start}px)`,
