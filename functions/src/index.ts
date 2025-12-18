@@ -63,7 +63,8 @@ const runtimeOpts: functions.RuntimeOptions = {
     memory: '256MB',
 };
 
-export const settleCompanyAccount = functions.runWith(runtimeOpts).https.onRequest((req, res) => {
+// NEW FUNCTION with a NEW NAME to avoid deployment conflicts
+export const executeCompanySettlement = functions.runWith(runtimeOpts).https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
         if (req.method !== 'POST') {
             res.status(405).send({ error: { message: 'Method Not Allowed' } });
@@ -85,7 +86,7 @@ export const settleCompanyAccount = functions.runWith(runtimeOpts).https.onReque
         }
         // --- End Authentication Check ---
 
-        const validation = companySettlementSchema.safeParse(req.body.data);
+        const validation = companySettlementSchema.safeParse(req.body);
         if (!validation.success) {
           res.status(400).send({ error: { status: 'INVALID_ARGUMENT', message: 'The data provided is invalid.' } });
           return;

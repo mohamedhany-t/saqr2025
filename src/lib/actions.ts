@@ -240,11 +240,12 @@ export async function settleCompanyAccountByCloudFunction(data: z.infer<typeof c
     try {
         const clientApp = getClientApp();
         const functions = getFunctions(clientApp);
-        const callSettlement = httpsCallable(functions, 'settleCompanyAccount');
+        // Call the NEW function name
+        const callSettlement = httpsCallable(functions, 'executeCompanySettlement');
         const result = await callSettlement(data);
         return result.data as { success: boolean; message?: string; error?: string };
     } catch (error: any) {
-        console.error("Error calling settleCompanyAccount cloud function:", error);
+        console.error("Error calling executeCompanySettlement cloud function:", error);
         return { success: false, error: error.message || "An unknown error occurred while calling the cloud function." };
     }
 }
