@@ -523,7 +523,7 @@ export function ShipmentsTable({
     },
     initialState: {
         pagination: {
-            pageSize: shipments.length > 0 ? shipments.length : 10,
+            pageSize: 10, // Default page size
         },
         columnVisibility: {
           companyId: role !== 'admin',
@@ -537,6 +537,13 @@ export function ShipmentsTable({
     table.getColumn('companyId')?.toggleVisibility(role === 'admin');
     table.getColumn('assignedCourierId')?.toggleVisibility(role !== 'courier');
   }, [role, table]);
+
+  // Effect to adjust page size dynamically
+  React.useEffect(() => {
+    if (shipments.length > 0) {
+      table.setPageSize(shipments.length);
+    }
+  }, [shipments, table]);
 
 
   const handleExport = () => {
