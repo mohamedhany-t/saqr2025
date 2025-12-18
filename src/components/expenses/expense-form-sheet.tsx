@@ -25,8 +25,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '../ui/textarea';
-import type { Expense, User, ExpenseCategory } from '@/lib/types';
-import { expenseCategories, expenseEntities } from '@/lib/types';
+import type { Expense, User } from '@/lib/types';
+import { expenseCategories, expenseEntities, type ExpenseCategory } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { CalendarIcon } from 'lucide-react';
 import { Calendar } from '../ui/calendar';
@@ -78,9 +78,14 @@ export function ExpenseFormSheet({ open, onOpenChange, expense, onSave, couriers
   React.useEffect(() => {
     if (open) {
       if (isEditing && expense) {
+        // Handle both JS Date and Firestore Timestamp objects for expenseDate
+        const expenseDateObject = expense.expenseDate instanceof Date
+            ? expense.expenseDate
+            : expense.expenseDate?.toDate?.() || new Date();
+            
         form.reset({
           ...expense,
-          expenseDate: expense.expenseDate?.toDate() || new Date(),
+          expenseDate: expenseDateObject,
         });
       } else {
         form.reset({
