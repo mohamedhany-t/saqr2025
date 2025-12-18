@@ -14,8 +14,9 @@ function getAdminApp(): App {
     if (adminApp) {
         return adminApp;
     }
-    
-    const appName = `admin-actions-${process.pid}`; // Unique name per process
+
+    // Use a unique name for the app instance to avoid conflicts
+    const appName = `admin-actions-${process.pid}`;
     const existingApp = getApps().find(app => app.name === appName);
     if (existingApp) {
         adminApp = existingApp;
@@ -23,23 +24,29 @@ function getAdminApp(): App {
     }
 
     try {
-        // First, try to initialize with default credentials (ideal for production environments like App Hosting)
+        // This is the recommended way for Google Cloud environments like App Hosting.
+        // It automatically uses the service account associated with the environment.
         console.log("Attempting to initialize Firebase Admin SDK with default credentials.");
         adminApp = initializeApp({}, appName);
         console.log("Firebase Admin SDK initialized successfully with default credentials.");
         return adminApp;
     } catch (e: any) {
-        console.warn(`Default credential initialization failed: ${e.message}. Falling back to service account key.`);
+        console.warn(`Default credential initialization failed: ${e.message}. This is expected in local development. Falling back to service account key.`);
         
         // Fallback for local development or environments where default credentials aren't set
         try {
-            const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-            if (!serviceAccountKey) {
+            const serviceAccountKeyString = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+            if (!serviceAccountKeyString) {
                 throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set for fallback initialization.");
             }
             
             // The service account key might be stringified JSON. Let's parse it safely.
-            const serviceAccount = JSON.parse(serviceAccountKey);
+            const serviceAccount = JSON.parse(serviceAccountKeyString);
+            
+            // The private key inside the JSON might have escaped newlines.
+            if (serviceAccount.private_key) {
+                serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+            }
 
             adminApp = initializeApp({
                 credential: cert(serviceAccount)
@@ -49,10 +56,13 @@ function getAdminApp(): App {
 
         } catch (error: any) {
             console.error("CRITICAL: Firebase Admin SDK initialization failed completely.", error.message);
+            // This will now throw a more descriptive error if initialization fails,
+            // preventing the vague 'not initialized' error later on.
             throw new Error(`Failed to initialize Firebase Admin SDK: ${error.message}`);
         }
     }
-}
+};
+
 
 // Helper functions to get initialized services on-demand.
 function getAdminAuth(): Auth {
