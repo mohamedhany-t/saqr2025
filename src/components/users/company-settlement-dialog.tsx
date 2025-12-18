@@ -18,10 +18,11 @@ import { useDropzone } from 'react-dropzone';
 import { read, utils } from 'xlsx';
 import type { Company, Shipment, User, ShipmentStatusConfig } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { settleCompanyAccountByCloudFunction } from '@/lib/actions';
 import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { useFirebaseApp } from '@/firebase';
 
 interface CompanySettlementDialogProps {
   company: Company;
@@ -52,6 +53,7 @@ export function CompanySettlementDialog({
   const [isProcessing, setIsProcessing] = useState(false);
   const [analysis, setAnalysis] = useState<FileAnalysis | null>(null);
   const { toast } = useToast();
+  const firebaseApp = useFirebaseApp(); // Get the Firebase app instance
 
   const finishedStatusIds = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
   const companyShipments = allShipments.filter(s => s.companyId === company.id);
@@ -167,30 +169,41 @@ export function CompanySettlementDialog({
     if (!analysis || analysis.matchedShipments.length === 0 || !adminUser) return;
     setIsProcessing(true);
 
-    const result = await settleCompanyAccountByCloudFunction({
-        companyId: company.id,
-        paymentAmount: analysis.totalToSettle,
-        shipmentIdsToArchive: analysis.matchedShipments.map(s => s.id),
-        settlementNote: `تسوية تلقائية عبر شيت: ${analysis.fileName}`,
-        adminId: adminUser.id
-    });
-    
-    if (result?.success) {
-        toast({
-            title: "تمت التسوية بنجاح!",
-            description: result.message,
-        });
-        onSettlementComplete();
-        setOpen(false);
-    } else {
+    try {
+      const functions = getFunctions(firebaseApp);
+      const executeSettlement = httpsCallable(functions, 'executeCompanySettlement');
+
+      const dataToSend = {
+          companyId: company.id,
+          paymentAmount: analysis.totalToSettle,
+          shipmentIdsToArchive: analysis.matchedShipments.map(s => s.id),
+          settlementNote: `تسوية تلقائية عبر شيت: ${analysis.fileName}`,
+          adminId: adminUser.id
+      };
+
+      const result = await executeSettlement(dataToSend);
+      const resultData = result.data as { success: boolean; message?: string; error?: string };
+
+      if (resultData.success) {
+          toast({
+              title: "تمت التسوية بنجاح!",
+              description: resultData.message,
+          });
+          onSettlementComplete();
+          setOpen(false);
+      } else {
+          throw new Error(resultData.error || "An unknown error occurred on the server.");
+      }
+    } catch (error: any) {
+        console.error("Error calling executeCompanySettlement cloud function:", error);
         toast({
             variant: "destructive",
             title: "فشلت عملية التسوية",
-            description: result?.error || "حدث خطأ أثناء تنفيذ التسوية على الخادم.",
+            description: error.message || "حدث خطأ أثناء الاتصال بالخادم.",
         });
+    } finally {
+        setIsProcessing(false);
     }
-
-    setIsProcessing(false);
   }
 
   return (

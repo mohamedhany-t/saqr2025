@@ -4,10 +4,6 @@
 import { getAuth, Auth } from 'firebase-admin/auth';
 import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
 import { getFirestore, Firestore, FieldValue } from 'firebase-admin/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getApp, getApps as getClientApps, initializeApp as initializeClientApp } from 'firebase/app';
-import { getAuth as getClientAuth } from 'firebase/auth'; // Import client auth
-import { firebaseConfig } from '@/firebase/config';
 import webpush, { type PushSubscription } from 'web-push';
 import { z } from 'zod';
 
@@ -60,11 +56,6 @@ function getAdminApp(): App {
     }
 };
 
-// --- Client Firebase App for calling functions ---
-function getClientApp() {
-    return getClientApps().length === 0 ? initializeClientApp(firebaseConfig) : getApp();
-}
-
 // Helper functions to get initialized services on-demand.
 function getAdminAuth(): Auth {
     const app = getAdminApp();
@@ -114,14 +105,6 @@ const pushNotificationSchema = z.object({
     url: z.string().url(),
     badgeCount: z.number().optional(),
 });
-
-const companySettlementSchema = z.object({
-    companyId: z.string(),
-    paymentAmount: z.number(),
-    shipmentIdsToArchive: z.array(z.string()),
-    settlementNote: z.string(),
-    adminId: z.string(),
-})
 
 // --- Server Actions ---
 
@@ -229,32 +212,5 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
     } catch (error: any) {
         console.error("Failed to send push notification:", error);
         return { success: false, error: error.message };
-    }
-}
-
-export async function settleCompanyAccountByCloudFunction(data: z.infer<typeof companySettlementSchema>) {
-    const validation = companySettlementSchema.safeParse(data);
-    if (!validation.success) {
-        return { success: false, error: JSON.stringify(validation.error.issues) };
-    }
-
-    try {
-        const clientApp = getClientApp();
-        const functions = getFunctions(clientApp);
-        // IMPORTANT: Use the new function name here
-        const callSettlement = httpsCallable(functions, 'executeCompanySettlement');
-
-        const result = await callSettlement(data);
-        
-        return result.data as { success: boolean; message?: string; error?: string };
-
-    } catch (error: any) {
-        console.error("Error calling executeCompanySettlement cloud function:", error);
-        
-        if (error.code === 'unauthenticated') {
-             return { success: false, error: "The function must be called while authenticated." };
-        }
-        
-        return { success: false, error: error.message || "An unknown error occurred while calling the cloud function." };
     }
 }
