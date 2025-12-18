@@ -197,7 +197,7 @@ export function AuditLogPage({ users, shipments, companies, governorates, status
                         shipment={log.shipment}
                         onShowDetails={handleShowDetails}
                         onEdit={handleEditShipment}
-                        onDelete={setHistoryToDelete}
+                        onDelete={(entry) => setHistoryToDelete(entry as ExtendedShipmentHistory)}
                         governorates={governorates}
                         companies={companies}
                         couriers={users}
