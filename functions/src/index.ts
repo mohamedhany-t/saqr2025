@@ -49,7 +49,13 @@ const updateShipmentStatusSchema = z.object({
 });
 
 
-export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
+// Increase timeout for potentially long-running functions
+const runtimeOpts: functions.RuntimeOptions = {
+    timeoutSeconds: 540, // 9 minutes
+    memory: '256MB',
+};
+
+export const handleShipmentUpdate = functions.runWith(runtimeOpts).https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
         if (req.method !== 'POST') {
             res.status(405).send({ error: { message: 'Method Not Allowed' } });
