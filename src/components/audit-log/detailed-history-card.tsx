@@ -42,6 +42,11 @@ const fieldLabels: { [key: string]: string } = {
   retryAttempt: 'إعادة محاولة',
   isWarehouseReturn: 'مرتجع للمخزن',
   isReturnedToCompany: 'مرتجع للشركة',
+  companyCommission: 'عمولة الشركة',
+  courierCommission: 'عمولة المندوب',
+  requestedAmount: 'المبلغ المطلوب تعديله',
+  amountChangeReason: 'سبب طلب تعديل السعر',
+  isLabelPrinted: 'تم طباعة الملصق',
 };
 
 // Function to generate a human-readable title for the change
@@ -92,7 +97,7 @@ export function DetailedHistoryCard({
     const formatValue = (field: string, value: any): string => {
         if (value === null || value === undefined || value === '') {
             // For boolean fields, undefined/null/false should be "لا"
-            if (['isUrgent', 'isExchange', 'isCustomReturn', 'retryAttempt', 'isWarehouseReturn', 'isReturnedToCompany'].includes(field)) {
+            if (['isUrgent', 'isExchange', 'isCustomReturn', 'retryAttempt', 'isWarehouseReturn', 'isReturnedToCompany', 'isLabelPrinted'].includes(field)) {
                 return 'لا';
             }
             return 'فارغ';
@@ -113,11 +118,14 @@ export function DetailedHistoryCard({
             case 'retryAttempt':
             case 'isWarehouseReturn':
             case 'isReturnedToCompany':
+            case 'isLabelPrinted':
                 return value ? 'نعم' : 'لا';
             case 'totalAmount':
             case 'paidAmount':
             case 'collectedAmount':
             case 'requestedAmount':
+            case 'companyCommission':
+            case 'courierCommission':
                  if (typeof value === 'number') {
                      return new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(value);
                  }
