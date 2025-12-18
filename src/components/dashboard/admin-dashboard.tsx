@@ -248,7 +248,7 @@ const MobileShipmentsView = ({
                     <TabsTrigger value="archived-courier">مؤرشف المناديب</TabsTrigger>
                 </TabsList>
                 <div className="flex items-center gap-4">
-                    <ShipmentFilters governorates={governorates || []} companies={companies || []} courierUsers={courierUsers || []} statuses={statuses} onFiltersChange={setColumnFilters} />
+                    <ShipmentFilters governorates={governorates || []} companies={companies || []} courierUsers={courierUsers || []} statuses={statuses || []} onFiltersChange={setColumnFilters} />
                     {currentList.length > 0 && (
                         <Button variant="outline" size="sm" onClick={handleSelectAll} className="h-8 gap-1">
                             <ListChecks className="h-3.5 w-3.5" />
@@ -1817,7 +1817,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
                     listIsLoading={listIsLoading}
                     governorates={governorates || []}
                     companies={companies || []}
-                    courierUsers={courierUsers}
+                    courierUsers={courierUsers || []}
                     statuses={statuses || []}
                     onEdit={openShipmentForm}
                     onDelete={(shipment) => setShipmentToDelete(shipment)}
@@ -1844,7 +1844,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
                     assignedShipments={assignedShipments}
                     governorates={governorates || []}
                     companies={companies || []}
-                    courierUsers={courierUsers}
+                    courierUsers={courierUsers || []}
                     statuses={statuses || []}
                     openShipmentForm={openShipmentForm}
                     handleGenericBulkUpdate={handleGenericBulkUpdate}

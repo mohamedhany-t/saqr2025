@@ -22,10 +22,10 @@ interface ShipmentFiltersProps {
 }
 
 export function ShipmentFilters({
-  governorates,
-  companies,
-  courierUsers,
-  statuses,
+  governorates = [],
+  companies = [],
+  courierUsers = [],
+  statuses = [],
   onFiltersChange,
 }: ShipmentFiltersProps) {
   const [localFilters, setLocalFilters] = React.useState<ColumnFiltersState>([]);
@@ -143,7 +143,7 @@ export function ShipmentFilters({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          {(companies || []).map((company) => (
+          {companies.map((company) => (
             <DropdownMenuCheckboxItem
               key={company.id}
               checked={companyFilterValue?.includes(company.id)}
@@ -189,7 +189,7 @@ export function ShipmentFilters({
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-                {(governorates || []).map((governorate) => (
+                {governorates.map((governorate) => (
                     <DropdownMenuCheckboxItem
                     key={governorate.id}
                     checked={governorateFilterValue?.includes(governorate.id)}
