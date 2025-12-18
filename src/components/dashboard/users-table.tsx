@@ -169,7 +169,7 @@ const getColumns = (onEdit: (user: User, company?: Company) => void, onDelete: (
     header: "تاريخ الإنشاء",
     cell: ({ row }) => {
         const createdAt = row.getValue("createdAt") as any;
-        return <div>{formatToCairoTime(createdAt?.toDate())}</div>;
+        return <div>{formatToCairoTime(createdAt)}</div>;
     }
   },
   {
