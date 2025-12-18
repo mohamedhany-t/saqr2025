@@ -4,7 +4,7 @@ import React from 'react';
 import type { ColumnFiltersState } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { ChevronDown, Calendar as CalendarIcon } from 'lucide-react';
+import { ChevronDown, Calendar as CalendarIcon, Search } from 'lucide-react';
 import type { Company, Governorate, ShipmentStatusConfig, User } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -12,6 +12,7 @@ import { DateRange } from 'react-day-picker';
 import { ar } from 'date-fns/locale';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { Input } from '../ui/input';
 
 interface ShipmentFiltersProps {
   governorates: Governorate[];
@@ -30,8 +31,7 @@ export function ShipmentFilters({
 }: ShipmentFiltersProps) {
   const [localFilters, setLocalFilters] = React.useState<ColumnFiltersState>([]);
 
-  // This effect synchronizes the local state with the parent state if needed,
-  // or simply calls the callback on local change.
+  // This effect synchronizes the local state with the parent state.
   React.useEffect(() => {
     onFiltersChange(localFilters);
   }, [localFilters, onFiltersChange]);
@@ -62,15 +62,34 @@ export function ShipmentFilters({
     });
   };
 
+  const handleAddressFilterChange = (addressQuery: string) => {
+    setLocalFilters(prev => {
+        const otherFilters = prev.filter(f => f.id !== 'address');
+        if (addressQuery.trim()) {
+            return [...otherFilters, { id: 'address', value: addressQuery.trim() }];
+        }
+        return otherFilters;
+    })
+  }
+
   const statusFilterValue = localFilters.find(f => f.id === 'status')?.value as string[] | undefined;
   const governorateFilterValue = localFilters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
   const companyFilterValue = localFilters.find(f => f.id === 'companyId')?.value as string[] | undefined;
   const courierFilterValue = localFilters.find(f => f.id === 'assignedCourierId')?.value as string[] | undefined;
   const dateRangeFilterValue = localFilters.find(f => f.id === 'createdAt')?.value as DateRange | undefined;
-
+  const addressFilterValue = localFilters.find(f => f.id === 'address')?.value as string || '';
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
+       <div className="relative">
+            <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+                placeholder="فلترة حسب العنوان..."
+                value={addressFilterValue}
+                onChange={(e) => handleAddressFilterChange(e.target.value)}
+                className="h-8 w-[250px] pr-8"
+            />
+        </div>
        <Popover>
         <PopoverTrigger asChild>
           <Button

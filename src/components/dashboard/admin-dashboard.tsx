@@ -128,6 +128,12 @@ const MobileShipmentsView = ({
                         if (to && createdAt > to) return false;
                         return true;
                     }
+                    if (filter.id === 'address') {
+                        const searchTerms = String(filter.value).split(',').map(term => term.trim().toLowerCase()).filter(Boolean);
+                        if(searchTerms.length === 0) return true;
+                        const addressValue = String(shipment.address || '').toLowerCase();
+                        return searchTerms.some(term => addressValue.includes(term));
+                    }
                     
                     const filterValue = filter.value as string[];
                     if (Array.isArray(filterValue) && filterValue.length > 0) {
@@ -146,8 +152,8 @@ const MobileShipmentsView = ({
             String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
             String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
             String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
+            String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm)
+            // Address search is now handled by columnFilters
         );
     }, [allShipments, columnFilters, searchTerm]);
 
@@ -1546,6 +1552,13 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
                     return true;
                 }
 
+                if (filter.id === 'address') {
+                    const searchTerms = String(filter.value).split(',').map(term => term.trim().toLowerCase()).filter(Boolean);
+                    if(searchTerms.length === 0) return true;
+                    const addressValue = String(shipment.address || '').toLowerCase();
+                    return searchTerms.some(term => addressValue.includes(term));
+                }
+
                 const filterValue = filter.value as string[];
                 if (Array.isArray(filterValue) && filterValue.length > 0) {
                     return filterValue.includes(value);
@@ -1563,8 +1576,8 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
         String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
+        String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm)
+        // Address search is now handled by columnFilters
     );
   }, [allShipmentsForStats, searchTerm, columnFilters]);
   
