@@ -317,22 +317,21 @@ export function ReportsPage({
         const company = companies.find(c => c.id === selectedCompanyForReturnsId);
         if (!company) return;
 
-        let companyReturnsInWarehouse = shipments.filter(s => 
+        let companyReturns = shipments.filter(s => 
             s.companyId === selectedCompanyForReturnsId &&
-            s.isWarehouseReturn === true &&
-            s.isReturnedToCompany !== true
+            s.isReturnedToCompany === true
         );
-        companyReturnsInWarehouse = filterByDateRange(companyReturnsInWarehouse, returnsSheetDateRange);
+        companyReturns = filterByDateRange(companyReturns, returnsSheetDateRange);
 
         const dateString = formatDateForFilename(returnsSheetDateRange);
-        const fileName = `شيت مرتجعات - ${company.name} - ${dateString}`;
+        const fileName = `شيت مرتجعات مستلمة - ${company.name} - ${dateString}`;
 
         const reportHeader = {
-            title: `شيت مرتجعات شركة: ${company.name}`,
+            title: `شيت مرتجعات تم استلامها بواسطة شركة: ${company.name}`,
             date: `تاريخ التقرير: ${formatDateRangeForDisplay(returnsSheetDateRange)}`
         };
 
-        handleExport(companyReturnsInWarehouse, 'company_returns', fileName, reportHeader);
+        handleExport(companyReturns, 'company_returns', fileName, reportHeader);
     };
 
     return (
@@ -567,7 +566,7 @@ export function ReportsPage({
             <div className="mb-8">
                 <h2 className="text-2xl font-bold mb-2">شيت مرتجعات الشركات</h2>
                 <p className="text-muted-foreground">
-                    اختر شركة لتصدير شيت بجميع المرتجعات الموجودة في المخزن والجاهزة للتسليم للشركة.
+                    اختر شركة لتصدير شيت بجميع المرتجعات التي تم تسليمها للشركة بالفعل.
                 </p>
                 <div className="mt-4">
                     <Card>
