@@ -1,3 +1,4 @@
+
 "use client";
 import React, { useState, useMemo } from "react";
 import type { Shipment, User, Company, CourierPayment, CompanyPayment, Governorate, ShipmentStatusConfig } from "@/lib/types";
@@ -71,7 +72,6 @@ function AccountStatementsPage() {
             const entityShipments = shipments.filter(s => 
                 s.assignedCourierId === selectedId && 
                 (includeArchived || !s.isArchivedForCourier) &&
-                (s.paidAmount !== 0 || s.courierCommission !== 0) &&
                 (statusFilter === 'all' || s.status === statusFilter)
             );
             const entityPayments = courierPayments.filter(p => p.courierId === selectedId && (includeArchived || !p.isArchived));
@@ -83,7 +83,6 @@ function AccountStatementsPage() {
             const entityShipments = shipments.filter(s => 
                 s.companyId === selectedId && 
                 (includeArchived || !s.isArchivedForCompany) &&
-                s.paidAmount !== 0 &&
                 (statusFilter === 'all' || s.status === statusFilter)
             );
             const entityPayments = companyPayments.filter(p => p.companyId === selectedId && (includeArchived || !p.isArchived));
