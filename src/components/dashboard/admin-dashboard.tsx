@@ -1,5 +1,4 @@
 
-
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -52,6 +51,23 @@ import { CompanySettlementDialog } from "../users/company-settlement-dialog";
 import { AdminNoteDialog } from "../users/admin-note-dialog";
 import type { DateRange } from "react-day-picker";
 
+const getSafeDate = (date: any): Date | null => {
+    if (!date) return null;
+    // Handle Firestore Timestamp
+    if (typeof date.toDate === 'function') {
+      return date.toDate();
+    }
+    // Handle JS Date object
+    if (date instanceof Date) {
+      return date;
+    }
+    // Handle ISO string or other date string formats
+    const parsedDate = new Date(date);
+    if (!isNaN(parsedDate.getTime())) {
+      return parsedDate;
+    }
+    return null;
+  };
 
 const MobileShipmentsView = ({
     allShipments,
@@ -1620,14 +1636,6 @@ const returnedToCompanyShipments = React.useMemo(() => {
 
   const shownNotificationsRef = React.useRef<Set<string>>(new Set());
 
-  const getSafeDate = (date: any): Date | null => {
-      if (!date) return null;
-      if (date.toDate instanceof Function) return date.toDate();
-      if (date instanceof Date) return date;
-      const parsed = new Date(date);
-      return isNaN(parsed.getTime()) ? null : parsed;
-  }
-
   const returnedShipmentsNeedingAction = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'Returned' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
   const longPostponedShipments = React.useMemo(() => {
       return allShipmentsForStats?.filter(s => {
@@ -2487,21 +2495,3 @@ const returnedToCompanyShipments = React.useMemo(() => {
     </div>
   );
 }
-
-const getSafeDate = (date: any): Date | null => {
-    if (!date) return null;
-    // Handle Firestore Timestamp
-    if (typeof date.toDate === 'function') {
-      return date.toDate();
-    }
-    // Handle JS Date object
-    if (date instanceof Date) {
-      return date;
-    }
-    // Handle ISO string or other date string formats
-    const parsedDate = new Date(date);
-    if (!isNaN(parsedDate.getTime())) {
-      return parsedDate;
-    }
-    return null;
-  };
