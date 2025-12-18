@@ -24,9 +24,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Textarea } from '../ui/textarea';
-import type { Expense, User } from '@/lib/types';
-import { expenseCategories, expenseEntities, type ExpenseCategory } from '@/lib/types';
+import { Textarea } from '@/components/ui/textarea';
+import type { Expense, User, ExpenseCategory } from '@/lib/types';
+import { expenseCategories, expenseEntities } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { CalendarIcon } from 'lucide-react';
 import { Calendar } from '../ui/calendar';
@@ -157,7 +157,7 @@ export function ExpenseFormSheet({ open, onOpenChange, expense, onSave, couriers
                             </FormControl>
                             <SelectContent>
                                 {Object.entries(expenseEntities).map(([key, value]) => (
-                                    <SelectItem key={key} value={key}>{value}</SelectItem>
+                                    <SelectItem key={key} value={key as keyof typeof expenseEntities}>{value}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -197,7 +197,7 @@ export function ExpenseFormSheet({ open, onOpenChange, expense, onSave, couriers
                             </FormControl>
                             <SelectContent>
                                 {Object.entries(expenseCategories).map(([key, value]) => (
-                                    <SelectItem key={key} value={key}>{value}</SelectItem>
+                                    <SelectItem key={key} value={key as ExpenseCategory}>{value}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
