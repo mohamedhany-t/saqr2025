@@ -240,28 +240,17 @@ export async function settleCompanyAccountByCloudFunction(data: z.infer<typeof c
 
     try {
         const clientApp = getClientApp();
-        const clientAuth = getClientAuth(clientApp);
-        const currentUser = clientAuth.currentUser;
-
-        if (!currentUser) {
-            return { success: false, error: "User is not authenticated on the client." };
-        }
-
-        const idToken = await currentUser.getIdToken();
-
         const functions = getFunctions(clientApp);
+        // IMPORTANT: Use the new function name here
         const callSettlement = httpsCallable(functions, 'executeCompanySettlement');
 
-        const result = await callSettlement(data, {
-            headers: { Authorization: `Bearer ${idToken}` }
-        });
+        const result = await callSettlement(data);
         
         return result.data as { success: boolean; message?: string; error?: string };
 
     } catch (error: any) {
         console.error("Error calling executeCompanySettlement cloud function:", error);
         
-        // Handle specific Firebase Functions error codes
         if (error.code === 'unauthenticated') {
              return { success: false, error: "The function must be called while authenticated." };
         }
