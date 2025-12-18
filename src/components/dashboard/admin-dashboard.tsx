@@ -53,15 +53,7 @@ import { AdminNoteDialog } from "../users/admin-note-dialog";
 
 
 const MobileShipmentsView = ({
-    archivedShipmentsCompany,
-    archivedShipmentsCourier,
-    inWarehouseShipments,
-    returnsWithCouriers,
-    returnedToCompanyShipments,
-    filteredShipments,
-    recentlyUpdatedShipments,
-    unassignedShipments,
-    assignedShipments,
+    allShipments,
     listIsLoading,
     governorates,
     companies,
@@ -77,15 +69,7 @@ const MobileShipmentsView = ({
     setColumnFilters,
     role,
   }: {
-    archivedShipmentsCompany: Shipment[];
-    archivedShipmentsCourier: Shipment[];
-    inWarehouseShipments: Shipment[];
-    returnsWithCouriers: Shipment[];
-    returnedToCompanyShipments: Shipment[];
-    filteredShipments: Shipment[];
-    recentlyUpdatedShipments: Shipment[];
-    unassignedShipments: Shipment[];
-    assignedShipments: Shipment[];
+    allShipments: Shipment[];
     listIsLoading: boolean;
     governorates: Governorate[];
     companies: Company[];
@@ -106,12 +90,57 @@ const MobileShipmentsView = ({
     const [mobileRowSelection, setMobileRowSelection] = React.useState<Record<string, boolean>>({});
     const { toast } = useToast();
 
+    const filteredShipments = React.useMemo(() => {
+        if (!allShipments) return [];
+        if (columnFilters.length === 0) return allShipments;
+        
+        return allShipments.filter(shipment => {
+            return columnFilters.every(filter => {
+                const value = (shipment as any)[filter.id];
+                const filterValue = filter.value as string[];
+                
+                if (filter.id === 'createdAt') {
+                    const { from, to } = filter.value as DateRange;
+                    const createdAt = getSafeDate(shipment.createdAt);
+                    if (!createdAt) return false;
+                    if (from && createdAt < from) return false;
+                    if (to && createdAt > to) return false;
+                    return true;
+                }
+                
+                if (Array.isArray(filterValue) && filterValue.length > 0) {
+                    return filterValue.includes(value);
+                }
+                return true;
+            });
+        });
+    }, [allShipments, columnFilters]);
+
     const selectedCount = Object.values(mobileRowSelection).filter(Boolean).length;
     
     const getShipmentsByStatus = (status: string | string[]) => {
         const statuses = Array.isArray(status) ? status : [status];
         return filteredShipments.filter(s => statuses.includes(s.status));
     }
+    
+    const returnedShipmentStatuses = React.useMemo(() => statuses?.filter(s => s.isReturnedStatus).map(s => s.id) || [], [statuses]);
+    
+    const recentlyUpdatedShipments = React.useMemo(() => {
+        return [...filteredShipments].sort((a, b) => {
+            const timeA = getSafeDate(a.updatedAt)?.getTime() || 0;
+            const timeB = getSafeDate(b.updatedAt)?.getTime() || 0;
+            return timeB - timeA;
+        });
+    }, [filteredShipments]);
+    
+    const unassignedShipments = React.useMemo(() => filteredShipments.filter(s => !s.assignedCourierId), [filteredShipments]);
+    const assignedShipments = React.useMemo(() => filteredShipments.filter(s => !!s.assignedCourierId), [filteredShipments]);
+    const returnsWithCouriers = React.useMemo(() => filteredShipments.filter(s => returnedShipmentStatuses.includes(s.status) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCourier), [filteredShipments, returnedShipmentStatuses]);
+    const inWarehouseShipments = React.useMemo(() => filteredShipments.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCompany), [filteredShipments]);
+    const returnedToCompanyShipments = React.useMemo(() => filteredShipments.filter(s => s.isReturnedToCompany && !s.isArchivedForCompany), [filteredShipments]);
+    const archivedShipmentsCompany = React.useMemo(() => filteredShipments.filter(s => s.isArchivedForCompany), [filteredShipments]);
+    const archivedShipmentsCourier = React.useMemo(() => filteredShipments.filter(s => s.isArchivedForCourier), [filteredShipments]);
+
 
     const getCurrentShipmentList = () => {
       switch (activeTab) {
@@ -1435,71 +1464,82 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
 
   const filteredShipments = React.useMemo(() => {
     if (!allShipmentsForStats) return [];
-    if (!searchTerm) return allShipmentsForStats;
+    
+    let baseShipments = allShipmentsForStats;
+
+    if (columnFilters.length > 0) {
+        baseShipments = baseShipments.filter(shipment => {
+            return columnFilters.every(filter => {
+                const value = (shipment as any)[filter.id];
+                
+                if (filter.id === 'createdAt') {
+                    const { from, to } = filter.value as DateRange;
+                    const createdAt = getSafeDate(shipment.createdAt);
+                    if (!createdAt) return false;
+                    if (from && createdAt < from) return false;
+                    if (to && createdAt > to) return false;
+                    return true;
+                }
+
+                const filterValue = filter.value as string[];
+                if (Array.isArray(filterValue) && filterValue.length > 0) {
+                    return filterValue.includes(value);
+                }
+
+                return true;
+            });
+        });
+    }
+
+    if (!searchTerm) return baseShipments;
     
     const lowercasedTerm = searchTerm.toLowerCase();
-    return allShipmentsForStats.filter(shipment => 
+    return baseShipments.filter(shipment => 
         String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
     );
-  }, [allShipmentsForStats, searchTerm]);
+  }, [allShipmentsForStats, searchTerm, columnFilters]);
   
   const unassignedShipments = React.useMemo(() => filteredShipments.filter(s => !s.assignedCourierId), [filteredShipments]);
   const assignedShipments = React.useMemo(() => filteredShipments.filter(s => !!s.assignedCourierId), [filteredShipments]);
 
     const archivedShipmentsCompany = React.useMemo(() => {
-        const archived = allShipmentsForStats?.filter(s => s.isArchivedForCompany) || [];
-        if (!searchTerm) return archived;
-        const lowercasedTerm = searchTerm.toLowerCase();
-        return archived.filter(shipment =>
-            String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
-        );
-    }, [allShipmentsForStats, searchTerm]);
+        const archived = filteredShipments?.filter(s => s.isArchivedForCompany) || [];
+        return archived;
+    }, [filteredShipments]);
 
     const archivedShipmentsCourier = React.useMemo(() => {
-        const archived = allShipmentsForStats?.filter(s => s.isArchivedForCourier) || [];
-        if (!searchTerm) return archived;
-        const lowercasedTerm = searchTerm.toLowerCase();
-        return archived.filter(shipment =>
-            String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
-        );
-    }, [allShipmentsForStats, searchTerm]);
+        const archived = filteredShipments?.filter(s => s.isArchivedForCourier) || [];
+        return archived;
+    }, [filteredShipments]);
 
   const recentlyUpdatedShipments = React.useMemo(() => {
-    const activeShipments = allShipmentsForStats?.filter(shipment => !shipment.isArchivedForCompany && !shipment.isArchivedForCourier) || [];
+    const activeShipments = filteredShipments?.filter(shipment => !shipment.isArchivedForCompany && !shipment.isArchivedForCourier) || [];
     return activeShipments.sort((a, b) => {
         // Handle cases where updatedAt might not be a standard Date object
         const timeA = a.updatedAt?.toDate ? a.updatedAt.toDate().getTime() : (a.updatedAt ? new Date(a.updatedAt).getTime() : 0);
         const timeB = b.updatedAt?.toDate ? b.updatedAt.toDate().getTime() : (b.updatedAt ? new Date(b.updatedAt).getTime() : 0);
         return timeB - timeA;
     });
-}, [allShipmentsForStats]);
+}, [filteredShipments]);
 
 
 const returnedShipmentStatuses = React.useMemo(() => statuses?.filter(s => s.isReturnedStatus).map(s => s.id) || [], [statuses]);
 
 const returnsWithCouriers = React.useMemo(() => {
-    return allShipmentsForStats?.filter(s => returnedShipmentStatuses.includes(s.status) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCourier) || [];
-}, [allShipmentsForStats, returnedShipmentStatuses]);
+    return filteredShipments?.filter(s => returnedShipmentStatuses.includes(s.status) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCourier) || [];
+}, [filteredShipments, returnedShipmentStatuses]);
 
 const inWarehouseShipments = React.useMemo(() => {
-    return allShipmentsForStats?.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCompany) || [];
-}, [allShipmentsForStats]);
+    return filteredShipments?.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCompany) || [];
+}, [filteredShipments]);
 
 const returnedToCompanyShipments = React.useMemo(() => {
-    return allShipmentsForStats?.filter(s => s.isReturnedToCompany && !s.isArchivedForCompany) || [];
-}, [allShipmentsForStats]);
+    return filteredShipments?.filter(s => s.isReturnedToCompany && !s.isArchivedForCompany) || [];
+}, [filteredShipments]);
 
 
   const courierDues = React.useMemo(() => {
@@ -1825,15 +1865,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
         <TabsContent value="shipments" className={isMobile ? "pb-20" : ""}>
             {isMobile ? 
                 <MobileShipmentsView 
-                    archivedShipmentsCompany={archivedShipmentsCompany}
-                    archivedShipmentsCourier={archivedShipmentsCourier}
-                    inWarehouseShipments={inWarehouseShipments}
-                    returnsWithCouriers={returnsWithCouriers}
-                    returnedToCompanyShipments={returnedToCompanyShipments}
-                    filteredShipments={filteredShipments}
-                    recentlyUpdatedShipments={recentlyUpdatedShipments}
-                    unassignedShipments={unassignedShipments}
-                    assignedShipments={assignedShipments}
+                    allShipments={allShipmentsForStats || []}
                     listIsLoading={listIsLoading}
                     governorates={governorates || []}
                     companies={companies || []}
