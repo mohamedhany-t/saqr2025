@@ -839,7 +839,7 @@ export function ShipmentsTable({
                       }}
                     >
                       {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id} className={cn("text-right", cell.column.id === 'status' && 'min-w-[180px]')}>
+                        <TableCell key={cell.id} className={cn("text-right align-middle", cell.column.id === 'status' && 'min-w-[180px]')}>
                           {flexRender(
                             cell.column.columnDef.cell,
                             cell.getContext()
