@@ -4,6 +4,9 @@
 import { getAuth, Auth } from 'firebase-admin/auth';
 import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
 import { getFirestore, Firestore, FieldValue } from 'firebase-admin/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getApp, getApps as getClientApps, initializeApp as initializeClientApp } from 'firebase/app';
+import { firebaseConfig } from '@/firebase/config';
 import webpush, { type PushSubscription } from 'web-push';
 import { z } from 'zod';
 
@@ -15,8 +18,7 @@ function getAdminApp(): App {
         return adminApp;
     }
 
-    // Use a unique name for the app instance to avoid conflicts
-    const appName = `admin-actions-${process.pid}`;
+    const appName = `admin-actions-server`;
     const existingApp = getApps().find(app => app.name === appName);
     if (existingApp) {
         adminApp = existingApp;
@@ -24,8 +26,6 @@ function getAdminApp(): App {
     }
 
     try {
-        // This is the recommended way for Google Cloud environments like App Hosting.
-        // It automatically uses the service account associated with the environment.
         console.log("Attempting to initialize Firebase Admin SDK with default credentials.");
         adminApp = initializeApp({}, appName);
         console.log("Firebase Admin SDK initialized successfully with default credentials.");
@@ -33,17 +33,14 @@ function getAdminApp(): App {
     } catch (e: any) {
         console.warn(`Default credential initialization failed: ${e.message}. This is expected in local development. Falling back to service account key.`);
         
-        // Fallback for local development or environments where default credentials aren't set
         try {
             const serviceAccountKeyString = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
             if (!serviceAccountKeyString) {
                 throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set for fallback initialization.");
             }
             
-            // The service account key might be stringified JSON. Let's parse it safely.
             const serviceAccount = JSON.parse(serviceAccountKeyString);
             
-            // The private key inside the JSON might have escaped newlines.
             if (serviceAccount.private_key) {
                 serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
             }
@@ -56,13 +53,15 @@ function getAdminApp(): App {
 
         } catch (error: any) {
             console.error("CRITICAL: Firebase Admin SDK initialization failed completely.", error.message);
-            // This will now throw a more descriptive error if initialization fails,
-            // preventing the vague 'not initialized' error later on.
             throw new Error(`Failed to initialize Firebase Admin SDK: ${error.message}`);
         }
     }
 };
 
+// --- Client Firebase App for calling functions ---
+function getClientApp() {
+    return getClientApps().length === 0 ? initializeClientApp(firebaseConfig) : getApp();
+}
 
 // Helper functions to get initialized services on-demand.
 function getAdminAuth(): Auth {
@@ -231,52 +230,20 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
     }
 }
 
-export async function settleCompanyAccount(data: z.infer<typeof companySettlementSchema>) {
+export async function settleCompanyAccountByCloudFunction(data: z.infer<typeof companySettlementSchema>) {
     const validation = companySettlementSchema.safeParse(data);
     if (!validation.success) {
         return { success: false, error: JSON.stringify(validation.error.issues) };
     }
-    const { companyId, paymentAmount, shipmentIdsToArchive, settlementNote, adminId } = validation.data;
-
-    const db = getAdminFirestore();
-    const allBatches: Promise<any>[] = [];
-    const BATCH_SIZE = 400; // Firestore batch limit is 500, we use 400 to be safe.
-
-    // --- Create and commit the first batch for the payment ---
-    let initialBatch = db.batch();
-    if (paymentAmount !== 0) {
-        const paymentRef = db.collection('company_payments').doc();
-        initialBatch.set(paymentRef, {
-            companyId,
-            amount: paymentAmount,
-            paymentDate: FieldValue.serverTimestamp(),
-            recordedById: adminId,
-            notes: settlementNote,
-            isArchived: true,
-        });
-    }
-    // Commit the payment batch immediately to ensure it's recorded
-    if (paymentAmount !== 0) {
-        allBatches.push(initialBatch.commit());
-    }
-
-
-    // --- Create and commit subsequent batches for archiving shipments ---
-    for (let i = 0; i < shipmentIdsToArchive.length; i += BATCH_SIZE) {
-        const chunk = shipmentIdsToArchive.slice(i, i + BATCH_SIZE);
-        const batch = db.batch();
-        chunk.forEach(shipmentId => {
-            const shipmentRef = db.collection('shipments').doc(shipmentId);
-            batch.update(shipmentRef, { isArchivedForCompany: true });
-        });
-        allBatches.push(batch.commit());
-    }
 
     try {
-        await Promise.all(allBatches);
-        return { success: true, message: `تمت تسوية حساب الشركة وأرشفة ${shipmentIdsToArchive.length} شحنة بنجاح.` };
+        const clientApp = getClientApp();
+        const functions = getFunctions(clientApp);
+        const callSettlement = httpsCallable(functions, 'settleCompanyAccount');
+        const result = await callSettlement(data);
+        return result.data as { success: boolean; message?: string; error?: string };
     } catch (error: any) {
-        console.error("Error settling company account:", error);
-        return { success: false, error: "حدث خطأ أثناء تنفيذ التسوية على الخادم." };
+        console.error("Error calling settleCompanyAccount cloud function:", error);
+        return { success: false, error: error.message || "An unknown error occurred while calling the cloud function." };
     }
 }

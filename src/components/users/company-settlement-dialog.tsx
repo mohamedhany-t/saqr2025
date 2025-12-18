@@ -18,7 +18,7 @@ import { useDropzone } from 'react-dropzone';
 import { read, utils } from 'xlsx';
 import type { Company, Shipment, User, ShipmentStatusConfig } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { settleCompanyAccount } from '@/lib/actions';
+import { settleCompanyAccountByCloudFunction } from '@/lib/actions';
 import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
@@ -167,7 +167,7 @@ export function CompanySettlementDialog({
     if (!analysis || analysis.matchedShipments.length === 0 || !adminUser) return;
     setIsProcessing(true);
 
-    const result = await settleCompanyAccount({
+    const result = await settleCompanyAccountByCloudFunction({
         companyId: company.id,
         paymentAmount: analysis.totalToSettle,
         shipmentIdsToArchive: analysis.matchedShipments.map(s => s.id),
@@ -175,7 +175,7 @@ export function CompanySettlementDialog({
         adminId: adminUser.id
     });
     
-    if (result.success) {
+    if (result?.success) {
         toast({
             title: "تمت التسوية بنجاح!",
             description: result.message,
@@ -186,7 +186,7 @@ export function CompanySettlementDialog({
         toast({
             variant: "destructive",
             title: "فشلت عملية التسوية",
-            description: result.error,
+            description: result?.error || "حدث خطأ أثناء تنفيذ التسوية على الخادم.",
         });
     }
 

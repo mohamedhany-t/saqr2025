@@ -92,7 +92,12 @@ const updateShipmentStatusSchema = zod_1.z.object({
     createdAt: zod_1.z.any().optional(), // Allow passing createdAt for new shipments
     isPriceChangeDecision: zod_1.z.boolean().optional(),
 });
-exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
+// Increase timeout for potentially long-running functions
+const runtimeOpts = {
+    timeoutSeconds: 540, // 9 minutes
+    memory: '256MB',
+};
+exports.handleShipmentUpdate = functions.runWith(runtimeOpts).https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
         var _a, _b, _c;
         if (req.method !== 'POST') {
