@@ -9,45 +9,60 @@ import { z } from 'zod';
 
 // --- Robust, On-Demand Admin App Initialization ---
 
-const getAdminApp = (): App => {
-    const appName = 'admin-actions';
+let adminApp: App;
+function getAdminApp(): App {
+    if (adminApp) {
+        return adminApp;
+    }
+    
+    const appName = `admin-actions-${process.pid}`; // Unique name per process
     const existingApp = getApps().find(app => app.name === appName);
     if (existingApp) {
-        return existingApp;
+        adminApp = existingApp;
+        return adminApp;
     }
 
     try {
-        let serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-        if (!serviceAccountKey) {
-            throw new Error("CRITICAL: FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set.");
-        }
-
-        // IMPORTANT: Replace escaped newlines for environments that mangle them.
-        serviceAccountKey = serviceAccountKey.replace(/\\n/g, '\n');
-
-        const serviceAccount = JSON.parse(serviceAccountKey);
+        // First, try to initialize with default credentials (ideal for production environments like App Hosting)
+        console.log("Attempting to initialize Firebase Admin SDK with default credentials.");
+        adminApp = initializeApp({}, appName);
+        console.log("Firebase Admin SDK initialized successfully with default credentials.");
+        return adminApp;
+    } catch (e: any) {
+        console.warn(`Default credential initialization failed: ${e.message}. Falling back to service account key.`);
         
-        console.log("Initializing new Firebase Admin SDK instance for server actions.");
-        return initializeApp({
-            credential: cert(serviceAccount)
-        }, appName);
-    } catch (error: any) {
-        console.error("CRITICAL: Firebase Admin SDK initialization failed.", error.message);
-        // This will now throw a more descriptive error if initialization fails,
-        // preventing the vague 'not initialized' error later on.
-        throw new Error(`Failed to initialize Firebase Admin SDK: ${error.message}`);
+        // Fallback for local development or environments where default credentials aren't set
+        try {
+            const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+            if (!serviceAccountKey) {
+                throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set for fallback initialization.");
+            }
+            
+            // The service account key might be stringified JSON. Let's parse it safely.
+            const serviceAccount = JSON.parse(serviceAccountKey);
+
+            adminApp = initializeApp({
+                credential: cert(serviceAccount)
+            }, appName);
+            console.log("Firebase Admin SDK initialized successfully using service account key (fallback).");
+            return adminApp;
+
+        } catch (error: any) {
+            console.error("CRITICAL: Firebase Admin SDK initialization failed completely.", error.message);
+            throw new Error(`Failed to initialize Firebase Admin SDK: ${error.message}`);
+        }
     }
-};
+}
 
 // Helper functions to get initialized services on-demand.
 function getAdminAuth(): Auth {
-    const adminApp = getAdminApp();
-    return getAuth(adminApp);
+    const app = getAdminApp();
+    return getAuth(app);
 }
 
 function getAdminFirestore(): Firestore {
-    const adminApp = getAdminApp();
-    return getFirestore(adminApp);
+    const app = getAdminApp();
+    return getFirestore(app);
 }
 
 // --- VAPID Keys Initialization ---
