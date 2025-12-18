@@ -129,7 +129,7 @@ const MobileShipmentsView = ({
                         return true;
                     }
                     if (filter.id === 'address') {
-                        const searchTerms = String(filter.value).split(',').map(term => term.trim().toLowerCase()).filter(Boolean);
+                        const searchTerms = String(filter.value).split('-').map(term => term.trim().toLowerCase()).filter(Boolean);
                         if(searchTerms.length === 0) return true;
                         const addressValue = String(shipment.address || '').toLowerCase();
                         return searchTerms.some(term => addressValue.includes(term));
@@ -1553,7 +1553,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
                 }
 
                 if (filter.id === 'address') {
-                    const searchTerms = String(filter.value).split(',').map(term => term.trim().toLowerCase()).filter(Boolean);
+                    const searchTerms = String(filter.value).split('-').map(term => term.trim().toLowerCase()).filter(Boolean);
                     if(searchTerms.length === 0) return true;
                     const addressValue = String(shipment.address || '').toLowerCase();
                     return searchTerms.some(term => addressValue.includes(term));

@@ -84,7 +84,7 @@ export function ShipmentFilters({
        <div className="relative">
             <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-                placeholder="فلترة حسب العنوان..."
+                placeholder="للبحث المتعدد استخدم علامة (-)"
                 value={addressFilterValue}
                 onChange={(e) => handleAddressFilterChange(e.target.value)}
                 className="h-8 w-[250px] pr-8"
