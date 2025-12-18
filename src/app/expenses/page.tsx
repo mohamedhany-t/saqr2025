@@ -51,14 +51,17 @@ export default function ExpensesPage() {
   const handleSaveExpense = async (data: Omit<Expense, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>, id?: string) => {
     if (!firestore || !currentUser) return;
     try {
+      // Clean the data to remove any undefined fields before sending to Firestore
+      const cleanData = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined));
+
       if (id) {
         const expenseDocRef = doc(firestore, 'expenses', id);
-        await updateDoc(expenseDocRef, { ...data, updatedAt: serverTimestamp() });
+        await updateDoc(expenseDocRef, { ...cleanData, updatedAt: serverTimestamp() });
         toast({ title: "تم تحديث المصروف بنجاح" });
       } else {
         const expensesCollectionRef = collection(firestore, 'expenses');
         await addDoc(expensesCollectionRef, { 
-          ...data, 
+          ...cleanData, 
           createdBy: currentUser.uid, 
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
