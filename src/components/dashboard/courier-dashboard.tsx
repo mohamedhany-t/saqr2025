@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, useUser, useFirebaseApp, useDoc } from "@/firebase";
 import { collection, serverTimestamp, doc, query, where, updateDoc, getDoc, writeBatch } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { Loader2, MessageSquare, Database, Route, CheckCircle, Archive, Truck, QrCode, CalendarClock, RefreshCw } from "lucide-react";
@@ -217,11 +217,12 @@ export default function CourierDashboard({ user, role, searchTerm, onSearchChang
   const { data: allShipmentsForCourier, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
   
   const shipments = React.useMemo(() => {
-    return allShipmentsForCourier?.filter(s => 
+    if (!allShipmentsForCourier) return [];
+    return allShipmentsForCourier.filter(s => 
         !s.isArchivedForCourier && 
         !s.isWarehouseReturn &&
         !s.isReturnedToCompany
-    ) || [];
+    );
   }, [allShipmentsForCourier]);
   
   const activeShipmentsForStats = React.useMemo(() => allShipmentsForCourier?.filter(s => !s.isArchivedForCourier) || [], [allShipmentsForCourier]);
