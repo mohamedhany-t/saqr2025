@@ -184,13 +184,19 @@ export default function ScanPage() {
         toast({ title: `جاري تحديث ${selectedIds.length} شحنة...` });
 
         const batch = writeBatch(firestore);
-        selectedIds.forEach(id => {
-            const shipmentRef = doc(firestore, 'shipments', id);
+        const selectedShipments = allShipments?.filter(s => selectedIds.includes(s.id)) || [];
+
+        selectedShipments.forEach(shipment => {
+            const shipmentRef = doc(firestore, 'shipments', shipment.id);
             batch.update(shipmentRef, { ...update, updatedAt: serverTimestamp() });
              if (update.status) {
                 const historyRef = doc(collection(shipmentRef, 'history'));
                 const historyEntry: Omit<ShipmentHistory, 'id'> = {
-                    status: update.status,
+                    changes: [{
+                        field: 'status',
+                        oldValue: shipment.status,
+                        newValue: update.status
+                    }],
                     reason: 'تحديث جماعي عبر الماسح',
                     updatedAt: serverTimestamp(),
                     updatedBy: user.displayName || user.email || 'Admin',
