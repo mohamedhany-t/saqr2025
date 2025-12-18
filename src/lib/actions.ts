@@ -17,10 +17,14 @@ const getAdminApp = (): App => {
     }
 
     try {
-        const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+        let serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
         if (!serviceAccountKey) {
             throw new Error("CRITICAL: FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set.");
         }
+
+        // IMPORTANT: Replace escaped newlines for environments that mangle them.
+        serviceAccountKey = serviceAccountKey.replace(/\\n/g, '\n');
+
         const serviceAccount = JSON.parse(serviceAccountKey);
         
         console.log("Initializing new Firebase Admin SDK instance for server actions.");
