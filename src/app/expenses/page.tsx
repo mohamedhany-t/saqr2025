@@ -23,21 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import { startOfMonth, endOfMonth, startOfToday, endOfToday } from 'date-fns';
-
-export const expenseCategories = {
-  transport: 'مواصلات',
-  parking: 'شحن مواقف',
-  tip: 'شاي / إكرامية',
-  maintenance: 'صيانة',
-  other: 'أخرى',
-};
-
-export const expenseEntities = {
-  courier: 'مندوب',
-  office: 'مكتب',
-  company: 'شركة',
-  general: 'عام',
-};
+import { expenseCategories, expenseEntities } from '@/lib/types';
 
 
 export default function ExpensesPage() {

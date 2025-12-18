@@ -1,5 +1,4 @@
 
-
 import type { User as AuthUser } from 'firebase/auth';
 
 export type Role = "admin" | "company" | "courier" | "customer-service";
@@ -82,14 +81,29 @@ export type Shipment = {
   isLabelPrinted?: boolean; // To track if the shipping label has been printed
 };
 
-export type ExpenseEntityType = 'courier' | 'office' | 'company' | 'general';
-export type ExpenseType = 'transport' | 'parking' | 'tip' | 'maintenance' | 'other';
+export const expenseCategories = {
+  transport: 'مواصلات',
+  parking: 'شحن مواقف',
+  tip: 'شاي / إكرامية',
+  maintenance: 'صيانة',
+  other: 'أخرى',
+} as const;
+
+export const expenseEntities = {
+  courier: 'مندوب',
+  office: 'مكتب',
+  company: 'شركة',
+  general: 'عام',
+} as const;
+
+export type ExpenseEntityType = keyof typeof expenseEntities;
+export type ExpenseCategory = keyof typeof expenseCategories;
 
 export type Expense = {
   id: string;
   description: string;
   amount: number;
-  category: ExpenseType;
+  category: ExpenseCategory;
   entityType: ExpenseEntityType;
   relatedUserId?: string; // For 'courier' or 'company'
   expenseDate: any;

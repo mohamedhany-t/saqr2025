@@ -25,8 +25,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '../ui/textarea';
-import type { Expense, User } from '@/lib/types';
-import { expenseCategories, expenseEntities } from '@/app/expenses/page';
+import type { Expense, User, ExpenseCategory } from '@/lib/types';
+import { expenseCategories, expenseEntities } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { CalendarIcon } from 'lucide-react';
 import { Calendar } from '../ui/calendar';
@@ -37,7 +37,7 @@ import { ar } from 'date-fns/locale';
 const expenseSchema = z.object({
   description: z.string().min(1, "الوصف مطلوب"),
   amount: z.coerce.number().min(0.01, "المبلغ يجب أن يكون أكبر من صفر"),
-  category: z.enum(Object.keys(expenseCategories) as [keyof typeof expenseCategories]),
+  category: z.enum(Object.keys(expenseCategories) as [ExpenseCategory, ...ExpenseCategory[]]),
   entityType: z.enum(Object.keys(expenseEntities) as [keyof typeof expenseEntities]),
   relatedUserId: z.string().optional(),
   expenseDate: z.date(),
