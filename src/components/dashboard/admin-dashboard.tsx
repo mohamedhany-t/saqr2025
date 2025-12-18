@@ -3,7 +3,7 @@
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing, ChevronLeft, ChevronRight, BarChart, MessageSquarePlus, Wallet } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing, ChevronLeft, ChevronRight, BarChart, MessageSquarePlus, Wallet, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
@@ -238,7 +238,7 @@ const MobileShipmentsView = ({
         }
       
         return (
-          <div ref={parentRef} className="mt-4 overflow-y-auto" style={{ height: `calc(100vh - 18rem)` }}>
+          <div ref={parentRef} className="mt-4 overflow-y-auto" style={{ height: `calc(100vh - 20rem)` }}>
             <div
               className="relative w-full"
               style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
@@ -298,12 +298,12 @@ const MobileShipmentsView = ({
                     <TabsTrigger value="archived-company">مؤرشف الشركات</TabsTrigger>
                     <TabsTrigger value="archived-courier">مؤرشف المناديب</TabsTrigger>
                 </TabsList>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col gap-4">
                     <ShipmentFilters governorates={governorates || []} companies={companies || []} courierUsers={courierUsers || []} statuses={statuses || []} onFiltersChange={setColumnFilters} />
                     {currentList.length > 0 && (
-                        <Button variant="outline" size="sm" onClick={handleSelectAll} className="h-8 gap-1">
+                        <Button variant="outline" size="sm" onClick={handleSelectAll} className="h-8 gap-1 w-full">
                             <ListChecks className="h-3.5 w-3.5" />
-                            <span>{areAllSelected ? 'إلغاء تحديد الكل' : 'تحديد الكل'}</span>
+                            <span>{areAllSelected ? 'إلغاء تحديد الكل' : `تحديد الكل (${currentList.length})`}</span>
                         </Button>
                     )}
                 </div>
@@ -1504,13 +1504,8 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
           }
   
           if (filter.id === 'address') {
-            const searchTerms = String(filter.value)
-              .split('-')
-              .map(term => term.trim().toLowerCase())
-              .filter(Boolean); // This removes empty strings from the array
-  
+            const searchTerms = filter.value as string[];
             if (searchTerms.length === 0) return true;
-  
             const addressValue = String(shipment.address || '').toLowerCase();
             return searchTerms.some(term => addressValue.includes(term));
           }
