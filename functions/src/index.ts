@@ -3,7 +3,7 @@ import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import { z } from "zod";
 import cors from "cors";
-import type { User, Company, Shipment, ShipmentStatusConfig } from "./types";
+import type { User, Shipment, ShipmentStatusConfig, ShipmentHistoryEntry } from "./types";
 
 try {
     admin.initializeApp();
@@ -127,7 +127,7 @@ export const executeCompanySettlement = functions.runWith(runtimeOpts).https.onC
 });
 
 
-export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
+export const handleShipmentUpdate = functions.runWith(runtimeOpts).https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
         if (req.method !== 'POST') {
             res.status(405).send({ error: { message: 'Method Not Allowed' } });
@@ -141,13 +141,13 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
                 context.auth = await admin.auth().verifyIdToken(idToken);
             } catch (error) {
                 console.error('Error verifying token:', error);
-                res.status(401).send({ error: { status: 'UNAUTHENTICATED' } });
+                res.status(401).send({ error: { status: 'UNAUTHENTICATED', message: 'The function must be called with an authenticated user token.' } });
                 return;
             }
         }
         
         if (!context.auth) {
-            res.status(401).send({ error: { status: 'UNAUTHENTICATED' } });
+            res.status(401).send({ error: { status: 'UNAUTHENTICATED', message: 'The function must be called with an authenticated user token.' } });
             return;
         }
         
@@ -174,56 +174,39 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
         try {
             const result = await db.runTransaction(async (transaction) => {
                 const shipmentDoc = await transaction.get(shipmentRef);
-                
+                const isCreating = !shipmentDoc.exists;
+                const oldData = isCreating ? {} : shipmentDoc.data() as Shipment;
+
                 const userDoc = await db.collection('users').doc(userId).get();
                 if (!userDoc.exists) {
                     throw new functions.https.HttpsError("permission-denied", "User profile not found.");
                 }
                 const userProfile = userDoc.data() as User;
                 
-                const isCreating = !shipmentDoc.exists;
-
-                // Authorization check
                 let isAuthorized = false;
                 if (userProfile.role === 'admin' || userProfile.role === 'customer-service') {
                     isAuthorized = true;
                 } else if (isCreating) {
-                     if (userProfile.role === 'company') {
-                        isAuthorized = true;
-                    }
-                } else { // Editing existing shipment
-                    const shipmentData = shipmentDoc.data()!;
-                    if(userProfile.role === 'courier' && shipmentData.assignedCourierId === userId) {
-                        isAuthorized = true;
-                    } else if (userProfile.role === 'company' && shipmentData.companyId === userId) {
-                        isAuthorized = true;
-                    }
+                     if (userProfile.role === 'company') isAuthorized = true;
+                } else {
+                    if(userProfile.role === 'courier' && oldData.assignedCourierId === userId) isAuthorized = true;
+                    if (userProfile.role === 'company' && oldData.companyId === userId) isAuthorized = true;
                 }
-
 
                 if (!isAuthorized) {
                     throw new functions.https.HttpsError("permission-denied", "You do not have permission to perform this action.");
                 }
                 
-                const finalUpdate: { [key: string]: any } = {
-                    ...updatePayload, // Start with the data passed from the client
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                };
+                let finalUpdateData: { [key: string]: any } = { ...updatePayload };
 
-                // Server-side logic for price change decision
-                if (finalUpdate.isPriceChangeDecision) {
-                    finalUpdate.requestedAmount = admin.firestore.FieldValue.delete();
-                    finalUpdate.amountChangeReason = admin.firestore.FieldValue.delete();
+                if (finalUpdateData.isPriceChangeDecision) {
+                    finalUpdateData.requestedAmount = admin.firestore.FieldValue.delete();
+                    finalUpdateData.amountChangeReason = admin.firestore.FieldValue.delete();
+                    delete finalUpdateData.isPriceChangeDecision;
                 }
-                // Clean up the flag itself
-                delete finalUpdate.isPriceChangeDecision;
-
-
-                const shipmentData = isCreating ? {} : shipmentDoc.data()!;
                 
-                // If status is being changed, we need to recalculate financial fields
-                if (updatePayload.status && updatePayload.status !== shipmentData.status) {
-                    finalUpdate.retryAttempt = false; // Reset retry flag on any status update
+                if (updatePayload.status && updatePayload.status !== oldData.status) {
+                    finalUpdateData.retryAttempt = false;
 
                     const statusesSnap = await db.collection('shipment_statuses').get();
                     const statusConfigs = statusesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ShipmentStatusConfig[];
@@ -231,70 +214,86 @@ export const handleShipmentUpdate = functions.https.onRequest((req, res) => {
 
                     if (newStatusConfig) {
                         let paidAmount = 0;
-                        const totalAmount = finalUpdate.totalAmount ?? shipmentData.totalAmount ?? 0;
-                        const collectedAmount = finalUpdate.collectedAmount ?? 0;
+                        const totalAmount = finalUpdateData.totalAmount ?? oldData.totalAmount ?? 0;
+                        const collectedAmount = finalUpdateData.collectedAmount ?? 0;
 
-                        if (newStatusConfig.requiresFullCollection) {
-                            paidAmount = totalAmount;
-                        } else if (newStatusConfig.requiresPartialCollection) {
-                            paidAmount = collectedAmount;
-                        }
+                        if (newStatusConfig.requiresFullCollection) paidAmount = totalAmount;
+                        else if (newStatusConfig.requiresPartialCollection) paidAmount = collectedAmount;
                         
-                        finalUpdate.paidAmount = paidAmount;
-                        finalUpdate.collectedAmount = paidAmount; // Align collected with paid for consistency
+                        finalUpdateData.paidAmount = paidAmount;
+                        finalUpdateData.collectedAmount = paidAmount;
 
-                        // --- Start of Custom Return Logic ---
-                        const isCustomReturn = finalUpdate.isCustomReturn ?? shipmentData.isCustomReturn;
+                        const isCustomReturn = finalUpdateData.isCustomReturn ?? oldData.isCustomReturn;
                         if (isCustomReturn && newStatusConfig.isDeliveredStatus) {
-                            finalUpdate.paidAmount = -Math.abs(totalAmount);
-                            finalUpdate.collectedAmount = -Math.abs(totalAmount);
+                            finalUpdateData.paidAmount = -Math.abs(totalAmount);
+                            finalUpdateData.collectedAmount = -Math.abs(totalAmount);
                         }
-                        // --- End of Custom Return Logic ---
 
-                        // Handle courier commission
                         if (newStatusConfig.affectsCourierBalance) {
-                            const courierId = finalUpdate.assignedCourierId || shipmentData.assignedCourierId;
+                            const courierId = finalUpdateData.assignedCourierId || oldData.assignedCourierId;
                             const courierProfileDoc = courierId ? await db.collection('couriers').doc(courierId).get() : null;
                             const commissionRate = courierProfileDoc?.exists ? (courierProfileDoc.data() as any).commissionRate || 0 : 0;
-                            finalUpdate.courierCommission = commissionRate;
+                            finalUpdateData.courierCommission = commissionRate;
                         } else {
-                            finalUpdate.courierCommission = 0;
+                            finalUpdateData.courierCommission = 0;
                         }
                         
-                        // Handle company commission
                         if (newStatusConfig.affectsCompanyBalance) {
-                            const companyId = finalUpdate.companyId || shipmentData.companyId;
-                            const companyProfileDoc = await db.collection('companies').doc(companyId).get();
-                            const governorateCommissions = (companyProfileDoc.data() as any)?.governorateCommissions || {};
-                            const governorateId = finalUpdate.governorateId || shipmentData.governorateId;
+                            const companyId = finalUpdateData.companyId || oldData.companyId;
+                            const companyProfileDoc = companyId ? await db.collection('companies').doc(companyId).get() : null;
+                            const governorateCommissions = companyProfileDoc?.exists ? (companyProfileDoc.data() as any).governorateCommissions || {} : {};
+                            const governorateId = finalUpdateData.governorateId || oldData.governorateId;
                             const commission = governorateCommissions[governorateId] || 0;
-                            finalUpdate.companyCommission = commission;
+                            finalUpdateData.companyCommission = commission;
                         } else {
-                             finalUpdate.companyCommission = 0;
+                             finalUpdateData.companyCommission = 0;
                         }
+                    }
+                }
+                
+                // --- DETAILED AUDIT LOG ---
+                const newData = { ...oldData, ...finalUpdateData };
+                const changes: ShipmentHistoryEntry['changes'] = [];
 
+                // Combine keys from old and new data to catch all changes
+                const allKeys = new Set([...Object.keys(oldData), ...Object.keys(finalUpdateData)]);
+                
+                for (const key of allKeys) {
+                     // We only care about fields that are part of the update payload or calculated by the function
+                    if (!Object.prototype.hasOwnProperty.call(finalUpdateData, key)) continue;
+
+                    const oldValue = (oldData as any)[key];
+                    const newValue = (newData as any)[key];
+
+                    // Simple comparison, ignoring objects like Timestamps for now
+                    if (oldValue !== newValue && typeof oldValue !== 'object' && typeof newValue !== 'object') {
+                         changes.push({ field: key, oldValue: oldValue ?? null, newValue: newValue ?? null });
                     }
                 }
 
-                const historyRef = shipmentRef.collection('history').doc();
-                const historyEntry = {
-                    status: finalUpdate.status || shipmentData.status || 'Pending',
-                    reason: finalUpdate.reason || finalUpdate.amountChangeReason || '',
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    updatedBy: userName || userEmail,
-                    userId: userId,
-                };
+
+                if (changes.length > 0) {
+                    const historyRef = shipmentRef.collection('history').doc();
+                    const historyEntry: Omit<ShipmentHistoryEntry, "id"> = {
+                        changes,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        updatedBy: userName || userEmail,
+                        userId: userId,
+                    };
+                    transaction.set(historyRef, historyEntry);
+                }
                 
                 if (isCreating) {
-                    if(!finalUpdate.createdAt) {
-                        finalUpdate.createdAt = admin.firestore.FieldValue.serverTimestamp();
+                    const dataToSet = { ...finalUpdateData };
+                    if(!dataToSet.createdAt) {
+                        dataToSet.createdAt = admin.firestore.FieldValue.serverTimestamp();
                     }
-                    transaction.set(shipmentRef, finalUpdate);
+                     dataToSet.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+                    transaction.set(shipmentRef, dataToSet);
                 } else {
-                    transaction.update(shipmentRef, finalUpdate);
+                    const dataToUpdate = { ...finalUpdateData, updatedAt: admin.firestore.FieldValue.serverTimestamp()};
+                    transaction.update(shipmentRef, dataToUpdate);
                 }
-                
-                transaction.set(historyRef, historyEntry);
 
                 return { success: true, message: isCreating ? "Shipment created successfully." : "Shipment updated successfully." };
             });
