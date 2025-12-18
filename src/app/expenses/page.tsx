@@ -3,12 +3,12 @@
 import React, { useState, useMemo } from 'react';
 import type { Expense, User } from '@/lib/types';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, where, orderBy, doc, addDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, doc, addDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Trash2, Pencil, Wallet, CalendarDays, Users, Truck } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Pencil, Wallet, CalendarDays, Users, Truck, Search, FileUp } from 'lucide-react';
 import { formatToCairoTime } from '@/lib/utils';
 import { ExpenseFormSheet } from '@/components/expenses/expense-form-sheet';
 import {
@@ -22,8 +22,16 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
-import { startOfMonth, endOfMonth, startOfToday, endOfToday } from 'date-fns';
+import { startOfMonth, endOfMonth, startOfToday, endOfToday, startOfDay } from 'date-fns';
 import { expenseCategories, expenseEntities } from '@/lib/types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { DateRange } from 'react-day-picker';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { ar } from 'date-fns/locale';
+import { format } from 'date-fns';
+import { exportToExcel } from '@/lib/export';
 
 
 export default function ExpensesPage() {
@@ -35,6 +43,12 @@ export default function ExpensesPage() {
   const [editingExpense, setEditingExpense] = useState<Expense | undefined>(undefined);
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
 
+  // Filters state
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [selectedCourier, setSelectedCourier] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+
   const expensesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'expenses'), orderBy('expenseDate', 'desc')) : null, [firestore]);
   const { data: expenses, isLoading: expensesLoading } = useCollection<Expense>(expensesQuery);
 
@@ -42,6 +56,35 @@ export default function ExpensesPage() {
   const { data: users, isLoading: usersLoading } = useCollection<User>(usersQuery);
 
   const courierUsers = useMemo(() => users?.filter(u => u.role === 'courier') || [], [users]);
+
+  const filteredExpenses = useMemo(() => {
+    if (!expenses) return [];
+
+    return expenses.filter(exp => {
+      // Date filter
+      const expenseDate = exp.expenseDate instanceof Date 
+        ? exp.expenseDate 
+        : exp.expenseDate?.toDate();
+      if (!expenseDate) return false;
+      if (dateRange?.from && expenseDate < startOfDay(dateRange.from)) return false;
+      if (dateRange?.to && expenseDate > endOfToday(dateRange.to)) return false;
+
+      // Courier filter
+      if (selectedCourier !== 'all' && exp.relatedUserId !== selectedCourier) return false;
+
+      // Category filter
+      if (selectedCategory !== 'all' && exp.category !== selectedCategory) return false;
+
+      // Search term filter
+      const lowerSearchTerm = searchTerm.toLowerCase();
+      if (searchTerm && !(
+          exp.description.toLowerCase().includes(lowerSearchTerm) ||
+          (exp.notes && exp.notes.toLowerCase().includes(lowerSearchTerm))
+      )) return false;
+
+      return true;
+    });
+  }, [expenses, dateRange, selectedCourier, selectedCategory, searchTerm]);
 
   const openExpenseForm = (expense?: Expense) => {
     setEditingExpense(expense);
@@ -130,6 +173,30 @@ export default function ExpensesPage() {
       totalShipping,
     };
   }, [expenses]);
+  
+  const handleExport = () => {
+    if (filteredExpenses.length === 0) {
+      toast({ title: "لا توجد بيانات للتصدير" });
+      return;
+    }
+    const dataToExport = filteredExpenses.map(exp => ({
+        date: formatToCairoTime(exp.expenseDate),
+        entity: expenseEntities[exp.entityType],
+        courier: exp.entityType === 'courier' ? users?.find(u => u.id === exp.relatedUserId)?.name : 'N/A',
+        category: expenseCategories[exp.category],
+        amount: exp.amount,
+        notes: exp.notes
+    }));
+    const columns = [
+        { accessorKey: "date", header: "التاريخ" },
+        { accessorKey: "entity", header: "الجهة" },
+        { accessorKey: "courier", header: "المندوب" },
+        { accessorKey: "category", header: "النوع" },
+        { accessorKey: "amount", header: "القيمة" },
+        { accessorKey: "notes", header: "ملاحظات" },
+    ];
+    exportToExcel(dataToExport, columns, "expenses_report", [], [], []);
+  }
 
 
   const formatCurrency = (amount: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(amount);
@@ -163,6 +230,81 @@ export default function ExpensesPage() {
         </Card>
       </div>
 
+       <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>الفلترة والبحث</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col md:flex-row gap-4">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  id="date"
+                  variant={"outline"}
+                  className={`w-full md:w-[300px] justify-start text-left font-normal ${!dateRange && "text-muted-foreground"}`}
+                >
+                  <CalendarDays className="mr-2 h-4 w-4" />
+                  {dateRange?.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "LLL dd, y", { locale: ar })} -{" "}
+                        {format(dateRange.to, "LLL dd, y", { locale: ar })}
+                      </>
+                    ) : (
+                      format(dateRange.from, "LLL dd, y")
+                    )
+                  ) : (
+                    <span>اختر فترة</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  defaultMonth={dateRange?.from}
+                  selected={dateRange}
+                  onSelect={setDateRange}
+                  numberOfMonths={2}
+                  locale={ar}
+                />
+              </PopoverContent>
+            </Popover>
+             <Select value={selectedCourier} onValueChange={setSelectedCourier}>
+              <SelectTrigger className="w-full md:w-[180px]">
+                <SelectValue placeholder="حسب المندوب" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل المناديب</SelectItem>
+                {courierUsers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-full md:w-[180px]">
+                <SelectValue placeholder="حسب النوع" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل الأنواع</SelectItem>
+                 {Object.entries(expenseCategories).map(([key, value]) => (
+                    <SelectItem key={key} value={key}>{value}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                    placeholder="بحث في الوصف والملاحظات..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-8 w-full"
+                />
+            </div>
+             <Button onClick={handleExport} variant="outline">
+                <FileUp className="me-2 h-4 w-4" />
+                تصدير إلى Excel
+            </Button>
+        </CardContent>
+       </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>سجل المصروفات</CardTitle>
@@ -183,8 +325,8 @@ export default function ExpensesPage() {
             <TableBody>
               {expensesLoading ? (
                 <TableRow><TableCell colSpan={7} className="text-center">جاري تحميل البيانات...</TableCell></TableRow>
-              ) : expenses && expenses.length > 0 ? (
-                expenses.map(expense => (
+              ) : filteredExpenses.length > 0 ? (
+                filteredExpenses.map(expense => (
                   <TableRow key={expense.id}>
                     <TableCell>{formatToCairoTime(expense.expenseDate)}</TableCell>
                     <TableCell>{expenseEntities[expense.entityType]}</TableCell>
@@ -213,7 +355,7 @@ export default function ExpensesPage() {
                   </TableRow>
                 ))
               ) : (
-                <TableRow><TableCell colSpan={7} className="h-24 text-center">لا توجد مصروفات مسجلة.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="h-24 text-center">لا توجد مصروفات تطابق الفلاتر.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
