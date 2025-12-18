@@ -152,7 +152,7 @@ exports.executeCompanySettlement = functions.runWith(runtimeOpts).https.onCall(a
         throw new functions.https.HttpsError('internal', 'An error occurred while executing the settlement on the server.', error.message);
     }
 });
-exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
+exports.handleShipmentUpdate = functions.runWith(runtimeOpts).https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
         var _a, _b, _c;
         if (req.method !== 'POST') {
@@ -167,12 +167,12 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
             }
             catch (error) {
                 console.error('Error verifying token:', error);
-                res.status(401).send({ error: { status: 'UNAUTHENTICATED' } });
+                res.status(401).send({ error: { status: 'UNAUTHENTICATED', message: 'The function must be called with an authenticated user token.' } });
                 return;
             }
         }
         if (!context.auth) {
-            res.status(401).send({ error: { status: 'UNAUTHENTICATED' } });
+            res.status(401).send({ error: { status: 'UNAUTHENTICATED', message: 'The function must be called with an authenticated user token.' } });
             return;
         }
         const { uid: userId, name: userName, email: userEmail } = context.auth;
@@ -191,112 +191,118 @@ exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
         const shipmentRef = db.collection('shipments').doc(shipmentId);
         try {
             const result = await db.runTransaction(async (transaction) => {
-                var _a, _b, _c, _d, _e;
+                var _a, _b, _c, _d;
                 const shipmentDoc = await transaction.get(shipmentRef);
+                const isCreating = !shipmentDoc.exists;
+                const oldData = isCreating ? {} : shipmentDoc.data();
                 const userDoc = await db.collection('users').doc(userId).get();
                 if (!userDoc.exists) {
                     throw new functions.https.HttpsError("permission-denied", "User profile not found.");
                 }
                 const userProfile = userDoc.data();
-                const isCreating = !shipmentDoc.exists;
-                // Authorization check
                 let isAuthorized = false;
                 if (userProfile.role === 'admin' || userProfile.role === 'customer-service') {
                     isAuthorized = true;
                 }
                 else if (isCreating) {
-                    if (userProfile.role === 'company') {
+                    if (userProfile.role === 'company')
                         isAuthorized = true;
-                    }
                 }
-                else { // Editing existing shipment
-                    const shipmentData = shipmentDoc.data();
-                    if (userProfile.role === 'courier' && shipmentData.assignedCourierId === userId) {
+                else {
+                    if (userProfile.role === 'courier' && oldData.assignedCourierId === userId)
                         isAuthorized = true;
-                    }
-                    else if (userProfile.role === 'company' && shipmentData.companyId === userId) {
+                    if (userProfile.role === 'company' && oldData.companyId === userId)
                         isAuthorized = true;
-                    }
                 }
                 if (!isAuthorized) {
                     throw new functions.https.HttpsError("permission-denied", "You do not have permission to perform this action.");
                 }
-                const finalUpdate = Object.assign(Object.assign({}, updatePayload), { updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-                // Server-side logic for price change decision
-                if (finalUpdate.isPriceChangeDecision) {
-                    finalUpdate.requestedAmount = admin.firestore.FieldValue.delete();
-                    finalUpdate.amountChangeReason = admin.firestore.FieldValue.delete();
+                let finalUpdateData = Object.assign({}, updatePayload);
+                if (finalUpdateData.isPriceChangeDecision) {
+                    finalUpdateData.requestedAmount = admin.firestore.FieldValue.delete();
+                    finalUpdateData.amountChangeReason = admin.firestore.FieldValue.delete();
+                    delete finalUpdateData.isPriceChangeDecision;
                 }
-                // Clean up the flag itself
-                delete finalUpdate.isPriceChangeDecision;
-                const shipmentData = isCreating ? {} : shipmentDoc.data();
-                // If status is being changed, we need to recalculate financial fields
-                if (updatePayload.status && updatePayload.status !== shipmentData.status) {
-                    finalUpdate.retryAttempt = false; // Reset retry flag on any status update
+                if (updatePayload.status && updatePayload.status !== oldData.status) {
+                    finalUpdateData.retryAttempt = false;
                     const statusesSnap = await db.collection('shipment_statuses').get();
                     const statusConfigs = statusesSnap.docs.map(doc => (Object.assign({ id: doc.id }, doc.data())));
                     const newStatusConfig = statusConfigs.find(s => s.id === updatePayload.status);
                     if (newStatusConfig) {
                         let paidAmount = 0;
-                        const totalAmount = (_b = (_a = finalUpdate.totalAmount) !== null && _a !== void 0 ? _a : shipmentData.totalAmount) !== null && _b !== void 0 ? _b : 0;
-                        const collectedAmount = (_c = finalUpdate.collectedAmount) !== null && _c !== void 0 ? _c : 0;
-                        if (newStatusConfig.requiresFullCollection) {
+                        const totalAmount = (_b = (_a = finalUpdateData.totalAmount) !== null && _a !== void 0 ? _a : oldData.totalAmount) !== null && _b !== void 0 ? _b : 0;
+                        const collectedAmount = (_c = finalUpdateData.collectedAmount) !== null && _c !== void 0 ? _c : 0;
+                        if (newStatusConfig.requiresFullCollection)
                             paidAmount = totalAmount;
-                        }
-                        else if (newStatusConfig.requiresPartialCollection) {
+                        else if (newStatusConfig.requiresPartialCollection)
                             paidAmount = collectedAmount;
-                        }
-                        finalUpdate.paidAmount = paidAmount;
-                        finalUpdate.collectedAmount = paidAmount; // Align collected with paid for consistency
-                        // --- Start of Custom Return Logic ---
-                        const isCustomReturn = (_d = finalUpdate.isCustomReturn) !== null && _d !== void 0 ? _d : shipmentData.isCustomReturn;
+                        finalUpdateData.paidAmount = paidAmount;
+                        finalUpdateData.collectedAmount = paidAmount;
+                        const isCustomReturn = (_d = finalUpdateData.isCustomReturn) !== null && _d !== void 0 ? _d : oldData.isCustomReturn;
                         if (isCustomReturn && newStatusConfig.isDeliveredStatus) {
-                            finalUpdate.paidAmount = -Math.abs(totalAmount);
-                            finalUpdate.collectedAmount = -Math.abs(totalAmount);
+                            finalUpdateData.paidAmount = -Math.abs(totalAmount);
+                            finalUpdateData.collectedAmount = -Math.abs(totalAmount);
                         }
-                        // --- End of Custom Return Logic ---
-                        // Handle courier commission
                         if (newStatusConfig.affectsCourierBalance) {
-                            const courierId = finalUpdate.assignedCourierId || shipmentData.assignedCourierId;
+                            const courierId = finalUpdateData.assignedCourierId || oldData.assignedCourierId;
                             const courierProfileDoc = courierId ? await db.collection('couriers').doc(courierId).get() : null;
                             const commissionRate = (courierProfileDoc === null || courierProfileDoc === void 0 ? void 0 : courierProfileDoc.exists) ? courierProfileDoc.data().commissionRate || 0 : 0;
-                            finalUpdate.courierCommission = commissionRate;
+                            finalUpdateData.courierCommission = commissionRate;
                         }
                         else {
-                            finalUpdate.courierCommission = 0;
+                            finalUpdateData.courierCommission = 0;
                         }
-                        // Handle company commission
                         if (newStatusConfig.affectsCompanyBalance) {
-                            const companyId = finalUpdate.companyId || shipmentData.companyId;
-                            const companyProfileDoc = await db.collection('companies').doc(companyId).get();
-                            const governorateCommissions = ((_e = companyProfileDoc.data()) === null || _e === void 0 ? void 0 : _e.governorateCommissions) || {};
-                            const governorateId = finalUpdate.governorateId || shipmentData.governorateId;
+                            const companyId = finalUpdateData.companyId || oldData.companyId;
+                            const companyProfileDoc = companyId ? await db.collection('companies').doc(companyId).get() : null;
+                            const governorateCommissions = (companyProfileDoc === null || companyProfileDoc === void 0 ? void 0 : companyProfileDoc.exists) ? companyProfileDoc.data().governorateCommissions || {} : {};
+                            const governorateId = finalUpdateData.governorateId || oldData.governorateId;
                             const commission = governorateCommissions[governorateId] || 0;
-                            finalUpdate.companyCommission = commission;
+                            finalUpdateData.companyCommission = commission;
                         }
                         else {
-                            finalUpdate.companyCommission = 0;
+                            finalUpdateData.companyCommission = 0;
                         }
                     }
                 }
-                const historyRef = shipmentRef.collection('history').doc();
-                const historyEntry = {
-                    status: finalUpdate.status || shipmentData.status || 'Pending',
-                    reason: finalUpdate.reason || finalUpdate.amountChangeReason || '',
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    updatedBy: userName || userEmail,
-                    userId: userId,
-                };
-                if (isCreating) {
-                    if (!finalUpdate.createdAt) {
-                        finalUpdate.createdAt = admin.firestore.FieldValue.serverTimestamp();
+                // --- DETAILED AUDIT LOG ---
+                const newData = Object.assign(Object.assign({}, oldData), finalUpdateData);
+                const changes = [];
+                // Combine keys from old and new data to catch all changes
+                const allKeys = new Set([...Object.keys(oldData), ...Object.keys(finalUpdateData)]);
+                for (const key of allKeys) {
+                    // We only care about fields that are part of the update payload or calculated by the function
+                    if (!Object.prototype.hasOwnProperty.call(finalUpdateData, key))
+                        continue;
+                    const oldValue = oldData[key];
+                    const newValue = newData[key];
+                    // Simple comparison, ignoring objects like Timestamps for now
+                    if (oldValue !== newValue && typeof oldValue !== 'object' && typeof newValue !== 'object') {
+                        changes.push({ field: key, oldValue: oldValue !== null && oldValue !== void 0 ? oldValue : null, newValue: newValue !== null && newValue !== void 0 ? newValue : null });
                     }
-                    transaction.set(shipmentRef, finalUpdate);
+                }
+                if (changes.length > 0) {
+                    const historyRef = shipmentRef.collection('history').doc();
+                    const historyEntry = {
+                        changes,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        updatedBy: userName || userEmail,
+                        userId: userId,
+                    };
+                    transaction.set(historyRef, historyEntry);
+                }
+                if (isCreating) {
+                    const dataToSet = Object.assign({}, finalUpdateData);
+                    if (!dataToSet.createdAt) {
+                        dataToSet.createdAt = admin.firestore.FieldValue.serverTimestamp();
+                    }
+                    dataToSet.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+                    transaction.set(shipmentRef, dataToSet);
                 }
                 else {
-                    transaction.update(shipmentRef, finalUpdate);
+                    const dataToUpdate = Object.assign(Object.assign({}, finalUpdateData), { updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+                    transaction.update(shipmentRef, dataToUpdate);
                 }
-                transaction.set(historyRef, historyEntry);
                 return { success: true, message: isCreating ? "Shipment created successfully." : "Shipment updated successfully." };
             });
             res.status(200).send({ data: result });

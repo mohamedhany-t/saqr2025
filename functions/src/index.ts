@@ -3,7 +3,7 @@ import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import { z } from "zod";
 import cors from "cors";
-import type { User, Shipment, ShipmentStatusConfig, ShipmentHistoryEntry } from "./types";
+import type { User, Shipment, ShipmentStatusConfig, ShipmentHistory, ShipmentHistoryEntry } from "./types";
 
 try {
     admin.initializeApp();
@@ -175,7 +175,7 @@ export const handleShipmentUpdate = functions.runWith(runtimeOpts).https.onReque
             const result = await db.runTransaction(async (transaction) => {
                 const shipmentDoc = await transaction.get(shipmentRef);
                 const isCreating = !shipmentDoc.exists;
-                const oldData = isCreating ? {} : shipmentDoc.data() as Shipment;
+                const oldData: Partial<Shipment> = isCreating ? {} : shipmentDoc.data() as Shipment;
 
                 const userDoc = await db.collection('users').doc(userId).get();
                 if (!userDoc.exists) {
@@ -253,15 +253,12 @@ export const handleShipmentUpdate = functions.runWith(runtimeOpts).https.onReque
                 
                 // --- DETAILED AUDIT LOG ---
                 const newData = { ...oldData, ...finalUpdateData };
-                const changes: ShipmentHistoryEntry['changes'] = [];
+                const changes: ShipmentHistoryEntry[] = [];
 
                 // Combine keys from old and new data to catch all changes
                 const allKeys = new Set([...Object.keys(oldData), ...Object.keys(finalUpdateData)]);
                 
                 for (const key of allKeys) {
-                     // We only care about fields that are part of the update payload or calculated by the function
-                    if (!Object.prototype.hasOwnProperty.call(finalUpdateData, key)) continue;
-
                     const oldValue = (oldData as any)[key];
                     const newValue = (newData as any)[key];
 
@@ -274,7 +271,7 @@ export const handleShipmentUpdate = functions.runWith(runtimeOpts).https.onReque
 
                 if (changes.length > 0) {
                     const historyRef = shipmentRef.collection('history').doc();
-                    const historyEntry: Omit<ShipmentHistoryEntry, "id"> = {
+                    const historyEntry: Omit<ShipmentHistory, "id"> = {
                         changes,
                         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                         updatedBy: userName || userEmail,
