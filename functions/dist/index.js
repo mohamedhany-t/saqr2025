@@ -47,7 +47,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handleShipmentUpdate = void 0;
+exports.handleShipmentUpdate = exports.settleCompanyAccount = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const zod_1 = require("zod");
@@ -62,6 +62,14 @@ catch (e) {
 }
 const db = admin.firestore();
 const corsHandler = (0, cors_1.default)({ origin: true });
+// Schema for the new settlement function
+const companySettlementSchema = zod_1.z.object({
+    companyId: zod_1.z.string(),
+    paymentAmount: zod_1.z.number(),
+    shipmentIdsToArchive: zod_1.z.array(zod_1.z.string()),
+    settlementNote: zod_1.z.string(),
+    adminId: zod_1.z.string(),
+});
 const updateShipmentStatusSchema = zod_1.z.object({
     shipmentId: zod_1.z.string(),
     // All other fields are optional because the logic will decide what to do
@@ -97,7 +105,51 @@ const runtimeOpts = {
     timeoutSeconds: 540, // 9 minutes
     memory: '256MB',
 };
-exports.handleShipmentUpdate = functions.runWith(runtimeOpts).https.onRequest((req, res) => {
+exports.settleCompanyAccount = functions.runWith(runtimeOpts).https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    const validation = companySettlementSchema.safeParse(data);
+    if (!validation.success) {
+        throw new functions.https.HttpsError('invalid-argument', 'The data provided is invalid.');
+    }
+    const { companyId, paymentAmount, shipmentIdsToArchive, settlementNote, adminId } = validation.data;
+    const BATCH_SIZE = 400; // Firestore batch limit is 500, we use 400 to be safe.
+    const allBatches = [];
+    // --- Create and commit the first batch for the payment ---
+    let initialBatch = db.batch();
+    if (paymentAmount !== 0) {
+        const paymentRef = db.collection('company_payments').doc();
+        initialBatch.set(paymentRef, {
+            companyId,
+            amount: paymentAmount,
+            paymentDate: admin.firestore.FieldValue.serverTimestamp(),
+            recordedById: adminId,
+            notes: settlementNote,
+            isArchived: true,
+        });
+        allBatches.push(initialBatch.commit());
+    }
+    // --- Create and commit subsequent batches for archiving shipments ---
+    for (let i = 0; i < shipmentIdsToArchive.length; i += BATCH_SIZE) {
+        const chunk = shipmentIdsToArchive.slice(i, i + BATCH_SIZE);
+        const batch = db.batch();
+        chunk.forEach(shipmentId => {
+            const shipmentRef = db.collection('shipments').doc(shipmentId);
+            batch.update(shipmentRef, { isArchivedForCompany: true });
+        });
+        allBatches.push(batch.commit());
+    }
+    try {
+        await Promise.all(allBatches);
+        return { success: true, message: `تمت تسوية حساب الشركة وأرشفة ${shipmentIdsToArchive.length} شحنة بنجاح.` };
+    }
+    catch (error) {
+        console.error("Error settling company account:", error);
+        throw new functions.https.HttpsError('internal', 'An error occurred while executing the settlement on the server.');
+    }
+});
+exports.handleShipmentUpdate = functions.https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
         var _a, _b, _c;
         if (req.method !== 'POST') {
