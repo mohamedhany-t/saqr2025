@@ -1479,9 +1479,10 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
   const recentlyUpdatedShipments = React.useMemo(() => {
     const activeShipments = allShipmentsForStats?.filter(shipment => !shipment.isArchivedForCompany && !shipment.isArchivedForCourier) || [];
     return activeShipments.sort((a, b) => {
-        const timeA = a.updatedAt?.toDate?.()?.getTime() || 0;
-        const timeB = b.updatedAt?.toDate?.()?.getTime() || 0;
-        return timeB - a;
+        // Handle cases where updatedAt might not be a standard Date object
+        const timeA = a.updatedAt?.toDate ? a.updatedAt.toDate().getTime() : (a.updatedAt ? new Date(a.updatedAt).getTime() : 0);
+        const timeB = b.updatedAt?.toDate ? b.updatedAt.toDate().getTime() : (b.updatedAt ? new Date(b.updatedAt).getTime() : 0);
+        return timeB - timeA;
     });
 }, [allShipmentsForStats]);
 
@@ -1561,9 +1562,27 @@ const returnedToCompanyShipments = React.useMemo(() => {
 
   const shownNotificationsRef = React.useRef<Set<string>>(new Set());
 
+  const getSafeDate = (date: any): Date | null => {
+      if (!date) return null;
+      if (date.toDate instanceof Function) return date.toDate();
+      if (date instanceof Date) return date;
+      const parsed = new Date(date);
+      return isNaN(parsed.getTime()) ? null : parsed;
+  }
+
   const returnedShipmentsNeedingAction = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'Returned' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
-  const longPostponedShipments = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'Postponed' && s.updatedAt && differenceInDays(new Date(), s.updatedAt.toDate()) > 3 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
-  const staleInTransitShipments = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'In-Transit' && s.updatedAt && differenceInHours(new Date(), s.updatedAt.toDate()) > 24 && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
+  const longPostponedShipments = React.useMemo(() => {
+      return allShipmentsForStats?.filter(s => {
+          const updatedAt = getSafeDate(s.updatedAt);
+          return s.status === 'Postponed' && updatedAt && differenceInDays(new Date(), updatedAt) > 3 && !s.isArchivedForCompany && !s.isArchivedForCourier;
+      }) || [];
+  }, [allShipmentsForStats]);
+  const staleInTransitShipments = React.useMemo(() => {
+      return allShipmentsForStats?.filter(s => {
+          const updatedAt = getSafeDate(s.updatedAt);
+          return s.status === 'In-Transit' && updatedAt && differenceInHours(new Date(), updatedAt) > 24 && !s.isArchivedForCompany && !s.isArchivedForCourier;
+      }) || [];
+  }, [allShipmentsForStats]);
   const priceChangeRequests = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'PriceChangeRequested' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
   
   const problemCount = returnedShipmentsNeedingAction.length + longPostponedShipments.length + staleInTransitShipments.length + priceChangeRequests.length;
@@ -1604,7 +1623,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
       const notificationId = `returns_${company.id}_${today}`;
       const todaysReturns = allShipmentsForStats?.filter(s => {
         if (s.companyId !== company.id || (s.status !== 'Returned' && s.status !== 'Refused (Unpaid)')) return false;
-        const updatedAt = s.updatedAt?.toDate();
+        const updatedAt = getSafeDate(s.updatedAt);
         return updatedAt && updatedAt.toISOString().split('T')[0] === today;
       }).length || 0;
 
@@ -1904,10 +1923,11 @@ const returnedToCompanyShipments = React.useMemo(() => {
                 <ProblemShipmentList title="شحنات مؤجلة لفترة طويلة" icon={<AlertTriangle className="h-5 w-5 text-destructive" />} shipments={longPostponedShipments} onEdit={openShipmentForm}>
                      {(s: Shipment) => {
                          const companyName = companies?.find(c => c.id === s.companyId)?.name || "N/A";
-                         const lastUpdate = s.updatedAt?.toDate ? differenceInDays(new Date(), s.updatedAt.toDate()) : 0;
+                         const lastUpdate = getSafeDate(s.updatedAt);
+                         const daysAgo = lastUpdate ? differenceInDays(new Date(), lastUpdate) : 0;
                         return (<div>
                             <p className="font-bold">{s.recipientName} - <span className="text-primary">{companyName}</span></p>
-                            <p className="text-xs text-amber-600">مؤجلة منذ {lastUpdate} أيام</p>
+                            <p className="text-xs text-amber-600">مؤجلة منذ {daysAgo} أيام</p>
                         </div>)
                     }}
                 </ProblemShipmentList>
@@ -2409,3 +2429,21 @@ const returnedToCompanyShipments = React.useMemo(() => {
     </div>
   );
 }
+
+const getSafeDate = (date: any): Date | null => {
+    if (!date) return null;
+    // Handle Firestore Timestamp
+    if (typeof date.toDate === 'function') {
+      return date.toDate();
+    }
+    // Handle JS Date object
+    if (date instanceof Date) {
+      return date;
+    }
+    // Handle ISO string or other date string formats
+    const parsedDate = new Date(date);
+    if (!isNaN(parsedDate.getTime())) {
+      return parsedDate;
+    }
+    return null;
+  };
