@@ -1,6 +1,7 @@
 
 "use client"
 import * as React from "react"
+import { useVirtualizer } from '@tanstack/react-virtual'
 import type {
   ColumnDef,
   ColumnFiltersState,
@@ -501,6 +502,8 @@ export function ShipmentsTable({
   const [rowSelection, setRowSelection] = React.useState({})
   const { toast } = useToast()
   const firestore = useFirestore();
+
+  const parentRef = React.useRef<HTMLDivElement>(null)
   
   const columns = React.useMemo(() => getColumns({ governorates, companies, couriers, statuses, onEdit, onBulkUpdate: onBulkUpdate!, role }), [governorates, companies, couriers, statuses, onEdit, onBulkUpdate, role]);
   
@@ -510,7 +513,6 @@ export function ShipmentsTable({
     onSortingChange: setSorting,
     onColumnFiltersChange: onFiltersChange || setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
@@ -522,9 +524,6 @@ export function ShipmentsTable({
       rowSelection,
     },
     initialState: {
-        pagination: {
-            pageSize: 10, // Default page size
-        },
         columnVisibility: {
           companyId: role !== 'admin',
           deliveryDate: false,
@@ -532,18 +531,25 @@ export function ShipmentsTable({
         }
     }
   })
+
+  const { rows } = table.getRowModel()
+
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 65, // Estimate row height
+    overscan: 5,
+  })
+
+  const virtualRows = rowVirtualizer.getVirtualItems()
+  const totalSize = rowVirtualizer.getTotalSize()
+  const paddingTop = virtualRows.length > 0 ? virtualRows?.[0]?.start || 0 : 0
+  const paddingBottom = virtualRows.length > 0 ? totalSize - (virtualRows?.[virtualRows.length - 1]?.end || 0) : 0
   
   React.useEffect(() => {
     table.getColumn('companyId')?.toggleVisibility(role === 'admin');
     table.getColumn('assignedCourierId')?.toggleVisibility(role !== 'courier');
   }, [role, table]);
-
-  // Effect to adjust page size dynamically
-  React.useEffect(() => {
-    if (shipments.length > 0) {
-      table.setPageSize(shipments.length);
-    }
-  }, [shipments, table]);
 
 
   const handleExport = () => {
@@ -792,9 +798,9 @@ export function ShipmentsTable({
                  </div>
             )}
         </div>
-      <div className="rounded-md border bg-card overflow-x-auto">
-        <Table>
-          <TableHeader>
+      <div ref={parentRef} className="rounded-md border bg-card overflow-auto" style={{ height: `calc(100vh - 25rem)` }}>
+        <Table style={{ height: `${totalSize}px` }}>
+          <TableHeader className="sticky top-0 bg-card z-10">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
@@ -812,30 +818,37 @@ export function ShipmentsTable({
               </TableRow>
             ))}
           </TableHeader>
-          <TableBody>
+          <TableBody style={{ position: 'relative' }}>
             {isLoading ? (
                 Array.from({length: 10}).map((_, i) => (
                     <TableRow key={i}>
                          {columns.map(col => <TableCell key={(col as any).id || (col as any).accessorKey}><Skeleton className="h-6 w-full" /></TableCell>)}
                     </TableRow>
                 ))
-            ) : table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                  className={row.original.retryAttempt ? "bg-yellow-100/50 dark:bg-yellow-900/20" : ""}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className={cn("text-right", cell.column.id === 'status' && 'min-w-[180px]')}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+            ) : virtualRows.length > 0 ? (
+                virtualRows.map((virtualRow) => {
+                  const row = rows[virtualRow.index] as Row<Shipment>
+                  return (
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && "selected"}
+                      className={cn("absolute w-full", row.original.retryAttempt ? "bg-yellow-100/50 dark:bg-yellow-900/20" : "")}
+                      style={{
+                        height: `${virtualRow.size}px`,
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id} className={cn("text-right", cell.column.id === 'status' && 'min-w-[180px]')}>
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  )
+                })
             ) : (
               <TableRow>
                 <TableCell
