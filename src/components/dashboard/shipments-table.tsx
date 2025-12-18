@@ -120,7 +120,7 @@ export const statusText: Record<string, string> = {
     'In-Transit': 'قيد التوصيل',
     Delivered: 'تم التسليم',
     'Partially Delivered': 'تم التسليم جزئياً',
-    'Evasion (Phone)': 'تهرب هاتفيًا',
+    'Evasion (Phone)': 'تهرب هاتفياً',
     'Evasion (Delivery Attempt)': 'تهرب بعد الوصول',
     Cancelled: 'تم الإلغاء',
     Returned: 'مرتجع',
@@ -320,8 +320,15 @@ export const getColumns = ({
     cell: ({ row }) => {
        const createdAt = row.getValue("createdAt") as any;
        // Handle both Firestore Timestamp and JS Date objects
-       const date = createdAt?.toDate ? createdAt.toDate() : createdAt;
+       const date = createdAt?.toDate ? createdAt.toDate() : new Date(createdAt);
        return <div>{formatToCairoTime(date)}</div>;
+    },
+     filterFn: (row, id, value: DateRange) => {
+        const date = row.original.createdAt?.toDate();
+        if (!date) return false;
+        if (value.from && date < value.from) return false;
+        if (value.to && date > value.to) return false;
+        return true;
     },
   },
   {
@@ -600,40 +607,21 @@ export function ShipmentsTable({
     });
   }
 
-  const currentFilters = filters || columnFilters;
-  const governorateFilterValue = currentFilters.find(f => f.id === 'governorateId')?.value as string[] | undefined;
-  const companyFilterValue = currentFilters.find(f => f.id === 'companyId')?.value as string[] | undefined;
-  const courierFilterValue = currentFilters.find(f => f.id === 'assignedCourierId')?.value as string[] | undefined;
-  const statusFilterValue = currentFilters.find(f => f.id === 'status')?.value as string[] | undefined;
-  
-  const handleSetFilter = (id: string, value: any) => {
-    if (onFiltersChange) {
-      onFiltersChange(prev => {
-        const newFilters = prev.filter(f => f.id !== id);
-        if (value !== undefined && (!Array.isArray(value) || value.length > 0)) {
-          newFilters.push({ id, value });
-        }
-        return newFilters;
-      });
-    } else {
-      table.getColumn(id)?.setFilterValue(value);
-    }
-  };
-
-
   return (
     <div className="w-full">
-        <div className="flex items-center justify-between py-4 gap-2 flex-wrap">
-            <div className="flex items-center gap-2 flex-wrap">
-                { onFiltersChange && (
-                    <ShipmentFilters 
-                        governorates={governorates}
-                        companies={companies}
-                        courierUsers={couriers}
-                        statuses={statuses}
-                        onFiltersChange={onFiltersChange}
-                    />
-                )}
+        { onFiltersChange && (
+            <div className="flex items-center justify-between py-4 gap-2 flex-wrap">
+                 <ShipmentFilters 
+                    governorates={governorates}
+                    companies={companies}
+                    couriers={couriers}
+                    statuses={statuses}
+                    onFiltersChange={onFiltersChange}
+                />
+            </div>
+        )}
+        <div className="flex items-center justify-between py-4">
+             <div className="flex items-center gap-2 flex-wrap">
                  <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleExport}>
                     <FileUp className="h-3.5 w-3.5" />
                     <span className="sr-only sm:not-sr-only">تصدير Excel</span>

@@ -71,11 +71,23 @@ export function useCollection<T = any>(
     const unsubscribe = onSnapshot(
       refOrQuery,
       (snapshot: QuerySnapshot<DocumentData>) => {
-        const results = snapshot.docs.map(doc => ({ 
-            ...(doc.data() as T), 
-            id: doc.id,
-            ref: doc.ref // Include the document reference
-        }));
+        const results = snapshot.docs.map(doc => {
+            const docData = doc.data();
+            // Manually convert Timestamps to Dates for all fields
+            const dataWithDates: { [key: string]: any } = {};
+            for (const key in docData) {
+                if (docData[key]?.toDate) {
+                    dataWithDates[key] = docData[key].toDate();
+                } else {
+                    dataWithDates[key] = docData[key];
+                }
+            }
+            return { 
+                ...(dataWithDates as T), 
+                id: doc.id,
+                ref: doc.ref // Include the document reference
+            };
+        });
         setData(results);
         setError(null);
         setIsLoading(false);

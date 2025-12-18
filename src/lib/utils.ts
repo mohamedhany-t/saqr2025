@@ -10,17 +10,20 @@ export function cn(...inputs: ClassValue[]) {
 export const formatToCairoTime = (date: any): string => {
   if (!date) return 'غير محدد';
   
-  // Handle Firebase Timestamp object
-  if (typeof date.toDate === 'function') {
-    date = date.toDate();
-  }
-
   try {
+    let dateObj;
+    // Handle Firebase Timestamp object
+    if (typeof date.toDate === 'function') {
+      dateObj = date.toDate();
+    } else {
+      // Handle JS Date object or string
+      dateObj = toDate(date);
+    }
+    
     const timeZone = 'Africa/Cairo';
-    const dateObj = toDate(date, { timeZone });
     return formatTZ(dateObj, 'dd/MM/yyyy, hh:mm a', { timeZone, locale: ar });
   } catch (error) {
-    console.error("Error formatting date:", error);
+    console.error("Error formatting date:", error, "Input was:", date);
     return 'تاريخ غير صالح';
   }
 };
