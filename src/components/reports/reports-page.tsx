@@ -28,6 +28,15 @@ interface ReportsPageProps {
     isLoading: boolean;
 }
 
+const getSafeDate = (date: any): Date | null => {
+    if (!date) return null;
+    if (date.toDate instanceof Function) return date.toDate(); // Firestore Timestamp
+    if (date instanceof Date) return date; // JS Date
+    const parsed = new Date(date); // ISO string or number
+    return isNaN(parsed.getTime()) ? null : parsed;
+};
+
+
 export function ReportsPage({
     shipments,
     companies,
@@ -151,7 +160,7 @@ export function ReportsPage({
             return shipmentsToFilter;
         }
         return shipmentsToFilter.filter(s => {
-            const shipmentDate = s.createdAt?.toDate();
+            const shipmentDate = getSafeDate(s.createdAt);
             if (!shipmentDate) return false;
             
             const from = dateRange.from ? new Date(dateRange.from.setHours(0,0,0,0)) : null;
