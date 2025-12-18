@@ -99,7 +99,11 @@ export default function ExpensesPage() {
     let totalShipping = 0;
 
     expenses.forEach(exp => {
-      const expenseDate = exp.expenseDate?.toDate();
+      // Handle both JS Date and Firestore Timestamp objects
+      const expenseDate = exp.expenseDate instanceof Date 
+        ? exp.expenseDate 
+        : exp.expenseDate?.toDate();
+
       if (!expenseDate) return;
 
       if (expenseDate >= startOfThisDay && expenseDate <= endOfThisDay) {
