@@ -2,6 +2,7 @@
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing, ChevronLeft, ChevronRight, BarChart, MessageSquarePlus, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,7 +68,7 @@ const getSafeDate = (date: any): Date | null => {
       return parsedDate;
     }
     return null;
-  };
+};
 
 const MobileShipmentsView = ({
     allShipments,
@@ -249,48 +250,78 @@ const MobileShipmentsView = ({
         setMobileRowSelection({});
     }, [activeTab]);
 
-
-    const renderShipmentList = (shipmentList: Shipment[]) => {
+    const VirtualizedShipmentList = ({ shipmentList }: { shipmentList: Shipment[] }) => {
+        const parentRef = React.useRef<HTMLDivElement>(null);
+        
+        const rowVirtualizer = useVirtualizer({
+          count: shipmentList.length,
+          getScrollElement: () => parentRef.current,
+          estimateSize: () => 350, // Estimate height of a card
+          overscan: 5,
+        });
+      
+        const virtualItems = rowVirtualizer.getVirtualItems();
+      
         if (listIsLoading) {
           return (
             <div className="space-y-3 mt-4">
               {Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="p-4 bg-card rounded-lg border">
-                    <div className="w-full h-8 bg-muted rounded animate-pulse"/>
-                    <div className="w-full h-4 bg-muted rounded animate-pulse mt-3"/>
-                    <div className="w-1/2 h-4 bg-muted rounded animate-pulse mt-2"/>
+                  <div className="w-full h-8 bg-muted rounded animate-pulse"/>
+                  <div className="w-full h-4 bg-muted rounded animate-pulse mt-3"/>
+                  <div className="w-1/2 h-4 bg-muted rounded animate-pulse mt-2"/>
                 </div>
               ))}
             </div>
           );
         }
+      
         if (shipmentList.length === 0) {
           return <div className="text-center py-10 text-muted-foreground">لا توجد شحنات في هذه الفئة.</div>;
         }
+      
         return (
-          <div className="space-y-3 mt-4">
-            {shipmentList.map(shipment => (
-              <ShipmentCard 
-                key={shipment.id}
-                shipment={shipment}
-                statusConfig={statuses?.find(sc => sc.id === shipment.status)}
-                governorateName={governorates?.find(g => g.id === shipment.governorateId)?.name || ''}
-                companyName={companies?.find(c => c.id === shipment.companyId)?.name || ''}
-                onEdit={() => onEdit(shipment)}
-                onDelete={onDelete}
-                onPrint={onPrint}
-                isSelected={!!mobileRowSelection[shipment.id]}
-                onSelectToggle={(id) => {
-                    setMobileRowSelection(prev => ({
-                        ...prev,
-                        [id]: !prev[id]
-                    }));
-                }}
-              />
-            ))}
+          <div ref={parentRef} className="mt-4 overflow-y-auto" style={{ height: `calc(100vh - 18rem)` }}>
+            <div
+              className="relative w-full"
+              style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+            >
+              {virtualItems.map((virtualItem) => {
+                const shipment = shipmentList[virtualItem.index];
+                return (
+                  <div
+                    key={shipment.id}
+                    className="absolute top-0 left-0 w-full"
+                    style={{
+                      height: `${virtualItem.size}px`,
+                      transform: `translateY(${virtualItem.start}px)`,
+                      paddingBottom: '12px', // Add spacing between cards
+                    }}
+                  >
+                    <ShipmentCard
+                      shipment={shipment}
+                      statusConfig={statuses?.find(sc => sc.id === shipment.status)}
+                      governorateName={governorates?.find(g => g.id === shipment.governorateId)?.name || ''}
+                      companyName={companies?.find(c => c.id === shipment.companyId)?.name || ''}
+                      onEdit={() => onEdit(shipment)}
+                      onDelete={onDelete}
+                      onPrint={onPrint}
+                      isSelected={!!mobileRowSelection[shipment.id]}
+                      onSelectToggle={(id) => {
+                        setMobileRowSelection(prev => ({
+                          ...prev,
+                          [id]: !prev[id]
+                        }));
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
         );
-      }
+    };
+
       return (
         <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
             <div className="flex flex-col gap-4 mt-4">
@@ -320,17 +351,17 @@ const MobileShipmentsView = ({
                     )}
                 </div>
             </div>
-            <TabsContent value="all-shipments">{renderShipmentList(filteredShipments)}</TabsContent>
-            <TabsContent value="unassigned">{renderShipmentList(unassignedShipments)}</TabsContent>
-            <TabsContent value="assigned">{renderShipmentList(assignedShipments)}</TabsContent>
-            <TabsContent value="recently-updated">{renderShipmentList(recentlyUpdatedShipments)}</TabsContent>
-            <TabsContent value="delivered">{renderShipmentList(getShipmentsByStatus(['Delivered']))}</TabsContent>
-            <TabsContent value="postponed">{renderShipmentList(getShipmentsByStatus('Postponed'))}</TabsContent>
-            <TabsContent value="returns-with-couriers">{renderShipmentList(returnsWithCouriers)}</TabsContent>
-            <TabsContent value="returns-in-warehouse">{renderShipmentList(inWarehouseShipments)}</TabsContent>
-            <TabsContent value="returned-to-company">{renderShipmentList(returnedToCompanyShipments)}</TabsContent>
-            <TabsContent value="archived-company">{renderShipmentList(archivedShipmentsCompany)}</TabsContent>
-            <TabsContent value="archived-courier">{renderShipmentList(archivedShipmentsCourier)}</TabsContent>
+            <TabsContent value="all-shipments"><VirtualizedShipmentList shipmentList={filteredShipments} /></TabsContent>
+            <TabsContent value="unassigned"><VirtualizedShipmentList shipmentList={unassignedShipments} /></TabsContent>
+            <TabsContent value="assigned"><VirtualizedShipmentList shipmentList={assignedShipments} /></TabsContent>
+            <TabsContent value="recently-updated"><VirtualizedShipmentList shipmentList={recentlyUpdatedShipments} /></TabsContent>
+            <TabsContent value="delivered"><VirtualizedShipmentList shipmentList={getShipmentsByStatus(['Delivered'])} /></TabsContent>
+            <TabsContent value="postponed"><VirtualizedShipmentList shipmentList={getShipmentsByStatus('Postponed')} /></TabsContent>
+            <TabsContent value="returns-with-couriers"><VirtualizedShipmentList shipmentList={returnsWithCouriers} /></TabsContent>
+            <TabsContent value="returns-in-warehouse"><VirtualizedShipmentList shipmentList={inWarehouseShipments} /></TabsContent>
+            <TabsContent value="returned-to-company"><VirtualizedShipmentList shipmentList={returnedToCompanyShipments} /></TabsContent>
+            <TabsContent value="archived-company"><VirtualizedShipmentList shipmentList={archivedShipmentsCompany} /></TabsContent>
+            <TabsContent value="archived-courier"><VirtualizedShipmentList shipmentList={archivedShipmentsCourier} /></TabsContent>
             {selectedCount > 0 && (
                 <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-2 shadow-lg flex items-center justify-around flex-wrap gap-2 z-40">
                      <span className="text-sm font-medium">{selectedCount} شحنات محددة</span>
