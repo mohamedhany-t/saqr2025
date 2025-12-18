@@ -1,7 +1,7 @@
 
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
-import type { Shipment, User, Company, CourierPayment, CompanyPayment, Governorate, ShipmentStatusConfig, ShipmentHistory } from "@/lib/types";
+import type { Shipment, User, Company, CourierPayment, CompanyPayment, Governorate, ShipmentStatusConfig } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -13,8 +13,8 @@ import { Button } from "@/components/ui/button";
 import { FileUp, Loader2, Package, HandCoins, MinusCircle, ArrowDown, ArrowUp } from "lucide-react";
 import { cn, formatToCairoTime } from "@/lib/utils";
 import { exportToExcel } from "@/lib/export";
-import { useCollection, useFirestore, useMemoFirebase, WithIdAndRef } from "@/firebase";
-import { collection, query, collectionGroup } from "firebase/firestore";
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { collection, query } from "firebase/firestore";
 
 type TransactionType = 'shipment' | 'payment' | 'custom_return';
 
@@ -48,7 +48,6 @@ function AccountStatementsPage() {
     const firestore = useFirestore();
 
     const { data: shipments, isLoading: shipmentsLoading } = useCollection<Shipment>(useMemoFirebase(() => firestore ? query(collection(firestore, 'shipments')) : null, [firestore]));
-    const { data: history, isLoading: historyLoading } = useCollection<ShipmentHistory>(useMemoFirebase(() => firestore ? query(collectionGroup(firestore, 'history')) : null, [firestore]));
     const { data: governorates, isLoading: governoratesLoading } = useCollection<Governorate>(useMemoFirebase(() => firestore ? query(collection(firestore, 'governorates')) : null, [firestore]));
     const { data: companies, isLoading: companiesLoading } = useCollection<Company>(useMemoFirebase(() => firestore ? query(collection(firestore, 'companies')) : null, [firestore]));
     const { data: users, isLoading: usersLoading } = useCollection<User>(useMemoFirebase(() => firestore ? query(collection(firestore, 'users')) : null, [firestore]));
@@ -57,7 +56,7 @@ function AccountStatementsPage() {
     const { data: statuses, isLoading: statusesLoading } = useCollection<ShipmentStatusConfig>(useMemoFirebase(() => firestore ? query(collection(firestore, 'shipment_statuses')) : null, [firestore]));
     
     const couriers = useMemo(() => users?.filter(u => u.role === 'courier') || [], [users]);
-    const isLoading = shipmentsLoading || historyLoading || governoratesLoading || companiesLoading || usersLoading || courierPaymentsLoading || companyPaymentsLoading || statusesLoading;
+    const isLoading = shipmentsLoading || governoratesLoading || companiesLoading || usersLoading || courierPaymentsLoading || companyPaymentsLoading || statusesLoading;
     
     const [entityType, setEntityType] = useState<"courier" | "company">("courier");
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -65,39 +64,23 @@ function AccountStatementsPage() {
     const [includeArchived, setIncludeArchived] = useState(false);
 
     const transactions = useMemo((): Transaction[] => {
-        if (!selectedId || !shipments || !history || !courierPayments || !companyPayments || !statuses) return [];
+        if (!selectedId || !shipments || !courierPayments || !companyPayments || !statuses) return [];
 
         let rawTransactions: { date: Date, type: 'shipment' | 'payment', data: any }[] = [];
 
         if (entityType === 'courier') {
-            const entityShipments = shipments.filter(s => s.assignedCourierId === selectedId);
+            const entityShipments = shipments.filter(s => s.assignedCourierId === selectedId && (includeArchived || !s.isArchivedForCourier));
             const entityPayments = courierPayments.filter(p => p.courierId === selectedId && (includeArchived || !p.isArchived));
 
-            entityShipments.forEach(s => {
-                const shipmentHistory = history.filter(h => h.ref.parent.parent?.id === s.id && (includeArchived || !s.isArchivedForCourier));
-                shipmentHistory.forEach(h => {
-                    const statusConfig = statuses.find(st => st.id === h.status);
-                    if (statusConfig && statusConfig.affectsCourierBalance) {
-                        rawTransactions.push({ date: h.updatedAt as Date, type: 'shipment', data: { shipment: s, history: h } });
-                    }
-                });
-            });
-            entityPayments.forEach(p => rawTransactions.push({ date: p.paymentDate as Date, type: 'payment', data: p }));
+            entityShipments.forEach(s => rawTransactions.push({ date: s.updatedAt, type: 'shipment', data: s }));
+            entityPayments.forEach(p => rawTransactions.push({ date: p.paymentDate, type: 'payment', data: p }));
 
         } else { // company
-            const entityShipments = shipments.filter(s => s.companyId === selectedId);
+            const entityShipments = shipments.filter(s => s.companyId === selectedId && (includeArchived || !s.isArchivedForCompany));
             const entityPayments = companyPayments.filter(p => p.companyId === selectedId && (includeArchived || !p.isArchived));
 
-            entityShipments.forEach(s => {
-                 const shipmentHistory = history.filter(h => h.ref.parent.parent?.id === s.id && (includeArchived || !s.isArchivedForCompany));
-                 shipmentHistory.forEach(h => {
-                     const statusConfig = statuses.find(st => st.id === h.status);
-                     if (statusConfig && statusConfig.affectsCompanyBalance) {
-                         rawTransactions.push({ date: h.updatedAt as Date, type: 'shipment', data: { shipment: s, history: h } });
-                     }
-                 });
-            });
-            entityPayments.forEach(p => rawTransactions.push({ date: p.paymentDate as Date, type: 'payment', data: p }));
+            entityShipments.forEach(s => rawTransactions.push({ date: s.updatedAt, type: 'shipment', data: s }));
+            entityPayments.forEach(p => rawTransactions.push({ date: p.paymentDate, type: 'payment', data: p }));
         }
         
         rawTransactions = rawTransactions.filter(tx => tx.date); // Filter out transactions with invalid dates
@@ -114,38 +97,46 @@ function AccountStatementsPage() {
             let status, reason, relatedId;
 
             if (rawTx.type === 'shipment') {
-                const s = rawTx.data.shipment as Shipment;
-                const h = rawTx.data.history as WithIdAndRef<ShipmentHistory>;
-                relatedId = `${s.id}-${h.id}`;
-                status = h.status;
-                reason = h.reason;
-                description = `شحنة: ${s.recipientName} (${s.orderNumber}) - حالة: ${statuses.find(st => st.id === h.status)?.label || h.status}`;
-                const statusConfig = statuses.find(st => st.id === h.status);
+                const s = rawTx.data as Shipment;
+                relatedId = s.id;
+                status = s.status;
+                reason = s.reason;
+                description = `شحنة: ${s.recipientName} (${s.orderNumber}) - حالة: ${statuses.find(st => st.id === s.status)?.label || s.status}`;
                 
-                if (statusConfig) {
-                    if (entityType === 'courier') {
-                        credit = statusConfig.requiresFullCollection ? s.totalAmount : (statusConfig.requiresPartialCollection ? (s.collectedAmount || 0) : 0);
-                        debit = statusConfig.affectsCourierBalance ? (s.courierCommission || 0) : 0;
-                         if (s.isCustomReturn && statusConfig.isDeliveredStatus) {
-                            credit = -Math.abs(s.totalAmount);
-                        }
-                    } else { // company
-                        debit = statusConfig.requiresFullCollection ? s.totalAmount : (statusConfig.requiresPartialCollection ? (s.collectedAmount || 0) : 0);
-                        credit = statusConfig.affectsCompanyBalance ? (s.companyCommission || 0) : 0;
-                        if (s.isCustomReturn && statusConfig.isDeliveredStatus) {
-                            debit = -Math.abs(s.totalAmount);
-                        }
-                    }
+                const statusConfig = statuses.find(st => st.id === s.status);
+                if (!statusConfig) continue;
+
+                if (entityType === 'courier') {
+                    // Credit is what the courier collected (owes the company)
+                    credit = s.paidAmount || 0;
+                    // Debit is what the courier earned (commission)
+                    debit = s.courierCommission || 0;
+                } else { // company
+                    // Debit is what the company earned (collected amount)
+                    debit = s.paidAmount || 0;
+                    // Credit is what the company owes (system commission)
+                    credit = s.companyCommission || 0;
                 }
+
                 if (s.isCustomReturn) txType = 'custom_return';
                 
             } else { // payment
                 const p = rawTx.data as (CourierPayment | CompanyPayment);
                 relatedId = p.id;
                 description = `دفعة ${p.notes ? `(${p.notes})` : ''}`;
-                debit = p.amount;
                 txType = 'payment';
+
+                if (entityType === 'courier') {
+                    // A payment from courier decreases their debt
+                    debit = p.amount;
+                } else {
+                    // A payment to company decreases what admin owes them
+                    credit = p.amount;
+                }
             }
+            
+            // Skip transactions that have no financial impact
+            if (credit === 0 && debit === 0) continue;
             
             if (entityType === 'courier') {
                 runningBalance += (credit - debit);
@@ -172,7 +163,7 @@ function AccountStatementsPage() {
             : processedTransactions.filter(tx => tx.type === 'payment' || tx.status === statusFilter);
 
         return finalFiltered.reverse(); // Display newest first
-    }, [selectedId, entityType, shipments, history, courierPayments, companyPayments, statuses, statusFilter, includeArchived]);
+    }, [selectedId, entityType, shipments, courierPayments, companyPayments, statuses, statusFilter, includeArchived]);
 
     const selectedEntity = entityType === 'courier' 
         ? couriers.find(c => c.id === selectedId)
@@ -322,10 +313,10 @@ function AccountStatementsPage() {
                                         <TableHead>التاريخ</TableHead>
                                         <TableHead>البيان</TableHead>
                                         <TableHead className={cn("text-center", entityType === 'courier' ? "text-red-600" : "text-green-600")}>
-                                            {entityType === 'courier' ? "دائن (عليه)" : "دائن (له)"}
+                                            {entityType === 'courier' ? "دائن (عليه)" : "مدين (له)"}
                                         </TableHead>
                                         <TableHead className={cn("text-center", entityType === 'courier' ? "text-green-600" : "text-red-600")}>
-                                             {entityType === 'courier' ? "مدين (له)" : "مدين (عليه)"}
+                                             {entityType === 'courier' ? "مدين (له)" : "دائن (عليه)"}
                                         </TableHead>
                                         <TableHead className="text-center font-bold">الرصيد</TableHead>
                                     </TableRow>
@@ -361,5 +352,3 @@ function AccountStatementsPage() {
 }
 
 export default AccountStatementsPage;
-
-    
