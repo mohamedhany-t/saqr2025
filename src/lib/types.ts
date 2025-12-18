@@ -82,6 +82,24 @@ export type Shipment = {
   isLabelPrinted?: boolean; // To track if the shipping label has been printed
 };
 
+export type ExpenseEntityType = 'courier' | 'office' | 'company' | 'general';
+export type ExpenseType = 'transport' | 'parking' | 'tip' | 'maintenance' | 'other';
+
+export type Expense = {
+  id: string;
+  description: string;
+  amount: number;
+  category: ExpenseType;
+  entityType: ExpenseEntityType;
+  relatedUserId?: string; // For 'courier' or 'company'
+  expenseDate: any;
+  receiptImageUrl?: string;
+  notes?: string;
+  createdBy: string; // UID of the admin who recorded it
+  createdAt: any;
+  updatedAt: any;
+};
+
 export interface ShipmentHistoryEntry {
     field: string;
     oldValue: any;
