@@ -537,7 +537,7 @@ export function ShipmentsTable({
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 65, // Estimate row height
+    estimateSize: () => 90, // Increased estimated row height
     overscan: 5,
   })
 
