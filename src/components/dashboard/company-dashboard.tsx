@@ -7,7 +7,7 @@ import { PlusCircle, FileUp, MessageSquare, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, User, Chat, ShipmentHistory, ShipmentStatusKey, ShipmentStatusConfig } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, User, Chat, ShipmentHistory, ShipmentStatusKey, ShipmentStatusConfig, ShipmentHistoryEntry } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { ImportProgressDialog, type ImportResult } from "@/components/shipments/import-progress-dialog";
@@ -20,7 +20,7 @@ import { Badge } from "../ui/badge";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
 import { sendPushNotification } from "@/lib/actions";
 import { ShipmentCard } from "../shipments/shipment-card";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 
 interface CompanyDashboardProps {
   user: User;
@@ -343,8 +343,14 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
     const newStatus = cleanShipmentData.status as string;
     if (newStatus && newStatus !== oldStatus) {
         const historyRef = doc(collection(shipmentRef, 'history'));
+        const changes: ShipmentHistoryEntry[] = [{
+            field: 'status',
+            oldValue: oldStatus || 'Pending',
+            newValue: newStatus,
+        }];
+
         const historyEntry: Omit<ShipmentHistory, 'id'> = {
-            status: newStatus,
+            changes,
             reason: cleanShipmentData.reason || '',
             updatedAt: serverTimestamp(),
             updatedBy: user.name || user.email,
@@ -426,7 +432,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
         if (newStatus && newStatus !== oldStatus) {
             const historyRef = doc(collection(docRef, 'history'));
             const historyEntry: Omit<ShipmentHistory, 'id'> = {
-                status: newStatus,
+                changes: [{ field: 'status', oldValue: oldStatus, newValue: newStatus }],
                 reason: update.reason || 'تحديث جماعي',
                 updatedAt: serverTimestamp(),
                 updatedBy: user.name || user.email,
