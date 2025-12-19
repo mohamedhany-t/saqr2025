@@ -26,7 +26,7 @@ import { Input } from '@/components/ui/input';
 import { ShipmentFormSheet } from '@/components/shipments/shipment-form-sheet';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useFirebaseApp } from '@/firebase';
-import { ShipmentDetailsDialog } from '../components/shipments/shipment-details-dialog';
+import { ShipmentDetailsDialog } from '@/components/shipments/shipment-details-dialog';
 
 const getSafeDate = (date: any): Date | null => {
     if (!date) return null;
