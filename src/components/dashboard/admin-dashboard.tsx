@@ -1487,11 +1487,16 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
   
     let baseShipments = allShipmentsForStats;
     
-    // This is the single point where all filters are applied.
-    baseShipments = baseShipments.filter((shipment) => {
-        // 1. Column Filters (excluding special ones)
+    return baseShipments.filter((shipment) => {
         const columnFiltersMatch = columnFilters.every((filter) => {
-            if (filter.id === 'createdAt' || filter.id === 'address') return true; // Handle these separately
+            if (filter.id === 'createdAt') return true;
+            if (filter.id === 'address') {
+                const searchTerms = (filter.value as string[] || []).filter(Boolean);
+                if (searchTerms.length === 0) return true;
+                const addressValue = String(shipment.address || '').toLowerCase();
+                // OR logic for address terms
+                return searchTerms.some((term) => addressValue.includes(term));
+            }
             
             const value = (shipment as any)[filter.id];
             const filterValue = filter.value as string[];
@@ -1503,7 +1508,6 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
         });
         if (!columnFiltersMatch) return false;
 
-        // 2. Date Range Filter
         const dateRangeFilter = columnFilters.find(f => f.id === 'createdAt');
         if (dateRangeFilter) {
             const { from, to } = dateRangeFilter.value as DateRange;
@@ -1513,33 +1517,18 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
             if (to && createdAt > to) return false;
         }
         
-        // 3. Address Filter (OR logic)
-        const addressFilter = columnFilters.find(f => f.id === 'address');
-        if (addressFilter) {
-            const searchTerms = (addressFilter.value as string[] || []).filter(Boolean);
-            if (searchTerms.length > 0) {
-                const addressValue = String(shipment.address || '').toLowerCase();
-                const matchesAddress = searchTerms.some((term) => addressValue.includes(term.toLowerCase().trim()));
-                if (!matchesAddress) return false;
-            }
-        }
-        
-        // 4. Global Search Term Filter
         if (searchTerm) {
             const lowercasedTerm = searchTerm.toLowerCase();
-            const matchesGlobalSearch = 
+            return (
                 String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
                 String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
                 String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-                String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm);
-            if (!matchesGlobalSearch) return false;
+                String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm)
+            );
         }
 
-        // If all filters passed
         return true;
     });
-  
-    return baseShipments;
   }, [allShipmentsForStats, searchTerm, columnFilters]);
   
   
@@ -1658,8 +1647,10 @@ const returnedToCompanyShipments = React.useMemo(() => {
   const priceChangeRequests = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'PriceChangeRequested' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
   
   const duplicateShipments = React.useMemo(() => {
+    if (!filteredShipments) return [];
     const shipmentGroups: { [key: string]: Shipment[] } = {};
     filteredShipments.forEach(s => {
+        if (!s.recipientName || !s.recipientPhone || !s.address) return;
         const key = `${s.recipientName}-${s.recipientPhone}-${s.address}`.toLowerCase();
         if (!shipmentGroups[key]) {
             shipmentGroups[key] = [];
@@ -1964,7 +1955,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
                     <div className="text-center py-10 text-muted-foreground">لا توجد شحنات مكررة بناءً على الفلاتر الحالية.</div>
                 ) : (
                     duplicateShipments.map((group, index) => (
-                        <Collapsible key={index} className="border p-4 rounded-lg">
+                        <Collapsible key={index} className="border p-4 rounded-lg bg-muted/20">
                             <CollapsibleTrigger className="w-full flex justify-between items-center">
                                 <div className="text-right">
                                     <p className="font-bold">{group[0].recipientName}</p>
@@ -1972,22 +1963,26 @@ const returnedToCompanyShipments = React.useMemo(() => {
                                 </div>
                                 <Badge variant="destructive">{group.length} شحنات مكررة</Badge>
                             </CollapsibleTrigger>
-                            <CollapsibleContent>
-                                <div className="mt-4 space-y-3">
-                                    {group.map(shipment => (
-                                        <div key={shipment.id} className="border p-3 rounded-md flex justify-between items-center">
-                                            <div>
-                                                <p>الكود: {shipment.shipmentCode}</p>
-                                                <p>الحالة: {statuses.find(s => s.id === shipment.status)?.label || shipment.status}</p>
-                                                <p>التاريخ: {getSafeDate(shipment.createdAt)?.toLocaleDateString('ar-EG')}</p>
-                                            </div>
+                            <CollapsibleContent className="mt-4 space-y-3">
+                                {group.map(shipment => (
+                                    <div key={shipment.id} className="border p-3 rounded-md flex justify-between items-center bg-background">
+                                        <div>
+                                            <p className="font-mono text-sm">الكود: {shipment.shipmentCode}</p>
+                                            <p>الحالة: <Badge variant={statusVariants[shipment.status] || 'secondary'}>{statuses.find(s => s.id === shipment.status)?.label || shipment.status}</Badge></p>
+                                            <p className="text-xs text-muted-foreground">التاريخ: {getSafeDate(shipment.createdAt)?.toLocaleDateString('ar-EG')}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
                                             <Button size="sm" variant="outline" onClick={() => openShipmentForm(shipment)}>
                                                 <Pencil className="h-4 w-4 me-2" />
                                                 تعديل
                                             </Button>
+                                            <Button size="sm" variant="destructive" onClick={() => setShipmentToDelete(shipment)}>
+                                                <Trash2 className="h-4 w-4 me-2" />
+                                                حذف
+                                            </Button>
                                         </div>
-                                    ))}
-                                </div>
+                                    </div>
+                                ))}
                             </CollapsibleContent>
                         </Collapsible>
                     ))
