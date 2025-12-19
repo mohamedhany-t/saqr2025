@@ -5,7 +5,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser, useFirebaseApp } from '@/firebase';
 import { collection, query, where, doc, getDoc, updateDoc, writeBatch, deleteDoc } from 'firebase/firestore';
 import type { Shipment, Company, ShipmentStatusConfig, User, Governorate } from '@/lib/types';
-import { Loader2, UploadCloud, AlertTriangle, CheckCircle, GitCompareArrows, FileWarning, BadgePercent, FileCheck2, Scale, Pencil, Trash2, History } from 'lucide-react';
+import { Loader2, UploadCloud, AlertTriangle, CheckCircle, GitCompareArrows, FileWarning, BadgePercent, FileCheck2, Scale, Pencil, Trash2, History, CalendarIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useDropzone } from 'react-dropzone';
@@ -19,6 +19,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ShipmentDetailsDialog } from '@/components/shipments/shipment-details-dialog';
 import { ShipmentFormSheet } from '@/components/shipments/shipment-form-sheet';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { ar } from 'date-fns/locale';
+import { format, startOfDay, endOfDay, isSameDay } from 'date-fns';
+import { cn, formatToCairoTime } from '@/lib/utils';
+
 
 type AnalyzedShipment = {
     systemShipment: Shipment;
@@ -30,6 +36,7 @@ type AnalysisResult = {
     companyName: string;
     matched: Shipment[];
     discrepancies: AnalyzedShipment[];
+    dateMismatches: { systemShipment: Shipment; sheetAmount: number }[];
     systemOnly: Shipment[];
     sheetOnly: { code: string; amount: number }[];
 };
@@ -41,6 +48,7 @@ export default function ComparisonPage() {
     const { toast } = useToast();
 
     const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+    const [comparisonDate, setComparisonDate] = useState<Date | undefined>(new Date());
     const [isProcessing, setIsProcessing] = useState(false);
     const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
     const [processingUpdate, setProcessingUpdate] = useState<Set<string>>(new Set());
@@ -69,8 +77,8 @@ export default function ComparisonPage() {
 
     
     const onDrop = useCallback(async (acceptedFiles: File[]) => {
-        if (!selectedCompanyId || !allShipments) {
-            toast({ title: "الرجاء اختيار شركة أولاً", variant: "destructive" });
+        if (!selectedCompanyId || !allShipments || !comparisonDate) {
+            toast({ title: "الرجاء اختيار شركة وتاريخ أولاً", variant: "destructive" });
             return;
         }
         const file = acceptedFiles[0];
@@ -82,7 +90,7 @@ export default function ComparisonPage() {
             const workbook = read(data);
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
             
-            const sheetJsonForHeaders: any[] = utils.sheet_to_json(sheet, { header: 1 });
+            const sheetJsonForHeaders: any[] = utils.sheet_to_json(sheet, { header: 1, blankrows: false });
             
             const headerKeywords = {
                 code: ['رقم الشحنة', 'كود الشحنة', 'Shipment Code'],
@@ -91,31 +99,30 @@ export default function ComparisonPage() {
             
             let codeHeader = '';
             let amountHeader = '';
+            let headerRowIndex = -1;
 
-            for (let i = 0; i < sheetJsonForHeaders.length; i++) {
+             for (let i = 0; i < sheetJsonForHeaders.length; i++) {
                 const row = sheetJsonForHeaders[i] as (string | number)[];
+                if (!Array.isArray(row)) continue;
                 const rowAsStrings = row.map(String);
 
-                if (!codeHeader) {
-                    const foundCode = rowAsStrings.find(cell => headerKeywords.code.some(kw => cell.toLowerCase().includes(kw.toLowerCase())));
-                    if (foundCode) codeHeader = foundCode;
+                if (rowAsStrings.some(cell => headerKeywords.code.some(kw => cell.toLowerCase().includes(kw.toLowerCase())))) {
+                    headerRowIndex = i;
+                    for (const cell of rowAsStrings) {
+                        if (!codeHeader && headerKeywords.code.some(kw => cell.toLowerCase().includes(kw.toLowerCase()))) codeHeader = cell;
+                        if (!amountHeader && headerKeywords.amount.some(kw => cell.toLowerCase().includes(kw.toLowerCase()))) amountHeader = cell;
+                    }
+                    if (codeHeader && amountHeader) break;
                 }
-
-                if (!amountHeader) {
-                    const foundAmount = rowAsStrings.find(cell => headerKeywords.amount.some(kw => cell.toLowerCase().includes(kw.toLowerCase())));
-                    if (foundAmount) amountHeader = foundAmount;
-                }
-
-                if (codeHeader && amountHeader) break;
             }
             
             if (!codeHeader || !amountHeader) {
                 throw new Error("لم يتم العثور على أعمدة 'كود الشحنة' و 'المبلغ' في الشيت.");
             }
 
+            const jsonData = utils.sheet_to_json(sheet, { header: headerRowIndex });
             const sheetData = new Map<string, number>();
-            const jsonData = utils.sheet_to_json(sheet);
-            
+
             jsonData.forEach((row: any) => {
                 const code = String(row[codeHeader] || '').trim();
                 const amountValue = row[amountHeader];
@@ -130,17 +137,28 @@ export default function ComparisonPage() {
                 }
             });
 
-            const companyShipments = allShipments.filter(s => s.companyId === selectedCompanyId);
-            
+            // Filter system shipments by company and date
+            const systemShipmentsForDate = allShipments.filter(s => {
+                const createdAt = s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
+                return s.companyId === selectedCompanyId && isSameDay(createdAt, comparisonDate);
+            });
+            const otherDateSystemShipments = allShipments.filter(s => {
+                const createdAt = s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
+                return s.companyId === selectedCompanyId && !isSameDay(createdAt, comparisonDate);
+            });
+
             const matched: Shipment[] = [];
             const discrepancies: AnalyzedShipment[] = [];
-            const systemOnly: Shipment[] = [...companyShipments];
+            const dateMismatches: { systemShipment: Shipment, sheetAmount: number }[] = [];
+            let systemOnly: Shipment[] = [...systemShipmentsForDate];
             const sheetOnly: { code: string; amount: number }[] = [];
             
             sheetData.forEach((sheetAmount, code) => {
+                let found = false;
+                // Check in today's shipments
                 const systemShipmentIndex = systemOnly.findIndex(s => s.shipmentCode === code);
-                
                 if (systemShipmentIndex > -1) {
+                    found = true;
                     const systemShipment = systemOnly.splice(systemShipmentIndex, 1)[0];
                     const systemAmount = systemShipment.paidAmount || 0;
                     if (Math.abs(systemAmount - sheetAmount) < 0.01) {
@@ -148,7 +166,19 @@ export default function ComparisonPage() {
                     } else {
                         discrepancies.push({ systemShipment, sheetAmount, difference: sheetAmount - systemAmount });
                     }
-                } else {
+                }
+
+                // If not found, check in other dates
+                if (!found) {
+                    const otherDateShipment = otherDateSystemShipments.find(s => s.shipmentCode === code);
+                    if (otherDateShipment) {
+                        found = true;
+                        dateMismatches.push({ systemShipment: otherDateShipment, sheetAmount });
+                    }
+                }
+
+                // If still not found, it's sheet-only
+                if (!found) {
                     sheetOnly.push({ code, amount: sheetAmount });
                 }
             });
@@ -157,7 +187,8 @@ export default function ComparisonPage() {
                 companyName: companies?.find(c => c.id === selectedCompanyId)?.name || 'شركة غير محددة',
                 matched,
                 discrepancies,
-                systemOnly: systemOnly.filter(s => !s.isArchivedForCompany),
+                dateMismatches,
+                systemOnly,
                 sheetOnly
             });
 
@@ -166,7 +197,7 @@ export default function ComparisonPage() {
         } finally {
             setIsProcessing(false);
         }
-    }, [selectedCompanyId, allShipments, companies, toast, statuses]);
+    }, [selectedCompanyId, allShipments, companies, toast, statuses, comparisonDate]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: {'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'], 'application/vnd.ms-excel': ['.xls']}, multiple: false });
 
@@ -313,38 +344,54 @@ export default function ComparisonPage() {
                         مقارنة شيتات التسوية النهائية
                     </CardTitle>
                     <CardDescription>
-                        ارفع شيت التسوية النهائي من شركة الشحن لمقارنته مع بيانات النظام واكتشاف الفروقات.
+                        ارفع شيت التسوية النهائي من شركة الشحن لمقارنته مع بيانات النظام واكتشاف الفروقات ليوم محدد.
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                    <div className="space-y-2">
-                        <label className="font-medium">1. اختر الشركة</label>
-                        <Select dir="rtl" onValueChange={setSelectedCompanyId} value={selectedCompanyId || ''} disabled={isProcessing}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="اختر الشركة التي تود مقارنة شيتها..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {companies?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
+                <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="font-medium">1. اختر الشركة</label>
+                            <Select dir="rtl" onValueChange={setSelectedCompanyId} value={selectedCompanyId || ''} disabled={isProcessing}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="اختر الشركة..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {companies?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="font-medium">2. حدد تاريخ التقفيل</label>
+                             <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !comparisonDate && "text-muted-foreground")}>
+                                        <CalendarIcon className="ms-2 h-4 w-4" />
+                                        {comparisonDate ? format(comparisonDate, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                    <Calendar mode="single" selected={comparisonDate} onSelect={setComparisonDate} initialFocus />
+                                </PopoverContent>
+                            </Popover>
+                        </div>
                     </div>
-                    <div
+                     <div
                         {...getRootProps()}
                         className={`p-8 border-2 border-dashed rounded-lg text-center transition-colors cursor-pointer ${
-                            !selectedCompanyId ? 'bg-muted/50 cursor-not-allowed border-muted' : isDragActive ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+                            !selectedCompanyId || !comparisonDate ? 'bg-muted/50 cursor-not-allowed border-muted' : isDragActive ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
                         }`}
                     >
-                        <input {...getInputProps()} disabled={!selectedCompanyId || isProcessing} />
+                        <input {...getInputProps()} disabled={!selectedCompanyId || !comparisonDate || isProcessing} />
                         {isProcessing ? (
                             <div className="flex flex-col items-center gap-2">
                                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                                 <p>جاري التحليل...</p>
                             </div>
                         ) : (
-                            <div className={`flex flex-col items-center gap-2 ${!selectedCompanyId ? 'text-muted-foreground/50' : 'text-muted-foreground'}`}>
+                            <div className={`flex flex-col items-center gap-2 ${!selectedCompanyId || !comparisonDate ? 'text-muted-foreground/50' : 'text-muted-foreground'}`}>
                                 <UploadCloud className="h-8 w-8" />
-                                <p>2. اسحب وأفلت الشيت هنا، أو انقر للاختيار</p>
-                                <p className="text-xs">سيتم تحليل جميع شحنات الشركة ومقارنتها</p>
+                                <p>3. اسحب وأفلت الشيت هنا، أو انقر للاختيار</p>
+                                <p className="text-xs">سيتم تحليل الشحنات ومقارنتها بتاريخ {comparisonDate ? format(comparisonDate, "PPP", { locale: ar }) : ''}</p>
                             </div>
                         )}
                     </div>
@@ -355,31 +402,37 @@ export default function ComparisonPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>نتائج مقارنة شيت شركة: {analysis.companyName}</CardTitle>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center pt-4">
+                        <CardDescription>التاريخ المحدد للمقارنة: {comparisonDate ? format(comparisonDate, "PPP", { locale: ar }) : ''}</CardDescription>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center pt-4">
                            <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg flex flex-col items-center justify-center">
                                 <FileCheck2 className="h-6 w-6 text-green-700 mb-1"/>
                                 <p className="text-2xl font-bold text-green-700 dark:text-green-400">{analysis.matched.length}</p>
-                                <p className="text-sm text-green-600 dark:text-green-500">شحنة متطابقة</p>
+                                <p className="text-sm text-green-600 dark:text-green-500">متطابقة</p>
                             </div>
                              <div className="p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg flex flex-col items-center justify-center">
                                 <Scale className="h-6 w-6 text-yellow-700 mb-1"/>
                                 <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">{analysis.discrepancies.length}</p>
-                                <p className="text-sm text-yellow-600 dark:text-yellow-500">اختلاف في المبلغ</p>
+                                <p className="text-sm text-yellow-600 dark:text-yellow-500">اختلاف المبلغ</p>
+                            </div>
+                            <div className="p-3 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg flex flex-col items-center justify-center">
+                                <History className="h-6 w-6 text-cyan-700 mb-1"/>
+                                <p className="text-2xl font-bold text-cyan-700 dark:text-cyan-400">{analysis.dateMismatches.length}</p>
+                                <p className="text-sm text-cyan-600 dark:text-cyan-500">اختلاف التاريخ</p>
                             </div>
                             <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg flex flex-col items-center justify-center">
                                 <FileWarning className="h-6 w-6 text-red-700 mb-1"/>
                                 <p className="text-2xl font-bold text-red-700 dark:text-red-400">{analysis.systemOnly.length}</p>
-                                <p className="text-sm text-red-600 dark:text-red-500">موجودة بالنظام فقط</p>
+                                <p className="text-sm text-red-600 dark:text-red-500">بالنظام فقط</p>
                             </div>
                             <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex flex-col items-center justify-center">
                                 <FileWarning className="h-6 w-6 text-blue-700 mb-1"/>
                                 <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{analysis.sheetOnly.length}</p>
-                                <p className="text-sm text-blue-600 dark:text-blue-500">موجودة بالشيت فقط</p>
+                                <p className="text-sm text-blue-600 dark:text-blue-500">بالشيت فقط</p>
                             </div>
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        {renderResultTable('اختلافات في المبلغ', analysis.discrepancies, [
+                        {renderResultTable('اختلافات في المبلغ (نفس اليوم)', analysis.discrepancies, [
                             { key: 'systemShipment.shipmentCode', header: 'كود الشحنة' },
                             { key: 'systemShipment.recipientName', header: 'العميل' },
                             { key: 'systemAmount', header: 'مبلغ النظام', render: item => <Badge variant="secondary">{currencyFormat(item.systemShipment.paidAmount)}</Badge> },
@@ -388,12 +441,19 @@ export default function ComparisonPage() {
                             { key: 'actions', header: 'إجراء', render: item => <Button size="sm" onClick={() => handleSettleDiscrepancy(item.systemShipment, item.sheetAmount)} disabled={processingUpdate.has(item.systemShipment.id)}>{processingUpdate.has(item.systemShipment.id) ? <Loader2 className="h-4 w-4 animate-spin"/> : "تسوية"}</Button> },
                         ], analysis.discrepancies.length > 1 && <Button onClick={handleSettleAllDiscrepancies} disabled={isProcessing}>{isProcessing && <Loader2 className="h-4 w-4 animate-spin me-2"/>}تسوية كل الاختلافات</Button>)}
 
-                        {renderResultTable('شحنات موجودة بالنظام فقط (لم ترد في الشيت)', analysis.systemOnly, [
+                         {renderResultTable('اختلاف في تاريخ الإنشاء', analysis.dateMismatches, [
+                            { key: 'systemShipment.shipmentCode', header: 'كود الشحنة' },
+                            { key: 'systemShipment.recipientName', header: 'العميل' },
+                            { key: 'sheetAmount', header: 'مبلغ الشيت', render: item => currencyFormat(item.sheetAmount) },
+                            { key: 'creationDate', header: 'تاريخ الإنشاء بالنظام', render: item => <Badge variant="outline">{formatToCairoTime(item.systemShipment.createdAt)}</Badge> },
+                            { key: 'status', header: 'الحالة', render: item => <Badge variant={statuses?.find(s=>s.id === item.systemShipment.status)?.isDeliveredStatus ? 'default' : 'secondary'}>{statuses?.find(s=>s.id === item.systemShipment.status)?.label || item.systemShipment.status}</Badge> },
+                        ])}
+
+                        {renderResultTable(`شحنات موجودة بالنظام فقط (بتاريخ ${comparisonDate ? format(comparisonDate, "PPP", { locale: ar }) : ''})`, analysis.systemOnly, [
                             { key: 'shipmentCode', header: 'كود الشحنة' },
                             { key: 'recipientName', header: 'العميل' },
                             { key: 'paidAmount', header: 'المبلغ', render: item => currencyFormat(item.paidAmount) },
                             { key: 'status', header: 'الحالة', render: item => <Badge variant={statuses?.find(s=>s.id === item.status)?.isDeliveredStatus ? 'default' : 'secondary'}>{statuses?.find(s=>s.id === item.status)?.label || item.status}</Badge> },
-                            { key: 'updatedAt', header: 'آخر تحديث', render: item => new Date(item.updatedAt?.toDate?.() || item.updatedAt || 0).toLocaleDateString('ar-EG') },
                             { key: 'actions', header: 'إجراءات', render: item => (
                                 <div className="flex gap-1">
                                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDetailsShipment(item)}><History className="h-4 w-4" /></Button>
