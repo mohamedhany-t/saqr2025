@@ -1485,10 +1485,11 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
 
   const filteredShipments = React.useMemo(() => {
     if (!allShipmentsForStats) return [];
-  
+    
+    // This is the single source of truth for filtering.
     let baseShipments = allShipmentsForStats;
-  
-    // Apply column filters first
+
+    // 1. Apply column filters
     if (columnFilters.length > 0) {
       baseShipments = baseShipments.filter(shipment => {
         return columnFilters.every(filter => {
@@ -1504,10 +1505,10 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
           }
   
           if (filter.id === 'address') {
-            const searchTerms = filter.value as string[];
+            const searchTerms = (filter.value as string[] || []).filter(Boolean); // Filter out empty strings
             if (searchTerms.length === 0) return true;
             const addressValue = String(shipment.address || '').toLowerCase();
-            return searchTerms.some(term => addressValue.includes(term));
+            return searchTerms.some(term => addressValue.includes(term.toLowerCase())); // Use .some for OR logic
           }
   
           const filterValue = filter.value as string[];
@@ -1519,18 +1520,21 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
         });
       });
     }
+
+    // 2. Apply global search term
+    if (searchTerm) {
+        const lowercasedTerm = searchTerm.toLowerCase();
+        baseShipments = baseShipments.filter(shipment =>
+          String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
+          String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
+          String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
+          String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm)
+        );
+    }
   
-    // Then apply global search term
-    if (!searchTerm) return baseShipments;
-  
-    const lowercasedTerm = searchTerm.toLowerCase();
-    return baseShipments.filter(shipment =>
-      String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
-      String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
-      String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-      String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm)
-    );
+    return baseShipments;
   }, [allShipmentsForStats, searchTerm, columnFilters]);
+  
   
   const unassignedShipments = React.useMemo(() => filteredShipments.filter(s => !s.assignedCourierId), [filteredShipments]);
   const assignedShipments = React.useMemo(() => filteredShipments.filter(s => !!s.assignedCourierId), [filteredShipments]);
