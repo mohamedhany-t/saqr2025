@@ -3,7 +3,7 @@
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing, ChevronLeft, ChevronRight, BarChart, MessageSquarePlus, Wallet, Plus } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing, ChevronLeft, ChevronRight, BarChart, MessageSquarePlus, Wallet, Plus, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
@@ -1489,55 +1489,54 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
     
     // This is the single point where all filters are applied.
     baseShipments = baseShipments.filter((shipment) => {
-      // 1. Global Search Term Filter
-      if (searchTerm) {
-        const lowercasedTerm = searchTerm.toLowerCase();
-        const matchesGlobalSearch = 
-            String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm);
-        if (!matchesGlobalSearch) return false;
-      }
+        // 1. Column Filters (excluding special ones)
+        const columnFiltersMatch = columnFilters.every((filter) => {
+            if (filter.id === 'createdAt' || filter.id === 'address') return true; // Handle these separately
+            
+            const value = (shipment as any)[filter.id];
+            const filterValue = filter.value as string[];
+            
+            if (Array.isArray(filterValue) && filterValue.length > 0) {
+                return filterValue.includes(value);
+            }
+            return true;
+        });
+        if (!columnFiltersMatch) return false;
 
-      // 2. Column Filters
-      const columnFiltersMatch = columnFilters.every((filter) => {
-        const value = (shipment as any)[filter.id];
+        // 2. Date Range Filter
+        const dateRangeFilter = columnFilters.find(f => f.id === 'createdAt');
+        if (dateRangeFilter) {
+            const { from, to } = dateRangeFilter.value as DateRange;
+            const createdAt = getSafeDate(shipment.createdAt);
+            if (!createdAt) return false;
+            if (from && createdAt < from) return false;
+            if (to && createdAt > to) return false;
+        }
         
-        // Skip address filter here, it's handled separately.
-        if (filter.id === 'address') return true;
-
-        if (filter.id === 'createdAt') {
-          const { from, to } = filter.value as DateRange;
-          const createdAt = getSafeDate(shipment.createdAt);
-          if (!createdAt) return false;
-          if (from && createdAt < from) return false;
-          if (to && createdAt > to) return false;
-          return true;
+        // 3. Address Filter (OR logic)
+        const addressFilter = columnFilters.find(f => f.id === 'address');
+        if (addressFilter) {
+            const searchTerms = (addressFilter.value as string[] || []).filter(Boolean);
+            if (searchTerms.length > 0) {
+                const addressValue = String(shipment.address || '').toLowerCase();
+                const matchesAddress = searchTerms.some((term) => addressValue.includes(term.toLowerCase().trim()));
+                if (!matchesAddress) return false;
+            }
+        }
+        
+        // 4. Global Search Term Filter
+        if (searchTerm) {
+            const lowercasedTerm = searchTerm.toLowerCase();
+            const matchesGlobalSearch = 
+                String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
+                String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
+                String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
+                String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm);
+            if (!matchesGlobalSearch) return false;
         }
 
-        const filterValue = filter.value as string[];
-        if (Array.isArray(filterValue) && filterValue.length > 0) {
-          return filterValue.includes(value);
-        }
+        // If all filters passed
         return true;
-      });
-
-      if (!columnFiltersMatch) return false;
-
-      // 3. Special Address Filter (OR logic within itself)
-      const addressFilter = columnFilters.find((f) => f.id === 'address');
-      if (addressFilter) {
-          const searchTerms = (addressFilter.value as string[] || []).filter(Boolean);
-          if (searchTerms.length > 0) {
-            const addressValue = String(shipment.address || '').toLowerCase();
-            const matchesAddress = searchTerms.some((term) => addressValue.includes(term.toLowerCase()));
-            if (!matchesAddress) return false;
-          }
-      }
-      
-      // If all filters passed
-      return true;
     });
   
     return baseShipments;
@@ -1658,6 +1657,22 @@ const returnedToCompanyShipments = React.useMemo(() => {
   }, [allShipmentsForStats]);
   const priceChangeRequests = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'PriceChangeRequested' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
   
+  const duplicateShipments = React.useMemo(() => {
+    const shipmentGroups: { [key: string]: Shipment[] } = {};
+    filteredShipments.forEach(s => {
+        const key = `${s.recipientName}-${s.recipientPhone}-${s.address}`.toLowerCase();
+        if (!shipmentGroups[key]) {
+            shipmentGroups[key] = [];
+        }
+        shipmentGroups[key].push(s);
+    });
+
+    return Object.values(shipmentGroups)
+        .filter(group => group.length > 1)
+        .sort((a, b) => b.length - a.length);
+  }, [filteredShipments]);
+
+
   const problemCount = returnedShipmentsNeedingAction.length + longPostponedShipments.length + staleInTransitShipments.length + priceChangeRequests.length;
 
 
@@ -1826,6 +1841,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
         <div className="flex items-center">
             <TabsList className="flex-nowrap overflow-x-auto justify-start">
             <TabsTrigger value="shipments">الشحنات</TabsTrigger>
+            <TabsTrigger value="duplicate-shipments">الشحنات المكررة</TabsTrigger>
             <TabsTrigger value="expenses">
                 <Link href="/expenses">المصروفات</Link>
             </TabsTrigger>
@@ -1941,6 +1957,42 @@ const returnedToCompanyShipments = React.useMemo(() => {
                     setColumnFilters={setColumnFilters}
                 />
             }
+        </TabsContent>
+        <TabsContent value="duplicate-shipments">
+            <div className="mt-4 space-y-4">
+                {duplicateShipments.length === 0 ? (
+                    <div className="text-center py-10 text-muted-foreground">لا توجد شحنات مكررة بناءً على الفلاتر الحالية.</div>
+                ) : (
+                    duplicateShipments.map((group, index) => (
+                        <Collapsible key={index} className="border p-4 rounded-lg">
+                            <CollapsibleTrigger className="w-full flex justify-between items-center">
+                                <div className="text-right">
+                                    <p className="font-bold">{group[0].recipientName}</p>
+                                    <p className="text-sm text-muted-foreground">{group[0].recipientPhone} - {group[0].address}</p>
+                                </div>
+                                <Badge variant="destructive">{group.length} شحنات مكررة</Badge>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                                <div className="mt-4 space-y-3">
+                                    {group.map(shipment => (
+                                        <div key={shipment.id} className="border p-3 rounded-md flex justify-between items-center">
+                                            <div>
+                                                <p>الكود: {shipment.shipmentCode}</p>
+                                                <p>الحالة: {statuses.find(s => s.id === shipment.status)?.label || shipment.status}</p>
+                                                <p>التاريخ: {getSafeDate(shipment.createdAt)?.toLocaleDateString('ar-EG')}</p>
+                                            </div>
+                                            <Button size="sm" variant="outline" onClick={() => openShipmentForm(shipment)}>
+                                                <Pencil className="h-4 w-4 me-2" />
+                                                تعديل
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </CollapsibleContent>
+                        </Collapsible>
+                    ))
+                )}
+            </div>
         </TabsContent>
         <TabsContent value="expenses">
             <p className="p-4 text-center text-muted-foreground">يتم تحميل المصروفات...</p>

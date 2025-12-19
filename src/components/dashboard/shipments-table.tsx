@@ -403,6 +403,9 @@ export const getColumns = ({
                 {statusIcons[statusKey]}
                 <span>{statusLabel}</span>
             </Badge>
+             {(shipment.isArchivedForCompany || shipment.isArchivedForCourier) && (
+                <Archive className="h-4 w-4 text-muted-foreground" title="مؤرشفة" />
+            )}
             {shipment.isWarehouseReturn && (
               <Warehouse className="h-4 w-4 text-muted-foreground" />
             )}
