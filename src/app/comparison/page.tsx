@@ -48,8 +48,6 @@ export default function ComparisonPage() {
     const statusesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'shipment_statuses')) : null, [firestore]);
     const { data: statuses, isLoading: statusesLoading } = useCollection<ShipmentStatusConfig>(statusesQuery);
     
-    const finishedStatusIds = useMemo(() => statuses?.filter(s => s.isDeliveredStatus).map(s => s.id) || [], [statuses]);
-
     const onDrop = useCallback(async (acceptedFiles: File[]) => {
         if (!selectedCompanyId || !allShipments) {
             toast({ title: "الرجاء اختيار شركة أولاً", variant: "destructive" });
@@ -63,37 +61,59 @@ export default function ComparisonPage() {
             const data = await file.arrayBuffer();
             const workbook = read(data);
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const sheetJson: any[] = utils.sheet_to_json(sheet, { header: 1 });
-
+            
+            // Convert sheet to JSON to find headers first
+            const sheetJsonForHeaders: any[] = utils.sheet_to_json(sheet, { header: 1 });
+            
             // Dynamically find headers
-            const headerKeywords = { code: ['رقم الشحنة', 'كود الشحنة'], amount: ['المبلغ', 'الاجمالي', 'المحصل'] };
+            const headerKeywords = {
+                code: ['رقم الشحنة', 'كود الشحنة', 'Shipment Code'],
+                amount: ['المبلغ', 'الاجمالي', 'المحصل', 'Amount', 'Total']
+            };
+            
             let codeHeader = '';
             let amountHeader = '';
-            let dataStartIndex = -1;
 
-            for(let i=0; i<sheetJson.length; i++){
-                const row = sheetJson[i] as string[];
-                const foundCode = row.find(cell => typeof cell === 'string' && headerKeywords.code.some(kw => cell.includes(kw)));
-                const foundAmount = row.find(cell => typeof cell === 'string' && headerKeywords.amount.some(kw => cell.includes(kw)));
-                if(foundCode && foundAmount) {
-                    codeHeader = foundCode;
-                    amountHeader = foundAmount;
-                    dataStartIndex = i + 1;
-                    break;
+            for (let i = 0; i < sheetJsonForHeaders.length; i++) {
+                const row = sheetJsonForHeaders[i] as (string | number)[];
+                const rowAsStrings = row.map(String);
+
+                if (!codeHeader) {
+                    const foundCode = rowAsStrings.find(cell => headerKeywords.code.some(kw => cell.toLowerCase().includes(kw.toLowerCase())));
+                    if (foundCode) codeHeader = foundCode;
                 }
+
+                if (!amountHeader) {
+                    const foundAmount = rowAsStrings.find(cell => headerKeywords.amount.some(kw => cell.toLowerCase().includes(kw.toLowerCase())));
+                    if (foundAmount) amountHeader = foundAmount;
+                }
+
+                if (codeHeader && amountHeader) break;
             }
-            if(!codeHeader || !amountHeader) throw new Error("لم يتم العثور على أعمدة 'كود الشحنة' و 'المبلغ' في الشيت.");
+            
+            if (!codeHeader || !amountHeader) {
+                throw new Error("لم يتم العثور على أعمدة 'كود الشحنة' و 'المبلغ' في الشيت.");
+            }
 
             const sheetData = new Map<string, number>();
-            utils.sheet_to_json(sheet).forEach((row: any) => {
+            const jsonData = utils.sheet_to_json(sheet);
+            
+            jsonData.forEach((row: any) => {
                 const code = String(row[codeHeader] || '').trim();
-                const amount = parseFloat(String(row[amountHeader] || '0').replace(/[^0-9.]/g, ''));
+                const amountValue = row[amountHeader];
+                const amount = typeof amountValue === 'string'
+                    ? parseFloat(amountValue.replace(/[^0-9.]/g, ''))
+                    : typeof amountValue === 'number'
+                    ? amountValue
+                    : NaN;
+
                 if (code && !isNaN(amount)) {
                     sheetData.set(code, amount);
                 }
             });
 
-            const companyShipments = allShipments.filter(s => s.companyId === selectedCompanyId && finishedStatusIds.includes(s.status) && !s.isArchivedForCompany);
+            // IMPORTANT FIX: Compare against ALL shipments for the company, not just "finished" ones.
+            const companyShipments = allShipments.filter(s => s.companyId === selectedCompanyId);
             
             const matched: Shipment[] = [];
             const discrepancies: AnalyzedShipment[] = [];
@@ -102,6 +122,7 @@ export default function ComparisonPage() {
             
             sheetData.forEach((sheetAmount, code) => {
                 const systemShipmentIndex = systemOnly.findIndex(s => s.shipmentCode === code);
+                
                 if (systemShipmentIndex > -1) {
                     const systemShipment = systemOnly.splice(systemShipmentIndex, 1)[0];
                     const systemAmount = systemShipment.paidAmount || 0;
@@ -119,7 +140,7 @@ export default function ComparisonPage() {
                 companyName: companies?.find(c => c.id === selectedCompanyId)?.name || 'شركة غير محددة',
                 matched,
                 discrepancies,
-                systemOnly,
+                systemOnly: systemOnly.filter(s => !s.isArchivedForCompany), // Exclude already archived from this list
                 sheetOnly
             });
 
@@ -128,7 +149,7 @@ export default function ComparisonPage() {
         } finally {
             setIsProcessing(false);
         }
-    }, [selectedCompanyId, allShipments, companies, toast, finishedStatusIds]);
+    }, [selectedCompanyId, allShipments, companies, toast, statuses]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: {'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'], 'application/vnd.ms-excel': ['.xls']}, multiple: false });
 
@@ -249,7 +270,7 @@ export default function ComparisonPage() {
                             <div className={`flex flex-col items-center gap-2 ${!selectedCompanyId ? 'text-muted-foreground/50' : 'text-muted-foreground'}`}>
                                 <UploadCloud className="h-8 w-8" />
                                 <p>2. اسحب وأفلت الشيت هنا، أو انقر للاختيار</p>
-                                <p className="text-xs">سيتم تحليل الشحنات المسلمة وغير المؤرشفة فقط</p>
+                                <p className="text-xs">سيتم تحليل جميع شحنات الشركة ومقارنتها</p>
                             </div>
                         )}
                     </div>
@@ -299,7 +320,8 @@ export default function ComparisonPage() {
                             { key: 'shipmentCode', header: 'كود الشحنة' },
                             { key: 'recipientName', header: 'العميل' },
                             { key: 'paidAmount', header: 'المبلغ', render: item => currencyFormat(item.paidAmount) },
-                            { key: 'updatedAt', header: 'آخر تحديث', render: item => new Date(item.updatedAt?.toDate() || 0).toLocaleDateString('ar-EG') },
+                             { key: 'status', header: 'الحالة', render: item => <Badge variant={statuses?.find(s=>s.id === item.status)?.isDeliveredStatus ? 'default' : 'secondary'}>{statuses?.find(s=>s.id === item.status)?.label || item.status}</Badge> },
+                            { key: 'updatedAt', header: 'آخر تحديث', render: item => new Date(item.updatedAt?.toDate?.() || item.updatedAt || 0).toLocaleDateString('ar-EG') },
                         ])}
 
                         {renderResultTable('شحنات موجودة بالشيت فقط (ليست في النظام)', analysis.sheetOnly, [
