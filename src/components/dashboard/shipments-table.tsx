@@ -47,6 +47,7 @@ import {
     BellRing,
     ChevronLeft,
     ChevronRight,
+    History,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -130,7 +131,7 @@ export const statusText: Record<string, string> = {
     Postponed: 'مؤجل',
     'Returned to Sender': 'تم الرجوع للراسل',
     'Refused (Paid)': 'رفض ودفع الشحن',
-    'Refused (Unpaid)': 'رفض ولم يدفع',
+    'Refused (Unpaid)': 'رفض ولم يدفع مصاريف شحن',
     'PriceChangeRequested': 'طلب تعديل سعر',
     'PriceChangeRejected': 'مرفوض - تابع مع الإدارة'
 };
@@ -196,7 +197,7 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, onBulkUpdate, rol
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>إجراءات</DropdownMenuLabel>
         <DropdownMenuItem onClick={() => setDetailsOpen(true)}>
-            <FileText className="ms-2 h-4 w-4" /> تفاصيل
+            <History className="ms-2 h-4 w-4" /> سجل التعديلات
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onEdit(shipment)}>
           <Pencil className="ms-2 h-4 w-4" /> تعديل
