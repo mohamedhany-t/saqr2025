@@ -3,9 +3,9 @@
 
 import React, { useMemo, useState, useCallback } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, writeBatch, doc, where, getDoc } from 'firebase/firestore';
+import { collection, query, writeBatch, doc, where, getDocs } from 'firebase/firestore';
 import type { Shipment, ShipmentStatusConfig, User, Company, Governorate } from '@/lib/types';
-import { Loader2, Copy, Trash2, Pencil, CheckCircle, Building, Truck, Star, Search, Trash } from 'lucide-react';
+import { Loader2, Copy, Trash2, Pencil, CheckCircle, Building, Truck, Star, Search, Trash, History } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import { ShipmentFormSheet } from '@/components/shipments/shipment-form-sheet';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useFirebaseApp } from '@/firebase';
+import { ShipmentDetailsDialog } from '../components/shipments/shipment-details-dialog';
 
 const getSafeDate = (date: any): Date | null => {
     if (!date) return null;
@@ -43,6 +44,7 @@ export default function DuplicatesPage() {
     
     const [searchTerm, setSearchTerm] = useState('');
     const [editingShipment, setEditingShipment] = useState<Shipment | undefined>(undefined);
+    const [detailsShipment, setDetailsShipment] = useState<Shipment | null>(null);
     const [isSheetOpen, setIsSheetOpen] = useState(false);
     const [shipmentToDelete, setShipmentToDelete] = useState<Shipment | null>(null);
     const [groupToDelete, setGroupToDelete] = useState<{ primary: Shipment, others: Shipment[] } | null>(null);
@@ -58,7 +60,10 @@ export default function DuplicatesPage() {
     const companiesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'companies')) : null, [firestore]);
     const { data: companies, isLoading: companiesLoading } = useCollection<Company>(companiesQuery);
 
-    const couriersQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'users'), where('role', '==', 'courier')) : null, [firestore]);
+    const couriersQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, 'users'), where('role', '==', 'courier'));
+    }, [firestore]);
     const { data: couriers, isLoading: couriersLoading } = useCollection<User>(couriersQuery);
 
     const governoratesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'governorates')) : null, [firestore]);
@@ -215,6 +220,9 @@ export default function DuplicatesPage() {
                                                         {isPrimary ? "الأساسية" : "تحديد كأساسي"}
                                                     </Button>
                                                     <div className='flex gap-1'>
+                                                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setDetailsShipment(shipment)}>
+                                                            <History className="h-4 w-4" />
+                                                        </Button>
                                                         <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { setEditingShipment(shipment); setIsSheetOpen(true); }}>
                                                             <Pencil className="h-4 w-4" />
                                                         </Button>
@@ -263,6 +271,16 @@ export default function DuplicatesPage() {
                     role="admin"
                 />
             )}
+             {detailsShipment && (
+                <ShipmentDetailsDialog
+                    open={!!detailsShipment}
+                    onOpenChange={(open) => !open && setDetailsShipment(null)}
+                    shipment={detailsShipment}
+                    company={companies?.find(c => c.id === detailsShipment.companyId)}
+                    courier={couriers?.find(u => u.id === detailsShipment.assignedCourierId)}
+                    governorate={governorates?.find(g => g.id === detailsShipment.governorateId)}
+                />
+            )}
             
             <AlertDialog open={!!shipmentToDelete} onOpenChange={() => setShipmentToDelete(null)}>
                 <AlertDialogContent dir="rtl">
@@ -296,4 +314,3 @@ export default function DuplicatesPage() {
         </div>
     );
 }
-
