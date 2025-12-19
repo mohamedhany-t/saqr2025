@@ -48,7 +48,6 @@ import { AuditLogPage } from "../audit-log/audit-log-page";
 import Link from "next/link";
 import { exportToExcel } from "@/lib/export";
 import { ShipmentFilters } from './shipment-filters';
-import { CompanySettlementDialog } from "../users/company-settlement-dialog";
 import { AdminNoteDialog } from "../users/admin-note-dialog";
 import type { DateRange } from "react-day-picker";
 
@@ -647,7 +646,6 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
   
   const [payingCompany, setPayingCompany] = React.useState<Company | undefined>(undefined);
   const [editingCompanyPayment, setEditingCompanyPayment] = React.useState<CompanyPayment | undefined>(undefined);
-  const [settlingCompany, setSettlingCompany] = React.useState<Company | undefined>(undefined);
 
 
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
@@ -2258,18 +2256,6 @@ const generateShipmentCode = () => {
                                     </div>
                                 </CardContent>
                                 <CardFooter className="flex flex-col items-stretch gap-2">
-                                     <CompanySettlementDialog
-                                        company={company}
-                                        allShipments={allShipmentsForStats || []}
-                                        adminUser={user}
-                                        statuses={statuses || []}
-                                        onSettlementComplete={() => {}}
-                                    >
-                                        <Button variant="default" className="w-full">
-                                            <FileSpreadsheet className="me-2 h-4 w-4" />
-                                            تسوية عبر شيت
-                                        </Button>
-                                    </CompanySettlementDialog>
                                     <Button variant="outline" className="w-full" onClick={() => openCompanyPaymentForm(company)} disabled={company.netDue <= 0}>
                                         <Banknote className="me-2 h-4 w-4" />
                                         تسوية يدوية

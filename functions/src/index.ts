@@ -16,15 +16,6 @@ try {
 const db = admin.firestore();
 const corsHandler = cors({ origin: true });
 
-// Schema for the new settlement function
-const companySettlementSchema = z.object({
-    companyId: z.string(),
-    paymentAmount: z.number(),
-    shipmentIdsToArchive: z.array(z.string()),
-    settlementNote: z.string(),
-    adminId: z.string(),
-});
-
 const updateShipmentStatusSchema = z.object({
     shipmentId: z.string(),
     // All other fields are optional because the logic will decide what to do
@@ -62,69 +53,6 @@ const runtimeOpts: functions.RuntimeOptions = {
     timeoutSeconds: 540, // 9 minutes
     memory: '256MB',
 };
-
-// NEW FUNCTION with a NEW NAME to avoid deployment conflicts
-export const executeCompanySettlement = functions.runWith(runtimeOpts).https.onCall(async (data, context) => {
-    // 1. Authentication Check
-    if (!context.auth) {
-      throw new functions.https.HttpsError(
-        'unauthenticated',
-        'The function must be called while authenticated.'
-      );
-    }
-    
-    // 2. Data Validation
-    const validation = companySettlementSchema.safeParse(data);
-    if (!validation.success) {
-      throw new functions.https.HttpsError(
-        'invalid-argument',
-        'The data provided is invalid.'
-      );
-    }
-    
-    const { companyId, paymentAmount, shipmentIdsToArchive, settlementNote, adminId } = validation.data;
-    
-    const BATCH_SIZE = 400; // Firestore batch limit is 500, we use 400 to be safe.
-    const allBatches: Promise<any>[] = [];
-
-    // --- Create and commit the first batch for the payment ---
-    if (paymentAmount !== 0) {
-        let initialBatch = db.batch();
-        const paymentRef = db.collection('company_payments').doc();
-        initialBatch.set(paymentRef, {
-            companyId,
-            amount: paymentAmount,
-            paymentDate: admin.firestore.FieldValue.serverTimestamp(),
-            recordedById: adminId,
-            notes: settlementNote,
-            isArchived: true,
-        });
-        allBatches.push(initialBatch.commit());
-    }
-
-    // --- Create and commit subsequent batches for archiving shipments ---
-    for (let i = 0; i < shipmentIdsToArchive.length; i += BATCH_SIZE) {
-        const chunk = shipmentIdsToArchive.slice(i, i + BATCH_SIZE);
-        const batch = db.batch();
-        chunk.forEach(shipmentId => {
-            const shipmentRef = db.collection('shipments').doc(shipmentId);
-            batch.update(shipmentRef, { isArchivedForCompany: true });
-        });
-        allBatches.push(batch.commit());
-    }
-
-    try {
-        await Promise.all(allBatches);
-        return { success: true, message: `تمت تسوية حساب الشركة وأرشفة ${shipmentIdsToArchive.length} شحنة بنجاح.` };
-    } catch (error: any) {
-        console.error("Error settling company account:", error);
-        throw new functions.https.HttpsError(
-            'internal',
-            'An error occurred while executing the settlement on the server.',
-            error.message
-        );
-    }
-});
 
 
 export const handleShipmentUpdate = functions.runWith(runtimeOpts).https.onRequest((req, res) => {
