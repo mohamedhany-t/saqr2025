@@ -4,7 +4,7 @@
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, writeBatch, doc } from 'firebase/firestore';
+import { collection, query, writeBatch, doc, where } from 'firebase/firestore';
 import type { Shipment, ShipmentStatusConfig, User, Company } from '@/lib/types';
 import { Loader2, Copy, Merge, Trash2, Pencil, CheckCircle, Building, Truck } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
@@ -156,7 +156,7 @@ export default function DuplicatesPage() {
                                     {group.map(shipment => {
                                         const shipmentCompany = companies?.find(c => c.id === shipment.companyId);
                                         const assignedCourier = couriers?.find(c => c.id === shipment.assignedCourierId);
-                                        const isNewest = group.reduce((latest, s) => (getSafeDate(s.createdAt) || 0) > (getSafeDate(latest.createdAt) || 0) ? s : latest).id === shipment.id;
+                                        const isNewest = group.reduce((latest, s) => (getSafeDate(s.createdAt) || new Date(0)) > (getSafeDate(latest.createdAt) || new Date(0)) ? s : latest).id === shipment.id;
 
                                         return (
                                             <div key={shipment.id} className={cn("border p-3 rounded-md flex justify-between items-center bg-background", isNewest && "border-primary")}>
