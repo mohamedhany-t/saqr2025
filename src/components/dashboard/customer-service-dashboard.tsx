@@ -180,6 +180,8 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
   const [showExitConfirm, setShowExitConfirm] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [importResult, setImportResult] = React.useState<ImportResult | null>(null);
+  const [processingShipments, setProcessingShipments] = React.useState<Set<string>>(new Set());
+
 
   React.useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
@@ -556,9 +558,11 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
     }
   };
 
-    const handlePriceChangeDecision = (shipment: Shipment, approved: boolean) => {
-        if (!firestore || !authUser) return;
+    const handlePriceChangeDecision = async (shipment: Shipment, approved: boolean) => {
+        if (!firestore || !authUser || processingShipments.has(shipment.id)) return;
         
+        setProcessingShipments(prev => new Set(prev).add(shipment.id));
+
         let updatePayload: any = {};
         if (approved) {
             updatePayload = {
@@ -575,19 +579,29 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
             };
         }
 
-        handleSaveShipment(updatePayload, shipment.id);
+        try {
+            await handleSaveShipment(updatePayload, shipment.id);
 
-        if (shipment.assignedCourierId) {
-            const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipment.id}` : `/?edit=${shipment.id}`;
-            const message = approved 
-                ? `تمت الموافقة على طلب تعديل سعر شحنة ${shipment.recipientName}.`
-                : `تم رفض طلب تعديل سعر شحنة ${shipment.recipientName}.`;
-            sendPushNotification({
-                recipientId: shipment.assignedCourierId,
-                title: 'تحديث بخصوص طلب تعديل السعر',
-                body: message,
-                url: notificationUrl,
-            }).catch(console.error);
+            if (shipment.assignedCourierId) {
+                const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipment.id}` : `/?edit=${shipment.id}`;
+                const message = approved 
+                    ? `تمت الموافقة على طلب تعديل سعر شحنة ${shipment.recipientName}.`
+                    : `تم رفض طلب تعديل سعر شحنة ${shipment.recipientName}.`;
+                await sendPushNotification({
+                    recipientId: shipment.assignedCourierId,
+                    title: 'تحديث بخصوص طلب تعديل السعر',
+                    body: message,
+                    url: notificationUrl,
+                });
+            }
+        } catch (error) {
+            // Error toast is already handled in handleSaveShipment
+        } finally {
+            setProcessingShipments(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(shipment.id);
+                return newSet;
+            });
         }
     };
   
@@ -803,6 +817,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
                     {(s: Shipment) => {
                         const courierName = courierUsers?.find(c => c.id === s.assignedCourierId)?.name;
                         const requestedAmountString = s.requestedAmount ? s.requestedAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) : 'N/A';
+                        const isProcessing = processingShipments.has(s.id);
                         return (
                             <div>
                                 <p className="font-bold">{s.recipientName} - <span className="text-sm text-muted-foreground">بواسطة {courierName}</span></p>
@@ -813,8 +828,12 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
                                 </div>
                                 <p className="text-xs text-amber-600 mt-1">السبب: {s.amountChangeReason || 'لم يذكر'}</p>
                                 <div className="mt-2 flex gap-2">
-                                    <Button size="sm" variant="outline" className="text-green-600 border-green-600 hover:bg-green-50" onClick={() => handlePriceChangeDecision(s, true)}><Check className="me-2 h-4 w-4" /> موافقة</Button>
-                                    <Button size="sm" variant="outline" className="text-red-600 border-red-600 hover:bg-red-50" onClick={() => handlePriceChangeDecision(s, false)}><X className="me-2 h-4 w-4" /> رفض</Button>
+                                    <Button size="sm" variant="outline" className="text-green-600 border-green-600 hover:bg-green-50" onClick={() => handlePriceChangeDecision(s, true)} disabled={isProcessing}>
+                                        {isProcessing ? <Loader2 className="me-2 h-4 w-4 animate-spin"/> : <Check className="me-2 h-4 w-4" />} موافقة
+                                    </Button>
+                                    <Button size="sm" variant="outline" className="text-red-600 border-red-600 hover:bg-red-50" onClick={() => handlePriceChangeDecision(s, false)} disabled={isProcessing}>
+                                        {isProcessing ? <Loader2 className="me-2 h-4 w-4 animate-spin"/> : <X className="me-2 h-4 w-4" />} رفض
+                                    </Button>
                                 </div>
                             </div>
                         );

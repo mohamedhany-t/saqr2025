@@ -674,6 +674,9 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
 
   // State for search terms in management tabs
   const [managementSearchTerm, setManagementSearchTerm] = React.useState('');
+  
+  const [processingShipments, setProcessingShipments] = React.useState<Set<string>>(new Set());
+
 
   // We use useUser here to get the auth user (with .uid) for the import logic.
   const { user: authUser } = useUser();
@@ -1484,7 +1487,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
 
   const filteredShipments = React.useMemo(() => {
     if (!allShipmentsForStats) return [];
-  
+
     let baseShipments = allShipmentsForStats;
     
     // This is the combined logic
@@ -1495,11 +1498,9 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
     return baseShipments.filter((shipment) => {
         const addressValue = String(shipment.address || '').toLowerCase();
         
-        // Match address with OR logic
         const addressMatch = searchTerms.length === 0 || searchTerms.some(term => addressValue.includes(term));
         if (!addressMatch) return false;
 
-        // Match other filters with AND logic
         const otherFiltersMatch = otherFilters.every(filter => {
             if (filter.id === 'createdAt') return true; // Date handled separately
             const value = (shipment as any)[filter.id];
@@ -1511,7 +1512,6 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
         });
         if (!otherFiltersMatch) return false;
 
-        // Match date range
         const dateRangeFilter = columnFilters.find(f => f.id === 'createdAt');
         if (dateRangeFilter) {
             const { from, to } = dateRangeFilter.value as DateRange;
@@ -1521,7 +1521,6 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
             if (to && createdAt > to) return false;
         }
         
-        // Match global search term
         if (searchTerm) {
             const lowercasedTerm = searchTerm.toLowerCase();
             return (
@@ -1776,9 +1775,11 @@ const returnedToCompanyShipments = React.useMemo(() => {
     return companyDues.filter(c => c.name?.toLowerCase().includes(managementSearchTerm.toLowerCase()));
   }, [companyDues, managementSearchTerm]);
 
-  const handlePriceChangeDecision = (shipment: Shipment, approved: boolean) => {
-    if (!firestore || !authUser) return;
+  const handlePriceChangeDecision = async (shipment: Shipment, approved: boolean) => {
+    if (!firestore || !authUser || processingShipments.has(shipment.id)) return;
     
+    setProcessingShipments(prev => new Set(prev).add(shipment.id));
+
     let updatePayload: any = {};
     if (approved) {
         updatePayload = {
@@ -1795,20 +1796,29 @@ const returnedToCompanyShipments = React.useMemo(() => {
         };
     }
 
-    handleSaveShipment(updatePayload, shipment.id);
+    try {
+        await handleSaveShipment(updatePayload, shipment.id);
 
-    // Send notification to the courier
-    if (shipment.assignedCourierId) {
-        const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipment.id}` : `/?edit=${shipment.id}`;
-        const message = approved 
-            ? `تمت الموافقة على طلب تعديل سعر شحنة ${shipment.recipientName}.`
-            : `تم رفض طلب تعديل سعر شحنة ${shipment.recipientName}.`;
-        sendPushNotification({
-            recipientId: shipment.assignedCourierId,
-            title: 'تحديث بخصوص طلب تعديل السعر',
-            body: message,
-            url: notificationUrl,
-        }).catch(console.error);
+        if (shipment.assignedCourierId) {
+            const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${shipment.id}` : `/?edit=${shipment.id}`;
+            const message = approved 
+                ? `تمت الموافقة على طلب تعديل سعر شحنة ${shipment.recipientName}.`
+                : `تم رفض طلب تعديل سعر شحنة ${shipment.recipientName}.`;
+            await sendPushNotification({
+                recipientId: shipment.assignedCourierId,
+                title: 'تحديث بخصوص طلب تعديل السعر',
+                body: message,
+                url: notificationUrl,
+            });
+        }
+    } catch (error) {
+        // Error toast is already handled in handleSaveShipment
+    } finally {
+        setProcessingShipments(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(shipment.id);
+            return newSet;
+        });
     }
 };
 
@@ -1975,6 +1985,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
                     {(s: Shipment) => {
                         const courierName = courierUsers.find(c => c.id === s.assignedCourierId)?.name;
                         const requestedAmountString = s.requestedAmount ? s.requestedAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) : 'N/A';
+                        const isProcessing = processingShipments.has(s.id);
                         return (
                             <div>
                                 <p className="font-bold">{s.recipientName} - <span className="text-sm text-muted-foreground">بواسطة {courierName}</span></p>
@@ -1985,8 +1996,12 @@ const returnedToCompanyShipments = React.useMemo(() => {
                                 </div>
                                 <p className="text-xs text-amber-600 mt-1">السبب: {s.amountChangeReason || 'لم يذكر'}</p>
                                 <div className="mt-2 flex gap-2">
-                                    <Button size="sm" variant="outline" className="text-green-600 border-green-600 hover:bg-green-50" onClick={() => handlePriceChangeDecision(s, true)}><Check className="me-2 h-4 w-4" /> موافقة</Button>
-                                    <Button size="sm" variant="outline" className="text-red-600 border-red-600 hover:bg-red-50" onClick={() => handlePriceChangeDecision(s, false)}><X className="me-2 h-4 w-4" /> رفض</Button>
+                                    <Button size="sm" variant="outline" className="text-green-600 border-green-600 hover:bg-green-50" onClick={() => handlePriceChangeDecision(s, true)} disabled={isProcessing}>
+                                        {isProcessing ? <Loader2 className="me-2 h-4 w-4 animate-spin"/> : <Check className="me-2 h-4 w-4" />} موافقة
+                                    </Button>
+                                    <Button size="sm" variant="outline" className="text-red-600 border-red-600 hover:bg-red-50" onClick={() => handlePriceChangeDecision(s, false)} disabled={isProcessing}>
+                                        {isProcessing ? <Loader2 className="me-2 h-4 w-4 animate-spin"/> : <X className="me-2 h-4 w-4" />} رفض
+                                    </Button>
                                 </div>
                             </div>
                         );
