@@ -3,7 +3,7 @@
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing, ChevronLeft, ChevronRight, BarChart, MessageSquarePlus, Wallet, Plus, Copy } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing, ChevronLeft, ChevronRight, BarChart, MessageSquarePlus, Wallet, Plus, Copy, Link as LinkIcon, Sparkles, Merge } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
@@ -41,7 +41,7 @@ import { useIsMobile } from "@/hooks/use-is-mobile";
 import { ShipmentCard } from "../shipments/shipment-card";
 import { ColumnFiltersState } from "@tanstack/react-table";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
-import { getColumns as getShipmentColumns } from './shipments-table';
+import { getColumns as getShipmentColumns, statusVariants } from './shipments-table';
 import { differenceInDays, differenceInHours } from "date-fns";
 import { ReportsPage } from "@/components/reports/reports-page";
 import { AuditLogPage } from "../audit-log/audit-log-page";
@@ -1487,27 +1487,31 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
   
     let baseShipments = allShipmentsForStats;
     
+    // This is the combined logic
+    const aFilters = columnFilters.filter(f => f.id === 'address');
+    const otherFilters = columnFilters.filter(f => f.id !== 'address');
+    const searchTerms = (aFilters[0]?.value as string[]) || [];
+
     return baseShipments.filter((shipment) => {
-        const columnFiltersMatch = columnFilters.every((filter) => {
-            if (filter.id === 'createdAt') return true;
-            if (filter.id === 'address') {
-                const searchTerms = (filter.value as string[] || []).filter(Boolean);
-                if (searchTerms.length === 0) return true;
-                const addressValue = String(shipment.address || '').toLowerCase();
-                // OR logic for address terms
-                return searchTerms.some((term) => addressValue.includes(term));
-            }
-            
+        const addressValue = String(shipment.address || '').toLowerCase();
+        
+        // Match address with OR logic
+        const addressMatch = searchTerms.length === 0 || searchTerms.some(term => addressValue.includes(term));
+        if (!addressMatch) return false;
+
+        // Match other filters with AND logic
+        const otherFiltersMatch = otherFilters.every(filter => {
+            if (filter.id === 'createdAt') return true; // Date handled separately
             const value = (shipment as any)[filter.id];
             const filterValue = filter.value as string[];
-            
             if (Array.isArray(filterValue) && filterValue.length > 0) {
                 return filterValue.includes(value);
             }
             return true;
         });
-        if (!columnFiltersMatch) return false;
+        if (!otherFiltersMatch) return false;
 
+        // Match date range
         const dateRangeFilter = columnFilters.find(f => f.id === 'createdAt');
         if (dateRangeFilter) {
             const { from, to } = dateRangeFilter.value as DateRange;
@@ -1517,6 +1521,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
             if (to && createdAt > to) return false;
         }
         
+        // Match global search term
         if (searchTerm) {
             const lowercasedTerm = searchTerm.toLowerCase();
             return (
@@ -1529,7 +1534,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
 
         return true;
     });
-  }, [allShipmentsForStats, searchTerm, columnFilters]);
+}, [allShipmentsForStats, searchTerm, columnFilters]);
   
   
   const unassignedShipments = React.useMemo(() => filteredShipments.filter(s => !s.assignedCourierId), [filteredShipments]);
@@ -1646,24 +1651,6 @@ const returnedToCompanyShipments = React.useMemo(() => {
   }, [allShipmentsForStats]);
   const priceChangeRequests = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'PriceChangeRequested' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
   
-  const duplicateShipments = React.useMemo(() => {
-    if (!filteredShipments) return [];
-    const shipmentGroups: { [key: string]: Shipment[] } = {};
-    filteredShipments.forEach(s => {
-        if (!s.recipientName || !s.recipientPhone || !s.address) return;
-        const key = `${s.recipientName}-${s.recipientPhone}-${s.address}`.toLowerCase();
-        if (!shipmentGroups[key]) {
-            shipmentGroups[key] = [];
-        }
-        shipmentGroups[key].push(s);
-    });
-
-    return Object.values(shipmentGroups)
-        .filter(group => group.length > 1)
-        .sort((a, b) => b.length - a.length);
-  }, [filteredShipments]);
-
-
   const problemCount = returnedShipmentsNeedingAction.length + longPostponedShipments.length + staleInTransitShipments.length + priceChangeRequests.length;
 
 
@@ -1832,7 +1819,12 @@ const returnedToCompanyShipments = React.useMemo(() => {
         <div className="flex items-center">
             <TabsList className="flex-nowrap overflow-x-auto justify-start">
             <TabsTrigger value="shipments">الشحنات</TabsTrigger>
-            <TabsTrigger value="duplicate-shipments">الشحنات المكررة</TabsTrigger>
+            <TabsTrigger value="duplicates">
+                <Link href="/duplicates" className="flex items-center gap-2">
+                    <Copy className="w-4 h-4" />
+                    <span>الشحنات المكررة</span>
+                </Link>
+            </TabsTrigger>
             <TabsTrigger value="expenses">
                 <Link href="/expenses">المصروفات</Link>
             </TabsTrigger>
@@ -1949,44 +1941,16 @@ const returnedToCompanyShipments = React.useMemo(() => {
                 />
             }
         </TabsContent>
-        <TabsContent value="duplicate-shipments">
-            <div className="mt-4 space-y-4">
-                {duplicateShipments.length === 0 ? (
-                    <div className="text-center py-10 text-muted-foreground">لا توجد شحنات مكررة بناءً على الفلاتر الحالية.</div>
-                ) : (
-                    duplicateShipments.map((group, index) => (
-                        <Collapsible key={index} className="border p-4 rounded-lg bg-muted/20">
-                            <CollapsibleTrigger className="w-full flex justify-between items-center">
-                                <div className="text-right">
-                                    <p className="font-bold">{group[0].recipientName}</p>
-                                    <p className="text-sm text-muted-foreground">{group[0].recipientPhone} - {group[0].address}</p>
-                                </div>
-                                <Badge variant="destructive">{group.length} شحنات مكررة</Badge>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent className="mt-4 space-y-3">
-                                {group.map(shipment => (
-                                    <div key={shipment.id} className="border p-3 rounded-md flex justify-between items-center bg-background">
-                                        <div>
-                                            <p className="font-mono text-sm">الكود: {shipment.shipmentCode}</p>
-                                            <p>الحالة: <Badge variant={statusVariants[shipment.status] || 'secondary'}>{statuses.find(s => s.id === shipment.status)?.label || shipment.status}</Badge></p>
-                                            <p className="text-xs text-muted-foreground">التاريخ: {getSafeDate(shipment.createdAt)?.toLocaleDateString('ar-EG')}</p>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <Button size="sm" variant="outline" onClick={() => openShipmentForm(shipment)}>
-                                                <Pencil className="h-4 w-4 me-2" />
-                                                تعديل
-                                            </Button>
-                                            <Button size="sm" variant="destructive" onClick={() => setShipmentToDelete(shipment)}>
-                                                <Trash2 className="h-4 w-4 me-2" />
-                                                حذف
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </CollapsibleContent>
-                        </Collapsible>
-                    ))
-                )}
+        <TabsContent value="duplicates">
+             <div className="flex flex-col items-center justify-center text-center py-16 bg-muted/40 rounded-lg">
+                <LinkIcon className="h-16 w-16 text-muted-foreground mb-4" />
+                <h3 className="text-2xl font-bold">تم نقل هذه الصفحة</h3>
+                <p className="text-muted-foreground mt-2 max-w-md">
+                    لتحسين الأداء، تم نقل ميزة الشحنات المكررة إلى صفحة مستقلة خاصة بها.
+                </p>
+                <Button asChild className="mt-4">
+                    <Link href="/duplicates">الانتقال إلى صفحة الشحنات المكررة</Link>
+                </Button>
             </div>
         </TabsContent>
         <TabsContent value="expenses">
