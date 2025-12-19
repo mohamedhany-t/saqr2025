@@ -231,20 +231,24 @@ export const handleShipmentUpdate = functions.runWith(runtimeOpts).https.onReque
 
                         if (newStatusConfig.affectsCourierBalance) {
                             const courierId = finalUpdateData.assignedCourierId || oldData.assignedCourierId;
-                            const courierProfileDoc = courierId ? await db.collection('couriers').doc(courierId).get() : null;
-                            const commissionRate = courierProfileDoc?.exists ? (courierProfileDoc.data() as any).commissionRate || 0 : 0;
-                            finalUpdateData.courierCommission = commissionRate;
+                            if (courierId) {
+                                const courierProfileDoc = await db.collection('couriers').doc(courierId).get();
+                                const commissionRate = courierProfileDoc?.exists ? (courierProfileDoc.data() as any).commissionRate || 0 : 0;
+                                finalUpdateData.courierCommission = commissionRate;
+                            }
                         } else {
                             finalUpdateData.courierCommission = 0;
                         }
                         
                         if (newStatusConfig.affectsCompanyBalance) {
                             const companyId = finalUpdateData.companyId || oldData.companyId;
-                            const companyProfileDoc = companyId ? await db.collection('companies').doc(companyId).get() : null;
-                            const governorateCommissions = companyProfileDoc?.exists ? (companyProfileDoc.data() as any).governorateCommissions || {} : {};
-                            const governorateId = finalUpdateData.governorateId || oldData.governorateId;
-                            const commission = governorateCommissions[governorateId] || 0;
-                            finalUpdateData.companyCommission = commission;
+                            if (companyId) {
+                                const companyProfileDoc = await db.collection('companies').doc(companyId).get();
+                                const governorateCommissions = companyProfileDoc?.exists ? (companyProfileDoc.data() as any).governorateCommissions || {} : {};
+                                const governorateId = finalUpdateData.governorateId || oldData.governorateId;
+                                const commission = governorateCommissions[governorateId] || 0;
+                                finalUpdateData.companyCommission = commission;
+                            }
                         } else {
                              finalUpdateData.companyCommission = 0;
                         }
@@ -263,7 +267,7 @@ export const handleShipmentUpdate = functions.runWith(runtimeOpts).https.onReque
                     const newValue = (newData as any)[key];
 
                     // Simple comparison, ignoring objects like Timestamps for now
-                    if (oldValue !== newValue && typeof oldValue !== 'object' && typeof newValue !== 'object') {
+                    if (JSON.stringify(oldValue) !== JSON.stringify(newValue) && typeof oldValue !== 'object' && typeof newValue !== 'object') {
                          changes.push({ field: key, oldValue: oldValue ?? null, newValue: newValue ?? null });
                     }
                 }

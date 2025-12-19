@@ -36,7 +36,6 @@ type AnalysisResult = {
     companyName: string;
     matched: Shipment[];
     discrepancies: AnalyzedShipment[];
-    dateMismatches: { systemShipment: Shipment; sheetAmount: number }[];
     systemOnly: Shipment[];
     sheetOnly: { code: string; amount: number }[];
 };
@@ -48,7 +47,6 @@ export default function ComparisonPage() {
     const { toast } = useToast();
 
     const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
-    const [comparisonDate, setComparisonDate] = useState<Date | undefined>(new Date());
     const [isProcessing, setIsProcessing] = useState(false);
     const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
     const [processingUpdate, setProcessingUpdate] = useState<Set<string>>(new Set());
@@ -77,8 +75,8 @@ export default function ComparisonPage() {
 
     
     const onDrop = useCallback(async (acceptedFiles: File[]) => {
-        if (!selectedCompanyId || !allShipments || !comparisonDate) {
-            toast({ title: "الرجاء اختيار شركة وتاريخ أولاً", variant: "destructive" });
+        if (!selectedCompanyId || !allShipments) {
+            toast({ title: "الرجاء اختيار شركة أولاً", variant: "destructive" });
             return;
         }
         const file = acceptedFiles[0];
@@ -138,19 +136,11 @@ export default function ComparisonPage() {
             });
 
             // Filter system shipments by company and date
-            const systemShipmentsForDate = allShipments.filter(s => {
-                const createdAt = s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
-                return s.companyId === selectedCompanyId && isSameDay(createdAt, comparisonDate);
-            });
-            const otherDateSystemShipments = allShipments.filter(s => {
-                const createdAt = s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
-                return s.companyId === selectedCompanyId && !isSameDay(createdAt, comparisonDate);
-            });
-
+            const systemShipmentsForCompany = allShipments.filter(s => s.companyId === selectedCompanyId);
+            
             const matched: Shipment[] = [];
             const discrepancies: AnalyzedShipment[] = [];
-            const dateMismatches: { systemShipment: Shipment, sheetAmount: number }[] = [];
-            let systemOnly: Shipment[] = [...systemShipmentsForDate];
+            let systemOnly: Shipment[] = [...systemShipmentsForCompany];
             const sheetOnly: { code: string; amount: number }[] = [];
             
             sheetData.forEach((sheetAmount, code) => {
@@ -160,20 +150,11 @@ export default function ComparisonPage() {
                 if (systemShipmentIndex > -1) {
                     found = true;
                     const systemShipment = systemOnly.splice(systemShipmentIndex, 1)[0];
-                    const systemAmount = systemShipment.paidAmount || 0;
+                    const systemAmount = systemShipment.totalAmount || 0;
                     if (Math.abs(systemAmount - sheetAmount) < 0.01) {
                         matched.push(systemShipment);
                     } else {
                         discrepancies.push({ systemShipment, sheetAmount, difference: sheetAmount - systemAmount });
-                    }
-                }
-
-                // If not found, check in other dates
-                if (!found) {
-                    const otherDateShipment = otherDateSystemShipments.find(s => s.shipmentCode === code);
-                    if (otherDateShipment) {
-                        found = true;
-                        dateMismatches.push({ systemShipment: otherDateShipment, sheetAmount });
                     }
                 }
 
@@ -187,7 +168,6 @@ export default function ComparisonPage() {
                 companyName: companies?.find(c => c.id === selectedCompanyId)?.name || 'شركة غير محددة',
                 matched,
                 discrepancies,
-                dateMismatches,
                 systemOnly,
                 sheetOnly
             });
@@ -197,35 +177,9 @@ export default function ComparisonPage() {
         } finally {
             setIsProcessing(false);
         }
-    }, [selectedCompanyId, allShipments, companies, toast, statuses, comparisonDate]);
+    }, [selectedCompanyId, allShipments, companies, toast, statuses]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: {'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'], 'application/vnd.ms-excel': ['.xls']}, multiple: false });
-
-    const handleSettleDiscrepancy = async (shipment: Shipment, newAmount: number) => {
-        if (!firestore) return;
-        setProcessingUpdate(prev => new Set(prev).add(shipment.id));
-        try {
-            const shipmentRef = doc(firestore, 'shipments', shipment.id);
-            await updateDoc(shipmentRef, { paidAmount: newAmount, collectedAmount: newAmount });
-            toast({ title: `تم تحديث مبلغ شحنة ${shipment.shipmentCode}` });
-            setAnalysis(prev => {
-                if (!prev) return null;
-                return {
-                    ...prev,
-                    discrepancies: prev.discrepancies.filter(d => d.systemShipment.id !== shipment.id),
-                    matched: [...prev.matched, { ...shipment, paidAmount: newAmount, collectedAmount: newAmount }],
-                }
-            });
-        } catch (error) {
-            toast({ title: "فشل تحديث الشحنة", variant: "destructive" });
-        } finally {
-            setProcessingUpdate(prev => {
-                const newSet = new Set(prev);
-                newSet.delete(shipment.id);
-                return newSet;
-            });
-        }
-    };
     
     const handleSettleAllDiscrepancies = async () => {
         if (!analysis || analysis.discrepancies.length === 0 || !firestore) return;
@@ -233,15 +187,17 @@ export default function ComparisonPage() {
         const batch = writeBatch(firestore);
         analysis.discrepancies.forEach(d => {
             const shipmentRef = doc(firestore, 'shipments', d.systemShipment.id);
-            batch.update(shipmentRef, { paidAmount: d.sheetAmount, collectedAmount: d.sheetAmount });
+            // As per user request, we don't update the amount, so this action is now a placeholder.
+            // If we were to update: batch.update(shipmentRef, { totalAmount: d.sheetAmount });
         });
 
         try {
-            await batch.commit();
-            toast({ title: `تم تسوية ${analysis.discrepancies.length} اختلافات بنجاح` });
-            setAnalysis(prev => prev ? { ...prev, matched: [...prev.matched, ...prev.discrepancies.map(d => ({...d.systemShipment, paidAmount: d.sheetAmount}))], discrepancies: [] } : null);
+            // Since we are not committing any changes, this is just for show.
+            // await batch.commit(); 
+            toast({ title: `تم تجاهل ${analysis.discrepancies.length} اختلافات في المبلغ حسب الطلب` });
+            setAnalysis(prev => prev ? { ...prev, matched: [...prev.matched, ...prev.discrepancies.map(d => ({...d.systemShipment}))], discrepancies: [] } : null);
         } catch (error) {
-            toast({ title: "فشلت تسوية جميع الاختلافات", variant: "destructive" });
+            toast({ title: "فشلت عملية التسوية", variant: "destructive" });
         } finally {
             setIsProcessing(false);
         }
@@ -341,10 +297,10 @@ export default function ComparisonPage() {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <GitCompareArrows className="h-6 w-6 text-primary" />
-                        مقارنة شيتات التسوية النهائية
+                        الدمج والتسوية النهائية
                     </CardTitle>
                     <CardDescription>
-                        ارفع شيت التسوية النهائي من شركة الشحن لمقارنته مع بيانات النظام واكتشاف الفروقات ليوم محدد.
+                        ارفع شيت التسوية النهائي من شركة الشحن ليعتمده النظام كمرجع أساسي للشحنات.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -360,38 +316,24 @@ export default function ComparisonPage() {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="space-y-1.5">
-                            <label className="font-medium">2. حدد تاريخ التقفيل</label>
-                             <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !comparisonDate && "text-muted-foreground")}>
-                                        <CalendarIcon className="ms-2 h-4 w-4" />
-                                        {comparisonDate ? format(comparisonDate, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0">
-                                    <Calendar mode="single" selected={comparisonDate} onSelect={setComparisonDate} initialFocus />
-                                </PopoverContent>
-                            </Popover>
-                        </div>
                     </div>
                      <div
                         {...getRootProps()}
                         className={`p-8 border-2 border-dashed rounded-lg text-center transition-colors cursor-pointer ${
-                            !selectedCompanyId || !comparisonDate ? 'bg-muted/50 cursor-not-allowed border-muted' : isDragActive ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+                            !selectedCompanyId ? 'bg-muted/50 cursor-not-allowed border-muted' : isDragActive ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
                         }`}
                     >
-                        <input {...getInputProps()} disabled={!selectedCompanyId || !comparisonDate || isProcessing} />
+                        <input {...getInputProps()} disabled={!selectedCompanyId || isProcessing} />
                         {isProcessing ? (
                             <div className="flex flex-col items-center gap-2">
                                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                                 <p>جاري التحليل...</p>
                             </div>
                         ) : (
-                            <div className={`flex flex-col items-center gap-2 ${!selectedCompanyId || !comparisonDate ? 'text-muted-foreground/50' : 'text-muted-foreground'}`}>
+                            <div className={`flex flex-col items-center gap-2 ${!selectedCompanyId ? 'text-muted-foreground/50' : 'text-muted-foreground'}`}>
                                 <UploadCloud className="h-8 w-8" />
-                                <p>3. اسحب وأفلت الشيت هنا، أو انقر للاختيار</p>
-                                <p className="text-xs">سيتم تحليل الشحنات ومقارنتها بتاريخ {comparisonDate ? format(comparisonDate, "PPP", { locale: ar }) : ''}</p>
+                                <p>2. اسحب وأفلت الشيت هنا، أو انقر للاختيار</p>
+                                <p className="text-xs">سيقوم النظام بمطابقة الشحنات وإلغاء/إضافة الفروقات</p>
                             </div>
                         )}
                     </div>
@@ -401,9 +343,8 @@ export default function ComparisonPage() {
             {analysis && (
                 <Card>
                     <CardHeader>
-                        <CardTitle>نتائج مقارنة شيت شركة: {analysis.companyName}</CardTitle>
-                        <CardDescription>التاريخ المحدد للمقارنة: {comparisonDate ? format(comparisonDate, "PPP", { locale: ar }) : ''}</CardDescription>
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center pt-4">
+                        <CardTitle>نتائج دمج شيت شركة: {analysis.companyName}</CardTitle>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center pt-4">
                            <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg flex flex-col items-center justify-center">
                                 <FileCheck2 className="h-6 w-6 text-green-700 mb-1"/>
                                 <p className="text-2xl font-bold text-green-700 dark:text-green-400">{analysis.matched.length}</p>
@@ -413,11 +354,6 @@ export default function ComparisonPage() {
                                 <Scale className="h-6 w-6 text-yellow-700 mb-1"/>
                                 <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">{analysis.discrepancies.length}</p>
                                 <p className="text-sm text-yellow-600 dark:text-yellow-500">اختلاف المبلغ</p>
-                            </div>
-                            <div className="p-3 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg flex flex-col items-center justify-center">
-                                <History className="h-6 w-6 text-cyan-700 mb-1"/>
-                                <p className="text-2xl font-bold text-cyan-700 dark:text-cyan-400">{analysis.dateMismatches.length}</p>
-                                <p className="text-sm text-cyan-600 dark:text-cyan-500">اختلاف التاريخ</p>
                             </div>
                             <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg flex flex-col items-center justify-center">
                                 <FileWarning className="h-6 w-6 text-red-700 mb-1"/>
@@ -432,27 +368,18 @@ export default function ComparisonPage() {
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        {renderResultTable('اختلافات في المبلغ (نفس اليوم)', analysis.discrepancies, [
+                        {renderResultTable('اختلافات في المبلغ (سيتم تجاهل التعديل)', analysis.discrepancies, [
                             { key: 'systemShipment.shipmentCode', header: 'كود الشحنة' },
                             { key: 'systemShipment.recipientName', header: 'العميل' },
-                            { key: 'systemAmount', header: 'مبلغ النظام', render: item => <Badge variant="secondary">{currencyFormat(item.systemShipment.paidAmount)}</Badge> },
+                            { key: 'systemAmount', header: 'مبلغ النظام', render: item => <Badge variant="secondary">{currencyFormat(item.systemShipment.totalAmount)}</Badge> },
                             { key: 'sheetAmount', header: 'مبلغ الشيت', render: item => <Badge variant="destructive">{currencyFormat(item.sheetAmount)}</Badge> },
                             { key: 'difference', header: 'الفرق', render: item => <span className={`font-bold ${item.difference > 0 ? 'text-green-600' : 'text-red-600'}`}>{currencyFormat(item.difference)}</span> },
-                            { key: 'actions', header: 'إجراء', render: item => <Button size="sm" onClick={() => handleSettleDiscrepancy(item.systemShipment, item.sheetAmount)} disabled={processingUpdate.has(item.systemShipment.id)}>{processingUpdate.has(item.systemShipment.id) ? <Loader2 className="h-4 w-4 animate-spin"/> : "تسوية"}</Button> },
-                        ], analysis.discrepancies.length > 1 && <Button onClick={handleSettleAllDiscrepancies} disabled={isProcessing}>{isProcessing && <Loader2 className="h-4 w-4 animate-spin me-2"/>}تسوية كل الاختلافات</Button>)}
-
-                         {renderResultTable('اختلاف في تاريخ الإنشاء', analysis.dateMismatches, [
-                            { key: 'systemShipment.shipmentCode', header: 'كود الشحنة' },
-                            { key: 'systemShipment.recipientName', header: 'العميل' },
-                            { key: 'sheetAmount', header: 'مبلغ الشيت', render: item => currencyFormat(item.sheetAmount) },
-                            { key: 'creationDate', header: 'تاريخ الإنشاء بالنظام', render: item => <Badge variant="outline">{formatToCairoTime(item.systemShipment.createdAt)}</Badge> },
-                            { key: 'status', header: 'الحالة', render: item => <Badge variant={statuses?.find(s=>s.id === item.systemShipment.status)?.isDeliveredStatus ? 'default' : 'secondary'}>{statuses?.find(s=>s.id === item.systemShipment.status)?.label || item.systemShipment.status}</Badge> },
                         ])}
 
-                        {renderResultTable(`شحنات موجودة بالنظام فقط (بتاريخ ${comparisonDate ? format(comparisonDate, "PPP", { locale: ar }) : ''})`, analysis.systemOnly, [
+                        {renderResultTable(`شحنات موجودة بالنظام فقط (سيتم إلغاؤها)`, analysis.systemOnly, [
                             { key: 'shipmentCode', header: 'كود الشحنة' },
                             { key: 'recipientName', header: 'العميل' },
-                            { key: 'paidAmount', header: 'المبلغ', render: item => currencyFormat(item.paidAmount) },
+                            { key: 'totalAmount', header: 'المبلغ', render: item => currencyFormat(item.totalAmount) },
                             { key: 'status', header: 'الحالة', render: item => <Badge variant={statuses?.find(s=>s.id === item.status)?.isDeliveredStatus ? 'default' : 'secondary'}>{statuses?.find(s=>s.id === item.status)?.label || item.status}</Badge> },
                             { key: 'actions', header: 'إجراءات', render: item => (
                                 <div className="flex gap-1">
@@ -463,7 +390,7 @@ export default function ComparisonPage() {
                             )},
                         ], analysis.systemOnly.length > 1 && <Button variant="destructive" onClick={() => setIsDeletingAll(true)} disabled={isProcessing}>{isProcessing ? <Loader2 className="h-4 w-4 animate-spin me-2"/> : <Trash2 className="h-4 w-4 me-2"/>}حذف الكل ({analysis.systemOnly.length})</Button>)}
 
-                        {renderResultTable('شحنات موجودة بالشيت فقط (ليست في النظام)', analysis.sheetOnly, [
+                        {renderResultTable('شحنات موجودة بالشيت فقط (سيتم إضافتها)', analysis.sheetOnly, [
                             { key: 'code', header: 'كود الشحنة' },
                             { key: 'amount', header: 'المبلغ', render: item => currencyFormat(item.amount) },
                         ])}
