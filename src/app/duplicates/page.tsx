@@ -1,13 +1,13 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, writeBatch, doc } from 'firebase/firestore';
-import type { Shipment, ShipmentStatusConfig } from '@/lib/types';
-import { Loader2, Copy, Merge, Trash2, Pencil, CheckCircle } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import type { Shipment, ShipmentStatusConfig, User, Company } from '@/lib/types';
+import { Loader2, Copy, Merge, Trash2, Pencil, CheckCircle, Building, Truck } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { statusVariants } from '@/components/dashboard/shipments-table';
@@ -22,6 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { cn } from '@/lib/utils';
 
 const getSafeDate = (date: any): Date | null => {
     if (!date) return null;
@@ -35,8 +36,8 @@ export default function DuplicatesPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
     
-    const [shipmentToDelete, setShipmentToDelete] = React.useState<Shipment | null>(null);
-    const [groupToMerge, setGroupToMerge] = React.useState<Shipment[] | null>(null);
+    const [shipmentToDelete, setShipmentToDelete] = useState<Shipment | null>(null);
+    const [groupToMerge, setGroupToMerge] = useState<Shipment[] | null>(null);
 
     const allShipmentsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
@@ -49,13 +50,26 @@ export default function DuplicatesPage() {
         return query(collection(firestore, 'shipment_statuses'));
     }, [firestore]);
     const { data: statuses, isLoading: statusesLoading } = useCollection<ShipmentStatusConfig>(statusesQuery);
+    
+    const companiesQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, 'companies'));
+    }, [firestore]);
+    const { data: companies, isLoading: companiesLoading } = useCollection<Company>(companiesQuery);
+
+    const couriersQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, 'users'), where('role', '==', 'courier'));
+    }, [firestore]);
+    const { data: couriers, isLoading: couriersLoading } = useCollection<User>(couriersQuery);
+
 
     const duplicateShipments = useMemo(() => {
         if (!allShipments) return [];
         const shipmentGroups: { [key: string]: Shipment[] } = {};
         allShipments.forEach(s => {
             if (!s.recipientName || !s.recipientPhone || !s.address) return;
-            const key = `${s.recipientName}-${s.recipientPhone}-${s.address}`.toLowerCase();
+            const key = `${s.recipientName.trim()}-${s.recipientPhone.trim()}-${s.address.trim()}`.toLowerCase();
             if (!shipmentGroups[key]) {
                 shipmentGroups[key] = [];
             }
@@ -94,7 +108,7 @@ export default function DuplicatesPage() {
             .finally(() => setGroupToMerge(null));
     };
 
-    const isLoading = shipmentsLoading || statusesLoading;
+    const isLoading = shipmentsLoading || statusesLoading || companiesLoading || couriersLoading;
 
     if (isLoading) {
         return (
@@ -116,7 +130,7 @@ export default function DuplicatesPage() {
                 </p>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
                 {duplicateShipments.length === 0 ? (
                     <div className="text-center py-20 text-muted-foreground bg-muted/30 rounded-lg">
                         <CheckCircle className="h-16 w-16 mx-auto mb-4 text-green-500" />
@@ -124,48 +138,62 @@ export default function DuplicatesPage() {
                         <p className="mt-2">النظام نظيف حاليًا.</p>
                     </div>
                 ) : (
-                    duplicateShipments.map((group, index) => (
-                        <Card key={index}>
-                            <CardHeader>
-                                <CardTitle className="flex justify-between items-center">
-                                    <div className="text-right">
-                                        <p className="font-bold">{group[0].recipientName}</p>
-                                        <p className="text-sm text-muted-foreground">{group[0].recipientPhone} - {group[0].address}</p>
+                    duplicateShipments.map((group, index) => {
+                        const companyName = companies?.find(c => c.id === group[0].companyId)?.name || 'غير محدد';
+                        return (
+                            <Card key={index} className="overflow-hidden">
+                                <CardHeader className="bg-muted/50">
+                                    <div className="flex justify-between items-center">
+                                        <CardTitle className="text-lg">
+                                            {group[0].recipientName}
+                                            <span className="text-sm font-mono text-muted-foreground mx-2">{group[0].recipientPhone}</span>
+                                        </CardTitle>
+                                        <Badge variant="destructive">{group.length} شحنات مكررة</Badge>
                                     </div>
-                                    <div className='flex items-center gap-2'>
+                                    <CardDescription>{group[0].address}</CardDescription>
+                                </CardHeader>
+                                <CardContent className="p-4 space-y-3">
+                                    {group.map(shipment => {
+                                        const shipmentCompany = companies?.find(c => c.id === shipment.companyId);
+                                        const assignedCourier = couriers?.find(c => c.id === shipment.assignedCourierId);
+                                        const isNewest = group.reduce((latest, s) => (getSafeDate(s.createdAt) || 0) > (getSafeDate(latest.createdAt) || 0) ? s : latest).id === shipment.id;
+
+                                        return (
+                                            <div key={shipment.id} className={cn("border p-3 rounded-md flex justify-between items-center bg-background", isNewest && "border-primary")}>
+                                                <div>
+                                                    <div className="flex items-center gap-4">
+                                                        <p className="font-mono text-sm">الكود: {shipment.shipmentCode}</p>
+                                                        <Badge variant={statusVariants[shipment.status] || 'secondary'}>{statuses?.find(s => s.id === shipment.status)?.label || shipment.status}</Badge>
+                                                    </div>
+                                                    <div className="text-xs text-muted-foreground mt-2 space-y-1">
+                                                        <p>التاريخ: {getSafeDate(shipment.createdAt)?.toLocaleDateString('ar-EG')}</p>
+                                                        {shipmentCompany && <p className="flex items-center gap-1"><Building className="h-3 w-3" /> {shipmentCompany.name}</p>}
+                                                        {assignedCourier && <p className="flex items-center gap-1"><Truck className="h-3 w-3" /> {assignedCourier.name}</p>}
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <Button size="sm" variant="ghost" asChild>
+                                                        <Link href={`/?tab=shipments&edit=${shipment.id}`} target="_blank">
+                                                            <Pencil className="h-4 w-4" />
+                                                        </Link>
+                                                    </Button>
+                                                    <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setShipmentToDelete(shipment)}>
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </CardContent>
+                                <CardFooter className="bg-muted/50 p-3">
                                     <Button variant="outline" size="sm" onClick={() => setGroupToMerge(group)}>
                                         <Merge className="me-2 h-4 w-4"/>
-                                        دمج (الإبقاء على الأحدث)
+                                        دمج (الإبقاء على الأحدث فقط)
                                     </Button>
-                                    <Badge variant="destructive">{group.length} شحنات مكررة</Badge>
-                                    </div>
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="mt-4 space-y-3">
-                                {group.map(shipment => (
-                                    <div key={shipment.id} className="border p-3 rounded-md flex justify-between items-center bg-background">
-                                        <div>
-                                            <p className="font-mono text-sm">الكود: {shipment.shipmentCode}</p>
-                                            <p>الحالة: <Badge variant={statusVariants[shipment.status] || 'secondary'}>{statuses?.find(s => s.id === shipment.status)?.label || shipment.status}</Badge></p>
-                                            <p className="text-xs text-muted-foreground">التاريخ: {getSafeDate(shipment.createdAt)?.toLocaleDateString('ar-EG')}</p>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <Button size="sm" variant="outline" asChild>
-                                                <Link href={`/?tab=shipments&edit=${shipment.id}`} target="_blank">
-                                                    <Pencil className="h-4 w-4 me-2" />
-                                                    تعديل
-                                                </Link>
-                                            </Button>
-                                            <Button size="sm" variant="destructive" onClick={() => setShipmentToDelete(shipment)}>
-                                                <Trash2 className="h-4 w-4 me-2" />
-                                                حذف
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </CardContent>
-                        </Card>
-                    ))
+                                </CardFooter>
+                            </Card>
+                        )
+                    })
                 )}
             </div>
             
