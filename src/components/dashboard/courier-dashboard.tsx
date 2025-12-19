@@ -382,10 +382,11 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
 
     const retry = shipments.filter(s => s.retryAttempt === true);
     const finished = shipments.filter(s => deliveredStatusIds.includes(s.status));
-    const returned = shipments.filter(s => returnedStatusIds.includes(s.status) && !s.retryAttempt);
+    const returned = shipments.filter(s => (returnedStatusIds.includes(s.status) || s.isExchange) && !s.retryAttempt);
     const postponed = shipments.filter(s => s.status === 'Postponed' && !s.retryAttempt);
     
     let active = shipments.filter(s => 
+        !s.isExchange &&
         !deliveredStatusIds.includes(s.status) && 
         !returnedStatusIds.includes(s.status) &&
         s.status !== 'Postponed' &&

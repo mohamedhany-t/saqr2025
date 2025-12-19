@@ -127,7 +127,9 @@ const MobileShipmentsView = ({
     
     const unassignedShipments = React.useMemo(() => shipments.filter(s => !s.assignedCourierId), [shipments]);
     const assignedShipments = React.useMemo(() => shipments.filter(s => !!s.assignedCourierId), [shipments]);
-    const returnsWithCouriers = React.useMemo(() => shipments.filter(s => returnedShipmentStatuses.includes(s.status) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCourier), [shipments, returnedShipmentStatuses]);
+    const returnsWithCouriers = React.useMemo(() => {
+        return shipments?.filter(s => (returnedShipmentStatuses.includes(s.status) || s.isExchange) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCourier) || [];
+    }, [shipments, returnedShipmentStatuses]);
     const inWarehouseShipments = React.useMemo(() => shipments.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCompany), [shipments]);
     const returnedToCompanyShipments = React.useMemo(() => shipments.filter(s => s.isReturnedToCompany && !s.isArchivedForCompany), [shipments]);
     const archivedShipmentsCompany = React.useMemo(() => shipments.filter(s => s.isArchivedForCompany), [shipments]);
@@ -1540,7 +1542,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
 const returnedShipmentStatuses = React.useMemo(() => statuses?.filter(s => s.isReturnedStatus).map(s => s.id) || [], [statuses]);
 
 const returnsWithCouriers = React.useMemo(() => {
-    return filteredShipments?.filter(s => returnedShipmentStatuses.includes(s.status) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCourier) || [];
+    return filteredShipments?.filter(s => (returnedShipmentStatuses.includes(s.status) || s.isExchange) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCourier) || [];
 }, [filteredShipments, returnedShipmentStatuses]);
 
 const inWarehouseShipments = React.useMemo(() => {
