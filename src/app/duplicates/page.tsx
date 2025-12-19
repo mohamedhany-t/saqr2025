@@ -2,12 +2,12 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import Link from 'next/link';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, writeBatch, doc } from 'firebase/firestore';
 import type { Shipment, ShipmentStatusConfig } from '@/lib/types';
-import { Loader2, Copy, Merge, Trash2, Pencil } from 'lucide-react';
+import { Loader2, Copy, Merge, Trash2, Pencil, CheckCircle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { statusVariants } from '@/components/dashboard/shipments-table';
