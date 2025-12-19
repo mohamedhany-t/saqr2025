@@ -209,11 +209,10 @@ const MobileShipmentsView = ({
 
     const VirtualizedShipmentList = ({ shipmentList }: { shipmentList: Shipment[] }) => {
         const parentRef = React.useRef<HTMLDivElement>(null);
-        
         const rowVirtualizer = useVirtualizer({
           count: shipmentList.length,
           getScrollElement: () => parentRef.current,
-          estimateSize: () => 350, // Estimate height of a card
+          estimateSize: () => 350,
           overscan: 5,
         });
       
@@ -252,7 +251,7 @@ const MobileShipmentsView = ({
                     style={{
                       height: `${virtualItem.size}px`,
                       transform: `translateY(${virtualItem.start}px)`,
-                      paddingBottom: '12px', // Add spacing between cards
+                      paddingBottom: '12px',
                     }}
                   >
                     <ShipmentCard
@@ -1487,59 +1486,59 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
     if (!allShipmentsForStats) return [];
   
     let baseShipments = allShipmentsForStats;
-  
-    // Apply column filters
-    if (columnFilters.length > 0) {
-      baseShipments = baseShipments.filter((shipment) => {
-        const addressFilter = columnFilters.find((f) => f.id === 'address');
-        const otherFilters = columnFilters.filter((f) => f.id !== 'address');
-  
-        // Handle other filters with .every()
-        const otherFiltersMatch = otherFilters.every((filter) => {
-          const value = (shipment as any)[filter.id];
-          if (filter.id === 'createdAt') {
-             const { from, to } = filter.value as DateRange;
-            const createdAt = getSafeDate(shipment.createdAt);
-            if (!createdAt) return false;
-            if (from && createdAt < from) return false;
-            if (to && createdAt > to) return false;
-            return true;
-          }
-          const filterValue = filter.value as string[];
-          if (Array.isArray(filterValue) && filterValue.length > 0) {
-            return filterValue.includes(value);
-          }
+    
+    // This is the single point where all filters are applied.
+    baseShipments = baseShipments.filter((shipment) => {
+      // 1. Global Search Term Filter
+      if (searchTerm) {
+        const lowercasedTerm = searchTerm.toLowerCase();
+        const matchesGlobalSearch = 
+            String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm);
+        if (!matchesGlobalSearch) return false;
+      }
+
+      // 2. Column Filters
+      const columnFiltersMatch = columnFilters.every((filter) => {
+        const value = (shipment as any)[filter.id];
+        
+        // Skip address filter here, it's handled separately.
+        if (filter.id === 'address') return true;
+
+        if (filter.id === 'createdAt') {
+          const { from, to } = filter.value as DateRange;
+          const createdAt = getSafeDate(shipment.createdAt);
+          if (!createdAt) return false;
+          if (from && createdAt < from) return false;
+          if (to && createdAt > to) return false;
           return true;
-        });
-  
-        if (!otherFiltersMatch) {
-          return false;
         }
-  
-        // Handle address filter with .some()
-        if (addressFilter) {
-          const searchTerms = (addressFilter.value as string[] || []).filter(Boolean);
-          if (searchTerms.length === 0) return true; // No address terms, so it passes this filter
-          const addressValue = String(shipment.address || '').toLowerCase();
-          return searchTerms.some((term) => addressValue.includes(term.toLowerCase()));
+
+        const filterValue = filter.value as string[];
+        if (Array.isArray(filterValue) && filterValue.length > 0) {
+          return filterValue.includes(value);
         }
-  
-        // If no address filter, the result depends only on other filters
         return true;
       });
-    }
-  
-    // Apply global search term
-    if (searchTerm) {
-      const lowercasedTerm = searchTerm.toLowerCase();
-      baseShipments = baseShipments.filter(
-        (shipment) =>
-          String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
-          String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
-          String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-          String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm)
-      );
-    }
+
+      if (!columnFiltersMatch) return false;
+
+      // 3. Special Address Filter (OR logic within itself)
+      const addressFilter = columnFilters.find((f) => f.id === 'address');
+      if (addressFilter) {
+          const searchTerms = (addressFilter.value as string[] || []).filter(Boolean);
+          if (searchTerms.length > 0) {
+            const addressValue = String(shipment.address || '').toLowerCase();
+            const matchesAddress = searchTerms.some((term) => addressValue.includes(term.toLowerCase()));
+            if (!matchesAddress) return false;
+          }
+      }
+      
+      // If all filters passed
+      return true;
+    });
   
     return baseShipments;
   }, [allShipmentsForStats, searchTerm, columnFilters]);

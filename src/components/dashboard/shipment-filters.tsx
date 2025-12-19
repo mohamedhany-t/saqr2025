@@ -107,7 +107,7 @@ export function ShipmentFilters({
         <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1">
                 <Input
-                    placeholder="فلترة حسب العنوان..."
+                    placeholder="فلترة حسب العنوان"
                     value={addressInput}
                     onChange={(e) => setAddressInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddressAdd(); } }}
