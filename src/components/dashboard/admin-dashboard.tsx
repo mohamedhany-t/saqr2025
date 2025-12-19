@@ -1485,51 +1485,60 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
 
   const filteredShipments = React.useMemo(() => {
     if (!allShipmentsForStats) return [];
-    
-    // This is the single source of truth for filtering.
-    let baseShipments = allShipmentsForStats;
-
-    // 1. Apply column filters
-    if (columnFilters.length > 0) {
-      baseShipments = baseShipments.filter(shipment => {
-        return columnFilters.every(filter => {
-          const value = (shipment as any)[filter.id];
   
+    let baseShipments = allShipmentsForStats;
+  
+    // Apply column filters
+    if (columnFilters.length > 0) {
+      baseShipments = baseShipments.filter((shipment) => {
+        const addressFilter = columnFilters.find((f) => f.id === 'address');
+        const otherFilters = columnFilters.filter((f) => f.id !== 'address');
+  
+        // Handle other filters with .every()
+        const otherFiltersMatch = otherFilters.every((filter) => {
+          const value = (shipment as any)[filter.id];
           if (filter.id === 'createdAt') {
-            const { from, to } = filter.value as DateRange;
+             const { from, to } = filter.value as DateRange;
             const createdAt = getSafeDate(shipment.createdAt);
             if (!createdAt) return false;
             if (from && createdAt < from) return false;
             if (to && createdAt > to) return false;
             return true;
           }
-  
-          if (filter.id === 'address') {
-            const searchTerms = (filter.value as string[] || []).filter(Boolean); // Filter out empty strings
-            if (searchTerms.length === 0) return true;
-            const addressValue = String(shipment.address || '').toLowerCase();
-            return searchTerms.some(term => addressValue.includes(term.toLowerCase())); // Use .some for OR logic
-          }
-  
           const filterValue = filter.value as string[];
           if (Array.isArray(filterValue) && filterValue.length > 0) {
             return filterValue.includes(value);
           }
-  
           return true;
         });
+  
+        if (!otherFiltersMatch) {
+          return false;
+        }
+  
+        // Handle address filter with .some()
+        if (addressFilter) {
+          const searchTerms = (addressFilter.value as string[] || []).filter(Boolean);
+          if (searchTerms.length === 0) return true; // No address terms, so it passes this filter
+          const addressValue = String(shipment.address || '').toLowerCase();
+          return searchTerms.some((term) => addressValue.includes(term.toLowerCase()));
+        }
+  
+        // If no address filter, the result depends only on other filters
+        return true;
       });
     }
-
-    // 2. Apply global search term
+  
+    // Apply global search term
     if (searchTerm) {
-        const lowercasedTerm = searchTerm.toLowerCase();
-        baseShipments = baseShipments.filter(shipment =>
+      const lowercasedTerm = searchTerm.toLowerCase();
+      baseShipments = baseShipments.filter(
+        (shipment) =>
           String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
           String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
           String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
           String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm)
-        );
+      );
     }
   
     return baseShipments;
