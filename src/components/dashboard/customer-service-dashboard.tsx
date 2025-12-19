@@ -13,7 +13,7 @@ import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebas
 import { collection, query, where, doc, getDoc, writeBatch, serverTimestamp, getDocs } from "firebase/firestore";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
-import { AlertTriangle, CheckSquare, DollarSign, MessageSquare, Check, X, ScanLine, FileUp, PlusCircle, Printer } from "lucide-react";
+import { AlertTriangle, CheckSquare, DollarSign, MessageSquare, Check, X, ScanLine, FileUp, PlusCircle, Printer, GitCompareArrows } from "lucide-react";
 import ChatInterface from "../chat/chat-interface";
 import { Badge } from "../ui/badge";
 import { differenceInDays, differenceInHours } from "date-fns";
@@ -340,120 +340,94 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
             };
             setImportResult(result);
 
-            const validRows: any[] = [];
-            const rejectedRows: any[] = [];
-            
-            // --- 1. Validation Phase ---
-            for (const row of json) {
-                let errorReason = "";
-                const recipientName = String(row['المرسل اليه'] || '').trim();
-                let recipientPhone = String(row['التليفون']?.toString() || '').trim();
-                const governorateName = String(row['المحافظة'] || '').trim();
-
-                if (recipientPhone.length === 10 && recipientPhone.startsWith("1")) {
-                    recipientPhone = "0" + recipientPhone;
-                    row['التليفون'] = recipientPhone; 
-                }
-
-                if (!recipientName) errorReason = "اسم المرسل إليه مفقود";
-                else if (!recipientPhone) errorReason = "رقم الهاتف مفقود";
-                else if (!governorateName) errorReason = "المحافظة مفقودة";
-                else if (governorates.find(g => g.name === governorateName) === undefined) errorReason = `المحافظة "${governorateName}" غير موجودة في النظام`;
-                
-                if (errorReason) {
-                    rejectedRows.push({ ...row, 'سبب الرفض': errorReason });
-                } else {
-                    validRows.push(row);
-                }
-            }
-            
-            result.rejected = rejectedRows.length;
-            result.errors = rejectedRows;
-            setImportResult({ ...result });
-
-            // --- 2. Processing Phase ---
             const functions = getFunctions(app);
             const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
 
-            for (const row of validRows) {
-                const orderNumberValue = row['رقم الطلب']?.toString().trim();
-                const recipientNameValue = String(row['المرسل اليه'] || '').trim();
-                const recipientPhoneValue = String(row['التليفون']?.toString() || '').trim();
-                
-                let querySnapshot;
-                
+            for (const row of json) {
+                // --- Data Extraction and Validation from sheet ---
+                const recipientName = String(row['المرسل اليه'] || '').trim();
+                let recipientPhone = String(row['التليفون']?.toString() || '').trim();
+                if (recipientPhone.length === 10 && recipientPhone.startsWith("1")) {
+                    recipientPhone = "0" + recipientPhone;
+                }
+                const governorateName = String(row['المحافظة'] || '').trim();
                 const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
+                const codeFromSheet = row['كود الشحنة'] || row['رقم الشحنة'];
+                const shipmentCodeValue = codeFromSheet ? String(codeFromSheet).trim() : null;
+                const orderNumberValue = row['رقم الطلب']?.toString().trim();
+
+                // Find company and governorate IDs
                 const foundCompany = companies.find(c => c.name === companyNameFromSheet);
-                if (!foundCompany) {
+                const foundGovernorate = governorates.find(g => g.name === governorateName);
+
+                // Validation checks
+                if (!recipientName || !recipientPhone || !foundCompany || !foundGovernorate) {
+                    let reason = "بيانات أساسية مفقودة";
+                    if (!foundCompany) reason = `شركة "${companyNameFromSheet}" غير موجودة`;
+                    if (!foundGovernorate) reason = `محافظة "${governorateName}" غير موجودة`;
                     result.rejected++;
-                    result.errors.push({ ...row, 'سبب الرفض': `الشركة "${companyNameFromSheet}" غير موجودة` });
+                    result.errors.push({ ...row, 'سبب الرفض': reason });
+                    setImportResult({ ...result });
                     continue;
                 }
-                const companyIdForQuery = foundCompany.id;
 
-                if (orderNumberValue) {
-                    const q = query(collection(firestore, 'shipments'), where("orderNumber", "==", orderNumberValue), where("companyId", "==", companyIdForQuery));
-                    querySnapshot = await getDocs(q);
+                // --- Match Existing Shipment ---
+                let existingDoc = null;
+                if (shipmentCodeValue) {
+                    const q = query(collection(firestore, 'shipments'), where("shipmentCode", "==", shipmentCodeValue));
+                    const snapshot = await getDocs(q);
+                    if (!snapshot.empty) existingDoc = snapshot.docs[0];
+                }
+                if (!existingDoc && orderNumberValue) {
+                    const q = query(collection(firestore, 'shipments'), where("orderNumber", "==", orderNumberValue), where("companyId", "==", foundCompany.id));
+                    const snapshot = await getDocs(q);
+                    if (!snapshot.empty) existingDoc = snapshot.docs[0];
+                }
+                if (!existingDoc) {
+                    const q = query(collection(firestore, 'shipments'), where("recipientName", "==", recipientName), where("recipientPhone", "==", recipientPhone), where("companyId", "==", foundCompany.id));
+                    const snapshot = await getDocs(q);
+                     if (!snapshot.empty) existingDoc = snapshot.docs[0];
                 }
 
-                if ((!querySnapshot || querySnapshot.empty) && recipientNameValue && recipientPhoneValue) {
-                    const q = query(collection(firestore, 'shipments'), 
-                        where("recipientName", "==", recipientNameValue),
-                        where("recipientPhone", "==", recipientPhoneValue),
-                        where("companyId", "==", companyIdForQuery)
-                    );
-                     querySnapshot = await getDocs(q);
-                }
-                
+                // --- Prepare Shipment Data ---
                 const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
                 const creationDate = parseExcelDate(row['التاريخ']);
                 const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
-                const senderNameValue = row['الراسل'] || row['العميل الفرعي'];
                 
-                const codeFromSheet = row['كود الشحنة'] || row['رقم الشحنه'];
-                let shipmentCodeValue = codeFromSheet ? String(codeFromSheet).trim() : null;
-
-                if (!shipmentCodeValue) {
-                    const date = new Date();
-                    const dateString = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
-                    const randomNum = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-                    shipmentCodeValue = `SK-${dateString}-${randomNum}`;
-                }
-
-                const shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>> = {
-                    shipmentCode: shipmentCodeValue,
-                    senderName: senderNameValue,
+                const shipmentData: Partial<Omit<Shipment, 'id'>> = {
+                    shipmentCode: shipmentCodeValue || generateShipmentCode(),
+                    senderName: row['الراسل'] || row['العميل الفرعى'],
                     orderNumber: orderNumberValue,
-                    recipientName: recipientNameValue,
-                    recipientPhone: recipientPhoneValue,
-                    governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
+                    recipientName: recipientName,
+                    recipientPhone: recipientPhone,
+                    governorateId: foundGovernorate.id,
                     address: String(row['العنوان'] || 'N/A').trim(),
                     totalAmount: parseFloat(String(totalAmountValue).replace(/[^0-9.]/g, '')),
                     status: 'Pending',
                     reason: String(row['السبب'] || ''),
                     deliveryDate: deliveryDate || new Date(),
-                    isArchivedForCompany: false,
-                    isArchivedForCourier: false,
-                    companyId: companyIdForQuery,
+                    companyId: foundCompany.id,
                 };
+
                 const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
 
-                if (!querySnapshot || querySnapshot.empty) {
+                // --- Create or Update ---
+                if (!existingDoc) {
                     const newDocRef = doc(collection(firestore, "shipments"));
-                    await handleShipmentUpdateFn({ shipmentId: newDocRef.id, ...cleanShipmentData, createdAt: creationDate || serverTimestamp() });
+                    await handleShipmentUpdateFn({ 
+                        shipmentId: newDocRef.id, 
+                        ...cleanShipmentData, 
+                        createdAt: creationDate ? creationDate.toISOString() : new Date().toISOString() 
+                    });
                     result.added++;
                 } else {
-                    const existingDoc = querySnapshot.docs[0];
                     const existingShipment = existingDoc.data() as Shipment;
-
-                    let updateData: Partial<Shipment> = { ...cleanShipmentData };
-                    
+                    // Don't override status or courier if already assigned
                     if (existingShipment.assignedCourierId) {
-                      delete updateData.status;
-                      delete updateData.assignedCourierId;
+                      delete cleanShipmentData.status;
+                      delete cleanShipmentData.assignedCourierId;
                     }
-
-                    await handleShipmentUpdateFn({ shipmentId: existingDoc.id, ...updateData });
+                    await handleShipmentUpdateFn({ shipmentId: existingDoc.id, ...cleanShipmentData });
                     result.updated++;
                 }
                 setImportResult({ ...result });
@@ -710,6 +684,13 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
     return filteredShipments.filter(s => statuses.includes(s.status));
   };
 
+  const generateShipmentCode = () => {
+    const date = new Date();
+    const dateString = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
+    const randomNum = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+    return `SK-${dateString}-${randomNum}`;
+};
+
   return (
     <div className="flex flex-col w-full">
       <Tabs defaultValue="shipments">
@@ -754,6 +735,12 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
                     <Link href="/scan">
                         <ScanLine className="h-4 w-4 me-2" />
                         <span className="sr-only sm:not-sr-only">مسح باركود</span>
+                    </Link>
+                </Button>
+                 <Button asChild variant="outline" size="sm">
+                    <Link href="/comparison">
+                         <GitCompareArrows className="h-4 w-4 me-2" />
+                        <span className="sr-only sm:not-sr-only">مقارنة الشيتات</span>
                     </Link>
                 </Button>
             </div>

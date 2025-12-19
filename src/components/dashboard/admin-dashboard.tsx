@@ -3,7 +3,7 @@
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing, ChevronLeft, ChevronRight, BarChart, MessageSquarePlus, Wallet, Plus, Copy, Link as LinkIcon, Sparkles, Merge } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing, ChevronLeft, ChevronRight, BarChart, MessageSquarePlus, Wallet, Plus, Copy, Link as LinkIcon, Sparkles, Merge, GitCompareArrows } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
@@ -834,7 +834,7 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
     return null;
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !firestore || !authUser || !companies || !governorates) return;
 
@@ -857,98 +857,80 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
             };
             setImportResult(result);
 
-            const validRows: any[] = [];
-            const rejectedRows: any[] = [];
-            
-            // --- 1. Validation Phase ---
-            for (const row of json) {
-                let errorReason = "";
-                const recipientName = String(row['المرسل اليه'] || '').trim();
-                let recipientPhone = String(row['التليفون']?.toString() || '').trim();
-                const governorateName = String(row['المحافظة'] || '').trim();
-
-                // Format phone number
-                if (recipientPhone.length === 10 && recipientPhone.startsWith("1")) {
-                    recipientPhone = "0" + recipientPhone;
-                    row['التليفون'] = recipientPhone; // Update row data for consistency
-                }
-
-                if (!recipientName) errorReason = "اسم المرسل إليه مفقود";
-                else if (!recipientPhone) errorReason = "رقم الهاتف مفقود";
-                else if (!governorateName) errorReason = "المحافظة مفقودة";
-                else if (governorates.find(g => g.name === governorateName) === undefined) errorReason = `المحافظة "${governorateName}" غير موجودة في النظام`;
-                
-                if (errorReason) {
-                    rejectedRows.push({ ...row, 'سبب الرفض': errorReason });
-                } else {
-                    validRows.push(row);
-                }
-            }
-            
-            result.rejected = rejectedRows.length;
-            result.errors = rejectedRows;
-            setImportResult({ ...result });
-
-            // --- 2. Processing Phase ---
             const functions = getFunctions(app);
             const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
 
-            for (const row of validRows) {
-                const codeFromSheet = row['كود الشحنة'] || row['رقم الشحنة'];
-                let shipmentCodeValue = codeFromSheet ? String(codeFromSheet).trim() : null;
-                
-                let querySnapshot;
-                
-                // Priority 1: Find by shipmentCode (if it exists)
-                if (shipmentCodeValue) {
-                    const q = query(collection(firestore, 'shipments'), where("shipmentCode", "==", shipmentCodeValue));
-                    querySnapshot = await getDocs(q);
+            for (const row of json) {
+                // --- Data Extraction and Validation from sheet ---
+                const recipientName = String(row['المرسل اليه'] || '').trim();
+                let recipientPhone = String(row['التليفون']?.toString() || '').trim();
+                if (recipientPhone.length === 10 && recipientPhone.startsWith("1")) {
+                    recipientPhone = "0" + recipientPhone;
                 }
-
+                const governorateName = String(row['المحافظة'] || '').trim();
                 const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
+                const codeFromSheet = row['كود الشحنة'] || row['رقم الشحنة'];
+                const shipmentCodeValue = codeFromSheet ? String(codeFromSheet).trim() : null;
+                const orderNumberValue = row['رقم الطلب']?.toString().trim();
+
+                // Find company and governorate IDs
                 const foundCompany = companies.find(c => c.name === companyNameFromSheet);
-                const companyIdForQuery = foundCompany ? foundCompany.id : (user.role === 'admin' ? user.id : null);
-                if(!companyIdForQuery) {
+                const foundGovernorate = governorates.find(g => g.name === governorateName);
+
+                // Validation checks
+                if (!recipientName || !recipientPhone || !foundCompany || !foundGovernorate) {
+                    let reason = "بيانات أساسية مفقودة";
+                    if (!foundCompany) reason = `شركة "${companyNameFromSheet}" غير موجودة`;
+                    if (!foundGovernorate) reason = `محافظة "${governorateName}" غير موجودة`;
                     result.rejected++;
-                    result.errors.push({ ...row, 'سبب الرفض': `الشركة "${companyNameFromSheet}" غير موجودة وأنت لا تملك صلاحية الإنشاء بدون شركة.` });
+                    result.errors.push({ ...row, 'سبب الرفض': reason });
+                    setImportResult({ ...result });
                     continue;
                 }
 
+                // --- Match Existing Shipment ---
+                let existingDoc = null;
+                if (shipmentCodeValue) {
+                    const q = query(collection(firestore, 'shipments'), where("shipmentCode", "==", shipmentCodeValue));
+                    const snapshot = await getDocs(q);
+                    if (!snapshot.empty) existingDoc = snapshot.docs[0];
+                }
+                if (!existingDoc && orderNumberValue) {
+                    const q = query(collection(firestore, 'shipments'), where("orderNumber", "==", orderNumberValue), where("companyId", "==", foundCompany.id));
+                    const snapshot = await getDocs(q);
+                    if (!snapshot.empty) existingDoc = snapshot.docs[0];
+                }
+                if (!existingDoc) {
+                    const q = query(collection(firestore, 'shipments'), where("recipientName", "==", recipientName), where("recipientPhone", "==", recipientPhone), where("companyId", "==", foundCompany.id));
+                    const snapshot = await getDocs(q);
+                     if (!snapshot.empty) existingDoc = snapshot.docs[0];
+                }
+
+                // --- Prepare Shipment Data ---
                 const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
                 const creationDate = parseExcelDate(row['التاريخ']);
                 const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
-                const senderNameValue = row['الراسل'] || row['العميل الفرعى'];
-                const orderNumberValue = row['رقم الطلب']?.toString().trim();
-                const recipientNameValue = String(row['المرسل اليه'] || '').trim();
-                const recipientPhoneValue = String(row['التليفون']?.toString() || '').trim();
-
-                if (!shipmentCodeValue) {
-                    const date = new Date();
-                    const dateString = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
-                    const randomNum = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-                    shipmentCodeValue = `SK-${dateString}-${randomNum}`;
-                }
-
-                const shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>> = {
-                    shipmentCode: shipmentCodeValue,
-                    senderName: senderNameValue,
+                
+                const shipmentData: Partial<Omit<Shipment, 'id'>> = {
+                    shipmentCode: shipmentCodeValue || generateShipmentCode(),
+                    senderName: row['الراسل'] || row['العميل الفرعى'],
                     orderNumber: orderNumberValue,
-                    recipientName: recipientNameValue,
-                    recipientPhone: recipientPhoneValue,
-                    governorateId: governorates?.find(g => g.name === row['المحافظة'])?.id || '',
+                    recipientName: recipientName,
+                    recipientPhone: recipientPhone,
+                    governorateId: foundGovernorate.id,
                     address: String(row['العنوان'] || 'N/A').trim(),
                     totalAmount: parseFloat(String(totalAmountValue).replace(/[^0-9.]/g, '')),
                     status: 'Pending',
                     reason: String(row['السبب'] || ''),
                     deliveryDate: deliveryDate || new Date(),
-                    isArchivedForCompany: false,
-                    isArchivedForCourier: false,
-                    companyId: companyIdForQuery,
+                    companyId: foundCompany.id,
                 };
+
                 const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
 
-                if (!querySnapshot || querySnapshot.empty) {
-                     const newDocRef = doc(collection(firestore, "shipments"));
+                // --- Create or Update ---
+                if (!existingDoc) {
+                    const newDocRef = doc(collection(firestore, "shipments"));
                     await handleShipmentUpdateFn({ 
                         shipmentId: newDocRef.id, 
                         ...cleanShipmentData, 
@@ -956,17 +938,13 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
                     });
                     result.added++;
                 } else {
-                    const existingDoc = querySnapshot.docs[0];
                     const existingShipment = existingDoc.data() as Shipment;
-
-                    let updateData: Partial<Shipment> = { ...cleanShipmentData };
-                    
+                    // Don't override status or courier if already assigned
                     if (existingShipment.assignedCourierId) {
-                      delete updateData.status;
-                      delete updateData.assignedCourierId;
+                      delete cleanShipmentData.status;
+                      delete cleanShipmentData.assignedCourierId;
                     }
-
-                    await handleShipmentUpdateFn({ shipmentId: existingDoc.id, ...updateData });
+                    await handleShipmentUpdateFn({ shipmentId: existingDoc.id, ...cleanShipmentData });
                     result.updated++;
                 }
                 setImportResult({ ...result });
@@ -1490,7 +1468,6 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
 
     let baseShipments = allShipmentsForStats;
     
-    // This is the combined logic
     const aFilters = columnFilters.filter(f => f.id === 'address');
     const otherFilters = columnFilters.filter(f => f.id !== 'address');
     const searchTerms = (aFilters[0]?.value as string[]) || [];
@@ -1822,6 +1799,13 @@ const returnedToCompanyShipments = React.useMemo(() => {
     }
 };
 
+const generateShipmentCode = () => {
+    const date = new Date();
+    const dateString = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
+    const randomNum = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+    return `SK-${dateString}-${randomNum}`;
+};
+
 
   return (
     <div className="flex flex-col w-full">
@@ -1833,6 +1817,12 @@ const returnedToCompanyShipments = React.useMemo(() => {
                 <Link href="/duplicates" className="flex items-center gap-2">
                     <Copy className="w-4 h-4" />
                     <span>الشحنات المكررة</span>
+                </Link>
+            </TabsTrigger>
+             <TabsTrigger value="comparison">
+                <Link href="/comparison" className="flex items-center gap-2">
+                    <GitCompareArrows className="w-4 h-4" />
+                    <span>مقارنة الشيتات</span>
                 </Link>
             </TabsTrigger>
             <TabsTrigger value="expenses">
@@ -1962,6 +1952,9 @@ const returnedToCompanyShipments = React.useMemo(() => {
                     <Link href="/duplicates">الانتقال إلى صفحة الشحنات المكررة</Link>
                 </Button>
             </div>
+        </TabsContent>
+        <TabsContent value="comparison">
+            <p className="p-4 text-center text-muted-foreground">يتم تحميل صفحة مقارنة الشيتات...</p>
         </TabsContent>
         <TabsContent value="expenses">
             <p className="p-4 text-center text-muted-foreground">يتم تحميل المصروفات...</p>
