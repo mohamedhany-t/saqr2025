@@ -1,12 +1,11 @@
 
 'use client';
 
-import React, { useMemo, useState } from 'react';
-import Link from 'next/link';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, writeBatch, doc, where } from 'firebase/firestore';
-import type { Shipment, ShipmentStatusConfig, User, Company } from '@/lib/types';
-import { Loader2, Copy, Merge, Trash2, Pencil, CheckCircle, Building, Truck } from 'lucide-react';
+import React, { useMemo, useState, useCallback } from 'react';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, query, writeBatch, doc, where, getDoc } from 'firebase/firestore';
+import type { Shipment, ShipmentStatusConfig, User, Company, Governorate } from '@/lib/types';
+import { Loader2, Copy, Trash2, Pencil, CheckCircle, Building, Truck, Star, Search, Trash } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,8 +20,12 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
 import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { ShipmentFormSheet } from '@/components/shipments/shipment-form-sheet';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { useFirebaseApp } from '@/firebase';
 
 const getSafeDate = (date: any): Date | null => {
     if (!date) return null;
@@ -34,52 +37,73 @@ const getSafeDate = (date: any): Date | null => {
 
 export default function DuplicatesPage() {
     const firestore = useFirestore();
+    const app = useFirebaseApp();
+    const { user: authUser } = useUser();
     const { toast } = useToast();
     
+    const [searchTerm, setSearchTerm] = useState('');
+    const [editingShipment, setEditingShipment] = useState<Shipment | undefined>(undefined);
+    const [isSheetOpen, setIsSheetOpen] = useState(false);
     const [shipmentToDelete, setShipmentToDelete] = useState<Shipment | null>(null);
-    const [groupToMerge, setGroupToMerge] = useState<Shipment[] | null>(null);
+    const [groupToDelete, setGroupToDelete] = useState<{ primary: Shipment, others: Shipment[] } | null>(null);
+    const [primaryShipmentSelection, setPrimaryShipmentSelection] = useState<Record<string, string>>({}); // { [groupKey]: primaryShipmentId }
 
-    const allShipmentsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'shipments'));
-    }, [firestore]);
+    // --- Data Fetching ---
+    const allShipmentsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'shipments')) : null, [firestore]);
     const { data: allShipments, isLoading: shipmentsLoading } = useCollection<Shipment>(allShipmentsQuery);
 
-    const statusesQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'shipment_statuses'));
-    }, [firestore]);
+    const statusesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'shipment_statuses')) : null, [firestore]);
     const { data: statuses, isLoading: statusesLoading } = useCollection<ShipmentStatusConfig>(statusesQuery);
     
-    const companiesQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'companies'));
-    }, [firestore]);
+    const companiesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'companies')) : null, [firestore]);
     const { data: companies, isLoading: companiesLoading } = useCollection<Company>(companiesQuery);
 
-    const couriersQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'users'), where('role', '==', 'courier'));
-    }, [firestore]);
+    const couriersQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'users'), where('role', '==', 'courier')) : null, [firestore]);
     const { data: couriers, isLoading: couriersLoading } = useCollection<User>(couriersQuery);
 
+    const governoratesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'governorates')) : null, [firestore]);
+    const { data: governorates, isLoading: governoratesLoading } = useCollection<Governorate>(governoratesQuery);
 
-    const duplicateShipments = useMemo(() => {
+    // --- Logic ---
+    const duplicateShipmentGroups = useMemo(() => {
         if (!allShipments) return [];
         const shipmentGroups: { [key: string]: Shipment[] } = {};
         allShipments.forEach(s => {
             if (!s.recipientName || !s.recipientPhone || !s.address) return;
-            const key = `${s.recipientName.trim()}-${s.recipientPhone.trim()}-${s.address.trim()}`.toLowerCase();
-            if (!shipmentGroups[key]) {
-                shipmentGroups[key] = [];
-            }
+            const key = `${s.recipientName.trim()}-${s.recipientPhone.trim()}`.toLowerCase();
+            if (!shipmentGroups[key]) shipmentGroups[key] = [];
             shipmentGroups[key].push(s);
         });
 
-        return Object.values(shipmentGroups)
-            .filter(group => group.length > 1)
-            .sort((a, b) => b.length - a.length);
-    }, [allShipments]);
+        const filteredGroups = Object.values(shipmentGroups)
+            .filter(group => group.length > 1);
+
+        if (!searchTerm) {
+            return filteredGroups.sort((a, b) => b.length - a.length);
+        }
+
+        const lowercasedTerm = searchTerm.toLowerCase();
+        return filteredGroups.filter(group => 
+            group[0].recipientName.toLowerCase().includes(lowercasedTerm) ||
+            group.some(s => s.shipmentCode?.toLowerCase().includes(lowercasedTerm))
+        ).sort((a, b) => b.length - a.length);
+
+    }, [allShipments, searchTerm]);
+
+    const handleSaveShipment = useCallback(async (data: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
+        if (!firestore || !authUser || !app || !id) return;
+        try {
+            const functions = getFunctions(app);
+            const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
+            await handleShipmentUpdateFn({ shipmentId: id, ...data });
+            toast({ title: 'تم تحديث الشحنة بنجاح' });
+        } catch (error: any) {
+            console.error("Error saving shipment:", error);
+            toast({ title: "فشل تحديث الشحنة", description: error.message, variant: "destructive" });
+        } finally {
+            setIsSheetOpen(false);
+        }
+    }, [firestore, authUser, app, toast]);
     
     const handleDeleteShipment = () => {
         if (!firestore || !shipmentToDelete) return;
@@ -90,25 +114,28 @@ export default function DuplicatesPage() {
             .finally(() => setShipmentToDelete(null));
     };
 
-    const handleMergeGroup = () => {
-        if (!firestore || !groupToMerge) return;
-        const sorted = [...groupToMerge].sort((a, b) => (getSafeDate(b.createdAt)?.getTime() || 0) - (getSafeDate(a.createdAt)?.getTime() || 0));
-        const primaryShipment = sorted[0];
-        const shipmentsToDelete = sorted.slice(1);
-
+    const handleDeleteRemaining = () => {
+        if (!firestore || !groupToDelete) return;
         const batch = writeBatch(firestore);
-        shipmentsToDelete.forEach(s => {
+        groupToDelete.others.forEach(s => {
             const docRef = doc(firestore, 'shipments', s.id);
             batch.delete(docRef);
         });
 
         batch.commit()
-            .then(() => toast({ title: "تم الدمج بنجاح", description: `تم الإبقاء على الشحنة الأحدث وحذف ${shipmentsToDelete.length} شحنة.` }))
-            .catch(() => toast({ title: "فشل الدمج", variant: "destructive" }))
-            .finally(() => setGroupToMerge(null));
+            .then(() => toast({ title: "تم حذف الشحنات بنجاح", description: `تم الإبقاء على الشحنة الأساسية وحذف ${groupToDelete.others.length} شحنة.` }))
+            .catch(() => toast({ title: "فشل الحذف", variant: "destructive" }))
+            .finally(() => setGroupToDelete(null));
     };
 
-    const isLoading = shipmentsLoading || statusesLoading || companiesLoading || couriersLoading;
+    const handleSelectPrimary = (groupKey: string, shipmentId: string) => {
+        setPrimaryShipmentSelection(prev => ({
+            ...prev,
+            [groupKey]: shipmentId
+        }));
+    };
+
+    const isLoading = shipmentsLoading || statusesLoading || companiesLoading || couriersLoading || governoratesLoading;
 
     if (isLoading) {
         return (
@@ -126,20 +153,31 @@ export default function DuplicatesPage() {
                     الشحنات المكررة
                 </h1>
                 <p className="text-muted-foreground mt-2">
-                    مراجعة ودمج الشحنات التي لها نفس بيانات العميل (الاسم، الهاتف، العنوان).
+                    مراجعة وتنظيف الشحنات التي لها نفس بيانات العميل (الاسم والهاتف).
                 </p>
+                <div className="mt-4 max-w-lg relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Input 
+                        placeholder="ابحث بالاسم أو بكود الشحنة..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                    />
+                </div>
             </div>
 
             <div className="space-y-6">
-                {duplicateShipments.length === 0 ? (
+                {duplicateShipmentGroups.length === 0 ? (
                     <div className="text-center py-20 text-muted-foreground bg-muted/30 rounded-lg">
                         <CheckCircle className="h-16 w-16 mx-auto mb-4 text-green-500" />
-                        <h3 className="text-2xl font-bold">لا توجد شحنات مكررة</h3>
-                        <p className="mt-2">النظام نظيف حاليًا.</p>
+                        <h3 className="text-2xl font-bold">{searchTerm ? 'لا توجد نتائج تطابق بحثك' : 'لا توجد شحنات مكررة'}</h3>
+                        <p className="mt-2">{searchTerm ? 'جرب البحث باسم آخر.' : 'النظام نظيف حاليًا.'}</p>
                     </div>
                 ) : (
-                    duplicateShipments.map((group, index) => {
-                        const companyName = companies?.find(c => c.id === group[0].companyId)?.name || 'غير محدد';
+                    duplicateShipmentGroups.map((group, index) => {
+                        const groupKey = `${group[0].recipientName}-${group[0].recipientPhone}`;
+                        const primaryId = primaryShipmentSelection[groupKey] || group[0].id;
+                        
                         return (
                             <Card key={index} className="overflow-hidden">
                                 <CardHeader className="bg-muted/50">
@@ -156,39 +194,53 @@ export default function DuplicatesPage() {
                                     {group.map(shipment => {
                                         const shipmentCompany = companies?.find(c => c.id === shipment.companyId);
                                         const assignedCourier = couriers?.find(c => c.id === shipment.assignedCourierId);
-                                        const isNewest = group.reduce((latest, s) => (getSafeDate(s.createdAt) || new Date(0)) > (getSafeDate(latest.createdAt) || new Date(0)) ? s : latest).id === shipment.id;
+                                        const isPrimary = shipment.id === primaryId;
 
                                         return (
-                                            <div key={shipment.id} className={cn("border p-3 rounded-md flex justify-between items-center bg-background", isNewest && "border-primary")}>
-                                                <div>
-                                                    <div className="flex items-center gap-4">
+                                            <div key={shipment.id} className={cn("border p-3 rounded-md flex justify-between items-start gap-2", isPrimary ? "bg-primary/10 border-primary" : "bg-background")}>
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-4 mb-2">
                                                         <p className="font-mono text-sm">الكود: {shipment.shipmentCode}</p>
                                                         <Badge variant={statusVariants[shipment.status] || 'secondary'}>{statuses?.find(s => s.id === shipment.status)?.label || shipment.status}</Badge>
                                                     </div>
-                                                    <div className="text-xs text-muted-foreground mt-2 space-y-1">
+                                                    <div className="text-xs text-muted-foreground space-y-1">
                                                         <p>التاريخ: {getSafeDate(shipment.createdAt)?.toLocaleDateString('ar-EG')}</p>
                                                         {shipmentCompany && <p className="flex items-center gap-1"><Building className="h-3 w-3" /> {shipmentCompany.name}</p>}
                                                         {assignedCourier && <p className="flex items-center gap-1"><Truck className="h-3 w-3" /> {assignedCourier.name}</p>}
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-2">
-                                                    <Button size="sm" variant="ghost" asChild>
-                                                        <Link href={`/?tab=shipments&edit=${shipment.id}`} target="_blank">
+                                                <div className="flex flex-col items-end gap-2">
+                                                     <Button size="sm" variant={isPrimary ? "default" : "outline"} onClick={() => handleSelectPrimary(groupKey, shipment.id)}>
+                                                        <Star className="me-2 h-4 w-4"/>
+                                                        {isPrimary ? "الأساسية" : "تحديد كأساسي"}
+                                                    </Button>
+                                                    <div className='flex gap-1'>
+                                                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { setEditingShipment(shipment); setIsSheetOpen(true); }}>
                                                             <Pencil className="h-4 w-4" />
-                                                        </Link>
-                                                    </Button>
-                                                    <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setShipmentToDelete(shipment)}>
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
+                                                        </Button>
+                                                        <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => setShipmentToDelete(shipment)}>
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         );
                                     })}
                                 </CardContent>
                                 <CardFooter className="bg-muted/50 p-3">
-                                    <Button variant="outline" size="sm" onClick={() => setGroupToMerge(group)}>
-                                        <Merge className="me-2 h-4 w-4"/>
-                                        دمج (الإبقاء على الأحدث فقط)
+                                    <Button 
+                                        variant="destructive" 
+                                        size="sm"
+                                        onClick={() => {
+                                            const primary = group.find(s => s.id === primaryId);
+                                            const others = group.filter(s => s.id !== primaryId);
+                                            if (primary) {
+                                                setGroupToDelete({ primary, others });
+                                            }
+                                        }}
+                                    >
+                                        <Trash className="me-2 h-4 w-4"/>
+                                        حذف الشحنات المتبقية ({group.length - 1})
                                     </Button>
                                 </CardFooter>
                             </Card>
@@ -197,12 +249,27 @@ export default function DuplicatesPage() {
                 )}
             </div>
             
+            {/* Dialogs and Sheets */}
+            {editingShipment && (
+                <ShipmentFormSheet
+                    open={isSheetOpen}
+                    onOpenChange={setIsSheetOpen}
+                    shipment={editingShipment}
+                    onSave={handleSaveShipment}
+                    governorates={governorates || []}
+                    couriers={couriers || []}
+                    companies={companies || []}
+                    statuses={statuses || []}
+                    role="admin"
+                />
+            )}
+            
             <AlertDialog open={!!shipmentToDelete} onOpenChange={() => setShipmentToDelete(null)}>
                 <AlertDialogContent dir="rtl">
                     <AlertDialogHeader>
                         <AlertDialogTitle>هل أنت متأكد من الحذف؟</AlertDialogTitle>
                         <AlertDialogDescription>
-                            سيتم حذف الشحنة ({shipmentToDelete?.recipientName}) بشكل نهائي. لا يمكن التراجع عن هذا الإجراء.
+                            سيتم حذف الشحنة ({shipmentToDelete?.shipmentCode}) بشكل نهائي. لا يمكن التراجع عن هذا الإجراء.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -212,20 +279,21 @@ export default function DuplicatesPage() {
                 </AlertDialogContent>
             </AlertDialog>
             
-            <AlertDialog open={!!groupToMerge} onOpenChange={() => setGroupToMerge(null)}>
+            <AlertDialog open={!!groupToDelete} onOpenChange={() => setGroupToDelete(null)}>
                 <AlertDialogContent dir="rtl">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>تأكيد عملية الدمج</AlertDialogTitle>
+                        <AlertDialogTitle>تأكيد عملية الحذف</AlertDialogTitle>
                         <AlertDialogDescription>
-                           سيتم الإبقاء على أحدث شحنة في هذه المجموعة وحذف باقي الشحنات المكررة ({groupToMerge ? groupToMerge.length - 1 : 0}). هل أنت متأكد؟
+                           سيتم الإبقاء على الشحنة الأساسية ({groupToDelete?.primary.shipmentCode}) وحذف باقي الشحنات المكررة ({groupToDelete?.others.length}). هل أنت متأكد؟
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleMergeGroup}>نعم، قم بالدمج</AlertDialogAction>
+                        <AlertDialogAction onClick={handleDeleteRemaining} className="bg-destructive hover:bg-destructive/90">نعم، قم بالحذف</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
         </div>
     );
 }
+
