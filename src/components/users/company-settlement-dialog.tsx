@@ -21,6 +21,9 @@ import { UploadCloud, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { ScrollArea } from '../ui/scroll-area';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { useFirebaseApp } from '@/firebase';
+
 
 interface CompanySettlementDialogProps {
   open: boolean;
@@ -40,11 +43,11 @@ interface SheetAnalysis {
 
 export function CompanySettlementDialog({ open, onOpenChange, company, allShipments, statuses, onSubmit }: CompanySettlementDialogProps) {
   const [analysis, setAnalysis] = useState<SheetAnalysis | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState(0);
-  const [notes, setNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [fileName, setFileName] = useState('');
   const { toast } = useToast();
+  const app = useFirebaseApp();
 
   const companyShipments = useMemo(() => {
     if (!company) return [];
@@ -71,6 +74,7 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
             let codeColIndex = -1;
             for (let i = 0; i < json.length; i++) {
                 const row = json[i];
+                if (!Array.isArray(row)) continue;
                 const codeIndex = row.findIndex((cell: any) => String(cell).toLowerCase().includes('كود الشحنة') || String(cell).toLowerCase().includes('رقم الشحنة'));
                 if (codeIndex !== -1) {
                     headerRowIndex = i;
@@ -87,7 +91,6 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
                 .filter(Boolean);
 
             const financialStatuses = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
-            const nonFinalStatuses = statuses.filter(s => !s.affectsCompanyBalance).map(s => s.id);
 
             const shipmentsToSettle: Shipment[] = [];
             const excludedShipments: { code: string, reason: string }[] = [];
@@ -114,7 +117,6 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
                 totalInSheet: sheetCodes.length,
                 netDue 
             });
-            setPaymentAmount(netDue > 0 ? netDue : 0);
             
         } catch (error: any) {
             toast({ title: 'خطأ في معالجة الملف', description: error.message, variant: 'destructive' });
@@ -131,20 +133,43 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
     accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'], 'application/vnd.ms-excel': ['.xls'] },
   });
 
-  const handleSubmit = () => {
-    if (!company || !analysis || analysis.shipmentsToSettle.length === 0) return;
-    const shipmentCodes = analysis.shipmentsToSettle.map(s => s.shipmentCode);
-    onSubmit(company, shipmentCodes, paymentAmount, notes);
-    onOpenChange(false);
+  const handleSubmit = async () => {
+    if (!company || !analysis || analysis.shipmentsToSettle.length === 0 || !app) return;
+    setIsSubmitting(true);
+    toast({ title: "جاري تنفيذ التسوية...", description: "قد تستغرق العملية بعض الوقت. يرجى عدم إغلاق النافذة." });
+    
+    try {
+        const functions = getFunctions(app);
+        const executeCompanySettlement = httpsCallable(functions, 'executeCompanySettlement');
+        
+        const result = await executeCompanySettlement({
+            companyId: company.id,
+            paymentAmount: analysis.netDue,
+            shipmentIdsToArchive: analysis.shipmentsToSettle.map(s => s.id),
+            settlementNote: `تسوية عبر شيت: ${fileName}`,
+        });
+
+        const data = result.data as { success: boolean; message: string };
+        if (data.success) {
+            toast({ title: "نجاح", description: data.message });
+        } else {
+            throw new Error(data.message);
+        }
+        onOpenChange(false);
+    } catch (error: any) {
+        console.error("Error calling settlement function:", error);
+        toast({ title: 'فشلت عملية التسوية', description: error.message || "حدث خطأ غير متوقع على الخادم.", variant: 'destructive' });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
   
   React.useEffect(() => {
     if (!open) {
       setTimeout(() => {
         setAnalysis(null);
-        setPaymentAmount(0);
-        setNotes('');
         setIsProcessing(false);
+        setIsSubmitting(false);
         setFileName('');
       }, 300);
     }
@@ -232,7 +257,7 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
                          </ScrollArea>
                     </div>
 
-                    <div className="pt-4">
+                    {analysis.excludedShipments.length > 0 && <div className="pt-4">
                         <h5 className="font-semibold mb-2">الشحنات المستبعدة وسبب الاستبعاد:</h5>
                          <ScrollArea className="h-40 border rounded-md bg-background">
                             <Table>
@@ -252,7 +277,7 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
                                 </TableBody>
                             </Table>
                          </ScrollArea>
-                    </div>
+                    </div>}
 
                     <div className="mt-4 p-4 border-t border-dashed">
                         <div className="p-3 bg-yellow-100 border-r-4 border-yellow-500 text-yellow-800 rounded-r-lg">
@@ -265,7 +290,8 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
-          <Button onClick={handleSubmit} disabled={!analysis || analysis.shipmentsToSettle.length === 0}>
+          <Button onClick={handleSubmit} disabled={!analysis || analysis.shipmentsToSettle.length === 0 || isSubmitting}>
+            {isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
             تأكيد التسوية والأرشفة
           </Button>
         </DialogFooter>

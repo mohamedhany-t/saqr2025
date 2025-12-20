@@ -1,4 +1,6 @@
 
+'use server';
+
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import { z } from "zod";
@@ -8,7 +10,7 @@ import type { User, Shipment, ShipmentStatusConfig, ShipmentHistory, ShipmentHis
 try {
     admin.initializeApp();
 } catch (e) {
-    if (!/already exists/.test((e as Error).message)) {
+    if (e instanceof Error && !/already exists/.test(e.message)) {
         console.error('Firebase admin initialization error', e);
     }
 }
@@ -243,93 +245,57 @@ const settlementSchema = z.object({
   settlementNote: z.string().optional(),
 });
 
-export const executeCompanySettlement = functions.runWith(runtimeOpts).https.onRequest((req, res) => {
-    corsHandler(req, res, async () => {
-        if (req.method !== 'POST') {
-            res.status(405).send({ error: 'Method Not Allowed' });
-            return;
-        }
+export const executeCompanySettlement = functions.runWith(runtimeOpts).https.onCall(async (data, context) => {
+    // 1. Authentication Check
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    const adminId = context.auth.uid;
 
-        let context: any = {};
-        const idToken = req.headers.authorization?.split('Bearer ')[1];
-        if (idToken) {
-            try {
-                context.auth = await admin.auth().verifyIdToken(idToken);
-            } catch (error) {
-                 res.status(401).send({ error: { status: 'UNAUTHENTICATED', message: 'The function must be called with an authenticated user token.' } });
-                return;
-            }
-        }
-        if (!context.auth) {
-            res.status(401).send({ error: { status: 'UNAUTHENTICATED', message: 'The function must be called with an authenticated user token.' } });
-            return;
-        }
+    // 2. Data Validation
+    const validation = settlementSchema.safeParse(data);
+    if (!validation.success) {
+        console.error("Settlement validation failed:", validation.error.errors);
+        throw new functions.https.HttpsError('invalid-argument', 'The data provided is invalid.');
+    }
+    const { companyId, paymentAmount, shipmentIdsToArchive, settlementNote } = validation.data;
 
-        const { uid: adminId } = context.auth;
-        const validation = settlementSchema.safeParse(req.body.data);
+    // 3. Batch Writes Logic
+    const BATCH_SIZE = 400; // Firestore batch limit is 500, we use 400 to be safe.
+    const allBatches: Promise<any>[] = [];
 
-        if (!validation.success) {
-            res.status(400).send({ error: 'Invalid data', details: validation.error.errors });
-            return;
-        }
+    // --- Create and commit the payment batch ---
+    if (paymentAmount !== 0) {
+        const paymentBatch = db.batch();
+        const paymentRef = db.collection('company_payments').doc();
+        paymentBatch.set(paymentRef, {
+            companyId,
+            amount: paymentAmount,
+            paymentDate: admin.firestore.FieldValue.serverTimestamp(),
+            recordedById: adminId,
+            notes: settlementNote || 'تسوية عبر شيت',
+            isArchived: true,
+        });
+        allBatches.push(paymentBatch.commit());
+    }
 
-        const { companyId, paymentAmount, shipmentIdsToArchive, settlementNote } = validation.data;
-        const db = admin.firestore();
+    // --- Create and commit subsequent batches for archiving shipments ---
+    for (let i = 0; i < shipmentIdsToArchive.length; i += BATCH_SIZE) {
+        const chunk = shipmentIdsToArchive.slice(i, i + BATCH_SIZE);
+        const archiveBatch = db.batch();
+        chunk.forEach(shipmentId => {
+            const shipmentRef = db.collection('shipments').doc(shipmentId);
+            archiveBatch.update(shipmentRef, { isArchivedForCompany: true });
+        });
+        allBatches.push(archiveBatch.commit());
+    }
 
-        try {
-            const BATCH_SIZE = 400; // Firestore batch limit is 500
-            const batches = [];
-
-            let currentBatch = db.batch();
-            let batchCount = 0;
-
-            // Step 1: Create settlement payment record
-            if (paymentAmount > 0) {
-                const paymentRef = db.collection('company_payments').doc();
-                currentBatch.set(paymentRef, {
-                    companyId,
-                    amount: paymentAmount,
-                    paymentDate: admin.firestore.FieldValue.serverTimestamp(),
-                    recordedById: adminId,
-                    notes: settlementNote || 'تسوية عبر شيت',
-                    isArchived: true,
-                });
-                batchCount++;
-            }
-
-            // Step 2: Batch archive the shipments
-            for (const shipmentId of shipmentIdsToArchive) {
-                const shipmentRef = db.collection('shipments').doc(shipmentId);
-                currentBatch.update(shipmentRef, { isArchivedForCompany: true });
-                batchCount++;
-
-                if (batchCount >= BATCH_SIZE) {
-                    batches.push(currentBatch);
-                    currentBatch = db.batch();
-                    batchCount = 0;
-                }
-            }
-
-            // Add the last batch if it has writes
-            if (batchCount > 0) {
-                batches.push(currentBatch);
-            }
-
-            // Commit all batches
-            for (const batch of batches) {
-                await batch.commit();
-            }
-
-            res.status(200).send({
-                data: {
-                    success: true,
-                    message: `تمت تسوية حساب الشركة وأرشفة ${shipmentIdsToArchive.length} شحنة بنجاح.`,
-                },
-            });
-
-        } catch (error: any) {
-            console.error('Error executing company settlement:', error);
-            res.status(500).send({ error: 'Failed to execute settlement.', details: error.message });
-        }
-    });
+    // 4. Execute all batches and return result
+    try {
+        await Promise.all(allBatches);
+        return { success: true, message: `تمت تسوية حساب الشركة وأرشفة ${shipmentIdsToArchive.length} شحنة بنجاح.` };
+    } catch (error: any) {
+        console.error("Error settling company account:", error);
+        throw new functions.https.HttpsError('internal', 'An error occurred while executing the settlement on the server.', error.message);
+    }
 });
