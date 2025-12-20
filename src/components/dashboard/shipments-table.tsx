@@ -81,6 +81,7 @@ import { cn, formatToCairoTime } from "@/lib/utils"
 import { ShipmentDetailsDialog } from "../shipments/shipment-details-dialog"
 import { ShipmentFilters } from "./shipment-filters"
 import type { DateRange } from "react-day-picker"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip"
 
 export const statusIcons: Record<string, React.ReactNode> = {
     Pending: <Hourglass className="h-4 w-4 text-yellow-500" />,
@@ -405,7 +406,16 @@ export const getColumns = ({
                 <span>{statusLabel}</span>
             </Badge>
              {(shipment.isArchivedForCompany || shipment.isArchivedForCourier) && (
-                <Archive className="h-4 w-4 text-muted-foreground" title="مؤرشفة" />
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger>
+                            <Archive className="h-4 w-4 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>مؤرشفة</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
             )}
             {shipment.isWarehouseReturn && (
               <Warehouse className="h-4 w-4 text-muted-foreground" />
