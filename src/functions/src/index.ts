@@ -283,7 +283,7 @@ export const executeCompanySettlement = functions.runWith(runtimeOpts).https.onR
             let currentBatch = db.batch();
             let batchCount = 0;
 
-            // Step 1: Create settlement payment record
+            // Step 1: Create settlement payment record only if amount is greater than zero
             if (paymentAmount > 0) {
                 const paymentRef = db.collection('company_payments').doc();
                 currentBatch.set(paymentRef, {
