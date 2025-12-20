@@ -1,5 +1,4 @@
 
-
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -1542,16 +1541,16 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
 const returnedShipmentStatuses = React.useMemo(() => statuses?.filter(s => s.isReturnedStatus).map(s => s.id) || [], [statuses]);
 
 const returnsWithCouriers = React.useMemo(() => {
-    return filteredShipments?.filter(s => (returnedShipmentStatuses.includes(s.status) || s.isExchange) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCourier) || [];
-}, [filteredShipments, returnedShipmentStatuses]);
+    return allShipmentsForStats?.filter(s => (returnedShipmentStatuses.includes(s.status) || s.isExchange) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCourier) || [];
+}, [allShipmentsForStats, returnedShipmentStatuses]);
 
 const inWarehouseShipments = React.useMemo(() => {
-    return filteredShipments?.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCompany) || [];
-}, [filteredShipments]);
+    return allShipmentsForStats?.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCompany) || [];
+}, [allShipmentsForStats]);
 
 const returnedToCompanyShipments = React.useMemo(() => {
-    return filteredShipments?.filter(s => s.isReturnedToCompany && !s.isArchivedForCompany) || [];
-}, [filteredShipments]);
+    return allShipmentsForStats?.filter(s => s.isReturnedToCompany && !s.isArchivedForCompany) || [];
+}, [allShipmentsForStats]);
 
 
   const courierDues = React.useMemo(() => {
@@ -2168,16 +2167,24 @@ const generateShipmentCode = () => {
         </TabsContent>
          <TabsContent value="company-management">
                <div className="mt-8">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl fontheadline font-semibold">إدارة حسابات الشركات</h2>
-                    <div className="relative">
-                        <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="ابحث عن شركة..."
-                            value={managementSearchTerm}
-                            onChange={(e) => setManagementSearchTerm(e.target.value)}
-                            className="pr-8 sm:w-[300px]"
-                        />
+                <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
+                    <h2 className="text-2xl font-headline font-semibold">إدارة حسابات الشركات</h2>
+                    <div className="flex items-center gap-2">
+                        <Button asChild variant="outline">
+                           <Link href="/comparison">
+                                <GitCompareArrows className="me-2 h-4 w-4" />
+                                تسوية ومقارنة عبر شيت
+                           </Link>
+                        </Button>
+                        <div className="relative">
+                            <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="ابحث عن شركة..."
+                                value={managementSearchTerm}
+                                onChange={(e) => setManagementSearchTerm(e.target.value)}
+                                className="pr-8 sm:w-[250px]"
+                            />
+                        </div>
                     </div>
                 </div>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -2510,4 +2517,3 @@ const generateShipmentCode = () => {
     </div>
   );
 }
-
