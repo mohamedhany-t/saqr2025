@@ -25,13 +25,12 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useFirebaseApp } from '@/firebase';
 
 interface CompanySettlementDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  company: Company | undefined;
+  company?: Company;
   allShipments: Shipment[];
   adminUser: User;
   statuses: ShipmentStatusConfig[];
   onSettlementComplete: () => void;
+  children: React.ReactNode;
 }
 
 type FileAnalysis = {
@@ -43,14 +42,14 @@ type FileAnalysis = {
 };
 
 export function CompanySettlementDialog({
-  open,
-  onOpenChange,
   company,
   allShipments,
   adminUser,
   statuses,
   onSettlementComplete,
+  children
 }: CompanySettlementDialogProps) {
+  const [open, setOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [analysis, setAnalysis] = useState<FileAnalysis | null>(null);
   const { toast } = useToast();
@@ -61,14 +60,6 @@ export function CompanySettlementDialog({
     setAnalysis(null);
   }, []);
 
-  // Effect to reset state when dialog is closed or company changes
-  React.useEffect(() => {
-    if (!open) {
-      resetState();
-    }
-  }, [open, resetState]);
-
-
   const finishedStatusIds = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
   const companyShipments = allShipments.filter(s => s.companyId === company?.id);
 
@@ -77,7 +68,7 @@ export function CompanySettlementDialog({
     if (!file) return;
 
     setIsProcessing(true);
-    setAnalysis(null);
+    setAnalysis(null); // Reset previous analysis
 
     try {
       const data = await file.arrayBuffer();
@@ -199,7 +190,7 @@ export function CompanySettlementDialog({
               description: resultData.message,
           });
           onSettlementComplete();
-          onOpenChange(false);
+          setOpen(false);
       } else {
           throw new Error(resultData.error || "An unknown error occurred on the server.");
       }
@@ -215,145 +206,144 @@ export function CompanySettlementDialog({
     }
   }
 
-  // Guard clause to prevent rendering if company is not yet defined.
-  if (!company) {
-    return null;
-  }
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col" dir="rtl">
-        <DialogHeader>
-          <DialogTitle>تسوية حساب شركة: {company.name}</DialogTitle>
-          <DialogDescription>
-            ارفع شيت الإكسل (مثل شيت التوريد) لتسوية وأرشفة الشحنات المضمنة فيه تلقائيًا.
-          </DialogDescription>
-        </DialogHeader>
-        <ScrollArea className="flex-1 -mx-6 px-6">
+    <Dialog open={open} onOpenChange={(isOpen) => { setOpen(isOpen); if (!isOpen) resetState(); }}>
+      <DialogTrigger asChild>
+        {children}
+      </DialogTrigger>
+      {company && (
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>تسوية حساب شركة: {company.name}</DialogTitle>
+            <DialogDescription>
+              ارفع شيت الإكسل (مثل شيت التوريد) لتسوية وأرشفة الشحنات المضمنة فيه تلقائيًا.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto -mx-6 px-6">
             <div className="py-4 space-y-4">
-                {!analysis ? (
+              {!analysis ? (
                 <div
-                    {...getRootProps()}
-                    className={`mt-4 p-10 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors ${isDragActive ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}
+                  {...getRootProps()}
+                  className={`mt-4 p-10 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors ${isDragActive ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}
                 >
-                    <input {...getInputProps()} />
-                    {isProcessing ? (
+                  <input {...getInputProps()} />
+                  {isProcessing ? (
                     <div className="flex flex-col items-center gap-2">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <p>جاري معالجة الملف...</p>
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <p>جاري معالجة الملف...</p>
                     </div>
-                    ) : (
+                  ) : (
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                        <UploadCloud className="h-8 w-8" />
-                        <p>اسحب وأفلت شيت الإكسل هنا، أو انقر للتحديد</p>
-                        <p className="text-xs">(.xlsx, .xls)</p>
+                      <UploadCloud className="h-8 w-8" />
+                      <p>اسحب وأفلت شيت الإكسل هنا، أو انقر للتحديد</p>
+                      <p className="text-xs">(.xlsx, .xls)</p>
                     </div>
-                    )}
+                  )}
                 </div>
-                ) : (
+              ) : (
                 <div className="space-y-4">
-                    <div>
+                  <div>
                     <h3 className="font-semibold mb-2">ملخص تحليل الملف: {analysis.fileName}</h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                        <div className="p-3 bg-muted rounded-lg">
+                      <div className="p-3 bg-muted rounded-lg">
                         <p className="text-2xl font-bold">{analysis.totalInSheet}</p>
                         <p className="text-sm text-muted-foreground">شحنة في الشيت</p>
-                        </div>
-                        <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                      </div>
+                      <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
                         <p className="text-2xl font-bold text-green-700 dark:text-green-400">{analysis.matchedShipments.length}</p>
                         <p className="text-sm text-green-600 dark:text-green-500">شحنة ستتم تسويتها</p>
-                        </div>
-                        <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                      </div>
+                      <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
                         <p className="text-2xl font-bold text-red-700 dark:text-red-400">{analysis.unmatchedShipments.length}</p>
                         <p className="text-sm text-red-600 dark:text-red-500">شحنة تم استبعادها</p>
-                        </div>
-                        <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                      </div>
+                      <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
                         <p className="text-lg font-bold text-blue-700 dark:text-blue-400">{analysis.totalToSettle.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</p>
                         <p className="text-sm text-blue-600 dark:text-blue-500">صافي المبلغ للتسوية</p>
-                        </div>
+                      </div>
                     </div>
-                    </div>
-                    
-                    {analysis.matchedShipments.length > 0 && (
-                        <div>
-                            <h4 className="font-semibold text-green-600">معاينة الشحنات التي ستتم تسويتها:</h4>
-                            <div className="mt-2 border rounded max-h-48 overflow-y-auto">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>كود الشحنة</TableHead>
-                                            <TableHead>العميل</TableHead>
-                                            <TableHead>الإجمالي</TableHead>
-                                            <TableHead>المدفوع</TableHead>
-                                            <TableHead>عمولة الشركة</TableHead>
-                                            <TableHead>صافي المستحق</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {analysis.matchedShipments.map(s => {
-                                        const netDue = (s.paidAmount || 0) - (s.companyCommission || 0);
-                                        return (
-                                            <TableRow key={s.id}>
-                                                <TableCell className="font-mono">{s.shipmentCode}</TableCell>
-                                                <TableCell>{s.recipientName}</TableCell>
-                                                <TableCell>{(s.totalAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                                <TableCell>{(s.paidAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                                <TableCell className="text-red-600">{((s.companyCommission || 0)).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                                <TableCell className="font-semibold">{netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                            </TableRow>
-                                        )})}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                        </div>
-                    )}
+                  </div>
 
-                    {analysis.unmatchedShipments.length > 0 && (
-                        <div>
-                            <h4 className="font-semibold text-amber-600">الشحنات المستبعدة وسبب الاستبعاد:</h4>
-                            <div className="mt-2 border rounded max-h-48 overflow-y-auto">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>كود الشحنة</TableHead>
-                                            <TableHead>السبب</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {analysis.unmatchedShipments.map((item, index) => (
-                                            <TableRow key={`${item.code}-${index}`}>
-                                                <TableCell className="font-mono">{item.code}</TableCell>
-                                                <TableCell>{item.reason}</TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                        </div>
-                    )}
-                    <div className="bg-amber-50 border-l-4 border-amber-500 text-amber-800 p-4 rounded-r-lg" role="alert">
-                        <div className="flex">
-                            <div className="py-1"><AlertTriangle className="h-5 w-5 text-amber-500 mr-3" /></div>
-                            <div>
-                                <p className="font-bold">إجراء نهائي</p>
-                                <p className="text-sm">سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ الصافي وأرشفة جميع الشحنات التي تمت مطابقتها لهذه الشركة. لا يمكن التراجع عن هذا الإجراء.</p>
-                            </div>
-                        </div>
+                  {analysis.matchedShipments.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-green-600">معاينة الشحنات التي ستتم تسويتها:</h4>
+                      <ScrollArea className="h-48 mt-2 border rounded">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>كود الشحنة</TableHead>
+                              <TableHead>العميل</TableHead>
+                              <TableHead>الإجمالي</TableHead>
+                              <TableHead>المدفوع</TableHead>
+                              <TableHead>عمولة الشركة</TableHead>
+                              <TableHead>صافي المستحق</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {analysis.matchedShipments.map(s => {
+                              const netDue = (s.paidAmount || 0) - (s.companyCommission || 0);
+                              return (
+                                <TableRow key={s.id}>
+                                  <TableCell className="font-mono">{s.shipmentCode}</TableCell>
+                                  <TableCell>{s.recipientName}</TableCell>
+                                  <TableCell>{(s.totalAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                  <TableCell>{(s.paidAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                  <TableCell className="text-red-600">{((s.companyCommission || 0)).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                  <TableCell className="font-semibold">{netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                </TableRow>
+                              )
+                            })}
+                          </TableBody>
+                        </Table>
+                      </ScrollArea>
                     </div>
+                  )}
+
+                  {analysis.unmatchedShipments.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-amber-600">الشحنات المستبعدة وسبب الاستبعاد:</h4>
+                      <ScrollArea className="h-48 mt-2 border rounded">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>كود الشحنة</TableHead>
+                              <TableHead>السبب</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {analysis.unmatchedShipments.map((item, index) => (
+                              <TableRow key={`${item.code}-${index}`}>
+                                <TableCell className="font-mono">{item.code}</TableCell>
+                                <TableCell>{item.reason}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </ScrollArea>
+                    </div>
+                  )}
+                  <div className="bg-amber-50 border-l-4 border-amber-500 text-amber-800 p-4 rounded-r-lg" role="alert">
+                    <div className="flex">
+                      <div className="py-1"><AlertTriangle className="h-5 w-5 text-amber-500 mr-3" /></div>
+                      <div>
+                        <p className="font-bold">إجراء نهائي</p>
+                        <p className="text-sm">سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ الصافي وأرشفة جميع الشحنات التي تمت مطابقتها لهذه الشركة. لا يمكن التراجع عن هذا الإجراء.</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                )}
+              )}
             </div>
-        </ScrollArea>
-        <DialogFooter className="mt-auto pt-4 border-t">
-          <DialogClose asChild>
-            <Button variant="outline" onClick={resetState}>إلغاء</Button>
-          </DialogClose>
-          <Button onClick={handleConfirmSettlement} disabled={isProcessing || !analysis || analysis.matchedShipments.length === 0}>
-             {isProcessing && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
-             تأكيد التسوية والأرشفة
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+          </div>
+          <DialogFooter className="mt-auto pt-4 border-t">
+            <Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button>
+            <Button onClick={handleConfirmSettlement} disabled={isProcessing || !analysis || analysis.matchedShipments.length === 0}>
+              {isProcessing && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+              تأكيد التسوية والأرشفة
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      )}
     </Dialog>
   );
 }
