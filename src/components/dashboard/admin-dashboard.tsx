@@ -1467,16 +1467,19 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
   };
   
   const handleCompanySettlement = async (company: Company, sheetShipmentCodes: string[], paymentAmount: number, notes: string) => {
-    if (!authUser || !allShipmentsForStats) {
+    if (!authUser || !allShipmentsForStats || !statuses) {
       toast({ title: 'خطأ', description: 'المستخدم غير معرف أو الشحنات لم تحمل بعد.', variant: 'destructive' });
       return;
     }
+    
+    const financialStatuses = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
 
     // Filter shipments that belong to the company and are present in the settlement sheet
     const shipmentsToSettle = allShipmentsForStats.filter(s =>
         s.companyId === company.id &&
         sheetShipmentCodes.includes(s.shipmentCode) &&
-        !s.isArchivedForCompany
+        !s.isArchivedForCompany &&
+        financialStatuses.includes(s.status) // Only include shipments with a final financial status
     );
 
     const shipmentIdsToArchive = shipmentsToSettle.map(s => s.id);
@@ -2563,6 +2566,7 @@ const generateShipmentCode = () => {
         onOpenChange={setIsSettlementDialogOpen}
         company={settlingCompany}
         allShipments={allShipmentsForStats || []}
+        statuses={statuses || []}
         onSubmit={handleCompanySettlement}
       />
        {importResult && (

@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import type { Company, Shipment } from '@/lib/types';
+import type { Company, Shipment, ShipmentStatusConfig } from '@/lib/types';
 import { useDropzone } from 'react-dropzone';
 import { UploadCloud, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -27,20 +27,23 @@ interface CompanySettlementDialogProps {
   onOpenChange: (open: boolean) => void;
   company?: Company;
   allShipments: Shipment[];
+  statuses: ShipmentStatusConfig[];
   onSubmit: (company: Company, shipmentCodes: string[], paymentAmount: number, notes: string) => void;
 }
 
 interface SheetAnalysis {
-    foundShipments: Shipment[];
-    notFoundCodes: string[];
+    shipmentsToSettle: Shipment[];
+    excludedShipments: { code: string, reason: string }[];
+    totalInSheet: number;
     netDue: number;
 }
 
-export function CompanySettlementDialog({ open, onOpenChange, company, allShipments, onSubmit }: CompanySettlementDialogProps) {
+export function CompanySettlementDialog({ open, onOpenChange, company, allShipments, statuses, onSubmit }: CompanySettlementDialogProps) {
   const [analysis, setAnalysis] = useState<SheetAnalysis | null>(null);
   const [paymentAmount, setPaymentAmount] = useState(0);
   const [notes, setNotes] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [fileName, setFileName] = useState('');
   const { toast } = useToast();
 
   const companyShipments = useMemo(() => {
@@ -49,9 +52,10 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
   }, [allShipments, company]);
 
   const onDrop = async (acceptedFiles: File[]) => {
-    if (!acceptedFiles.length) return;
+    if (!acceptedFiles.length || !statuses) return;
     setIsProcessing(true);
     setAnalysis(null);
+    setFileName(acceptedFiles[0].name);
 
     const file = acceptedFiles[0];
     const reader = new FileReader();
@@ -63,7 +67,6 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
             const worksheet = workbook.Sheets[sheetName];
             const json = utils.sheet_to_json<any>(worksheet, { header: 1 });
 
-            // Find the header row and column indices
             let headerRowIndex = -1;
             let codeColIndex = -1;
             for (let i = 0; i < json.length; i++) {
@@ -76,24 +79,41 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
                 }
             }
 
-            if (codeColIndex === -1) {
-                throw new Error("لم يتم العثور على عمود يحتوي على 'كود الشحنة' أو 'رقم الشحنة'");
-            }
+            if (codeColIndex === -1) throw new Error("لم يتم العثور على عمود يحتوي على 'كود الشحنة' أو 'رقم الشحنة'");
             
             const sheetCodes = json
                 .slice(headerRowIndex + 1)
                 .map(row => String(row[codeColIndex]).trim())
                 .filter(Boolean);
 
-            const foundShipments = companyShipments.filter(s => sheetCodes.includes(s.shipmentCode));
-            const foundShipmentCodes = new Set(foundShipments.map(s => s.shipmentCode));
-            const notFoundCodes = sheetCodes.filter(code => !foundShipmentCodes.has(code));
+            const financialStatuses = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
+            const nonFinalStatuses = statuses.filter(s => !s.affectsCompanyBalance).map(s => s.id);
 
-            const netDue = foundShipments.reduce((acc, s) => {
+            const shipmentsToSettle: Shipment[] = [];
+            const excludedShipments: { code: string, reason: string }[] = [];
+
+            sheetCodes.forEach(code => {
+                const shipment = companyShipments.find(s => s.shipmentCode === code);
+                if (!shipment) {
+                    excludedShipments.push({ code, reason: "غير موجودة بالنظام" });
+                } else if (financialStatuses.includes(shipment.status)) {
+                    shipmentsToSettle.push(shipment);
+                } else {
+                    const statusLabel = statuses.find(s => s.id === shipment.status)?.label || shipment.status;
+                    excludedShipments.push({ code, reason: `حالة غير نهائية (${statusLabel})` });
+                }
+            });
+
+            const netDue = shipmentsToSettle.reduce((acc, s) => {
                 return acc + ((s.paidAmount || 0) - (s.companyCommission || 0));
             }, 0);
 
-            setAnalysis({ foundShipments, notFoundCodes, netDue });
+            setAnalysis({ 
+                shipmentsToSettle, 
+                excludedShipments,
+                totalInSheet: sheetCodes.length,
+                netDue 
+            });
             setPaymentAmount(netDue > 0 ? netDue : 0);
             
         } catch (error: any) {
@@ -112,13 +132,12 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
   });
 
   const handleSubmit = () => {
-    if (!company || !analysis || analysis.foundShipments.length === 0) return;
-    const shipmentCodes = analysis.foundShipments.map(s => s.shipmentCode);
+    if (!company || !analysis || analysis.shipmentsToSettle.length === 0) return;
+    const shipmentCodes = analysis.shipmentsToSettle.map(s => s.shipmentCode);
     onSubmit(company, shipmentCodes, paymentAmount, notes);
     onOpenChange(false);
   };
   
-  // Reset state when dialog is closed
   React.useEffect(() => {
     if (!open) {
       setTimeout(() => {
@@ -126,6 +145,7 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
         setPaymentAmount(0);
         setNotes('');
         setIsProcessing(false);
+        setFileName('');
       }, 300);
     }
   }, [open]);
@@ -138,11 +158,11 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
         <DialogHeader>
           <DialogTitle>تسوية حساب شركة: {company.name}</DialogTitle>
           <DialogDescription>
-            ارفع شيت التسوية (مثل شيت التوريد) لحساب المبالغ المستحقة وأرشفة الشحنات المضمنة فيه تلقائيًا.
+            ارفع شيت الإكسل (مثل شيت التوريد) لتسوية وأرشفة الشحنات المضمنة فيه تلقائيا.
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 space-y-4">
-           <div
+           {!analysis && <div
                 {...getRootProps()}
                 className={`p-8 border-2 border-dashed rounded-lg text-center transition-colors cursor-pointer ${isDragActive ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}
             >
@@ -156,99 +176,96 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <UploadCloud className="h-8 w-8" />
                         <p>اسحب وأفلت شيت التسوية هنا، أو انقر للاختيار</p>
-                        <p className="text-xs">يجب أن يحتوي الشيت على عمود لكود الشحنة.</p>
                     </div>
                 )}
-            </div>
+            </div>}
 
             {analysis && (
-                <div className="p-4 bg-muted/50 rounded-lg space-y-3">
-                    <h4 className="font-semibold text-center mb-4 text-lg">ملخص تحليل الملف</h4>
-                    <div className="grid grid-cols-3 gap-4 text-center">
-                        <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                            <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{analysis.foundShipments.length + analysis.notFoundCodes.length}</p>
-                            <p className="text-sm text-blue-600 dark:text-blue-500">شحنة في الشيت</p>
+                <div className="p-4 bg-muted/50 rounded-lg space-y-4">
+                    <h4 className="font-semibold text-center mb-2">ملخص تحليل الملف: <span className="font-mono text-sm">{fileName}</span></h4>
+                    <div className="grid grid-cols-4 gap-4 text-center">
+                        <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                            <p className="text-2xl font-bold text-gray-700 dark:text-gray-300">{analysis.totalInSheet}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">شحنة في الشيت</p>
                         </div>
                         <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                            <p className="text-2xl font-bold text-green-700 dark:text-green-400">{analysis.foundShipments.length}</p>
-                            <p className="text-sm text-green-600 dark:text-green-500">شحنة سيتم تسويتها</p>
+                            <p className="text-2xl font-bold text-green-700 dark:text-green-400">{analysis.shipmentsToSettle.length}</p>
+                            <p className="text-sm text-green-600 dark:text-green-500">شحنة ستتم تسويتها</p>
                         </div>
                         <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                            <p className="text-2xl font-bold text-red-700 dark:text-red-400">{analysis.notFoundCodes.length}</p>
+                            <p className="text-2xl font-bold text-red-700 dark:text-red-400">{analysis.excludedShipments.length}</p>
                             <p className="text-sm text-red-600 dark:text-red-500">شحنة تم استبعادها</p>
                         </div>
-                    </div>
-                    <div className="text-center p-4 bg-primary/10 rounded-lg mt-4">
-                        <p className="text-muted-foreground">صافي المبلغ للتسوية</p>
-                        <p className="text-3xl font-bold text-primary">{analysis.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</p>
+                         <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                            <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{analysis.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</p>
+                            <p className="text-sm text-blue-600 dark:text-blue-500">صافي المبلغ للتسوية</p>
+                        </div>
                     </div>
 
-                    <div className="grid md:grid-cols-2 gap-4 mt-4">
-                        <div>
-                             <h5 className="font-semibold mb-2">معاينة الشحنات التي ستتم تسويتها:</h5>
-                             <ScrollArea className="h-48 border rounded-md bg-background">
-                                <Table>
-                                    <TableHeader><TableRow><TableHead>كود الشحنة</TableHead><TableHead>العميل</TableHead><TableHead>الصافي</TableHead></TableRow></TableHeader>
-                                    <TableBody>
-                                        {analysis.foundShipments.map(s => (
-                                            <TableRow key={s.id}>
-                                                <TableCell>{s.shipmentCode}</TableCell>
-                                                <TableCell>{s.recipientName}</TableCell>
-                                                <TableCell>{((s.paidAmount || 0) - (s.companyCommission || 0)).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                             </ScrollArea>
-                        </div>
-                         <div>
-                            <h5 className="font-semibold mb-2">الشحنات المستبعدة وسبب الاستبعاد:</h5>
-                             <ScrollArea className="h-48 border rounded-md bg-background">
-                                <Table>
-                                    <TableHeader><TableRow><TableHead>كود الشحنة</TableHead><TableHead>السبب</TableHead></TableRow></TableHeader>
-                                    <TableBody>
-                                        {analysis.notFoundCodes.map(code => (
-                                            <TableRow key={code}>
-                                                <TableCell>{code}</TableCell>
-                                                <TableCell>غير موجودة بالنظام أو مؤرشفة</TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                             </ScrollArea>
-                        </div>
+                    <div className="pt-4">
+                        <h5 className="font-semibold mb-2">معاينة الشحنات التي ستتم تسويتها:</h5>
+                         <ScrollArea className="h-40 border rounded-md bg-background">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>كود الشحنة</TableHead>
+                                        <TableHead>العميل</TableHead>
+                                        <TableHead>الإجمالي</TableHead>
+                                        <TableHead>المدفوع</TableHead>
+                                        <TableHead>عمولة الشركة</TableHead>
+                                        <TableHead>صافي المستحق</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {analysis.shipmentsToSettle.map(s => (
+                                        <TableRow key={s.id}>
+                                            <TableCell>{s.shipmentCode}</TableCell>
+                                            <TableCell>{s.recipientName}</TableCell>
+                                            <TableCell>{(s.totalAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                            <TableCell>{(s.paidAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                            <TableCell>{(s.companyCommission || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                            <TableCell className="font-bold">{((s.paidAmount || 0) - (s.companyCommission || 0)).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                         </ScrollArea>
+                    </div>
+
+                    <div className="pt-4">
+                        <h5 className="font-semibold mb-2">الشحنات المستبعدة وسبب الاستبعاد:</h5>
+                         <ScrollArea className="h-40 border rounded-md bg-background">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>كود الشحنة</TableHead>
+                                        <TableHead>السبب</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {analysis.excludedShipments.map((item, index) => (
+                                        <TableRow key={index}>
+                                            <TableCell>{item.code}</TableCell>
+                                            <TableCell>{item.reason}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                         </ScrollArea>
                     </div>
 
                     <div className="mt-4 p-4 border-t border-dashed">
-                        <Label htmlFor="payment-amount">مبلغ الدفعة للتسجيل (قابل للتعديل)</Label>
-                        <Input
-                            id="payment-amount"
-                            type="number"
-                            value={paymentAmount}
-                            onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)}
-                            className="text-lg font-bold text-center mt-1"
-                        />
-                        <Label htmlFor="notes" className="mt-2 block">ملاحظات التسوية</Label>
-                        <Textarea
-                            id="notes"
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                            placeholder="مثال: تسوية شهر يوليو، دفعة تحت الحساب..."
-                            className="mt-1"
-                        />
+                        <div className="p-3 bg-yellow-100 border-r-4 border-yellow-500 text-yellow-800 rounded-r-lg">
+                            <h4 className="font-bold flex items-center gap-2"><AlertTriangle/> إجراء نهائي</h4>
+                            <p className="text-sm">سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ الصافي وأرشفة جميع الشحنات التي تمت مطابقتها لهذه الشركة. لا يمكن التراجع عن هذا الإجراء.</p>
+                        </div>
                     </div>
-                </div>
-            )}
-            {analysis && (
-                <div className="mt-4 p-3 bg-yellow-100 border-r-4 border-yellow-500 text-yellow-800 rounded-r-lg">
-                    <h4 className="font-bold flex items-center gap-2"><AlertTriangle/> إجراء نهائي</h4>
-                    <p className="text-sm">سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ الصافي وأرشفة جميع الشحنات التي تمت مطابقتها لهذه الشركة. لا يمكن التراجع عن هذا الإجراء.</p>
                 </div>
             )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
-          <Button onClick={handleSubmit} disabled={!analysis || analysis.foundShipments.length === 0}>
+          <Button onClick={handleSubmit} disabled={!analysis || analysis.shipmentsToSettle.length === 0}>
             تأكيد التسوية والأرشفة
           </Button>
         </DialogFooter>
