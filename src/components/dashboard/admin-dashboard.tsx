@@ -37,7 +37,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import ChatInterface from "@/components/chat/chat-interface";
 import { Badge } from "../ui/badge";
 import AccountStatementsPage from "@/app/accounts/page";
-import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotification } from "@/lib/actions";
+import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotification, settleCompanyAccount } from "@/lib/actions";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { ShipmentCard } from "../shipments/shipment-card";
 import { ColumnFiltersState } from "@tanstack/react-table";
@@ -121,7 +121,7 @@ const MobileShipmentsView = ({
         return [...shipments].sort((a, b) => {
             const timeA = getSafeDate(a.updatedAt)?.getTime() || 0;
             const timeB = getSafeDate(b.updatedAt)?.getTime() || 0;
-            return timeB - timeA;
+            return timeB - a;
         });
     }, [shipments]);
     
@@ -636,6 +636,7 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
   const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
   const [isCourierPaymentSheetOpen, setIsCourierPaymentSheetOpen] = React.useState(false);
   const [isCompanyPaymentSheetOpen, setIsCompanyPaymentSheetOpen] = React.useState(false);
+  const [isSettlementDialogOpen, setIsSettlementDialogOpen] = React.useState(false);
   const [isAdminNoteDialogOpen, setIsAdminNoteDialogOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const [editingUser, setEditingUser] = React.useState<User | undefined>(undefined);
@@ -1464,60 +1465,87 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
       })
       .finally(() => setCompanyToArchive(null));
   };
+  
+  const handleCompanySettlement = async (company: Company, sheetShipmentCodes: string[], paymentAmount: number, notes: string) => {
+    if (!authUser || !allShipmentsForStats || !statuses) {
+      toast({ title: 'خطأ', description: 'المستخدم غير معرف أو الشحنات لم تحمل بعد.', variant: 'destructive' });
+      return;
+    }
+    
+    const financialStatuses = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
+
+    // Filter shipments that belong to the company and are present in the settlement sheet
+    const shipmentsToSettle = allShipmentsForStats.filter(s =>
+        s.companyId === company.id &&
+        sheetShipmentCodes.includes(s.shipmentCode) &&
+        !s.isArchivedForCompany &&
+        financialStatuses.includes(s.status) // Only include shipments with a final financial status
+    );
+
+    const shipmentIdsToArchive = shipmentsToSettle.map(s => s.id);
+
+    try {
+        const result = await settleCompanyAccount(company.id, paymentAmount, shipmentIdsToArchive, notes, authUser.uid);
+        if (result.success) {
+            toast({ title: 'نجاح', description: result.message });
+        } else {
+            throw new Error(result.error);
+        }
+    } catch (error: any) {
+        toast({ title: 'فشل التسوية', description: error.message, variant: 'destructive' });
+    }
+  };
+
 
   const filteredShipments = React.useMemo(() => {
     if (!allShipmentsForStats) return [];
-    
-    let baseShipments = allShipmentsForStats;
-
-    if (searchTerm) {
+  
+    // Show only non-archived shipments in the "All" tab
+    const baseShipments = allShipmentsForStats.filter(s => !s.isArchivedForCompany && !s.isArchivedForCourier);
+  
+    const aFilters = columnFilters.filter(f => f.id === 'address');
+    const otherFilters = columnFilters.filter(f => f.id !== 'address');
+    const searchTerms = (aFilters[0]?.value as string[]) || [];
+  
+    return baseShipments.filter((shipment) => {
+      const addressValue = String(shipment.address || '').toLowerCase();
+      
+      const addressMatch = searchTerms.length === 0 || searchTerms.some(term => addressValue.includes(term));
+      if (!addressMatch) return false;
+  
+      const otherFiltersMatch = otherFilters.every(filter => {
+        if (filter.id === 'createdAt') return true; // Date handled separately
+        const value = (shipment as any)[filter.id];
+        const filterValue = filter.value as string[];
+        if (Array.isArray(filterValue) && filterValue.length > 0) {
+          return filterValue.includes(value);
+        }
+        return true;
+      });
+      if (!otherFiltersMatch) return false;
+  
+      const dateRangeFilter = columnFilters.find(f => f.id === 'createdAt');
+      if (dateRangeFilter) {
+        const { from, to } = dateRangeFilter.value as DateRange;
+        const createdAt = getSafeDate(shipment.createdAt);
+        if (!createdAt) return false;
+        if (from && createdAt < from) return false;
+        if (to && createdAt > to) return false;
+      }
+      
+      if (searchTerm) {
         const lowercasedTerm = searchTerm.toLowerCase();
-        return baseShipments.filter(shipment => 
-            String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
+        return (
+          String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
+          String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
+          String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
+          String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm)
         );
-    }
-    
-    if (columnFilters.length > 0) {
-        baseShipments = baseShipments.filter(shipment => {
-            const addressFilter = columnFilters.find(f => f.id === 'address');
-            const otherFilters = columnFilters.filter(f => f.id !== 'address');
-
-            if (addressFilter) {
-                const searchTerms = (addressFilter.value as string[]) || [];
-                const addressValue = String(shipment.address || '').toLowerCase();
-                const addressMatch = searchTerms.length === 0 || searchTerms.some(term => addressValue.includes(term));
-                if (!addressMatch) return false;
-            }
-
-            const otherFiltersMatch = otherFilters.every(filter => {
-                if (filter.id === 'createdAt') return true;
-                const value = (shipment as any)[filter.id];
-                const filterValue = filter.value as string[];
-                if (Array.isArray(filterValue) && filterValue.length > 0) {
-                    return filterValue.includes(value);
-                }
-                return true;
-            });
-            if (!otherFiltersMatch) return false;
-
-            const dateRangeFilter = columnFilters.find(f => f.id === 'createdAt');
-            if (dateRangeFilter) {
-                const { from, to } = dateRangeFilter.value as DateRange;
-                const createdAt = getSafeDate(shipment.createdAt);
-                if (!createdAt) return false;
-                if (from && createdAt < from) return false;
-                if (to && createdAt > to) return false;
-            }
-            return true;
-        });
-    }
-
-    return baseShipments.filter(s => !s.isArchivedForCompany && !s.isArchivedForCourier);
-}, [allShipmentsForStats, searchTerm, columnFilters]);
+      }
+  
+      return true;
+    });
+  }, [allShipmentsForStats, searchTerm, columnFilters]);
   
   
   const unassignedShipments = React.useMemo(() => filteredShipments.filter(s => !s.assignedCourierId), [filteredShipments]);
@@ -2064,128 +2092,6 @@ const generateShipmentCode = () => {
                 )}
           </div>
         </TabsContent>
-        <TabsContent value="company-management">
-             <div className="mt-8">
-                <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
-                    <h2 className="text-2xl font-headline font-semibold">إدارة حسابات الشركات</h2>
-                    <div className="flex items-center gap-2">
-                        <div className="relative">
-                            <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                placeholder="ابحث عن شركة..."
-                                value={managementSearchTerm}
-                                onChange={(e) => setManagementSearchTerm(e.target.value)}
-                                className="pr-8 sm:w-[250px]"
-                            />
-                        </div>
-                    </div>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {filteredCompanyDues.map(company => (
-                         <Card key={company.id} className="flex flex-col">
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                                    <Building className="h-4 w-4 text-muted-foreground" />
-                                    {company.name}
-                                </CardTitle>
-                                <div className={`text-xl font-bold ${company.netDue >= 0 ? 'text-green-600' : 'text-destructive'}`}>
-                                    {company.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-                                </div>
-                            </CardHeader>
-                            <CardContent className="flex-grow">
-                                <p className="text-xs text-muted-foreground">
-                                    المبلغ المستحق للدفع للشركة
-                                </p>
-                                <div className="mt-4 space-y-2 text-sm">
-                                    <div className="flex justify-between items-center border-b pb-2">
-                                        <span className="flex items-center gap-2 text-muted-foreground">
-                                            <Package className="h-4 w-4" />
-                                            إجمالي الشحنات:
-                                        </span>
-                                        <span className="font-medium">{company.totalShipments}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center pt-2 border-t">
-                                        <span className="flex items-center gap-2 text-muted-foreground">
-                                            <DollarSign className="h-4 w-4" />
-                                            إجمالي التحصيل:
-                                        </span>
-                                        <span className="font-medium">{company.totalRevenue.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="flex items-center gap-2 text-muted-foreground">
-                                            <BadgePercent className="h-4 w-4 text-indigo-500" />
-                                            عمولات الشركة:
-                                        </span>
-                                        <span className="font-medium">{company.totalCompanyCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center border-t pt-2 mt-2">
-                                        <span className="flex items-center gap-2 text-muted-foreground">
-                                            <WalletCards className="h-4 w-4" />
-                                            إجمالي المدفوعات:
-                                        </span>
-                                        <span className="font-medium text-green-700">{company.totalPaidToCompany.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                    </div>
-                                    
-                                    {company.paymentHistory && company.paymentHistory.length > 0 && (
-                                        <Collapsible className="pt-2 text-xs">
-                                            <CollapsibleTrigger asChild>
-                                                <Button variant="ghost" size="sm" className="flex items-center gap-2 w-full justify-start p-0 h-auto text-xs">
-                                                    <History className="h-3 w-3"/>
-                                                    <span>عرض سجل الدفعات ({company.paymentHistory.length})</span>
-                                                </Button>
-                                            </CollapsibleTrigger>
-                                            <CollapsibleContent className="space-y-2 mt-2">
-                                              {company.paymentHistory.map(payment => (
-                                                  <div key={payment.id} className="flex justify-between items-center text-muted-foreground p-2 rounded-md bg-muted/50">
-                                                      <div>
-                                                          <span className="font-semibold">{payment.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
-                                                          <span className="mx-2">-</span>
-                                                          <span>{new Date(payment.paymentDate?.toDate?.() || Date.now()).toLocaleDateString('ar-EG')}</span>
-                                                      </div>
-                                                      <div className="flex items-center">
-                                                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openCompanyPaymentForm(company, payment)}>
-                                                              <Pencil className="h-3 w-3" />
-                                                          </Button>
-                                                          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setCompanyPaymentToDelete(payment)}>
-                                                              <Trash2 className="h-3 w-3" />
-                                                          </Button>
-                                                      </div>
-                                                  </div>
-                                              ))}
-                                            </CollapsibleContent>
-                                        </Collapsible>
-                                    )}
-                                </div>
-                            </CardContent>
-                            <CardFooter className="flex flex-col items-stretch gap-2">
-                                <CompanySettlementDialog
-                                    company={company}
-                                    allShipments={allShipmentsForStats || []}
-                                    adminUser={user}
-                                    statuses={statuses || []}
-                                    onSettlementComplete={() => {}}
-                                >
-                                    <Button variant="default" className="w-full">
-                                        <FileSpreadsheet className="me-2 h-4 w-4" />
-                                        تسوية عبر شيت
-                                    </Button>
-                                </CompanySettlementDialog>
-                                <Button variant="outline" className="w-full" onClick={() => openCompanyPaymentForm(company)} disabled={company.netDue <= 0}>
-                                    <Banknote className="me-2 h-4 w-4" />
-                                    تسوية يدوية
-                                </Button>
-                                {company.totalShipments > 0 && (
-                                    <Button variant="secondary" className="w-full" onClick={() => setCompanyToArchive(company)}>
-                                        <Archive className="me-2 h-4 w-4" />
-                                        أرشفة وتسوية الكل
-                                    </Button>
-                                )}
-                            </CardFooter>
-                        </Card>
-                    ))}
-                </div>
-            </div>
-        </TabsContent>
         <TabsContent value="courier-management">
              <div className="mt-8">
                 <div className="flex justify-between items-center mb-4">
@@ -2301,6 +2207,123 @@ const generateShipmentCode = () => {
                                     </div>
                                     {courier.totalShipments > 0 && (
                                         <Button variant="secondary" className="w-full" onClick={() => setCourierToArchive(courier)}>
+                                            <Archive className="me-2 h-4 w-4" />
+                                            أرشفة وتسوية الكل
+                                        </Button>
+                                    )}
+                                </CardFooter>
+                            </Card>
+                        ))}
+                    </div>
+                </div>
+        </TabsContent>
+         <TabsContent value="company-management">
+               <div className="mt-8">
+                <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
+                    <h2 className="text-2xl font-headline font-semibold">إدارة حسابات الشركات</h2>
+                    <div className="flex items-center gap-2">
+                        <div className="relative">
+                            <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="ابحث عن شركة..."
+                                value={managementSearchTerm}
+                                onChange={(e) => setManagementSearchTerm(e.target.value)}
+                                className="pr-8 sm:w-[250px]"
+                            />
+                        </div>
+                    </div>
+                </div>
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        {filteredCompanyDues.map(company => (
+                             <Card key={company.id} className="flex flex-col">
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                        <Building className="h-4 w-4 text-muted-foreground" />
+                                        {company.name}
+                                    </CardTitle>
+                                    <div className={`text-xl font-bold ${company.netDue >= 0 ? 'text-green-600' : 'text-destructive'}`}>
+                                        {company.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="flex-grow">
+                                    <p className="text-xs text-muted-foreground">
+                                        المبلغ المستحق للدفع للشركة
+                                    </p>
+                                    <div className="mt-4 space-y-2 text-sm">
+                                         <div className="flex justify-between items-center border-b pb-2">
+                                            <span className="flex items-center gap-2 text-muted-foreground">
+                                                <Package className="h-4 w-4" />
+                                                إجمالي الشحنات:
+                                            </span>
+                                            <span className="font-medium">{company.totalShipments}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center pt-2 border-t">
+                                            <span className="flex items-center gap-2 text-muted-foreground">
+                                                <DollarSign className="h-4 w-4" />
+                                                إجمالي التحصيل:
+                                            </span>
+                                            <span className="font-medium">{company.totalRevenue.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                        </div>
+                                          <div className="flex justify-between items-center">
+                                            <span className="flex items-center gap-2 text-muted-foreground">
+                                                <BadgePercent className="h-4 w-4 text-indigo-500" />
+                                                عمولات الشركة:
+                                            </span>
+                                            <span className="font-medium">{company.totalCompanyCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                        </div>
+                                         <div className="flex justify-between items-center border-t pt-2 mt-2">
+                                            <span className="flex items-center gap-2 text-muted-foreground">
+                                                <WalletCards className="h-4 w-4" />
+                                                إجمالي المدفوعات:
+                                            </span>
+                                            <span className="font-medium text-green-700">{company.totalPaidToCompany.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                        </div>
+                                        
+                                        {company.paymentHistory && company.paymentHistory.length > 0 && (
+                                            <Collapsible className="pt-2 text-xs">
+                                                <CollapsibleTrigger asChild>
+                                                    <Button variant="ghost" size="sm" className="flex items-center gap-2 w-full justify-start p-0 h-auto text-xs">
+                                                        <History className="h-3 w-3"/>
+                                                        <span>عرض سجل الدفعات ({company.paymentHistory.length})</span>
+                                                    </Button>
+                                                </CollapsibleTrigger>
+                                                <CollapsibleContent className="space-y-2 mt-2">
+                                                  {company.paymentHistory.map(payment => (
+                                                      <div key={payment.id} className="flex justify-between items-center text-muted-foreground p-2 rounded-md bg-muted/50">
+                                                          <div>
+                                                              <span className="font-semibold">{payment.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
+                                                              <span className="mx-2">-</span>
+                                                              <span>{new Date(payment.paymentDate?.toDate?.() || Date.now()).toLocaleDateString('ar-EG')}</span>
+                                                          </div>
+                                                          <div className="flex items-center">
+                                                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openCompanyPaymentForm(company, payment)}>
+                                                                  <Pencil className="h-3 w-3" />
+                                                              </Button>
+                                                              <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setCompanyPaymentToDelete(payment)}>
+                                                                  <Trash2 className="h-3 w-3" />
+                                                              </Button>
+                                                          </div>
+                                                      </div>
+                                                  ))}
+                                                </CollapsibleContent>
+                                            </Collapsible>
+                                        )}
+                                    </div>
+                                </CardContent>
+                                <CardFooter className="flex flex-col items-stretch gap-2">
+                                    <Button variant="outline" className="w-full" onClick={() => openCompanyPaymentForm(company)} disabled={company.netDue <= 0}>
+                                        <Banknote className="me-2 h-4 w-4" />
+                                        تسوية يدوية
+                                    </Button>
+                                    <Button variant="outline" onClick={() => {
+                                        setSettlingCompany(company);
+                                        setIsSettlementDialogOpen(true);
+                                    }}>
+                                       <FileSpreadsheet className="me-2 h-4 w-4" />
+                                       تسوية عبر شيت
+                                    </Button>
+                                    {company.totalShipments > 0 && (
+                                        <Button variant="secondary" className="w-full" onClick={() => setCompanyToArchive(company)}>
                                             <Archive className="me-2 h-4 w-4" />
                                             أرشفة وتسوية الكل
                                         </Button>
@@ -2537,6 +2560,14 @@ const generateShipmentCode = () => {
             })
             .catch(() => toast({ title: 'فشل إرسال الملاحظة', variant: 'destructive' }));
         }}
+      />
+      <CompanySettlementDialog
+        open={isSettlementDialogOpen}
+        onOpenChange={setIsSettlementDialogOpen}
+        company={settlingCompany}
+        allShipments={allShipmentsForStats || []}
+        statuses={statuses || []}
+        onSubmit={handleCompanySettlement}
       />
        {importResult && (
         <ImportProgressDialog

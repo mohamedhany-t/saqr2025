@@ -1,7 +1,8 @@
 
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { read, utils } from 'xlsx';
 import {
   Dialog,
   DialogContent,
@@ -9,341 +10,308 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-  DialogClose,
-  DialogTrigger
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, UploadCloud, AlertTriangle, CheckCircle, FileSpreadsheet } from 'lucide-react';
+import type { Company, Shipment, ShipmentStatusConfig } from '@/lib/types';
 import { useDropzone } from 'react-dropzone';
-import { read, utils } from 'xlsx';
-import type { Company, Shipment, User, ShipmentStatusConfig } from '@/lib/types';
+import { UploadCloud, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Badge } from '../ui/badge';
-import { ScrollArea } from '../ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { ScrollArea } from '../ui/scroll-area';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { useFirebaseApp } from '@/firebase';
+import { useFirebaseApp, useUser } from '@/firebase';
+
 
 interface CompanySettlementDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   company?: Company;
   allShipments: Shipment[];
-  adminUser: User;
   statuses: ShipmentStatusConfig[];
-  onSettlementComplete: () => void;
-  children: React.ReactNode;
 }
 
-type FileAnalysis = {
-  fileName: string;
-  totalInSheet: number;
-  matchedShipments: Shipment[];
-  unmatchedShipments: { code: string; reason: string; }[];
-  totalToSettle: number;
-};
+interface SheetAnalysis {
+    shipmentsToSettle: Shipment[];
+    excludedShipments: { code: string, reason: string }[];
+    totalInSheet: number;
+    netDue: number;
+}
 
-export function CompanySettlementDialog({
-  company,
-  allShipments,
-  adminUser,
-  statuses,
-  onSettlementComplete,
-  children
-}: CompanySettlementDialogProps) {
-  const [open, setOpen] = useState(false);
+const currencyFormatter = (amount: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(amount);
+
+export function CompanySettlementDialog({ open, onOpenChange, company, allShipments, statuses }: CompanySettlementDialogProps) {
+  const [analysis, setAnalysis] = useState<SheetAnalysis | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [analysis, setAnalysis] = useState<FileAnalysis | null>(null);
+  const [fileName, setFileName] = useState('');
   const { toast } = useToast();
-  const firebaseApp = useFirebaseApp();
+  const app = useFirebaseApp();
+  const { user: authUser } = useUser();
 
-  const resetState = useCallback(() => {
-    setIsProcessing(false);
+  const companyShipments = useMemo(() => {
+    if (!company) return [];
+    return allShipments.filter(s => s.companyId === company.id);
+  }, [allShipments, company]);
+
+  const onDrop = async (acceptedFiles: File[]) => {
+    if (!acceptedFiles.length || !statuses) return;
+    setIsProcessing(true);
     setAnalysis(null);
-  }, []);
+    setFileName(acceptedFiles[0].name);
 
-  const finishedStatusIds = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
-  const companyShipments = allShipments.filter(s => s.companyId === company?.id);
-
-  const handleFileDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
-    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = e.target?.result;
+            const workbook = read(data, { type: 'binary' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const json = utils.sheet_to_json<any>(worksheet, { header: 1 });
 
-    setIsProcessing(true);
-    setAnalysis(null); // Reset previous analysis
-
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = read(data);
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      
-      let jsonData: any[][] = utils.sheet_to_json(worksheet, { header: 1, blankrows: false });
-
-      const headerKeywords = ['رقم الشحنة', 'كود الشحنة'];
-      let headerRowIndex = -1;
-      let headers: string[] = [];
-
-      for(let i = 0; i < jsonData.length; i++) {
-        const row = jsonData[i] as string[];
-        if(row.some(cell => typeof cell === 'string' && headerKeywords.some(kw => cell.includes(kw)))) {
-            headerRowIndex = i;
-            headers = row.map(h => String(h));
-            break;
-        }
-      }
-
-      if (headerRowIndex === -1) {
-          throw new Error("لم يتم العثور على صف العناوين في الملف. تأكد من وجود عمود 'رقم الشحنة' أو 'كود الشحنة'.");
-      }
-      
-      const dataRows = jsonData.slice(headerRowIndex + 1);
-      const finalJson = dataRows.map(row => {
-          const obj: {[key: string]: any} = {};
-          headers.forEach((header, index) => {
-              obj[header] = row[index];
-          });
-          return obj;
-      });
-
-      const shipmentCodeColumn = headers.find(h => h.includes('رقم الشحنة')) || headers.find(h => h.includes('كود الشحنة'));
-      
-      if (!shipmentCodeColumn) {
-        throw new Error("لم يتم العثور على عمود 'رقم الشحنة' أو 'كود الشحنة'.");
-      }
-      
-      const shipmentCodesInSheet = new Set(finalJson.map((row: any) => String(row[shipmentCodeColumn] || '').trim()).filter(Boolean));
-
-      if (shipmentCodesInSheet.size === 0) {
-        throw new Error("لم يتم العثور على شحنات صالحة في الملف.");
-      }
-      
-      const matchedShipments: Shipment[] = [];
-      const unmatchedShipments: { code: string; reason: string; }[] = [];
-
-      shipmentCodesInSheet.forEach(code => {
-        const foundShipment = companyShipments.find(s => s.shipmentCode === code);
-        if (foundShipment) {
-            if(foundShipment.isArchivedForCompany) {
-                unmatchedShipments.push({ code, reason: "تمت أرشفتها مسبقًا" });
-            } else if (!finishedStatusIds.includes(foundShipment.status)) {
-                const statusLabel = statuses.find(s => s.id === foundShipment.status)?.label || foundShipment.status;
-                unmatchedShipments.push({ code, reason: `حالة غير نهائية (${statusLabel})` });
-            } else {
-                matchedShipments.push(foundShipment);
+            let headerRowIndex = -1;
+            let codeColIndex = -1;
+            for (let i = 0; i < json.length; i++) {
+                const row = json[i];
+                if (!Array.isArray(row)) continue;
+                const codeIndex = row.findIndex((cell: any) => String(cell).toLowerCase().includes('كود الشحنة') || String(cell).toLowerCase().includes('رقم الشحنة'));
+                if (codeIndex !== -1) {
+                    headerRowIndex = i;
+                    codeColIndex = codeIndex;
+                    break;
+                }
             }
-        } else {
-          unmatchedShipments.push({ code, reason: "غير موجودة في النظام" });
+
+            if (codeColIndex === -1) throw new Error("لم يتم العثور على عمود يحتوي على 'كود الشحنة' أو 'رقم الشحنة'");
+            
+            const sheetCodes = [...new Set(json
+                .slice(headerRowIndex + 1)
+                .map(row => String(row[codeColIndex] || '').trim())
+                .filter(Boolean))];
+
+            const financialStatuses = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
+
+            const shipmentsToSettle: Shipment[] = [];
+            const excludedShipments: { code: string, reason: string }[] = [];
+            const processedSystemCodes = new Set<string>();
+
+            sheetCodes.forEach(code => {
+                const shipment = companyShipments.find(s => s.shipmentCode === code || s.orderNumber === code);
+                
+                if (!shipment) {
+                    excludedShipments.push({ code, reason: "غير موجودة بالنظام" });
+                    return;
+                }
+                
+                if (processedSystemCodes.has(shipment.shipmentCode)) return;
+
+                if (shipment.isArchivedForCompany) {
+                    excludedShipments.push({ code, reason: "تمت أرشفة هذه الشحنة من قبل" });
+                } else if (financialStatuses.includes(shipment.status)) {
+                    shipmentsToSettle.push(shipment);
+                } else {
+                    const statusLabel = statuses.find(s => s.id === shipment.status)?.label || shipment.status;
+                    excludedShipments.push({ code, reason: `حالة غير نهائية (${statusLabel})` });
+                }
+                processedSystemCodes.add(shipment.shipmentCode);
+            });
+
+
+            const netDue = shipmentsToSettle.reduce((acc, s) => {
+                return acc + ((s.paidAmount || 0) - (s.companyCommission || 0));
+            }, 0);
+
+            setAnalysis({ 
+                shipmentsToSettle, 
+                excludedShipments,
+                totalInSheet: sheetCodes.length,
+                netDue 
+            });
+            
+        } catch (error: any) {
+            toast({ title: 'خطأ في معالجة الملف', description: error.message, variant: 'destructive' });
+        } finally {
+            setIsProcessing(false);
         }
-      });
-      
-      const totalToSettle = matchedShipments.reduce((acc, s) => acc + ((s.paidAmount || 0) - (s.companyCommission || 0)), 0);
-      
-      setAnalysis({
-        fileName: file.name,
-        totalInSheet: shipmentCodesInSheet.size,
-        matchedShipments,
-        unmatchedShipments,
-        totalToSettle,
-      });
-
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "خطأ في معالجة الملف",
-        description: error.message || "حدث خطأ غير متوقع."
-      });
-      setAnalysis(null);
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [companyShipments, toast, finishedStatusIds, statuses]);
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop: handleFileDrop,
-    accept: {
-      'application/vnd.ms-excel': ['.xls'],
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-    },
-    multiple: false,
-  });
+    };
+    reader.readAsBinaryString(file);
+  };
   
-  const handleConfirmSettlement = async () => {
-    if (!analysis || analysis.matchedShipments.length === 0 || !adminUser || !company) return;
-    setIsProcessing(true);
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    multiple: false,
+    accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'], 'application/vnd.ms-excel': ['.xls'] },
+  });
 
-    try {
-      const functions = getFunctions(firebaseApp);
-      const executeSettlement = httpsCallable(functions, 'executeCompanySettlement');
-
-      const dataToSend = {
-          companyId: company.id,
-          paymentAmount: analysis.totalToSettle,
-          shipmentIdsToArchive: analysis.matchedShipments.map(s => s.id),
-          settlementNote: `تسوية تلقائية عبر شيت: ${analysis.fileName}`,
-          adminId: adminUser.id
-      };
-
-      const result = await executeSettlement(dataToSend);
-      const resultData = result.data as { success: boolean; message?: string; error?: string };
-
-      if (resultData.success) {
-          toast({
-              title: "تمت التسوية بنجاح!",
-              description: resultData.message,
-          });
-          onSettlementComplete();
-          setOpen(false);
-      } else {
-          throw new Error(resultData.error || "An unknown error occurred on the server.");
-      }
-    } catch (error: any) {
-        console.error("Error calling executeCompanySettlement cloud function:", error);
-        toast({
-            variant: "destructive",
-            title: "فشلت عملية التسوية",
-            description: error.message || "حدث خطأ أثناء الاتصال بالخادم.",
-        });
-    } finally {
-        setIsProcessing(false);
+  const handleSubmit = async () => {
+    if (!company || !analysis || !app || !authUser) {
+         toast({ title: 'خطأ', description: 'بيانات غير مكتملة، لا يمكن إتمام العملية.', variant: 'destructive' });
+         return;
     }
-  }
+    
+    setIsSubmitting(true);
+    toast({ title: "جاري تنفيذ التسوية...", description: "قد تستغرق العملية بعض الوقت. يرجى عدم إغلاق النافذة." });
+    
+    try {
+        const functions = getFunctions(app);
+        const executeCompanySettlement = httpsCallable(functions, 'executeCompanySettlement');
+        
+        const result: any = await executeCompanySettlement({
+            companyId: company.id,
+            paymentAmount: analysis.netDue,
+            shipmentIdsToArchive: analysis.shipmentsToSettle.map(s => s.id),
+            settlementNote: `تسوية عبر شيت: ${fileName}`,
+            adminId: authUser.uid,
+        });
+
+        if (result.data.success) {
+            toast({ title: "نجاح", description: result.data.message });
+            onOpenChange(false);
+        } else {
+            throw new Error(result.data.error || 'فشل غير معروف من الخادم');
+        }
+    } catch (error: any) {
+        console.error("Error calling settlement function:", error);
+        toast({ title: 'فشلت عملية التسوية', description: error.message, variant: 'destructive' });
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+  
+  useEffect(() => {
+    if (!open) {
+      setTimeout(() => {
+        setAnalysis(null);
+        setIsProcessing(false);
+        setIsSubmitting(false);
+        setFileName('');
+      }, 300);
+    }
+  }, [open]);
+
+  if (!company) return null;
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => { setOpen(isOpen); if (!isOpen) resetState(); }}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
-      {company && (
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col" dir="rtl">
-          <DialogHeader>
-            <DialogTitle>تسوية حساب شركة: {company.name}</DialogTitle>
-            <DialogDescription>
-              ارفع شيت الإكسل (مثل شيت التوريد) لتسوية وأرشفة الشحنات المضمنة فيه تلقائيًا.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto -mx-6 px-6">
-            <div className="py-4 space-y-4">
-              {!analysis ? (
-                <div
-                  {...getRootProps()}
-                  className={`mt-4 p-10 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors ${isDragActive ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col" dir="rtl">
+        <DialogHeader>
+          <DialogTitle>تسوية حساب شركة: {company.name}</DialogTitle>
+          <DialogDescription>
+            ارفع شيت الإكسل (مثل شيت التوريد) لتسوية وأرشفة الشحنات المضمنة فيه تلقائيا.
+          </DialogDescription>
+        </DialogHeader>
+        <ScrollArea className="flex-1 -mx-6">
+            <div className="py-4 px-6 space-y-4">
+            {!analysis && <div
+                    {...getRootProps()}
+                    className={`p-8 border-2 border-dashed rounded-lg text-center transition-colors cursor-pointer ${isDragActive ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}
                 >
-                  <input {...getInputProps()} />
-                  {isProcessing ? (
-                    <div className="flex flex-col items-center gap-2">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                      <p>جاري معالجة الملف...</p>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                      <UploadCloud className="h-8 w-8" />
-                      <p>اسحب وأفلت شيت الإكسل هنا، أو انقر للتحديد</p>
-                      <p className="text-xs">(.xlsx, .xls)</p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="font-semibold mb-2">ملخص تحليل الملف: {analysis.fileName}</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                      <div className="p-3 bg-muted rounded-lg">
-                        <p className="text-2xl font-bold">{analysis.totalInSheet}</p>
-                        <p className="text-sm text-muted-foreground">شحنة في الشيت</p>
-                      </div>
-                      <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                        <p className="text-2xl font-bold text-green-700 dark:text-green-400">{analysis.matchedShipments.length}</p>
-                        <p className="text-sm text-green-600 dark:text-green-500">شحنة ستتم تسويتها</p>
-                      </div>
-                      <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                        <p className="text-2xl font-bold text-red-700 dark:text-red-400">{analysis.unmatchedShipments.length}</p>
-                        <p className="text-sm text-red-600 dark:text-red-500">شحنة تم استبعادها</p>
-                      </div>
-                      <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                        <p className="text-lg font-bold text-blue-700 dark:text-blue-400">{analysis.totalToSettle.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</p>
-                        <p className="text-sm text-blue-600 dark:text-blue-500">صافي المبلغ للتسوية</p>
-                      </div>
-                    </div>
-                  </div>
+                    <input {...getInputProps()} />
+                    {isProcessing ? (
+                        <div className="flex flex-col items-center gap-2">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            <p>جاري التحليل...</p>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                            <UploadCloud className="h-8 w-8" />
+                            <p>اسحب وأفلت شيت التسوية هنا، أو انقر للاختيار</p>
+                        </div>
+                    )}
+                </div>}
 
-                  {analysis.matchedShipments.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold text-green-600">معاينة الشحنات التي ستتم تسويتها:</h4>
-                      <ScrollArea className="h-48 mt-2 border rounded">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>كود الشحنة</TableHead>
-                              <TableHead>العميل</TableHead>
-                              <TableHead>الإجمالي</TableHead>
-                              <TableHead>المدفوع</TableHead>
-                              <TableHead>عمولة الشركة</TableHead>
-                              <TableHead>صافي المستحق</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {analysis.matchedShipments.map(s => {
-                              const netDue = (s.paidAmount || 0) - (s.companyCommission || 0);
-                              return (
-                                <TableRow key={s.id}>
-                                  <TableCell className="font-mono">{s.shipmentCode}</TableCell>
-                                  <TableCell>{s.recipientName}</TableCell>
-                                  <TableCell>{(s.totalAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                  <TableCell>{(s.paidAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                  <TableCell className="text-red-600">{((s.companyCommission || 0)).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                  <TableCell className="font-semibold">{netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                </TableRow>
-                              )
-                            })}
-                          </TableBody>
-                        </Table>
-                      </ScrollArea>
-                    </div>
-                  )}
+                {analysis && (
+                    <div className="space-y-6">
+                         <div>
+                             <h4 className="font-semibold text-center mb-2">ملخص تحليل الملف: <span className="font-mono text-sm">{fileName}</span></h4>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                                <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                                    <p className="text-2xl font-bold text-gray-700 dark:text-gray-300">{analysis.totalInSheet}</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">شحنة في الشيت</p>
+                                </div>
+                                <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                                    <p className="text-2xl font-bold text-green-700 dark:text-green-400">{analysis.shipmentsToSettle.length}</p>
+                                    <p className="text-sm text-green-600 dark:text-green-500">شحنة ستتم تسويتها</p>
+                                </div>
+                                <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                                    <p className="text-2xl font-bold text-red-700 dark:text-red-400">{analysis.excludedShipments.length}</p>
+                                    <p className="text-sm text-red-600 dark:text-red-500">شحنة تم استبعادها</p>
+                                </div>
+                                <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                                    <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{currencyFormatter(analysis.netDue)}</p>
+                                    <p className="text-sm text-blue-600 dark:text-blue-500">صافي المبلغ للتسوية</p>
+                                </div>
+                            </div>
+                         </div>
 
-                  {analysis.unmatchedShipments.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold text-amber-600">الشحنات المستبعدة وسبب الاستبعاد:</h4>
-                      <ScrollArea className="h-48 mt-2 border rounded">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>كود الشحنة</TableHead>
-                              <TableHead>السبب</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {analysis.unmatchedShipments.map((item, index) => (
-                              <TableRow key={`${item.code}-${index}`}>
-                                <TableCell className="font-mono">{item.code}</TableCell>
-                                <TableCell>{item.reason}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </ScrollArea>
+                        <div className="pt-4">
+                            <h5 className="font-semibold mb-2 text-green-700">معاينة الشحنات التي ستتم تسويتها:</h5>
+                            <div className="border rounded-md bg-background">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>كود الشحنة</TableHead>
+                                            <TableHead>العميل</TableHead>
+                                            <TableHead>الإجمالي</TableHead>
+                                            <TableHead>المدفوع</TableHead>
+                                            <TableHead>عمولة الشركة</TableHead>
+                                            <TableHead>صافي المستحق</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {analysis.shipmentsToSettle.map(s => (
+                                            <TableRow key={s.id}>
+                                                <TableCell className="font-mono">{s.shipmentCode}</TableCell>
+                                                <TableCell>{s.recipientName}</TableCell>
+                                                <TableCell>{currencyFormatter(s.totalAmount || 0)}</TableCell>
+                                                <TableCell>{currencyFormatter(s.paidAmount || 0)}</TableCell>
+                                                <TableCell className="text-destructive">{currencyFormatter(s.companyCommission || 0)}</TableCell>
+                                                <TableCell className="font-bold">{currencyFormatter((s.paidAmount || 0) - (s.companyCommission || 0))}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
+
+                        {analysis.excludedShipments.length > 0 && <div className="pt-4">
+                            <h5 className="font-semibold mb-2 text-orange-600">الشحنات المستبعدة وسبب الاستبعاد:</h5>
+                            <div className="border rounded-md bg-background">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>كود الشحنة</TableHead>
+                                            <TableHead>السبب</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {analysis.excludedShipments.map((item, index) => (
+                                            <TableRow key={index}>
+                                                <TableCell className="font-mono">{item.code}</TableCell>
+                                                <TableCell>{item.reason}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>}
+
+                        <div className="mt-4 p-3 bg-yellow-100 border-r-4 border-yellow-500 text-yellow-800 rounded-r-lg">
+                            <h4 className="font-bold flex items-center gap-2"><AlertTriangle/> إجراء نهائي</h4>
+                            <p className="text-sm">سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ الصافي وأرشفة جميع الشحنات التي تمت مطابقتها لهذه الشركة. لا يمكن التراجع عن هذا الإجراء.</p>
+                        </div>
                     </div>
-                  )}
-                  <div className="bg-amber-50 border-l-4 border-amber-500 text-amber-800 p-4 rounded-r-lg" role="alert">
-                    <div className="flex">
-                      <div className="py-1"><AlertTriangle className="h-5 w-5 text-amber-500 mr-3" /></div>
-                      <div>
-                        <p className="font-bold">إجراء نهائي</p>
-                        <p className="text-sm">سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ الصافي وأرشفة جميع الشحنات التي تمت مطابقتها لهذه الشركة. لا يمكن التراجع عن هذا الإجراء.</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+                )}
             </div>
-          </div>
-          <DialogFooter className="mt-auto pt-4 border-t">
-            <Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button>
-            <Button onClick={handleConfirmSettlement} disabled={isProcessing || !analysis || analysis.matchedShipments.length === 0}>
-              {isProcessing && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
-              تأكيد التسوية والأرشفة
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      )}
+        </ScrollArea>
+        <DialogFooter className="pt-4 border-t">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
+          <Button onClick={handleSubmit} disabled={!analysis || analysis.shipmentsToSettle.length === 0 || isSubmitting}>
+            {isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+            تأكيد التسوية والأرشفة
+          </Button>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   );
 }
