@@ -11,7 +11,6 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTrigger,
-  DialogClose,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import type { Company, Shipment, User, ShipmentStatusConfig } from '@/lib/types';
@@ -225,8 +224,7 @@ export function CompanySettlementDialog({
             ارفع شيت الإكسل (مثل شيت التوريد) لتسوية وأرشفة الشحنات المضمنة فيه تلقائيا.
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="flex-1 -mx-6">
-            <div className="py-4 px-6 space-y-4">
+        <div className="flex-1 overflow-y-auto -mx-6 px-6 space-y-4">
             {!analysis && <div
                     {...getRootProps()}
                     className={`p-8 border-2 border-dashed rounded-lg text-center transition-colors cursor-pointer ${isDragActive ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}
@@ -271,7 +269,7 @@ export function CompanySettlementDialog({
 
                         <div className="pt-4">
                             <h5 className="font-semibold mb-2 text-green-700">معاينة الشحنات التي ستتم تسويتها:</h5>
-                            <div className="border rounded-md bg-background">
+                             <ScrollArea className="h-48 border rounded-md bg-background">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
@@ -296,12 +294,12 @@ export function CompanySettlementDialog({
                                         ))}
                                     </TableBody>
                                 </Table>
-                            </div>
+                            </ScrollArea>
                         </div>
 
                         {analysis.excludedShipments.length > 0 && <div className="pt-4">
                             <h5 className="font-semibold mb-2 text-orange-600">الشحنات المستبعدة وسبب الاستبعاد:</h5>
-                            <div className="border rounded-md bg-background">
+                            <ScrollArea className="h-48 border rounded-md bg-background">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
@@ -318,7 +316,7 @@ export function CompanySettlementDialog({
                                         ))}
                                     </TableBody>
                                 </Table>
-                            </div>
+                            </ScrollArea>
                         </div>}
 
                         <div className="mt-4 p-3 bg-yellow-100 border-r-4 border-yellow-500 text-yellow-800 rounded-r-lg">
@@ -328,7 +326,6 @@ export function CompanySettlementDialog({
                     </div>
                 )}
             </div>
-        </ScrollArea>
         <DialogFooter className="pt-4 border-t">
           <Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button>
           <Button onClick={handleSubmit} disabled={!analysis || analysis.shipmentsToSettle.length === 0 || isSubmitting || isProcessing}>
@@ -340,3 +337,4 @@ export function CompanySettlementDialog({
     </Dialog>
   );
 }
+
