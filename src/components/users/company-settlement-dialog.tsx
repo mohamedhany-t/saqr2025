@@ -22,7 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { ScrollArea } from '../ui/scroll-area';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { useFirebaseApp } from '@/firebase';
+import { useFirebaseApp, useUser } from '@/firebase';
 
 
 interface CompanySettlementDialogProps {
@@ -31,7 +31,6 @@ interface CompanySettlementDialogProps {
   company?: Company;
   allShipments: Shipment[];
   statuses: ShipmentStatusConfig[];
-  onSubmit: (company: Company, shipmentCodes: string[], paymentAmount: number, notes: string) => void;
 }
 
 interface SheetAnalysis {
@@ -41,13 +40,14 @@ interface SheetAnalysis {
     netDue: number;
 }
 
-export function CompanySettlementDialog({ open, onOpenChange, company, allShipments, statuses, onSubmit }: CompanySettlementDialogProps) {
+export function CompanySettlementDialog({ open, onOpenChange, company, allShipments, statuses }: CompanySettlementDialogProps) {
   const [analysis, setAnalysis] = useState<SheetAnalysis | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [fileName, setFileName] = useState('');
   const { toast } = useToast();
   const app = useFirebaseApp();
+  const { user: authUser } = useUser();
 
   const companyShipments = useMemo(() => {
     if (!company) return [];
@@ -134,31 +134,35 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
   });
 
   const handleSubmit = async () => {
-    if (!company || !analysis || analysis.shipmentsToSettle.length === 0 || !app) return;
+    if (!company || !analysis || !app || !authUser) {
+         toast({ title: 'خطأ', description: 'بيانات غير مكتملة، لا يمكن إتمام العملية.', variant: 'destructive' });
+         return;
+    }
+    
     setIsSubmitting(true);
     toast({ title: "جاري تنفيذ التسوية...", description: "قد تستغرق العملية بعض الوقت. يرجى عدم إغلاق النافذة." });
     
     try {
         const functions = getFunctions(app);
-        const executeCompanySettlement = httpsCallable(functions, 'executeCompanySettlement');
+        const executeCompanySettlement = httpsCallable<{ companyId: string; paymentAmount: number; shipmentIdsToArchive: string[]; settlementNote: string; adminId: string; }, { success: boolean; message?: string, error?: string; }>(functions, 'executeCompanySettlement');
         
         const result = await executeCompanySettlement({
             companyId: company.id,
             paymentAmount: analysis.netDue,
             shipmentIdsToArchive: analysis.shipmentsToSettle.map(s => s.id),
             settlementNote: `تسوية عبر شيت: ${fileName}`,
+            adminId: authUser.uid,
         });
 
-        const data = result.data as { success: boolean; message: string };
-        if (data.success) {
-            toast({ title: "نجاح", description: data.message });
+        if (result.data.success) {
+            toast({ title: "نجاح", description: result.data.message });
+            onOpenChange(false);
         } else {
-            throw new Error(data.message);
+            throw new Error(result.data.error || 'فشل غير معروف من الخادم');
         }
-        onOpenChange(false);
     } catch (error: any) {
         console.error("Error calling settlement function:", error);
-        toast({ title: 'فشلت عملية التسوية', description: error.message || "حدث خطأ غير متوقع على الخادم.", variant: 'destructive' });
+        toast({ title: 'فشلت عملية التسوية', description: error.message, variant: 'destructive' });
     } finally {
         setIsSubmitting(false);
     }
