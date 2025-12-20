@@ -25,12 +25,13 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useFirebaseApp } from '@/firebase';
 
 interface CompanySettlementDialogProps {
-  company: Company;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  company: Company | undefined;
   allShipments: Shipment[];
   adminUser: User;
   statuses: ShipmentStatusConfig[];
   onSettlementComplete: () => void;
-  children: React.ReactNode;
 }
 
 type FileAnalysis = {
@@ -42,33 +43,41 @@ type FileAnalysis = {
 };
 
 export function CompanySettlementDialog({
+  open,
+  onOpenChange,
   company,
   allShipments,
   adminUser,
   statuses,
   onSettlementComplete,
-  children
 }: CompanySettlementDialogProps) {
-  const [open, setOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [analysis, setAnalysis] = useState<FileAnalysis | null>(null);
   const { toast } = useToast();
-  const firebaseApp = useFirebaseApp(); // Get the Firebase app instance
+  const firebaseApp = useFirebaseApp();
 
-  const finishedStatusIds = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
-  const companyShipments = allShipments.filter(s => s.companyId === company.id);
-
-  const resetState = () => {
+  const resetState = useCallback(() => {
     setIsProcessing(false);
     setAnalysis(null);
-  };
+  }, []);
+
+  // Effect to reset state when dialog is closed or company changes
+  React.useEffect(() => {
+    if (!open) {
+      resetState();
+    }
+  }, [open, resetState]);
+
+
+  const finishedStatusIds = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
+  const companyShipments = allShipments.filter(s => s.companyId === company?.id);
 
   const handleFileDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (!file) return;
 
     setIsProcessing(true);
-    resetState();
+    setAnalysis(null);
 
     try {
       const data = await file.arrayBuffer();
@@ -150,7 +159,7 @@ export function CompanySettlementDialog({
         title: "خطأ في معالجة الملف",
         description: error.message || "حدث خطأ غير متوقع."
       });
-      resetState();
+      setAnalysis(null);
     } finally {
       setIsProcessing(false);
     }
@@ -166,7 +175,7 @@ export function CompanySettlementDialog({
   });
   
   const handleConfirmSettlement = async () => {
-    if (!analysis || analysis.matchedShipments.length === 0 || !adminUser) return;
+    if (!analysis || analysis.matchedShipments.length === 0 || !adminUser || !company) return;
     setIsProcessing(true);
 
     try {
@@ -190,7 +199,7 @@ export function CompanySettlementDialog({
               description: resultData.message,
           });
           onSettlementComplete();
-          setOpen(false);
+          onOpenChange(false);
       } else {
           throw new Error(resultData.error || "An unknown error occurred on the server.");
       }
@@ -206,11 +215,13 @@ export function CompanySettlementDialog({
     }
   }
 
+  // Guard clause to prevent rendering if company is not yet defined.
+  if (!company) {
+    return null;
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => { setOpen(isOpen); if (!isOpen) resetState(); }}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col" dir="rtl">
         <DialogHeader>
           <DialogTitle>تسوية حساب شركة: {company.name}</DialogTitle>
@@ -218,8 +229,8 @@ export function CompanySettlementDialog({
             ارفع شيت الإكسل (مثل شيت التوريد) لتسوية وأرشفة الشحنات المضمنة فيه تلقائيًا.
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="flex-1 -mx-6">
-            <div className="py-4 px-6 space-y-4">
+        <ScrollArea className="flex-1 -mx-6 px-6">
+            <div className="py-4 space-y-4">
                 {!analysis ? (
                 <div
                     {...getRootProps()}
@@ -266,7 +277,7 @@ export function CompanySettlementDialog({
                     {analysis.matchedShipments.length > 0 && (
                         <div>
                             <h4 className="font-semibold text-green-600">معاينة الشحنات التي ستتم تسويتها:</h4>
-                            <div className="mt-2 border rounded">
+                            <div className="mt-2 border rounded max-h-48 overflow-y-auto">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
@@ -300,7 +311,7 @@ export function CompanySettlementDialog({
                     {analysis.unmatchedShipments.length > 0 && (
                         <div>
                             <h4 className="font-semibold text-amber-600">الشحنات المستبعدة وسبب الاستبعاد:</h4>
-                            <div className="mt-2 border rounded">
+                            <div className="mt-2 border rounded max-h-48 overflow-y-auto">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
@@ -335,7 +346,7 @@ export function CompanySettlementDialog({
         </ScrollArea>
         <DialogFooter className="mt-auto pt-4 border-t">
           <DialogClose asChild>
-            <Button variant="outline">إلغاء</Button>
+            <Button variant="outline" onClick={resetState}>إلغاء</Button>
           </DialogClose>
           <Button onClick={handleConfirmSettlement} disabled={isProcessing || !analysis || analysis.matchedShipments.length === 0}>
              {isProcessing && <Loader2 className="me-2 h-4 w-4 animate-spin" />}

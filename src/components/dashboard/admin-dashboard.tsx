@@ -37,7 +37,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import ChatInterface from "@/components/chat/chat-interface";
 import { Badge } from "../ui/badge";
 import AccountStatementsPage from "@/app/accounts/page";
-import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotification, settleCompanyAccount } from "@/lib/actions";
+import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotification } from "@/lib/actions";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { ShipmentCard } from "../shipments/shipment-card";
 import { ColumnFiltersState } from "@tanstack/react-table";
@@ -121,7 +121,7 @@ const MobileShipmentsView = ({
         return [...shipments].sort((a, b) => {
             const timeA = getSafeDate(a.updatedAt)?.getTime() || 0;
             const timeB = getSafeDate(b.updatedAt)?.getTime() || 0;
-            return timeB - a;
+            return timeB - timeA;
         });
     }, [shipments]);
     
@@ -1466,34 +1466,12 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
       .finally(() => setCompanyToArchive(null));
   };
   
-  const handleCompanySettlement = async (company: Company, sheetShipmentCodes: string[], paymentAmount: number, notes: string) => {
-    if (!authUser || !allShipmentsForStats || !statuses) {
-      toast({ title: 'خطأ', description: 'المستخدم غير معرف أو الشحنات لم تحمل بعد.', variant: 'destructive' });
-      return;
-    }
-    
-    const financialStatuses = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
-
-    // Filter shipments that belong to the company and are present in the settlement sheet
-    const shipmentsToSettle = allShipmentsForStats.filter(s =>
-        s.companyId === company.id &&
-        sheetShipmentCodes.includes(s.shipmentCode) &&
-        !s.isArchivedForCompany &&
-        financialStatuses.includes(s.status) // Only include shipments with a final financial status
-    );
-
-    const shipmentIdsToArchive = shipmentsToSettle.map(s => s.id);
-
-    try {
-        const result = await settleCompanyAccount(company.id, paymentAmount, shipmentIdsToArchive, notes, authUser.uid);
-        if (result.success) {
-            toast({ title: 'نجاح', description: result.message });
-        } else {
-            throw new Error(result.error);
-        }
-    } catch (error: any) {
-        toast({ title: 'فشل التسوية', description: error.message, variant: 'destructive' });
-    }
+  const handleCompanySettlement = async () => {
+      // This is now just a trigger for the dialog.
+      // The actual logic is inside CompanySettlementDialog.
+      if (settlingCompany) {
+        setIsSettlementDialogOpen(true);
+      }
   };
 
 
@@ -2315,13 +2293,23 @@ const generateShipmentCode = () => {
                                         <Banknote className="me-2 h-4 w-4" />
                                         تسوية يدوية
                                     </Button>
-                                    <Button variant="outline" onClick={() => {
-                                        setSettlingCompany(company);
-                                        setIsSettlementDialogOpen(true);
-                                    }}>
-                                       <FileSpreadsheet className="me-2 h-4 w-4" />
-                                       تسوية عبر شيت
-                                    </Button>
+                                    <CompanySettlementDialog
+                                        open={isSettlementDialogOpen && settlingCompany?.id === company.id}
+                                        onOpenChange={(open) => {
+                                            if (!open) setSettlingCompany(undefined);
+                                            setIsSettlementDialogOpen(open);
+                                        }}
+                                        company={company}
+                                        allShipments={allShipmentsForStats || []}
+                                        adminUser={user}
+                                        statuses={statuses || []}
+                                        onSettlementComplete={() => setIsSettlementDialogOpen(false)}
+                                    >
+                                        <Button variant="outline" onClick={() => setSettlingCompany(company)}>
+                                           <FileSpreadsheet className="me-2 h-4 w-4" />
+                                           تسوية عبر شيت
+                                        </Button>
+                                    </CompanySettlementDialog>
                                     {company.totalShipments > 0 && (
                                         <Button variant="secondary" className="w-full" onClick={() => setCompanyToArchive(company)}>
                                             <Archive className="me-2 h-4 w-4" />
@@ -2560,14 +2548,6 @@ const generateShipmentCode = () => {
             })
             .catch(() => toast({ title: 'فشل إرسال الملاحظة', variant: 'destructive' }));
         }}
-      />
-      <CompanySettlementDialog
-        open={isSettlementDialogOpen}
-        onOpenChange={setIsSettlementDialogOpen}
-        company={settlingCompany}
-        allShipments={allShipmentsForStats || []}
-        statuses={statuses || []}
-        onSubmit={handleCompanySettlement}
       />
        {importResult && (
         <ImportProgressDialog
