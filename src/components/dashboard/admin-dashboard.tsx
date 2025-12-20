@@ -1466,56 +1466,50 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
       .finally(() => setCompanyToArchive(null));
   };
   
-  const filteredShipments = React.useMemo(() => {
+ const filteredShipments = React.useMemo(() => {
     if (!allShipmentsForStats) return [];
-  
-    let filteredBySearch = allShipmentsForStats;
-    // Apply main search term first if it exists
+
+    let baseShipments = allShipmentsForStats.filter(s => 
+        !s.isArchivedForCompany && !s.isArchivedForCourier
+    );
+
     if (searchTerm) {
         const lowercasedTerm = searchTerm.toLowerCase();
-        filteredBySearch = allShipmentsForStats.filter((shipment) =>
+        return baseShipments.filter(shipment =>
             String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
             String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
             String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
             String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
             String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
         );
-        // When main search is active, we don't apply other column filters.
-        return filteredBySearch;
     }
   
-    // If no main search term, apply column filters
-    if (columnFilters.length === 0) {
-      return allShipmentsForStats.filter(s => !s.isArchivedForCompany && !s.isArchivedForCourier);
-    }
-  
-    return allShipmentsForStats.filter((shipment) => {
-      // Don't show archived shipments in the main filtered view unless a specific tab is selected for them.
-      if (shipment.isArchivedForCompany || shipment.isArchivedForCourier) {
-        return false;
-      }
-      
-      const dateRangeFilter = columnFilters.find(f => f.id === 'createdAt');
-      const otherFilters = columnFilters.filter(f => f.id !== 'createdAt');
-  
-      if (dateRangeFilter) {
-        const { from, to } = dateRangeFilter.value as DateRange;
-        const createdAt = getSafeDate(shipment.createdAt);
-        if (!createdAt) return false;
-        if (from && createdAt < from) return false;
-        const toDateWithTime = to ? new Date(to.setHours(23, 59, 59, 999)) : null;
-        if (toDateWithTime && createdAt > toDateWithTime) return false;
-      }
-  
-      return otherFilters.every(filter => {
-        const value = (shipment as any)[filter.id];
-        const filterValue = filter.value as string[];
-        if (Array.isArray(filterValue) && filterValue.length > 0) {
-          return filterValue.includes(value);
+    if (columnFilters.length > 0) {
+      return baseShipments.filter((shipment) => {
+        const dateRangeFilter = columnFilters.find(f => f.id === 'createdAt');
+        const otherFilters = columnFilters.filter(f => f.id !== 'createdAt');
+    
+        if (dateRangeFilter) {
+          const { from, to } = dateRangeFilter.value as DateRange;
+          const createdAt = getSafeDate(shipment.createdAt);
+          if (!createdAt) return false;
+          if (from && createdAt < from) return false;
+          const toDateWithTime = to ? new Date(to.setHours(23, 59, 59, 999)) : null;
+          if (toDateWithTime && createdAt > toDateWithTime) return false;
         }
-        return true;
+    
+        return otherFilters.every(filter => {
+          const value = (shipment as any)[filter.id];
+          const filterValue = filter.value as string[];
+          if (Array.isArray(filterValue) && filterValue.length > 0) {
+            return filterValue.includes(value);
+          }
+          return true;
+        });
       });
-    });
+    }
+
+    return baseShipments;
   }, [allShipmentsForStats, searchTerm, columnFilters]);
   
   
@@ -2188,99 +2182,99 @@ const generateShipmentCode = () => {
                 </div>
         </TabsContent>
          <TabsContent value="company-management">
-               <div className="mt-8">
-                <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
-                    <h2 className="text-2xl font-headline font-semibold">إدارة حسابات الشركات</h2>
-                    <div className="flex items-center gap-2">
-                        <div className="relative">
-                            <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                placeholder="ابحث عن شركة..."
-                                value={managementSearchTerm}
-                                onChange={(e) => setManagementSearchTerm(e.target.value)}
-                                className="pr-8 sm:w-[250px]"
-                            />
-                        </div>
-                    </div>
-                </div>
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {filteredCompanyDues.map(company => (
-                             <Card key={company.id} className="flex flex-col">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                                        <Building className="h-4 w-4 text-muted-foreground" />
-                                        {company.name}
-                                    </CardTitle>
-                                    <div className={`text-xl font-bold ${company.netDue >= 0 ? 'text-green-600' : 'text-destructive'}`}>
-                                        {company.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="flex-grow">
-                                    <p className="text-xs text-muted-foreground">
-                                        المبلغ المستحق للدفع للشركة
-                                    </p>
-                                    <div className="mt-4 space-y-2 text-sm">
-                                         <div className="flex justify-between items-center border-b pb-2">
-                                            <span className="flex items-center gap-2 text-muted-foreground">
-                                                <Package className="h-4 w-4" />
-                                                إجمالي الشحنات:
-                                            </span>
-                                            <span className="font-medium">{company.totalShipments}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center pt-2 border-t">
-                                            <span className="flex items-center gap-2 text-muted-foreground">
-                                                <DollarSign className="h-4 w-4" />
-                                                إجمالي التحصيل:
-                                            </span>
-                                            <span className="font-medium">{company.totalRevenue.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                        </div>
-                                          <div className="flex justify-between items-center">
-                                            <span className="flex items-center gap-2 text-muted-foreground">
-                                                <BadgePercent className="h-4 w-4 text-indigo-500" />
-                                                عمولات الشركة:
-                                            </span>
-                                            <span className="font-medium">{company.totalCompanyCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                        </div>
-                                         <div className="flex justify-between items-center border-t pt-2 mt-2">
-                                            <span className="flex items-center gap-2 text-muted-foreground">
-                                                <WalletCards className="h-4 w-4" />
-                                                إجمالي المدفوعات:
-                                            </span>
-                                            <span className="font-medium text-green-700">{company.totalPaidToCompany.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                        </div>
-                                        
-                                        {company.paymentHistory && company.paymentHistory.length > 0 && (
-                                            <Collapsible className="pt-2 text-xs">
-                                                <CollapsibleTrigger asChild>
-                                                    <Button variant="ghost" size="sm" className="flex items-center gap-2 w-full justify-start p-0 h-auto text-xs">
-                                                        <History className="h-3 w-3"/>
-                                                        <span>عرض سجل الدفعات ({company.paymentHistory.length})</span>
-                                                    </Button>
-                                                </CollapsibleTrigger>
-                                                <CollapsibleContent className="space-y-2 mt-2">
-                                                  {company.paymentHistory.map(payment => (
-                                                      <div key={payment.id} className="flex justify-between items-center text-muted-foreground p-2 rounded-md bg-muted/50">
-                                                          <div>
-                                                              <span className="font-semibold">{payment.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
-                                                              <span className="mx-2">-</span>
-                                                              <span>{new Date(payment.paymentDate?.toDate?.() || Date.now()).toLocaleDateString('ar-EG')}</span>
-                                                          </div>
-                                                          <div className="flex items-center">
-                                                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openCompanyPaymentForm(company, payment)}>
-                                                                  <Pencil className="h-3 w-3" />
-                                                              </Button>
-                                                              <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setCompanyPaymentToDelete(payment)}>
-                                                                  <Trash2 className="h-3 w-3" />
-                                                              </Button>
-                                                          </div>
-                                                      </div>
-                                                  ))}
-                                                </CollapsibleContent>
-                                            </Collapsible>
-                                        )}
-                                    </div>
-                                </CardContent>
-                                <CardFooter className="flex flex-col items-stretch gap-2">
+          <div className="mt-8">
+              <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
+                  <h2 className="text-2xl font-headline font-semibold">إدارة حسابات الشركات</h2>
+                  <div className="flex items-center gap-2">
+                      <div className="relative">
+                          <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                              placeholder="ابحث عن شركة..."
+                              value={managementSearchTerm}
+                              onChange={(e) => setManagementSearchTerm(e.target.value)}
+                              className="pr-8 sm:w-[250px]"
+                          />
+                      </div>
+                  </div>
+              </div>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {filteredCompanyDues.map(company => (
+                           <Card key={company.id} className="flex flex-col">
+                              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                      <Building className="h-4 w-4 text-muted-foreground" />
+                                      {company.name}
+                                  </CardTitle>
+                                  <div className={`text-xl font-bold ${company.netDue >= 0 ? 'text-green-600' : 'text-destructive'}`}>
+                                      {company.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                                  </div>
+                              </CardHeader>
+                              <CardContent className="flex-grow">
+                                  <p className="text-xs text-muted-foreground">
+                                      المبلغ المستحق للدفع للشركة
+                                  </p>
+                                  <div className="mt-4 space-y-2 text-sm">
+                                       <div className="flex justify-between items-center border-b pb-2">
+                                          <span className="flex items-center gap-2 text-muted-foreground">
+                                              <Package className="h-4 w-4" />
+                                              إجمالي الشحنات:
+                                          </span>
+                                          <span className="font-medium">{company.totalShipments}</span>
+                                      </div>
+                                      <div className="flex justify-between items-center pt-2 border-t">
+                                          <span className="flex items-center gap-2 text-muted-foreground">
+                                              <DollarSign className="h-4 w-4" />
+                                              إجمالي التحصيل:
+                                          </span>
+                                          <span className="font-medium">{company.totalRevenue.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                      </div>
+                                        <div className="flex justify-between items-center">
+                                          <span className="flex items-center gap-2 text-muted-foreground">
+                                              <BadgePercent className="h-4 w-4 text-indigo-500" />
+                                              عمولات الشركة:
+                                          </span>
+                                          <span className="font-medium">{company.totalCompanyCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                      </div>
+                                       <div className="flex justify-between items-center border-t pt-2 mt-2">
+                                          <span className="flex items-center gap-2 text-muted-foreground">
+                                              <WalletCards className="h-4 w-4" />
+                                              إجمالي المدفوعات:
+                                          </span>
+                                          <span className="font-medium text-green-700">{company.totalPaidToCompany.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                      </div>
+                                      
+                                      {company.paymentHistory && company.paymentHistory.length > 0 && (
+                                          <Collapsible className="pt-2 text-xs">
+                                              <CollapsibleTrigger asChild>
+                                                  <Button variant="ghost" size="sm" className="flex items-center gap-2 w-full justify-start p-0 h-auto text-xs">
+                                                      <History className="h-3 w-3"/>
+                                                      <span>عرض سجل الدفعات ({company.paymentHistory.length})</span>
+                                                  </Button>
+                                              </CollapsibleTrigger>
+                                              <CollapsibleContent className="space-y-2 mt-2">
+                                                {company.paymentHistory.map(payment => (
+                                                    <div key={payment.id} className="flex justify-between items-center text-muted-foreground p-2 rounded-md bg-muted/50">
+                                                        <div>
+                                                            <span className="font-semibold">{payment.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
+                                                            <span className="mx-2">-</span>
+                                                            <span>{new Date(payment.paymentDate?.toDate?.() || Date.now()).toLocaleDateString('ar-EG')}</span>
+                                                        </div>
+                                                        <div className="flex items-center">
+                                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openCompanyPaymentForm(company, payment)}>
+                                                                <Pencil className="h-3 w-3" />
+                                                            </Button>
+                                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setCompanyPaymentToDelete(payment)}>
+                                                                <Trash2 className="h-3 w-3" />
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                              </CollapsibleContent>
+                                          </Collapsible>
+                                      )}
+                                  </div>
+                              </CardContent>
+                              <CardFooter className="flex flex-col items-stretch gap-2">
                                     <CompanySettlementDialog
                                         company={company}
                                         allShipments={allShipmentsForStats || []}
@@ -2293,21 +2287,21 @@ const generateShipmentCode = () => {
                                             تسوية عبر شيت
                                         </Button>
                                     </CompanySettlementDialog>
-                                    <Button variant="outline" className="w-full" onClick={() => openCompanyPaymentForm(company)} disabled={company.netDue <= 0}>
-                                        <Banknote className="me-2 h-4 w-4" />
-                                        تسوية يدوية
-                                    </Button>
-                                    {company.totalShipments > 0 && (
-                                        <Button variant="secondary" className="w-full" onClick={() => setCompanyToArchive(company)}>
-                                            <Archive className="me-2 h-4 w-4" />
-                                            أرشفة وتسوية الكل
-                                        </Button>
-                                    )}
-                                </CardFooter>
-                            </Card>
-                        ))}
-                    </div>
-                </div>
+                                  <Button variant="outline" className="w-full" onClick={() => openCompanyPaymentForm(company)} disabled={company.netDue <= 0}>
+                                      <Banknote className="me-2 h-4 w-4" />
+                                      تسوية يدوية
+                                  </Button>
+                                  {company.totalShipments > 0 && (
+                                      <Button variant="secondary" className="w-full" onClick={() => setCompanyToArchive(company)}>
+                                          <Archive className="me-2 h-4 w-4" />
+                                          أرشفة وتسوية الكل
+                                      </Button>
+                                  )}
+                              </CardFooter>
+                          </Card>
+                      ))}
+                  </div>
+              </div>
         </TabsContent>
         <TabsContent value="account-statements">
             <p className="p-4 text-center text-muted-foreground">يتم تحميل كشوفات الحسابات...</p>

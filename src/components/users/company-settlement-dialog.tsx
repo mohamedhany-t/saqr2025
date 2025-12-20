@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { read, utils } from 'xlsx';
 import {
   Dialog,
@@ -10,24 +10,27 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogTrigger,
+  DialogClose,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import type { Company, Shipment, ShipmentStatusConfig } from '@/lib/types';
+import type { Company, Shipment, User, ShipmentStatusConfig } from '@/lib/types';
 import { useDropzone } from 'react-dropzone';
-import { UploadCloud, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import { UploadCloud, CheckCircle, AlertTriangle, Loader2, FileSpreadsheet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { ScrollArea } from '../ui/scroll-area';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { useFirebaseApp, useUser } from '@/firebase';
+import { useFirebaseApp } from '@/firebase';
 
 
 interface CompanySettlementDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  company?: Company;
+  company: Company;
   allShipments: Shipment[];
+  adminUser: User;
   statuses: ShipmentStatusConfig[];
+  onSettlementComplete: () => void;
+  children: React.ReactNode;
 }
 
 interface SheetAnalysis {
@@ -35,107 +38,122 @@ interface SheetAnalysis {
     excludedShipments: { code: string, reason: string }[];
     totalInSheet: number;
     netDue: number;
+    fileName: string;
 }
 
 const currencyFormatter = (amount: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(amount);
 
-export function CompanySettlementDialog({ open, onOpenChange, company, allShipments, statuses }: CompanySettlementDialogProps) {
+export function CompanySettlementDialog({
+    company,
+    allShipments,
+    adminUser,
+    statuses,
+    onSettlementComplete,
+    children
+}: CompanySettlementDialogProps) {
+  const [open, setOpen] = useState(false);
   const [analysis, setAnalysis] = useState<SheetAnalysis | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [fileName, setFileName] = useState('');
   const { toast } = useToast();
   const app = useFirebaseApp();
-  const { user: authUser } = useUser();
 
   const companyShipments = useMemo(() => {
     if (!company) return [];
     return allShipments.filter(s => s.companyId === company.id);
   }, [allShipments, company]);
 
-  const onDrop = async (acceptedFiles: File[]) => {
-    if (!acceptedFiles.length || !statuses) return;
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (!file || !statuses) return;
+
     setIsProcessing(true);
     setAnalysis(null);
-    setFileName(acceptedFiles[0].name);
 
-    const file = acceptedFiles[0];
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        try {
-            const data = e.target?.result;
-            const workbook = read(data, { type: 'binary' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const json = utils.sheet_to_json<any>(worksheet, { header: 1 });
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = read(data);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      
+      let jsonData: any[][] = utils.sheet_to_json(worksheet, { header: 1, blankrows: false });
 
-            let headerRowIndex = -1;
-            let codeColIndex = -1;
-            for (let i = 0; i < json.length; i++) {
-                const row = json[i];
-                if (!Array.isArray(row)) continue;
-                const codeIndex = row.findIndex((cell: any) => String(cell).toLowerCase().includes('كود الشحنة') || String(cell).toLowerCase().includes('رقم الشحنة'));
-                if (codeIndex !== -1) {
-                    headerRowIndex = i;
-                    codeColIndex = codeIndex;
-                    break;
-                }
-            }
-
-            if (codeColIndex === -1) throw new Error("لم يتم العثور على عمود يحتوي على 'كود الشحنة' أو 'رقم الشحنة'");
-            
-            const sheetCodes = [...new Set(json
-                .slice(headerRowIndex + 1)
-                .map(row => String(row[codeColIndex] || '').trim())
-                .filter(Boolean))];
-
-            const financialStatuses = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
-
-            const shipmentsToSettle: Shipment[] = [];
-            const excludedShipments: { code: string, reason: string }[] = [];
-            const processedSystemCodes = new Set<string>();
-
-            sheetCodes.forEach(code => {
-                const shipment = companyShipments.find(s => s.shipmentCode === code || s.orderNumber === code);
-                
-                if (!shipment) {
-                    excludedShipments.push({ code, reason: "غير موجودة بالنظام" });
-                    return;
-                }
-                
-                if (processedSystemCodes.has(shipment.shipmentCode)) return;
-
-                if (shipment.isArchivedForCompany) {
-                    excludedShipments.push({ code, reason: "تمت أرشفة هذه الشحنة من قبل" });
-                } else if (financialStatuses.includes(shipment.status)) {
-                    shipmentsToSettle.push(shipment);
-                } else {
-                    const statusLabel = statuses.find(s => s.id === shipment.status)?.label || shipment.status;
-                    excludedShipments.push({ code, reason: `حالة غير نهائية (${statusLabel})` });
-                }
-                processedSystemCodes.add(shipment.shipmentCode);
-            });
-
-
-            const netDue = shipmentsToSettle.reduce((acc, s) => {
-                return acc + ((s.paidAmount || 0) - (s.companyCommission || 0));
-            }, 0);
-
-            setAnalysis({ 
-                shipmentsToSettle, 
-                excludedShipments,
-                totalInSheet: sheetCodes.length,
-                netDue 
-            });
-            
-        } catch (error: any) {
-            toast({ title: 'خطأ في معالجة الملف', description: error.message, variant: 'destructive' });
-        } finally {
-            setIsProcessing(false);
+      const headerKeywords = ['رقم الشحنة', 'كود الشحنة'];
+      let headerRowIndex = -1;
+      let codeColIndex = -1;
+      
+      for(let i = 0; i < jsonData.length; i++) {
+        const row = jsonData[i] as string[];
+        if(!Array.isArray(row)) continue;
+        const index = row.findIndex(cell => typeof cell === 'string' && headerKeywords.some(kw => cell.includes(kw)));
+        if (index !== -1) {
+          headerRowIndex = i;
+          codeColIndex = index;
+          break;
         }
-    };
-    reader.readAsBinaryString(file);
-  };
+      }
+      
+      if (headerRowIndex === -1 || codeColIndex === -1) {
+          throw new Error("لم يتم العثور على صف العناوين في الملف. تأكد من وجود عمود 'رقم الشحنة' أو 'كود الشحنة'.");
+      }
+      
+      const dataRows = jsonData.slice(headerRowIndex + 1);
+      const sheetCodes = new Set(dataRows.map(row => String(row[codeColIndex] || '').trim()).filter(Boolean));
+
+      if (sheetCodes.size === 0) {
+        throw new Error("لم يتم العثور على شحنات صالحة في الملف.");
+      }
+
+      const financialStatuses = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
+      
+      const shipmentsToSettle: Shipment[] = [];
+      const excludedShipments: { code: string; reason: string; }[] = [];
+      const processedSystemCodes = new Set<string>();
+
+      sheetCodes.forEach(code => {
+        const shipment = companyShipments.find(s => s.shipmentCode === code || s.orderNumber === code);
+        
+        if (!shipment) {
+            excludedShipments.push({ code, reason: "غير موجودة بالنظام" });
+            return;
+        }
+        
+        const uniqueKey = shipment.shipmentCode || shipment.orderNumber;
+        if (processedSystemCodes.has(uniqueKey)) return;
+
+        if (shipment.isArchivedForCompany) {
+            excludedShipments.push({ code, reason: "تمت أرشفة هذه الشحنة من قبل" });
+        } else if (financialStatuses.includes(shipment.status)) {
+            shipmentsToSettle.push(shipment);
+        } else {
+            const statusLabel = statuses.find(s => s.id === shipment.status)?.label || shipment.status;
+            excludedShipments.push({ code, reason: `حالة غير نهائية (${statusLabel})` });
+        }
+        processedSystemCodes.add(uniqueKey);
+      });
+
+
+      const netDue = shipmentsToSettle.reduce((acc, s) => {
+          return acc + ((s.paidAmount || 0) - (s.companyCommission || 0));
+      }, 0);
+
+      setAnalysis({ 
+          shipmentsToSettle, 
+          excludedShipments,
+          totalInSheet: sheetCodes.size,
+          netDue,
+          fileName: file.name
+      });
+        
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "خطأ في معالجة الملف",
+        description: error.message || "حدث خطأ غير متوقع."
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [companyShipments, toast, statuses]);
   
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -144,7 +162,7 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
   });
 
   const handleSubmit = async () => {
-    if (!company || !analysis || !app || !authUser) {
+    if (!company || !analysis || !app || !adminUser) {
          toast({ title: 'خطأ', description: 'بيانات غير مكتملة، لا يمكن إتمام العملية.', variant: 'destructive' });
          return;
     }
@@ -154,21 +172,25 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
     
     try {
         const functions = getFunctions(app);
-        const executeCompanySettlement = httpsCallable(functions, 'executeCompanySettlement');
+        const executeSettlement = httpsCallable(functions, 'executeCompanySettlement');
         
-        const result: any = await executeCompanySettlement({
-            companyId: company.id,
-            paymentAmount: analysis.netDue,
-            shipmentIdsToArchive: analysis.shipmentsToSettle.map(s => s.id),
-            settlementNote: `تسوية عبر شيت: ${fileName}`,
-            adminId: authUser.uid,
-        });
+        const dataToSend = {
+          companyId: company.id,
+          paymentAmount: analysis.netDue,
+          shipmentIdsToArchive: analysis.shipmentsToSettle.map(s => s.id),
+          settlementNote: `تسوية عبر شيت: ${analysis.fileName}`,
+          adminId: adminUser.id
+        };
 
-        if (result.data.success) {
-            toast({ title: "نجاح", description: result.data.message });
-            onOpenChange(false);
+        const result = await executeSettlement(dataToSend);
+        const resultData = result.data as { success: boolean, message?: string, error?: string };
+
+        if (resultData.success) {
+            toast({ title: "نجاح", description: resultData.message });
+            setOpen(false);
+            onSettlementComplete();
         } else {
-            throw new Error(result.data.error || 'فشل غير معروف من الخادم');
+            throw new Error(resultData.error || 'فشل غير معروف من الخادم');
         }
     } catch (error: any) {
         console.error("Error calling settlement function:", error);
@@ -178,21 +200,24 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
     }
   };
   
-  useEffect(() => {
-    if (!open) {
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (!isOpen) {
       setTimeout(() => {
         setAnalysis(null);
         setIsProcessing(false);
         setIsSubmitting(false);
-        setFileName('');
       }, 300);
     }
-  }, [open]);
+  };
 
   if (!company) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        {children}
+      </DialogTrigger>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col" dir="rtl">
         <DialogHeader>
           <DialogTitle>تسوية حساب شركة: {company.name}</DialogTitle>
@@ -223,7 +248,7 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
                 {analysis && (
                     <div className="space-y-6">
                          <div>
-                             <h4 className="font-semibold text-center mb-2">ملخص تحليل الملف: <span className="font-mono text-sm">{fileName}</span></h4>
+                             <h4 className="font-semibold text-center mb-2">ملخص تحليل الملف: <span className="font-mono text-sm">{analysis.fileName}</span></h4>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                                 <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
                                     <p className="text-2xl font-bold text-gray-700 dark:text-gray-300">{analysis.totalInSheet}</p>
@@ -305,9 +330,9 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
             </div>
         </ScrollArea>
         <DialogFooter className="pt-4 border-t">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
-          <Button onClick={handleSubmit} disabled={!analysis || analysis.shipmentsToSettle.length === 0 || isSubmitting}>
-            {isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+          <Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button>
+          <Button onClick={handleSubmit} disabled={!analysis || analysis.shipmentsToSettle.length === 0 || isSubmitting || isProcessing}>
+            {isSubmitting || isProcessing ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : null}
             تأكيد التسوية والأرشفة
           </Button>
         </DialogFooter>
