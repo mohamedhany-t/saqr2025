@@ -19,6 +19,8 @@ import type { Company, Shipment } from '@/lib/types';
 import { useDropzone } from 'react-dropzone';
 import { UploadCloud, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { ScrollArea } from '../ui/scroll-area';
 
 interface CompanySettlementDialogProps {
   open: boolean;
@@ -111,8 +113,8 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
 
   const handleSubmit = () => {
     if (!company || !analysis || analysis.foundShipments.length === 0) return;
-    const shipmentIdsToArchive = analysis.foundShipments.map(s => s.id);
-    onSubmit(company, shipmentIdsToArchive, paymentAmount, notes);
+    const shipmentCodes = analysis.foundShipments.map(s => s.shipmentCode);
+    onSubmit(company, shipmentCodes, paymentAmount, notes);
     onOpenChange(false);
   };
   
@@ -132,11 +134,11 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl" dir="rtl">
+      <DialogContent className="sm:max-w-4xl" dir="rtl">
         <DialogHeader>
           <DialogTitle>تسوية حساب شركة: {company.name}</DialogTitle>
           <DialogDescription>
-            ارفع شيت التسوية لحساب المبالغ المستحقة وأرشفة الشحنات المضمنة تلقائيًا.
+            ارفع شيت التسوية (مثل شيت التوريد) لحساب المبالغ المستحقة وأرشفة الشحنات المضمنة فيه تلقائيًا.
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 space-y-4">
@@ -161,43 +163,93 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
 
             {analysis && (
                 <div className="p-4 bg-muted/50 rounded-lg space-y-3">
-                    <h4 className="font-semibold text-center">نتائج تحليل الشيت</h4>
-                    <div className="flex justify-around">
-                        <div className="flex items-center gap-2 text-green-600">
-                            <CheckCircle className="h-5 w-5" />
-                            <span>{analysis.foundShipments.length} شحنة مطابقة</span>
+                    <h4 className="font-semibold text-center mb-4 text-lg">ملخص تحليل الملف</h4>
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                        <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                            <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{analysis.foundShipments.length + analysis.notFoundCodes.length}</p>
+                            <p className="text-sm text-blue-600 dark:text-blue-500">شحنة في الشيت</p>
                         </div>
-                         <div className="flex items-center gap-2 text-red-600">
-                            <AlertTriangle className="h-5 w-5" />
-                            <span>{analysis.notFoundCodes.length} كود غير مطابق</span>
+                        <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                            <p className="text-2xl font-bold text-green-700 dark:text-green-400">{analysis.foundShipments.length}</p>
+                            <p className="text-sm text-green-600 dark:text-green-500">شحنة سيتم تسويتها</p>
+                        </div>
+                        <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                            <p className="text-2xl font-bold text-red-700 dark:text-red-400">{analysis.notFoundCodes.length}</p>
+                            <p className="text-sm text-red-600 dark:text-red-500">شحنة تم استبعادها</p>
                         </div>
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="payment-amount">المبلغ المستحق للدفع (محسوب من الشيت)</Label>
+                    <div className="text-center p-4 bg-primary/10 rounded-lg mt-4">
+                        <p className="text-muted-foreground">صافي المبلغ للتسوية</p>
+                        <p className="text-3xl font-bold text-primary">{analysis.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</p>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4 mt-4">
+                        <div>
+                             <h5 className="font-semibold mb-2">معاينة الشحنات التي ستتم تسويتها:</h5>
+                             <ScrollArea className="h-48 border rounded-md bg-background">
+                                <Table>
+                                    <TableHeader><TableRow><TableHead>كود الشحنة</TableHead><TableHead>العميل</TableHead><TableHead>الصافي</TableHead></TableRow></TableHeader>
+                                    <TableBody>
+                                        {analysis.foundShipments.map(s => (
+                                            <TableRow key={s.id}>
+                                                <TableCell>{s.shipmentCode}</TableCell>
+                                                <TableCell>{s.recipientName}</TableCell>
+                                                <TableCell>{((s.paidAmount || 0) - (s.companyCommission || 0)).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                             </ScrollArea>
+                        </div>
+                         <div>
+                            <h5 className="font-semibold mb-2">الشحنات المستبعدة وسبب الاستبعاد:</h5>
+                             <ScrollArea className="h-48 border rounded-md bg-background">
+                                <Table>
+                                    <TableHeader><TableRow><TableHead>كود الشحنة</TableHead><TableHead>السبب</TableHead></TableRow></TableHeader>
+                                    <TableBody>
+                                        {analysis.notFoundCodes.map(code => (
+                                            <TableRow key={code}>
+                                                <TableCell>{code}</TableCell>
+                                                <TableCell>غير موجودة بالنظام أو مؤرشفة</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                             </ScrollArea>
+                        </div>
+                    </div>
+
+                    <div className="mt-4 p-4 border-t border-dashed">
+                        <Label htmlFor="payment-amount">مبلغ الدفعة للتسجيل (قابل للتعديل)</Label>
                         <Input
                             id="payment-amount"
                             type="number"
                             value={paymentAmount}
-                            onChange={(e) => setPaymentAmount(parseFloat(e.target.value))}
-                            className="text-lg font-bold text-center"
+                            onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)}
+                            className="text-lg font-bold text-center mt-1"
                         />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="notes">ملاحظات التسوية</Label>
+                        <Label htmlFor="notes" className="mt-2 block">ملاحظات التسوية</Label>
                         <Textarea
                             id="notes"
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
                             placeholder="مثال: تسوية شهر يوليو، دفعة تحت الحساب..."
+                            className="mt-1"
                         />
                     </div>
+                </div>
+            )}
+            {analysis && (
+                <div className="mt-4 p-3 bg-yellow-100 border-r-4 border-yellow-500 text-yellow-800 rounded-r-lg">
+                    <h4 className="font-bold flex items-center gap-2"><AlertTriangle/> إجراء نهائي</h4>
+                    <p className="text-sm">سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ الصافي وأرشفة جميع الشحنات التي تمت مطابقتها لهذه الشركة. لا يمكن التراجع عن هذا الإجراء.</p>
                 </div>
             )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
           <Button onClick={handleSubmit} disabled={!analysis || analysis.foundShipments.length === 0}>
-            تنفيذ التسوية والأرشفة
+            تأكيد التسوية والأرشفة
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -121,7 +121,7 @@ const MobileShipmentsView = ({
         return [...shipments].sort((a, b) => {
             const timeA = getSafeDate(a.updatedAt)?.getTime() || 0;
             const timeB = getSafeDate(b.updatedAt)?.getTime() || 0;
-            return timeB - timeA;
+            return timeB - a;
         });
     }, [shipments]);
     
@@ -2201,16 +2201,6 @@ const generateShipmentCode = () => {
                 <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
                     <h2 className="text-2xl font-headline font-semibold">إدارة حسابات الشركات</h2>
                     <div className="flex items-center gap-2">
-                         <Button variant="outline" onClick={() => {
-                              const company = companyDues.find(c => c.id === 'YOUR_TARGET_COMPANY_ID'); // Replace with logic to get company
-                              if (company) {
-                                  setSettlingCompany(company);
-                                  setIsSettlementDialogOpen(true);
-                              }
-                         }}>
-                           <GitCompareArrows className="me-2 h-4 w-4" />
-                           تسوية عبر شيت
-                        </Button>
                         <div className="relative">
                             <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input
