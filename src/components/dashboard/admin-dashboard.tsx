@@ -1465,28 +1465,27 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
       .finally(() => setCompanyToArchive(null));
   };
 
-const filteredShipments = React.useMemo(() => {
+  const filteredShipments = React.useMemo(() => {
     if (!allShipmentsForStats) return [];
+    
+    let baseShipments = allShipmentsForStats;
 
-    let baseShipments = allShipmentsForStats.filter(s => !s.isArchivedForCompany && !s.isArchivedForCourier);
-
-    // If there is a search term, prioritize it over column filters.
     if (searchTerm) {
         const lowercasedTerm = searchTerm.toLowerCase();
-        return baseShipments.filter((shipment) =>
+        return baseShipments.filter(shipment => 
             String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
             String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
             String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm)
+            String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
         );
     }
-
-    // If no search term, apply column filters.
+    
     if (columnFilters.length > 0) {
-        return baseShipments.filter((shipment) => {
+        baseShipments = baseShipments.filter(shipment => {
             const addressFilter = columnFilters.find(f => f.id === 'address');
             const otherFilters = columnFilters.filter(f => f.id !== 'address');
-            
+
             if (addressFilter) {
                 const searchTerms = (addressFilter.value as string[]) || [];
                 const addressValue = String(shipment.address || '').toLowerCase();
@@ -1517,7 +1516,7 @@ const filteredShipments = React.useMemo(() => {
         });
     }
 
-    return baseShipments;
+    return baseShipments.filter(s => !s.isArchivedForCompany && !s.isArchivedForCourier);
 }, [allShipmentsForStats, searchTerm, columnFilters]);
   
   
