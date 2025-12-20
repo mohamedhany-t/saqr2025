@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -37,6 +36,8 @@ interface SheetAnalysis {
     netDue: number;
 }
 
+const currencyFormatter = (amount: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(amount);
+
 export function CompanySettlementDialog({ open, onOpenChange, company, allShipments, statuses }: CompanySettlementDialogProps) {
   const [analysis, setAnalysis] = useState<SheetAnalysis | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,7 +49,7 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
 
   const companyShipments = useMemo(() => {
     if (!company) return [];
-    // We fetch ALL shipments for the company, including archived ones.
+    // We fetch ALL shipments for the company to check for archived ones too.
     return allShipments.filter(s => s.companyId === company.id);
   }, [allShipments, company]);
 
@@ -85,18 +86,20 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
             
             const sheetCodes = json
                 .slice(headerRowIndex + 1)
-                .map(row => String(row[codeColIndex]).trim())
+                .map(row => String(row[codeColIndex] || '').trim())
                 .filter(Boolean);
 
             const financialStatuses = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
 
             const shipmentsToSettle: Shipment[] = [];
             const excludedShipments: { code: string, reason: string }[] = [];
+            const processedCodes = new Set<string>();
 
             sheetCodes.forEach(code => {
-                const shipment = companyShipments.find(s => s.shipmentCode === code);
+                if (processedCodes.has(code)) return;
+                const shipment = companyShipments.find(s => s.shipmentCode === code || s.orderNumber === code);
                 if (!shipment) {
-                    excludedShipments.push({ code, reason: "غير موجودة بالنظام" });
+                    excludedShipments.push({ code, reason: "غير موجودة في النظام" });
                 } else if (shipment.isArchivedForCompany) {
                     excludedShipments.push({ code, reason: "تمت أرشفة هذه الشحنة من قبل" });
                 } else if (financialStatuses.includes(shipment.status)) {
@@ -105,6 +108,7 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
                     const statusLabel = statuses.find(s => s.id === shipment.status)?.label || shipment.status;
                     excludedShipments.push({ code, reason: `حالة غير نهائية (${statusLabel})` });
                 }
+                processedCodes.add(code);
             });
 
             const netDue = shipmentsToSettle.reduce((acc, s) => {
@@ -151,7 +155,6 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
             paymentAmount: analysis.netDue,
             shipmentIdsToArchive: analysis.shipmentsToSettle.map(s => s.id),
             settlementNote: `تسوية عبر شيت: ${fileName}`,
-            adminId: authUser.uid,
         });
 
         if (result.data.success) {
@@ -191,108 +194,108 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="flex-1 -mx-6">
-        <div className="py-4 px-6 space-y-4">
-           {!analysis && <div
-                {...getRootProps()}
-                className={`p-8 border-2 border-dashed rounded-lg text-center transition-colors cursor-pointer ${isDragActive ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}
-            >
-                <input {...getInputProps()} />
-                {isProcessing ? (
-                    <div className="flex flex-col items-center gap-2">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <p>جاري التحليل...</p>
-                    </div>
-                ) : (
-                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                        <UploadCloud className="h-8 w-8" />
-                        <p>اسحب وأفلت شيت التسوية هنا، أو انقر للاختيار</p>
-                    </div>
-                )}
-            </div>}
+            <div className="py-4 px-6 space-y-4">
+            {!analysis && <div
+                    {...getRootProps()}
+                    className={`p-8 border-2 border-dashed rounded-lg text-center transition-colors cursor-pointer ${isDragActive ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}
+                >
+                    <input {...getInputProps()} />
+                    {isProcessing ? (
+                        <div className="flex flex-col items-center gap-2">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            <p>جاري التحليل...</p>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                            <UploadCloud className="h-8 w-8" />
+                            <p>اسحب وأفلت شيت التسوية هنا، أو انقر للاختيار</p>
+                        </div>
+                    )}
+                </div>}
 
-            {analysis && (
-                <div className="p-4 bg-muted/50 rounded-lg space-y-4">
-                    <h4 className="font-semibold text-center mb-2">ملخص تحليل الملف: <span className="font-mono text-sm">{fileName}</span></h4>
-                    <div className="grid grid-cols-4 gap-4 text-center">
-                        <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                            <p className="text-2xl font-bold text-gray-700 dark:text-gray-300">{analysis.totalInSheet}</p>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">شحنة في الشيت</p>
-                        </div>
-                        <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                            <p className="text-2xl font-bold text-green-700 dark:text-green-400">{analysis.shipmentsToSettle.length}</p>
-                            <p className="text-sm text-green-600 dark:text-green-500">شحنة ستتم تسويتها</p>
-                        </div>
-                        <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                            <p className="text-2xl font-bold text-red-700 dark:text-red-400">{analysis.excludedShipments.length}</p>
-                            <p className="text-sm text-red-600 dark:text-red-500">شحنة تم استبعادها</p>
-                        </div>
-                         <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                            <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{analysis.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</p>
-                            <p className="text-sm text-blue-600 dark:text-blue-500">صافي المبلغ للتسوية</p>
-                        </div>
-                    </div>
+                {analysis && (
+                    <div className="space-y-6">
+                         <div>
+                             <h4 className="font-semibold text-center mb-2">ملخص تحليل الملف: <span className="font-mono text-sm">{fileName}</span></h4>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                                <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                                    <p className="text-2xl font-bold text-gray-700 dark:text-gray-300">{analysis.totalInSheet}</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">شحنة في الشيت</p>
+                                </div>
+                                <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                                    <p className="text-2xl font-bold text-green-700 dark:text-green-400">{analysis.shipmentsToSettle.length}</p>
+                                    <p className="text-sm text-green-600 dark:text-green-500">شحنة ستتم تسويتها</p>
+                                </div>
+                                <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                                    <p className="text-2xl font-bold text-red-700 dark:text-red-400">{analysis.excludedShipments.length}</p>
+                                    <p className="text-sm text-red-600 dark:text-red-500">شحنة تم استبعادها</p>
+                                </div>
+                                <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                                    <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{currencyFormatter(analysis.netDue)}</p>
+                                    <p className="text-sm text-blue-600 dark:text-blue-500">صافي المبلغ للتسوية</p>
+                                </div>
+                            </div>
+                         </div>
 
-                    <div className="pt-4">
-                        <h5 className="font-semibold mb-2">معاينة الشحنات التي ستتم تسويتها:</h5>
-                         <ScrollArea className="h-40 border rounded-md bg-background">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>كود الشحنة</TableHead>
-                                        <TableHead>العميل</TableHead>
-                                        <TableHead>الإجمالي</TableHead>
-                                        <TableHead>المدفوع</TableHead>
-                                        <TableHead>عمولة الشركة</TableHead>
-                                        <TableHead>صافي المستحق</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {analysis.shipmentsToSettle.map(s => (
-                                        <TableRow key={s.id}>
-                                            <TableCell>{s.shipmentCode}</TableCell>
-                                            <TableCell>{s.recipientName}</TableCell>
-                                            <TableCell>{(s.totalAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                            <TableCell>{(s.paidAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                            <TableCell>{(s.companyCommission || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                            <TableCell className="font-bold">{((s.paidAmount || 0) - (s.companyCommission || 0)).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                        <div className="pt-4">
+                            <h5 className="font-semibold mb-2 text-green-700">معاينة الشحنات التي ستتم تسويتها:</h5>
+                            <div className="border rounded-md bg-background">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>كود الشحنة</TableHead>
+                                            <TableHead>العميل</TableHead>
+                                            <TableHead>الإجمالي</TableHead>
+                                            <TableHead>المدفوع</TableHead>
+                                            <TableHead>عمولة الشركة</TableHead>
+                                            <TableHead>صافي المستحق</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                         </ScrollArea>
-                    </div>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {analysis.shipmentsToSettle.map(s => (
+                                            <TableRow key={s.id}>
+                                                <TableCell className="font-mono">{s.orderNumber}</TableCell>
+                                                <TableCell>{s.recipientName}</TableCell>
+                                                <TableCell>{currencyFormatter(s.totalAmount || 0)}</TableCell>
+                                                <TableCell>{currencyFormatter(s.paidAmount || 0)}</TableCell>
+                                                <TableCell className="text-destructive">{currencyFormatter(s.companyCommission || 0)}</TableCell>
+                                                <TableCell className="font-bold">{currencyFormatter((s.paidAmount || 0) - (s.companyCommission || 0))}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
 
-                    {analysis.excludedShipments.length > 0 && <div className="pt-4">
-                        <h5 className="font-semibold mb-2">الشحنات المستبعدة وسبب الاستبعاد:</h5>
-                         <ScrollArea className="h-48 border rounded-md bg-background">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>كود الشحنة</TableHead>
-                                        <TableHead>السبب</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {analysis.excludedShipments.map((item, index) => (
-                                        <TableRow key={index}>
-                                            <TableCell>{item.code}</TableCell>
-                                            <TableCell>{item.reason}</TableCell>
+                        {analysis.excludedShipments.length > 0 && <div className="pt-4">
+                            <h5 className="font-semibold mb-2 text-orange-600">الشحنات المستبعدة وسبب الاستبعاد:</h5>
+                            <div className="border rounded-md bg-background">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>كود الشحنة</TableHead>
+                                            <TableHead>السبب</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                         </ScrollArea>
-                    </div>}
+                                    </TableHeader>
+                                    <TableBody>
+                                        {analysis.excludedShipments.map((item, index) => (
+                                            <TableRow key={index}>
+                                                <TableCell className="font-mono">{item.code}</TableCell>
+                                                <TableCell>{item.reason}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>}
 
-                    <div className="mt-4 p-4 border-t border-dashed">
-                        <div className="p-3 bg-yellow-100 border-r-4 border-yellow-500 text-yellow-800 rounded-r-lg">
+                        <div className="mt-4 p-3 bg-yellow-100 border-r-4 border-yellow-500 text-yellow-800 rounded-r-lg">
                             <h4 className="font-bold flex items-center gap-2"><AlertTriangle/> إجراء نهائي</h4>
                             <p className="text-sm">سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ الصافي وأرشفة جميع الشحنات التي تمت مطابقتها لهذه الشركة. لا يمكن التراجع عن هذا الإجراء.</p>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )}
+            </div>
         </ScrollArea>
         <DialogFooter className="pt-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
