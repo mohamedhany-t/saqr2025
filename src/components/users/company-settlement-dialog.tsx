@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -49,7 +50,6 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
 
   const companyShipments = useMemo(() => {
     if (!company) return [];
-    // We fetch ALL shipments for the company to check for archived ones too.
     return allShipments.filter(s => s.companyId === company.id);
   }, [allShipments, company]);
 
@@ -84,23 +84,28 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
 
             if (codeColIndex === -1) throw new Error("لم يتم العثور على عمود يحتوي على 'كود الشحنة' أو 'رقم الشحنة'");
             
-            const sheetCodes = json
+            const sheetCodes = [...new Set(json
                 .slice(headerRowIndex + 1)
                 .map(row => String(row[codeColIndex] || '').trim())
-                .filter(Boolean);
+                .filter(Boolean))];
 
             const financialStatuses = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
 
             const shipmentsToSettle: Shipment[] = [];
             const excludedShipments: { code: string, reason: string }[] = [];
-            const processedCodes = new Set<string>();
+            const processedSystemCodes = new Set<string>();
 
             sheetCodes.forEach(code => {
-                if (processedCodes.has(code)) return;
                 const shipment = companyShipments.find(s => s.shipmentCode === code || s.orderNumber === code);
+                
                 if (!shipment) {
-                    excludedShipments.push({ code, reason: "غير موجودة في النظام" });
-                } else if (shipment.isArchivedForCompany) {
+                    excludedShipments.push({ code, reason: "غير موجودة بالنظام" });
+                    return;
+                }
+                
+                if (processedSystemCodes.has(shipment.shipmentCode)) return;
+
+                if (shipment.isArchivedForCompany) {
                     excludedShipments.push({ code, reason: "تمت أرشفة هذه الشحنة من قبل" });
                 } else if (financialStatuses.includes(shipment.status)) {
                     shipmentsToSettle.push(shipment);
@@ -108,8 +113,9 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
                     const statusLabel = statuses.find(s => s.id === shipment.status)?.label || shipment.status;
                     excludedShipments.push({ code, reason: `حالة غير نهائية (${statusLabel})` });
                 }
-                processedCodes.add(code);
+                processedSystemCodes.add(shipment.shipmentCode);
             });
+
 
             const netDue = shipmentsToSettle.reduce((acc, s) => {
                 return acc + ((s.paidAmount || 0) - (s.companyCommission || 0));
@@ -155,6 +161,7 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
             paymentAmount: analysis.netDue,
             shipmentIdsToArchive: analysis.shipmentsToSettle.map(s => s.id),
             settlementNote: `تسوية عبر شيت: ${fileName}`,
+            adminId: authUser.uid,
         });
 
         if (result.data.success) {
@@ -254,7 +261,7 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
                                     <TableBody>
                                         {analysis.shipmentsToSettle.map(s => (
                                             <TableRow key={s.id}>
-                                                <TableCell className="font-mono">{s.orderNumber}</TableCell>
+                                                <TableCell className="font-mono">{s.shipmentCode}</TableCell>
                                                 <TableCell>{s.recipientName}</TableCell>
                                                 <TableCell>{currencyFormatter(s.totalAmount || 0)}</TableCell>
                                                 <TableCell>{currencyFormatter(s.paidAmount || 0)}</TableCell>
