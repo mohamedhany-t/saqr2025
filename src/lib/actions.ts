@@ -214,3 +214,34 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
         return { success: false, error: error.message };
     }
 }
+
+
+export async function settleCompanyAccount(companyId: string, paymentAmount: number, shipmentIdsToArchive: string[], settlementNote: string, adminId: string) {
+    const db = getAdminFirestore();
+    const batch = db.batch();
+
+    // 1. Create a settlement payment record.
+    const paymentRef = db.collection('company_payments').doc();
+    batch.set(paymentRef, {
+        companyId,
+        amount: paymentAmount,
+        paymentDate: new Date(),
+        recordedById: adminId,
+        notes: settlementNote,
+        isArchived: true, // Archive settlement payment immediately
+    });
+
+    // 2. Archive the selected shipments for the company.
+    shipmentIdsToArchive.forEach(shipmentId => {
+        const shipmentRef = db.collection('shipments').doc(shipmentId);
+        batch.update(shipmentRef, { isArchivedForCompany: true });
+    });
+
+    try {
+        await batch.commit();
+        return { success: true, message: `تمت تسوية حساب الشركة وأرشفة ${shipmentIdsToArchive.length} شحنة بنجاح.` };
+    } catch (error: any) {
+        console.error("Error settling company account:", error);
+        return { success: false, error: "حدث خطأ أثناء تنفيذ التسوية على الخادم." };
+    }
+}

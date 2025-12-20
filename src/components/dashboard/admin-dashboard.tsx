@@ -16,6 +16,7 @@ import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
 import { UserFormSheet } from "@/components/users/user-form-sheet";
 import { CourierPaymentFormSheet } from "@/components/users/courier-payment-form-sheet";
 import { CompanyPaymentFormSheet } from "@/components/users/company-payment-form-sheet";
+import { CompanySettlementDialog } from "@/components/users/company-settlement-dialog";
 import { ImportResult, ImportProgressDialog } from "@/components/shipments/import-progress-dialog";
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
@@ -36,7 +37,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import ChatInterface from "@/components/chat/chat-interface";
 import { Badge } from "../ui/badge";
 import AccountStatementsPage from "@/app/accounts/page";
-import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotification } from "@/lib/actions";
+import { createAuthUser, deleteAuthUser, updateAuthUserPassword, sendPushNotification, settleCompanyAccount } from "@/lib/actions";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { ShipmentCard } from "../shipments/shipment-card";
 import { ColumnFiltersState } from "@tanstack/react-table";
@@ -635,6 +636,7 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
   const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
   const [isCourierPaymentSheetOpen, setIsCourierPaymentSheetOpen] = React.useState(false);
   const [isCompanyPaymentSheetOpen, setIsCompanyPaymentSheetOpen] = React.useState(false);
+  const [isSettlementDialogOpen, setIsSettlementDialogOpen] = React.useState(false);
   const [isAdminNoteDialogOpen, setIsAdminNoteDialogOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const [editingUser, setEditingUser] = React.useState<User | undefined>(undefined);
@@ -646,6 +648,7 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
   
   const [payingCompany, setPayingCompany] = React.useState<Company | undefined>(undefined);
   const [editingCompanyPayment, setEditingCompanyPayment] = React.useState<CompanyPayment | undefined>(undefined);
+  const [settlingCompany, setSettlingCompany] = React.useState<Company | undefined>(undefined);
 
 
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
@@ -1462,12 +1465,40 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
       })
       .finally(() => setCompanyToArchive(null));
   };
+  
+  const handleCompanySettlement = async (company: Company, sheetShipmentCodes: string[], paymentAmount: number, notes: string) => {
+    if (!authUser || !allShipmentsForStats) {
+      toast({ title: 'خطأ', description: 'المستخدم غير معرف أو الشحنات لم تحمل بعد.', variant: 'destructive' });
+      return;
+    }
+
+    // Filter shipments that belong to the company and are present in the settlement sheet
+    const shipmentsToSettle = allShipmentsForStats.filter(s =>
+        s.companyId === company.id &&
+        sheetShipmentCodes.includes(s.shipmentCode) &&
+        !s.isArchivedForCompany
+    );
+
+    const shipmentIdsToArchive = shipmentsToSettle.map(s => s.id);
+
+    try {
+        const result = await settleCompanyAccount(company.id, paymentAmount, shipmentIdsToArchive, notes, authUser.uid);
+        if (result.success) {
+            toast({ title: 'نجاح', description: result.message });
+        } else {
+            throw new Error(result.error);
+        }
+    } catch (error: any) {
+        toast({ title: 'فشل التسوية', description: error.message, variant: 'destructive' });
+    }
+  };
+
 
   const filteredShipments = React.useMemo(() => {
     if (!allShipmentsForStats) return [];
   
     // Show only non-archived shipments in the "All" tab
-    const baseShipments = allShipmentsForStats.filter(s => !s.isArchivedForCourier && !s.isArchivedForCompany);
+    const baseShipments = allShipmentsForStats.filter(s => !s.isArchivedForCompany && !s.isArchivedForCourier);
   
     const aFilters = columnFilters.filter(f => f.id === 'address');
     const otherFilters = columnFilters.filter(f => f.id !== 'address');
@@ -2170,11 +2201,15 @@ const generateShipmentCode = () => {
                 <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
                     <h2 className="text-2xl font-headline font-semibold">إدارة حسابات الشركات</h2>
                     <div className="flex items-center gap-2">
-                        <Button asChild variant="outline">
-                           <Link href="/comparison">
-                                <GitCompareArrows className="me-2 h-4 w-4" />
-                                تسوية ومقارنة عبر شيت
-                           </Link>
+                         <Button variant="outline" onClick={() => {
+                              const company = companyDues.find(c => c.id === 'YOUR_TARGET_COMPANY_ID'); // Replace with logic to get company
+                              if (company) {
+                                  setSettlingCompany(company);
+                                  setIsSettlementDialogOpen(true);
+                              }
+                         }}>
+                           <GitCompareArrows className="me-2 h-4 w-4" />
+                           تسوية عبر شيت
                         </Button>
                         <div className="relative">
                             <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -2268,6 +2303,13 @@ const generateShipmentCode = () => {
                                     <Button variant="outline" className="w-full" onClick={() => openCompanyPaymentForm(company)} disabled={company.netDue <= 0}>
                                         <Banknote className="me-2 h-4 w-4" />
                                         تسوية يدوية
+                                    </Button>
+                                    <Button variant="outline" onClick={() => {
+                                        setSettlingCompany(company);
+                                        setIsSettlementDialogOpen(true);
+                                    }}>
+                                       <FileSpreadsheet className="me-2 h-4 w-4" />
+                                       تسوية عبر شيت
                                     </Button>
                                     {company.totalShipments > 0 && (
                                         <Button variant="secondary" className="w-full" onClick={() => setCompanyToArchive(company)}>
@@ -2507,6 +2549,13 @@ const generateShipmentCode = () => {
             })
             .catch(() => toast({ title: 'فشل إرسال الملاحظة', variant: 'destructive' }));
         }}
+      />
+      <CompanySettlementDialog
+        open={isSettlementDialogOpen}
+        onOpenChange={setIsSettlementDialogOpen}
+        company={settlingCompany}
+        allShipments={allShipmentsForStats || []}
+        onSubmit={handleCompanySettlement}
       />
        {importResult && (
         <ImportProgressDialog
