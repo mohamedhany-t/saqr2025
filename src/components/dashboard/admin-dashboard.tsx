@@ -2294,20 +2294,15 @@ const generateShipmentCode = () => {
                                         تسوية يدوية
                                     </Button>
                                     <CompanySettlementDialog
-                                        open={isSettlementDialogOpen && settlingCompany?.id === company.id}
-                                        onOpenChange={(open) => {
-                                            if (!open) setSettlingCompany(undefined);
-                                            setIsSettlementDialogOpen(open);
-                                        }}
                                         company={company}
                                         allShipments={allShipmentsForStats || []}
                                         adminUser={user}
                                         statuses={statuses || []}
-                                        onSettlementComplete={() => setIsSettlementDialogOpen(false)}
+                                        onSettlementComplete={() => { /* This can trigger a data re-fetch if needed */ }}
                                     >
-                                        <Button variant="outline" onClick={() => setSettlingCompany(company)}>
-                                           <FileSpreadsheet className="me-2 h-4 w-4" />
-                                           تسوية عبر شيت
+                                        <Button variant="outline" className="w-full">
+                                            <FileSpreadsheet className="me-2 h-4 w-4" />
+                                            تسوية عبر شيت
                                         </Button>
                                     </CompanySettlementDialog>
                                     {company.totalShipments > 0 && (
