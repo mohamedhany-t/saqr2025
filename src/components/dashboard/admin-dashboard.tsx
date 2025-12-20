@@ -121,7 +121,7 @@ const MobileShipmentsView = ({
         return [...shipments].sort((a, b) => {
             const timeA = getSafeDate(a.updatedAt)?.getTime() || 0;
             const timeB = getSafeDate(b.updatedAt)?.getTime() || 0;
-            return timeB - a;
+            return timeB - timeA;
         });
     }, [shipments]);
     
@@ -636,7 +636,7 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
   const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
   const [isCourierPaymentSheetOpen, setIsCourierPaymentSheetOpen] = React.useState(false);
   const [isCompanyPaymentSheetOpen, setIsCompanyPaymentSheetOpen] = React.useState(false);
-  const [isSettlementDialogOpen, setIsSettlementDialogOpen] = React.useState(false);
+  
   const [isAdminNoteDialogOpen, setIsAdminNoteDialogOpen] = React.useState(false);
   const [editingShipment, setEditingShipment] = React.useState<Shipment | undefined>(undefined);
   const [editingUser, setEditingUser] = React.useState<User | undefined>(undefined);
@@ -648,7 +648,7 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
   
   const [payingCompany, setPayingCompany] = React.useState<Company | undefined>(undefined);
   const [editingCompanyPayment, setEditingCompanyPayment] = React.useState<CompanyPayment | undefined>(undefined);
-  const [settlingCompany, setSettlingCompany] = React.useState<Company | undefined>(undefined);
+  
 
 
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
@@ -1466,55 +1466,48 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
       .finally(() => setCompanyToArchive(null));
   };
   
-  const handleCompanySettlement = async (company: Company, sheetShipmentCodes: string[], paymentAmount: number, notes: string) => {
-    if (!authUser || !allShipmentsForStats || !statuses) {
-      toast({ title: 'خطأ', description: 'المستخدم غير معرف أو الشحنات لم تحمل بعد.', variant: 'destructive' });
-      return;
-    }
-    
-    const financialStatuses = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
-
-    // Filter shipments that belong to the company and are present in the settlement sheet
-    const shipmentsToSettle = allShipmentsForStats.filter(s =>
-        s.companyId === company.id &&
-        sheetShipmentCodes.includes(s.shipmentCode) &&
-        !s.isArchivedForCompany &&
-        financialStatuses.includes(s.status) // Only include shipments with a final financial status
-    );
-
-    const shipmentIdsToArchive = shipmentsToSettle.map(s => s.id);
-
-    try {
-        const result = await settleCompanyAccount(company.id, paymentAmount, shipmentIdsToArchive, notes, authUser.uid);
-        if (result.success) {
-            toast({ title: 'نجاح', description: result.message });
-        } else {
-            throw new Error(result.error);
-        }
-    } catch (error: any) {
-        toast({ title: 'فشل التسوية', description: error.message, variant: 'destructive' });
-    }
-  };
-
-
   const filteredShipments = React.useMemo(() => {
     if (!allShipmentsForStats) return [];
   
-    // Show only non-archived shipments in the "All" tab
-    const baseShipments = allShipmentsForStats.filter(s => !s.isArchivedForCompany && !s.isArchivedForCourier);
+    let filteredBySearch = allShipmentsForStats;
+    // Apply main search term first if it exists
+    if (searchTerm) {
+        const lowercasedTerm = searchTerm.toLowerCase();
+        filteredBySearch = allShipmentsForStats.filter((shipment) =>
+            String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
+        );
+        // When main search is active, we don't apply other column filters.
+        return filteredBySearch;
+    }
   
-    const aFilters = columnFilters.filter(f => f.id === 'address');
-    const otherFilters = columnFilters.filter(f => f.id !== 'address');
-    const searchTerms = (aFilters[0]?.value as string[]) || [];
+    // If no main search term, apply column filters
+    if (columnFilters.length === 0) {
+      return allShipmentsForStats.filter(s => !s.isArchivedForCompany && !s.isArchivedForCourier);
+    }
   
-    return baseShipments.filter((shipment) => {
-      const addressValue = String(shipment.address || '').toLowerCase();
+    return allShipmentsForStats.filter((shipment) => {
+      // Don't show archived shipments in the main filtered view unless a specific tab is selected for them.
+      if (shipment.isArchivedForCompany || shipment.isArchivedForCourier) {
+        return false;
+      }
       
-      const addressMatch = searchTerms.length === 0 || searchTerms.some(term => addressValue.includes(term));
-      if (!addressMatch) return false;
+      const dateRangeFilter = columnFilters.find(f => f.id === 'createdAt');
+      const otherFilters = columnFilters.filter(f => f.id !== 'createdAt');
   
-      const otherFiltersMatch = otherFilters.every(filter => {
-        if (filter.id === 'createdAt') return true; // Date handled separately
+      if (dateRangeFilter) {
+        const { from, to } = dateRangeFilter.value as DateRange;
+        const createdAt = getSafeDate(shipment.createdAt);
+        if (!createdAt) return false;
+        if (from && createdAt < from) return false;
+        const toDateWithTime = to ? new Date(to.setHours(23, 59, 59, 999)) : null;
+        if (toDateWithTime && createdAt > toDateWithTime) return false;
+      }
+  
+      return otherFilters.every(filter => {
         const value = (shipment as any)[filter.id];
         const filterValue = filter.value as string[];
         if (Array.isArray(filterValue) && filterValue.length > 0) {
@@ -1522,28 +1515,6 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
         }
         return true;
       });
-      if (!otherFiltersMatch) return false;
-  
-      const dateRangeFilter = columnFilters.find(f => f.id === 'createdAt');
-      if (dateRangeFilter) {
-        const { from, to } = dateRangeFilter.value as DateRange;
-        const createdAt = getSafeDate(shipment.createdAt);
-        if (!createdAt) return false;
-        if (from && createdAt < from) return false;
-        if (to && createdAt > to) return false;
-      }
-      
-      if (searchTerm) {
-        const lowercasedTerm = searchTerm.toLowerCase();
-        return (
-          String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
-          String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
-          String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-          String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm)
-        );
-      }
-  
-      return true;
     });
   }, [allShipmentsForStats, searchTerm, columnFilters]);
   
@@ -1564,9 +1535,8 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
   const recentlyUpdatedShipments = React.useMemo(() => {
     const activeShipments = filteredShipments?.filter(shipment => !shipment.isArchivedForCompany && !shipment.isArchivedForCourier) || [];
     return activeShipments.sort((a, b) => {
-        // Handle cases where updatedAt might not be a standard Date object
-        const timeA = a.updatedAt?.toDate ? a.updatedAt.toDate().getTime() : (a.updatedAt ? new Date(a.updatedAt).getTime() : 0);
-        const timeB = b.updatedAt?.toDate ? b.updatedAt.toDate().getTime() : (b.updatedAt ? new Date(b.updatedAt).getTime() : 0);
+        const timeA = getSafeDate(a.updatedAt)?.getTime() || 0;
+        const timeB = getSafeDate(b.updatedAt)?.getTime() || 0;
         return timeB - timeA;
     });
 }, [filteredShipments]);
@@ -1613,7 +1583,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
             totalCommission,
             totalPaidByCourier,
             netDue,
-            paymentHistory: allPaymentsForCourier.sort((a, b) => (b.paymentDate?.toDate?.() || 0) - (a.paymentDate?.toDate?.() || 0)),
+            paymentHistory: allPaymentsForCourier.sort((a, b) => (getSafeDate(b.paymentDate)?.getTime() || 0) - (getSafeDate(a.paymentDate)?.getTime() || 0)),
         }
     })
   }, [users, allShipmentsForStats, courierUsers, courierPayments, statuses]);
@@ -1640,7 +1610,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
             totalCompanyCommission,
             totalPaidToCompany,
             netDue,
-            paymentHistory: allPaymentsForCompany.sort((a, b) => (b.paymentDate?.toDate?.() || 0) - (a.paymentDate?.toDate?.() || 0)),
+            paymentHistory: allPaymentsForCompany.sort((a, b) => (getSafeDate(b.paymentDate)?.getTime() || 0) - (getSafeDate(a.paymentDate)?.getTime() || 0)),
         }
     })
   }, [companies, allShipmentsForStats, companyPayments]);
@@ -2311,16 +2281,21 @@ const generateShipmentCode = () => {
                                     </div>
                                 </CardContent>
                                 <CardFooter className="flex flex-col items-stretch gap-2">
+                                    <CompanySettlementDialog
+                                        company={company}
+                                        allShipments={allShipmentsForStats || []}
+                                        adminUser={user}
+                                        statuses={statuses || []}
+                                        onSettlementComplete={() => {}}
+                                    >
+                                        <Button variant="default" className="w-full">
+                                            <FileSpreadsheet className="me-2 h-4 w-4" />
+                                            تسوية عبر شيت
+                                        </Button>
+                                    </CompanySettlementDialog>
                                     <Button variant="outline" className="w-full" onClick={() => openCompanyPaymentForm(company)} disabled={company.netDue <= 0}>
                                         <Banknote className="me-2 h-4 w-4" />
                                         تسوية يدوية
-                                    </Button>
-                                    <Button variant="outline" onClick={() => {
-                                        setSettlingCompany(company);
-                                        setIsSettlementDialogOpen(true);
-                                    }}>
-                                       <FileSpreadsheet className="me-2 h-4 w-4" />
-                                       تسوية عبر شيت
                                     </Button>
                                     {company.totalShipments > 0 && (
                                         <Button variant="secondary" className="w-full" onClick={() => setCompanyToArchive(company)}>
@@ -2560,14 +2535,6 @@ const generateShipmentCode = () => {
             })
             .catch(() => toast({ title: 'فشل إرسال الملاحظة', variant: 'destructive' }));
         }}
-      />
-      <CompanySettlementDialog
-        open={isSettlementDialogOpen}
-        onOpenChange={setIsSettlementDialogOpen}
-        company={settlingCompany}
-        allShipments={allShipmentsForStats || []}
-        statuses={statuses || []}
-        onSubmit={handleCompanySettlement}
       />
        {importResult && (
         <ImportProgressDialog
