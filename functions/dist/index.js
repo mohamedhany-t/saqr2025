@@ -47,7 +47,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handleShipmentUpdate = exports.executeCompanySettlement = void 0;
+exports.executeCompanySettlement = exports.handleShipmentUpdate = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const zod_1 = require("zod");
@@ -62,14 +62,6 @@ catch (e) {
 }
 const db = admin.firestore();
 const corsHandler = (0, cors_1.default)({ origin: true });
-// Schema for the new settlement function
-const companySettlementSchema = zod_1.z.object({
-    companyId: zod_1.z.string(),
-    paymentAmount: zod_1.z.number(),
-    shipmentIdsToArchive: zod_1.z.array(zod_1.z.string()),
-    settlementNote: zod_1.z.string(),
-    adminId: zod_1.z.string(),
-});
 const updateShipmentStatusSchema = zod_1.z.object({
     shipmentId: zod_1.z.string(),
     // All other fields are optional because the logic will decide what to do
@@ -105,53 +97,6 @@ const runtimeOpts = {
     timeoutSeconds: 540, // 9 minutes
     memory: '256MB',
 };
-// NEW FUNCTION with a NEW NAME to avoid deployment conflicts
-exports.executeCompanySettlement = functions.runWith(runtimeOpts).https.onCall(async (data, context) => {
-    // 1. Authentication Check
-    if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
-    }
-    // 2. Data Validation
-    const validation = companySettlementSchema.safeParse(data);
-    if (!validation.success) {
-        throw new functions.https.HttpsError('invalid-argument', 'The data provided is invalid.');
-    }
-    const { companyId, paymentAmount, shipmentIdsToArchive, settlementNote, adminId } = validation.data;
-    const BATCH_SIZE = 400; // Firestore batch limit is 500, we use 400 to be safe.
-    const allBatches = [];
-    // --- Create and commit the first batch for the payment ---
-    if (paymentAmount !== 0) {
-        let initialBatch = db.batch();
-        const paymentRef = db.collection('company_payments').doc();
-        initialBatch.set(paymentRef, {
-            companyId,
-            amount: paymentAmount,
-            paymentDate: admin.firestore.FieldValue.serverTimestamp(),
-            recordedById: adminId,
-            notes: settlementNote,
-            isArchived: true,
-        });
-        allBatches.push(initialBatch.commit());
-    }
-    // --- Create and commit subsequent batches for archiving shipments ---
-    for (let i = 0; i < shipmentIdsToArchive.length; i += BATCH_SIZE) {
-        const chunk = shipmentIdsToArchive.slice(i, i + BATCH_SIZE);
-        const batch = db.batch();
-        chunk.forEach(shipmentId => {
-            const shipmentRef = db.collection('shipments').doc(shipmentId);
-            batch.update(shipmentRef, { isArchivedForCompany: true });
-        });
-        allBatches.push(batch.commit());
-    }
-    try {
-        await Promise.all(allBatches);
-        return { success: true, message: `تمت تسوية حساب الشركة وأرشفة ${shipmentIdsToArchive.length} شحنة بنجاح.` };
-    }
-    catch (error) {
-        console.error("Error settling company account:", error);
-        throw new functions.https.HttpsError('internal', 'An error occurred while executing the settlement on the server.', error.message);
-    }
-});
 exports.handleShipmentUpdate = functions.runWith(runtimeOpts).https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
         var _a, _b, _c;
@@ -245,20 +190,24 @@ exports.handleShipmentUpdate = functions.runWith(runtimeOpts).https.onRequest((r
                         }
                         if (newStatusConfig.affectsCourierBalance) {
                             const courierId = finalUpdateData.assignedCourierId || oldData.assignedCourierId;
-                            const courierProfileDoc = courierId ? await db.collection('couriers').doc(courierId).get() : null;
-                            const commissionRate = (courierProfileDoc === null || courierProfileDoc === void 0 ? void 0 : courierProfileDoc.exists) ? courierProfileDoc.data().commissionRate || 0 : 0;
-                            finalUpdateData.courierCommission = commissionRate;
+                            if (courierId) {
+                                const courierProfileDoc = await db.collection('couriers').doc(courierId).get();
+                                const commissionRate = (courierProfileDoc === null || courierProfileDoc === void 0 ? void 0 : courierProfileDoc.exists) ? courierProfileDoc.data().commissionRate || 0 : 0;
+                                finalUpdateData.courierCommission = commissionRate;
+                            }
                         }
                         else {
                             finalUpdateData.courierCommission = 0;
                         }
                         if (newStatusConfig.affectsCompanyBalance) {
                             const companyId = finalUpdateData.companyId || oldData.companyId;
-                            const companyProfileDoc = companyId ? await db.collection('companies').doc(companyId).get() : null;
-                            const governorateCommissions = (companyProfileDoc === null || companyProfileDoc === void 0 ? void 0 : companyProfileDoc.exists) ? companyProfileDoc.data().governorateCommissions || {} : {};
-                            const governorateId = finalUpdateData.governorateId || oldData.governorateId;
-                            const commission = governorateCommissions[governorateId] || 0;
-                            finalUpdateData.companyCommission = commission;
+                            if (companyId) {
+                                const companyProfileDoc = await db.collection('companies').doc(companyId).get();
+                                const governorateCommissions = (companyProfileDoc === null || companyProfileDoc === void 0 ? void 0 : companyProfileDoc.exists) ? companyProfileDoc.data().governorateCommissions || {} : {};
+                                const governorateId = finalUpdateData.governorateId || oldData.governorateId;
+                                const commission = governorateCommissions[governorateId] || 0;
+                                finalUpdateData.companyCommission = commission;
+                            }
                         }
                         else {
                             finalUpdateData.companyCommission = 0;
@@ -274,7 +223,7 @@ exports.handleShipmentUpdate = functions.runWith(runtimeOpts).https.onRequest((r
                     const oldValue = oldData[key];
                     const newValue = newData[key];
                     // Simple comparison, ignoring objects like Timestamps for now
-                    if (oldValue !== newValue && typeof oldValue !== 'object' && typeof newValue !== 'object') {
+                    if (JSON.stringify(oldValue) !== JSON.stringify(newValue) && typeof oldValue !== 'object' && typeof newValue !== 'object') {
                         changes.push({ field: key, oldValue: oldValue !== null && oldValue !== void 0 ? oldValue : null, newValue: newValue !== null && newValue !== void 0 ? newValue : null });
                     }
                 }
@@ -308,6 +257,90 @@ exports.handleShipmentUpdate = functions.runWith(runtimeOpts).https.onRequest((r
             console.error("Error updating shipment status:", error);
             const status = ((_b = error.httpErrorCode) === null || _b === void 0 ? void 0 : _b.canonicalName) || 'INTERNAL';
             res.status(((_c = error.httpErrorCode) === null || _c === void 0 ? void 0 : _c.code) || 500).send({ error: { status, message: error.message } });
+        }
+    });
+});
+const settlementSchema = zod_1.z.object({
+    companyId: zod_1.z.string(),
+    paymentAmount: zod_1.z.number(),
+    shipmentIdsToArchive: zod_1.z.array(zod_1.z.string()),
+    settlementNote: zod_1.z.string().optional(),
+});
+exports.executeCompanySettlement = functions.runWith(runtimeOpts).https.onRequest((req, res) => {
+    corsHandler(req, res, async () => {
+        var _a;
+        if (req.method !== 'POST') {
+            res.status(405).send({ error: 'Method Not Allowed' });
+            return;
+        }
+        let context = {};
+        const idToken = (_a = req.headers.authorization) === null || _a === void 0 ? void 0 : _a.split('Bearer ')[1];
+        if (idToken) {
+            try {
+                context.auth = await admin.auth().verifyIdToken(idToken);
+            }
+            catch (error) {
+                res.status(401).send({ error: { status: 'UNAUTHENTICATED', message: 'The function must be called with an authenticated user token.' } });
+                return;
+            }
+        }
+        if (!context.auth) {
+            res.status(401).send({ error: { status: 'UNAUTHENTICATED', message: 'The function must be called with an authenticated user token.' } });
+            return;
+        }
+        const { uid: adminId } = context.auth;
+        const validation = settlementSchema.safeParse(req.body.data);
+        if (!validation.success) {
+            res.status(400).send({ error: 'Invalid data', details: validation.error.errors });
+            return;
+        }
+        const { companyId, paymentAmount, shipmentIdsToArchive, settlementNote } = validation.data;
+        const db = admin.firestore();
+        try {
+            const BATCH_SIZE = 400; // Firestore batch limit is 500
+            const batches = [];
+            let currentBatch = db.batch();
+            let batchCount = 0;
+            // Step 1: Create settlement payment record
+            const paymentRef = db.collection('company_payments').doc();
+            currentBatch.set(paymentRef, {
+                companyId,
+                amount: paymentAmount,
+                paymentDate: admin.firestore.FieldValue.serverTimestamp(),
+                recordedById: adminId,
+                notes: settlementNote || 'تسوية عبر شيت',
+                isArchived: true,
+            });
+            batchCount++;
+            // Step 2: Batch archive the shipments
+            for (const shipmentId of shipmentIdsToArchive) {
+                const shipmentRef = db.collection('shipments').doc(shipmentId);
+                currentBatch.update(shipmentRef, { isArchivedForCompany: true });
+                batchCount++;
+                if (batchCount >= BATCH_SIZE) {
+                    batches.push(currentBatch);
+                    currentBatch = db.batch();
+                    batchCount = 0;
+                }
+            }
+            // Add the last batch if it has writes
+            if (batchCount > 0) {
+                batches.push(currentBatch);
+            }
+            // Commit all batches
+            for (const batch of batches) {
+                await batch.commit();
+            }
+            res.status(200).send({
+                data: {
+                    success: true,
+                    message: `تمت تسوية حساب الشركة وأرشفة ${shipmentIdsToArchive.length} شحنة بنجاح.`,
+                },
+            });
+        }
+        catch (error) {
+            console.error('Error executing company settlement:', error);
+            res.status(500).send({ error: 'Failed to execute settlement.', details: error.message });
         }
     });
 });
