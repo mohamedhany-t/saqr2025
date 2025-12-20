@@ -1986,10 +1986,28 @@ const generateShipmentCode = () => {
             </div>
         </TabsContent>
         <TabsContent value="comparison">
-            <p className="p-4 text-center text-muted-foreground">يتم تحميل صفحة مقارنة الشيتات...</p>
+            <div className="flex flex-col items-center justify-center text-center py-16 bg-muted/40 rounded-lg">
+                <LinkIcon className="h-16 w-16 text-muted-foreground mb-4" />
+                <h3 className="text-2xl font-bold">تم نقل هذه الصفحة</h3>
+                <p className="text-muted-foreground mt-2 max-w-md">
+                   لتحسين الأداء، تم نقل ميزة مقارنة الشيتات إلى صفحة مستقلة خاصة بها.
+                </p>
+                <Button asChild className="mt-4">
+                    <Link href="/comparison">الانتقال إلى صفحة مقارنة الشيتات</Link>
+                </Button>
+            </div>
         </TabsContent>
         <TabsContent value="expenses">
-            <p className="p-4 text-center text-muted-foreground">يتم تحميل المصروفات...</p>
+            <div className="flex flex-col items-center justify-center text-center py-16 bg-muted/40 rounded-lg">
+                <LinkIcon className="h-16 w-16 text-muted-foreground mb-4" />
+                <h3 className="text-2xl font-bold">تم نقل هذه الصفحة</h3>
+                <p className="text-muted-foreground mt-2 max-w-md">
+                    لتحسين الأداء، تم نقل ميزة إدارة المصروفات إلى صفحة مستقلة خاصة بها.
+                </p>
+                <Button asChild className="mt-4">
+                    <Link href="/expenses">الانتقال إلى صفحة المصروفات</Link>
+                </Button>
+            </div>
         </TabsContent>
         <TabsContent value="print-center">
             <PrintCenterPage 
