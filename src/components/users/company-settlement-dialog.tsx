@@ -12,9 +12,6 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import type { Company, Shipment, ShipmentStatusConfig } from '@/lib/types';
 import { useDropzone } from 'react-dropzone';
 import { UploadCloud, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
@@ -51,7 +48,8 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
 
   const companyShipments = useMemo(() => {
     if (!company) return [];
-    return allShipments.filter(s => s.companyId === company.id && !s.isArchivedForCompany);
+    // We now fetch ALL shipments for the company, including archived ones.
+    return allShipments.filter(s => s.companyId === company.id);
   }, [allShipments, company]);
 
   const onDrop = async (acceptedFiles: File[]) => {
@@ -99,6 +97,8 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
                 const shipment = companyShipments.find(s => s.shipmentCode === code);
                 if (!shipment) {
                     excludedShipments.push({ code, reason: "غير موجودة بالنظام" });
+                } else if (shipment.isArchivedForCompany) {
+                    excludedShipments.push({ code, reason: "تمت أرشفة هذه الشحنة من قبل" });
                 } else if (financialStatuses.includes(shipment.status)) {
                     shipmentsToSettle.push(shipment);
                 } else {
@@ -144,9 +144,9 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
     
     try {
         const functions = getFunctions(app);
-        const executeCompanySettlement = httpsCallable<{ companyId: string; paymentAmount: number; shipmentIdsToArchive: string[]; settlementNote: string; adminId: string; }, { success: boolean; message?: string, error?: string; }>(functions, 'executeCompanySettlement');
+        const executeCompanySettlement = httpsCallable(functions, 'executeCompanySettlement');
         
-        const result = await executeCompanySettlement({
+        const result: any = await executeCompanySettlement({
             companyId: company.id,
             paymentAmount: analysis.netDue,
             shipmentIdsToArchive: analysis.shipmentsToSettle.map(s => s.id),
@@ -183,14 +183,15 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl" dir="rtl">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col" dir="rtl">
         <DialogHeader>
           <DialogTitle>تسوية حساب شركة: {company.name}</DialogTitle>
           <DialogDescription>
             ارفع شيت الإكسل (مثل شيت التوريد) لتسوية وأرشفة الشحنات المضمنة فيه تلقائيا.
           </DialogDescription>
         </DialogHeader>
-        <div className="py-4 space-y-4">
+        <ScrollArea className="flex-1 -mx-6">
+        <div className="py-4 px-6 space-y-4">
            {!analysis && <div
                 {...getRootProps()}
                 className={`p-8 border-2 border-dashed rounded-lg text-center transition-colors cursor-pointer ${isDragActive ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}
@@ -292,7 +293,8 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
                 </div>
             )}
         </div>
-        <DialogFooter>
+        </ScrollArea>
+        <DialogFooter className="pt-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
           <Button onClick={handleSubmit} disabled={!analysis || analysis.shipmentsToSettle.length === 0 || isSubmitting}>
             {isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
