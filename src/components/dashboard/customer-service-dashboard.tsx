@@ -13,7 +13,7 @@ import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebas
 import { collection, query, where, doc, getDoc, writeBatch, serverTimestamp, getDocs } from "firebase/firestore";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
-import { AlertTriangle, CheckSquare, DollarSign, MessageSquare, Check, X, ScanLine, FileUp, PlusCircle, Printer, GitCompareArrows } from "lucide-react";
+import { AlertTriangle, CheckSquare, DollarSign, MessageSquare, Check, X, ScanLine, FileUp, PlusCircle, Printer, GitCompareArrows, Loader2 } from "lucide-react";
 import ChatInterface from "../chat/chat-interface";
 import { Badge } from "../ui/badge";
 import { differenceInDays, differenceInHours } from "date-fns";
