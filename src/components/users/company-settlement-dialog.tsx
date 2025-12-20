@@ -1,7 +1,6 @@
-
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { read, utils } from 'xlsx';
 import {
   Dialog,
@@ -48,7 +47,7 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
 
   const companyShipments = useMemo(() => {
     if (!company) return [];
-    // We now fetch ALL shipments for the company, including archived ones.
+    // We fetch ALL shipments for the company, including archived ones.
     return allShipments.filter(s => s.companyId === company.id);
   }, [allShipments, company]);
 
@@ -168,7 +167,7 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
     }
   };
   
-  React.useEffect(() => {
+  useEffect(() => {
     if (!open) {
       setTimeout(() => {
         setAnalysis(null);
@@ -264,7 +263,7 @@ export function CompanySettlementDialog({ open, onOpenChange, company, allShipme
 
                     {analysis.excludedShipments.length > 0 && <div className="pt-4">
                         <h5 className="font-semibold mb-2">الشحنات المستبعدة وسبب الاستبعاد:</h5>
-                         <ScrollArea className="h-40 border rounded-md bg-background">
+                         <ScrollArea className="h-48 border rounded-md bg-background">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
