@@ -1465,55 +1465,60 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
       .finally(() => setCompanyToArchive(null));
   };
 
-  const filteredShipments = React.useMemo(() => {
+const filteredShipments = React.useMemo(() => {
     if (!allShipmentsForStats) return [];
-  
-    // Show only non-archived shipments in the "All" tab
-    const baseShipments = allShipmentsForStats.filter(s => !s.isArchivedForCompany && !s.isArchivedForCourier);
-  
-    const aFilters = columnFilters.filter(f => f.id === 'address');
-    const otherFilters = columnFilters.filter(f => f.id !== 'address');
-    const searchTerms = (aFilters[0]?.value as string[]) || [];
-  
-    return baseShipments.filter((shipment) => {
-      const addressValue = String(shipment.address || '').toLowerCase();
-      
-      const addressMatch = searchTerms.length === 0 || searchTerms.some(term => addressValue.includes(term));
-      if (!addressMatch) return false;
-  
-      const otherFiltersMatch = otherFilters.every(filter => {
-        if (filter.id === 'createdAt') return true; // Date handled separately
-        const value = (shipment as any)[filter.id];
-        const filterValue = filter.value as string[];
-        if (Array.isArray(filterValue) && filterValue.length > 0) {
-          return filterValue.includes(value);
-        }
-        return true;
-      });
-      if (!otherFiltersMatch) return false;
-  
-      const dateRangeFilter = columnFilters.find(f => f.id === 'createdAt');
-      if (dateRangeFilter) {
-        const { from, to } = dateRangeFilter.value as DateRange;
-        const createdAt = getSafeDate(shipment.createdAt);
-        if (!createdAt) return false;
-        if (from && createdAt < from) return false;
-        if (to && createdAt > to) return false;
-      }
-      
-      if (searchTerm) {
+
+    let baseShipments = allShipmentsForStats.filter(s => !s.isArchivedForCompany && !s.isArchivedForCourier);
+
+    // If there is a search term, prioritize it over column filters.
+    if (searchTerm) {
         const lowercasedTerm = searchTerm.toLowerCase();
-        return (
-          String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
-          String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
-          String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-          String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm)
+        return baseShipments.filter((shipment) =>
+            String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
+            String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm)
         );
-      }
-  
-      return true;
-    });
-  }, [allShipmentsForStats, searchTerm, columnFilters]);
+    }
+
+    // If no search term, apply column filters.
+    if (columnFilters.length > 0) {
+        return baseShipments.filter((shipment) => {
+            const addressFilter = columnFilters.find(f => f.id === 'address');
+            const otherFilters = columnFilters.filter(f => f.id !== 'address');
+            
+            if (addressFilter) {
+                const searchTerms = (addressFilter.value as string[]) || [];
+                const addressValue = String(shipment.address || '').toLowerCase();
+                const addressMatch = searchTerms.length === 0 || searchTerms.some(term => addressValue.includes(term));
+                if (!addressMatch) return false;
+            }
+
+            const otherFiltersMatch = otherFilters.every(filter => {
+                if (filter.id === 'createdAt') return true;
+                const value = (shipment as any)[filter.id];
+                const filterValue = filter.value as string[];
+                if (Array.isArray(filterValue) && filterValue.length > 0) {
+                    return filterValue.includes(value);
+                }
+                return true;
+            });
+            if (!otherFiltersMatch) return false;
+
+            const dateRangeFilter = columnFilters.find(f => f.id === 'createdAt');
+            if (dateRangeFilter) {
+                const { from, to } = dateRangeFilter.value as DateRange;
+                const createdAt = getSafeDate(shipment.createdAt);
+                if (!createdAt) return false;
+                if (from && createdAt < from) return false;
+                if (to && createdAt > to) return false;
+            }
+            return true;
+        });
+    }
+
+    return baseShipments;
+}, [allShipmentsForStats, searchTerm, columnFilters]);
   
   
   const unassignedShipments = React.useMemo(() => filteredShipments.filter(s => !s.assignedCourierId), [filteredShipments]);
