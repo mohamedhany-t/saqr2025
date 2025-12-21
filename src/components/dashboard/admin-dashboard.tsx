@@ -849,7 +849,6 @@ const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
                     const existingDocsQuery = query(collection(firestore, 'shipments'), where("shipmentCode", "==", shipmentCodeValue));
                     const snapshot = await getDocs(existingDocsQuery);
                     if (!snapshot.empty) {
-                        // Find the first non-fully-archived shipment if it exists
                         existingDoc = snapshot.docs.find(doc => {
                             const data = doc.data();
                             return !(data.isArchivedForCompany && data.isArchivedForCourier);
@@ -889,10 +888,9 @@ const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
                 if (existingDoc) {
                      const existingShipmentData = existingDoc.data() as Shipment;
                      const createdAtValue = getSafeDate(existingShipmentData.createdAt);
-                     const dataToUpdate: Partial<Shipment> & { shipmentId: string } = {
+                     const dataToUpdate: any = {
                         ...cleanShipmentData, 
                         shipmentId: existingDoc.id,
-                        // Make sure to preserve existing createdAt value, converted to ISO string
                         createdAt: createdAtValue ? createdAtValue.toISOString() : undefined,
                     };
                     if (existingShipmentData.assignedCourierId && existingShipmentData.status !== 'Pending') {
@@ -1332,6 +1330,7 @@ const handleArchiveCourierData = async () => {
             paymentDate: serverTimestamp(),
             recordedById: user.id,
             notes: "تسوية وحفظ تلقائي للحساب",
+            isArchived: true, // Archive settlement payment immediately
         };
         batch.set(paymentRef, newPayment);
     }
@@ -1422,7 +1421,6 @@ const handleArchiveCompanyData = async () => {
   
   const activeShipments = React.useMemo(() => {
     if (!allShipmentsForStats) return [];
-    // Only hide shipments that are archived for BOTH company and courier
     return allShipmentsForStats.filter(s => !(s.isArchivedForCompany && s.isArchivedForCourier));
   }, [allShipmentsForStats]);
 
@@ -2507,6 +2505,7 @@ const generateShipmentCode = () => {
     </div>
   );
 }
+
 
 
 
