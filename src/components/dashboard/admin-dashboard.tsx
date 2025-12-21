@@ -482,7 +482,6 @@ const DesktopShipmentsView = ({
                 <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
                 <TabsTrigger value="returns-with-couriers">مرتجعات لدى المناديب</TabsTrigger>
                 <TabsTrigger value="returns-in-warehouse">مرتجعات وصلت المخزن</TabsTrigger>
-                <TabsTrigger value="returned-to-company">وصلت للشركة</TabsTrigger>
             </TabsList>
             <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments)}</TabsContent>
             <TabsContent value="unassigned">{renderShipmentTable(unassignedShipments)}</TabsContent>
@@ -492,7 +491,6 @@ const DesktopShipmentsView = ({
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
             <TabsContent value="returns-with-couriers">{renderShipmentTable(returnsWithCouriers, 'returns-with-couriers')}</TabsContent>
             <TabsContent value="returns-in-warehouse">{renderShipmentTable(inWarehouseShipments, 'returns-in-warehouse')}</TabsContent>
-            <TabsContent value="returned-to-company">{renderShipmentTable(returnedToCompanyShipments, 'returned-to-company')}</TabsContent>
         </Tabs>
     )
   }
@@ -889,11 +887,21 @@ const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
                 const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
 
                 if (existingDoc) {
-                    result.shipmentsToUpdate.push({
-                        existing: existingDoc.data() as Shipment,
-                        new: { ...cleanShipmentData, shipmentId: existingDoc.id } as Partial<Shipment>,
-                    });
+                     const existingShipmentData = existingDoc.data() as Shipment;
+                     const createdAtValue = getSafeDate(existingShipmentData.createdAt);
+                     const dataToUpdate: Partial<Shipment> & { shipmentId: string } = {
+                        ...cleanShipmentData, 
+                        shipmentId: existingDoc.id,
+                        // Make sure to preserve existing createdAt value
+                        createdAt: createdAtValue ? createdAtValue.toISOString() : undefined,
+                    };
+                    if (existingShipmentData.assignedCourierId && existingShipmentData.status !== 'Pending') {
+                      delete dataToUpdate.status;
+                      delete dataToUpdate.assignedCourierId;
+                    }
+                     await handleShipmentUpdateFn(dataToUpdate);
                     result.updated++;
+
                 } else {
                     const newDocRef = doc(collection(firestore, "shipments"));
                     await handleShipmentUpdateFn({ 
@@ -904,18 +912,6 @@ const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
                     result.added++;
                 }
                 setImportResult({ ...result });
-            }
-
-            if (result.shipmentsToUpdate.length > 0) {
-                 for (const update of result.shipmentsToUpdate) {
-                    const existingShipment = update.existing;
-                    let dataToUpdate: Partial<Shipment> & { shipmentId: string } = { ...update.new, shipmentId: existingShipment.id };
-                    if (existingShipment.assignedCourierId && existingShipment.status !== 'Pending') {
-                      delete dataToUpdate.status;
-                      delete dataToUpdate.assignedCourierId;
-                    }
-                    await handleShipmentUpdateFn(dataToUpdate);
-                }
             }
             
             setImportResult(prev => prev ? { ...prev, processing: false } : null);
@@ -2509,4 +2505,6 @@ const generateShipmentCode = () => {
     </div>
   );
 }
+
+
 
