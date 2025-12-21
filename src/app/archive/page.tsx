@@ -200,10 +200,10 @@ const ArchivePage = () => {
                             <div className="flex items-center space-x-2 space-x-reverse"><RadioGroupItem value="courier" id="r-courier" /><Label htmlFor="r-courier">مندوب</Label></div>
                         </RadioGroup>
 
-                        <Select dir="rtl" onValueChange={setSelectedId} value={selectedId || ''}>
+                        <Select dir="rtl" onValueChange={(value) => setSelectedId(value === "all" ? null : value)} value={selectedId || 'all'}>
                             <SelectTrigger><SelectValue placeholder={`اختر ${entityType === 'courier' ? 'مندوبًا' : 'شركة'}...`} /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">الكل</SelectItem>
+                                <SelectItem value="all">الكل</SelectItem>
                                 {entityType === 'courier' 
                                     ? couriers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>) 
                                     : companies?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
