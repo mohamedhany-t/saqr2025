@@ -1,5 +1,3 @@
-
-
 "use client"
 import * as React from "react"
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -559,34 +557,18 @@ export function ShipmentsTable({
 
   const { rows } = table.getRowModel()
 
-  const rowMeasurements = React.useRef(new Map());
-
-  const measureElement = React.useCallback(
-    (element: HTMLElement | null) => {
-      if (!element) return;
-      const index = Number(element.getAttribute('data-index'));
-      const rect = element.getBoundingClientRect();
-      const existing = rowMeasurements.current.get(index);
-      if (!existing || existing.height !== rect.height) {
-        rowMeasurements.current.set(index, rect);
-        rowVirtualizer.measure();
-      }
-    },
-    []
-  );
-
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 100, // Adjusted estimate
-    overscan: 5,
+    estimateSize: () => 58, 
+    overscan: 10,
   });
 
   const virtualRows = rowVirtualizer.getVirtualItems()
   const totalSize = rowVirtualizer.getTotalSize()
   
   React.useEffect(() => {
-    table.getColumn('companyId')?.toggleVisibility(role === 'admin');
+    table.getColumn('companyId')?.toggleVisibility(role === 'admin' || role === 'customer-service');
     table.getColumn('assignedCourierId')?.toggleVisibility(role !== 'courier');
   }, [role, table]);
 
@@ -872,7 +854,6 @@ export function ShipmentsTable({
                     <TableRow
                       key={row.id}
                       data-state={row.getIsSelected() && "selected"}
-                      ref={measureElement}
                       data-index={virtualRow.index}
                       className={cn(
                         "flex absolute w-full",

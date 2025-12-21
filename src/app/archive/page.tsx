@@ -2,11 +2,11 @@
 "use client";
 import React, { useState, useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where, Timestamp, or } from 'firebase/firestore';
-import type { Shipment, Company, User, Governorate } from '@/lib/types';
+import { collection, query, where, Timestamp, or, writeBatch, doc } from 'firebase/firestore';
+import type { Shipment, Company, User, Governorate, ShipmentStatusConfig } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, FileUp, CalendarIcon } from 'lucide-react';
+import { Loader2, FileUp, CalendarIcon, Search, History, ArchiveRestore } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -20,61 +20,75 @@ import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { exportToExcel } from '@/lib/export';
 import { Header } from '@/components/dashboard/header';
+import { Input } from '@/components/ui/input';
+import { ShipmentDetailsDialog } from '@/components/shipments/shipment-details-dialog';
+import { useToast } from '@/hooks/use-toast';
 
 const ArchivePage = () => {
     const firestore = useFirestore();
-    const [entityType, setEntityType] = useState<'courier' | 'company'>('courier');
+    const { toast } = useToast();
+    const [entityType, setEntityType] = useState<'courier' | 'company'>('company');
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [dateRange, setDateRange] = useState<DateRange | undefined>();
+    const [searchTerm, setSearchTerm] = useState('');
+    const [detailsShipment, setDetailsShipment] = useState<Shipment | null>(null);
 
     const { data: companies, isLoading: companiesLoading } = useCollection<Company>(useMemoFirebase(() => firestore ? collection(firestore, 'companies') : null, [firestore]));
     const { data: users, isLoading: usersLoading } = useCollection<User>(useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]));
     const { data: governorates, isLoading: governoratesLoading } = useCollection<Governorate>(useMemoFirebase(() => firestore ? collection(firestore, 'governorates') : null, [firestore]));
+    const { data: statuses, isLoading: statusesLoading } = useCollection<ShipmentStatusConfig>(useMemoFirebase(() => firestore ? collection(firestore, 'shipment_statuses') : null, [firestore]));
 
     const couriers = useMemo(() => users?.filter(u => u.role === 'courier') || [], [users]);
 
     const shipmentsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
         
-        let q = query(collection(firestore, 'shipments'));
+        let filters: any[] = [];
 
         const archiveFilter = entityType === 'courier'
             ? where('isArchivedForCourier', '==', true)
             : where('isArchivedForCompany', '==', true);
+        filters.push(archiveFilter);
         
-        let idFilter;
         if (selectedId) {
-            idFilter = entityType === 'courier'
+            const idFilter = entityType === 'courier'
                 ? where('assignedCourierId', '==', selectedId)
                 : where('companyId', '==', selectedId);
-        }
-
-        const filters = [archiveFilter, idFilter].filter(Boolean);
-        
-        if (filters.length > 0) {
-            q = query(q, ...filters);
-        } else {
-            // Fallback to a general query for archived items if no specific ID is selected
-            q = query(q, or(where('isArchivedForCourier', '==', true), where('isArchivedForCompany', '==', true)));
+            filters.push(idFilter);
         }
 
         if (dateRange?.from) {
-            q = query(q, where('createdAt', '>=', Timestamp.fromDate(dateRange.from)));
+            filters.push(where('createdAt', '>=', Timestamp.fromDate(dateRange.from)));
         }
         if (dateRange?.to) {
             const toDate = new Date(dateRange.to);
             toDate.setHours(23, 59, 59, 999);
-            q = query(q, where('createdAt', '<=', Timestamp.fromDate(toDate)));
+            filters.push(where('createdAt', '<=', Timestamp.fromDate(toDate)));
         }
-        return q;
+        
+        return query(collection(firestore, 'shipments'), ...filters);
+
     }, [firestore, selectedId, entityType, dateRange]);
 
     const { data: archivedShipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
+    
+    const filteredArchivedShipments = useMemo(() => {
+        if (!archivedShipments) return [];
+        if (!searchTerm) return archivedShipments;
+        
+        const lowercasedTerm = searchTerm.toLowerCase();
+        return archivedShipments.filter(shipment =>
+            shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
+            shipment.recipientName?.toLowerCase().includes(lowercasedTerm) ||
+            shipment.recipientPhone?.toLowerCase().includes(lowercasedTerm) ||
+            shipment.address?.toLowerCase().includes(lowercasedTerm)
+        );
+    }, [archivedShipments, searchTerm]);
 
-    const isLoading = companiesLoading || usersLoading || governoratesLoading || (selectedId && shipmentsLoading);
+    const isLoading = companiesLoading || usersLoading || governoratesLoading || shipmentsLoading || statusesLoading;
 
     const handleExport = () => {
-        if (!archivedShipments || archivedShipments.length === 0) {
+        if (!filteredArchivedShipments || filteredArchivedShipments.length === 0) {
             return;
         }
         const entityName = entityType === 'courier' 
@@ -90,6 +104,8 @@ const ArchivePage = () => {
             { accessorKey: "orderNumber", header: "رقم الطلب" },
             { accessorKey: "shipmentCode", header: "رقم الشحنة" },
             { accessorKey: "createdAt", header: "التاريخ" },
+            { accessorKey: "companyId", header: "الشركة" },
+            { accessorKey: "assignedCourierId", header: "المندوب" },
             { accessorKey: "recipientName", header: "المرسل اليه" },
             { accessorKey: "recipientPhone", header: "هاتف المستلم" },
             { accessorKey: "governorateId", header: "المحافظة" },
@@ -99,12 +115,26 @@ const ArchivePage = () => {
             { accessorKey: "paidAmount", header: "المدفوع" },
         ];
         
-        exportToExcel(archivedShipments, columns, `archive_${entityName?.replace(/\s/g, '_') || 'all'}`, governorates || [], companies || [], users || [], reportHeader);
+        exportToExcel(filteredArchivedShipments, columns, `archive_${entityName?.replace(/\s/g, '_') || 'all'}`, governorates || [], companies || [], users || [], reportHeader);
+    };
+
+    const handleUnarchive = async (shipment: Shipment) => {
+        if (!firestore) return;
+        const shipmentRef = doc(firestore, 'shipments', shipment.id);
+        const fieldToUpdate = entityType === 'courier' ? 'isArchivedForCourier' : 'isArchivedForCompany';
+        
+        try {
+            await writeBatch(firestore).update(shipmentRef, { [fieldToUpdate]: false }).commit();
+            toast({ title: 'تم إلغاء الأرشفة بنجاح' });
+        } catch (error) {
+            toast({ title: 'فشل إلغاء الأرشفة', variant: 'destructive' });
+            console.error(error);
+        }
     };
 
     return (
         <div className="flex min-h-screen w-full flex-col">
-            <Header onSearchChange={() => {}} searchTerm="" />
+            <Header onSearchChange={setSearchTerm} searchTerm={searchTerm} />
             <main className="flex-1 p-4 md:p-8">
                 <h1 className="text-3xl font-bold font-headline mb-2">الأرشيف</h1>
                 <p className="text-muted-foreground mb-6">
@@ -119,9 +149,9 @@ const ArchivePage = () => {
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <RadioGroup defaultValue="courier" value={entityType} onValueChange={(value: "courier" | "company") => { setEntityType(value); setSelectedId(null); }} className="flex gap-4">
-                            <div className="flex items-center space-x-2 space-x-reverse"><RadioGroupItem value="courier" id="r-courier" /><Label htmlFor="r-courier">مندوب</Label></div>
+                        <RadioGroup defaultValue="company" value={entityType} onValueChange={(value: "courier" | "company") => { setEntityType(value); setSelectedId(null); }} className="flex gap-4">
                             <div className="flex items-center space-x-2 space-x-reverse"><RadioGroupItem value="company" id="r-company" /><Label htmlFor="r-company">شركة</Label></div>
+                            <div className="flex items-center space-x-2 space-x-reverse"><RadioGroupItem value="courier" id="r-courier" /><Label htmlFor="r-courier">مندوب</Label></div>
                         </RadioGroup>
 
                         <Select dir="rtl" onValueChange={setSelectedId} value={selectedId || ''}>
@@ -137,62 +167,82 @@ const ArchivePage = () => {
                             <PopoverTrigger asChild>
                                 <Button id="date" variant={"outline"} className={cn("w-full justify-start text-right font-normal", !dateRange && "text-muted-foreground")}>
                                     <CalendarIcon className="ml-2 h-4 w-4" />
-                                    {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "LLL dd, y", { locale: ar })} - {format(dateRange.to, "LLL dd, y", { locale: ar })}</>) : (format(dateRange.from, "LLL dd, y"))) : (<span>اختر تاريخ</span>)}
+                                    {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "LLL dd, y", { locale: ar })} - {format(dateRange.to, "LLL dd, y", { locale: ar })}</>) : format(dateRange.from, "LLL dd, y", { locale: ar })) : (<span>اختر فترة</span>)}
                                 </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} locale={ar} />
+                                <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} locale={ar}/>
                             </PopoverContent>
                         </Popover>
-                         <Button onClick={handleExport} disabled={!archivedShipments || archivedShipments.length === 0}>
+
+                        <Button variant="outline" onClick={handleExport} disabled={!filteredArchivedShipments || filteredArchivedShipments.length === 0}>
                             <FileUp className="me-2 h-4 w-4" />
                             تصدير إلى Excel
                         </Button>
                     </CardContent>
                 </Card>
 
-                <Card className="mt-8">
-                    <CardHeader>
-                        <CardTitle>الشحنات المؤرشفة</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <ScrollArea className="h-[50vh]">
+                <div className="mt-8">
+                    {isLoading ? (
+                         <div className="flex h-64 w-full items-center justify-center">
+                            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                        </div>
+                    ) : filteredArchivedShipments.length === 0 ? (
+                        <div className="text-center py-16 text-muted-foreground bg-muted/30 rounded-lg">
+                             <h3 className="text-2xl font-bold">الأرشيف فارغ</h3>
+                             <p>لا توجد شحنات مؤرشفة تطابق الفلاتر المحددة.</p>
+                        </div>
+                    ) : (
+                        <ScrollArea className="h-[60vh] rounded-md border">
                             <Table>
-                                <TableHeader>
+                                <TableHeader className="sticky top-0 bg-background z-10">
                                     <TableRow>
                                         <TableHead>كود الشحنة</TableHead>
                                         <TableHead>العميل</TableHead>
-                                        <TableHead>العنوان</TableHead>
+                                        <TableHead>المبلغ الإجمالي</TableHead>
+                                        <TableHead>المبلغ المدفوع</TableHead>
+                                        <TableHead>المندوب</TableHead>
+                                        <TableHead>الشركة</TableHead>
                                         <TableHead>الحالة</TableHead>
-                                        <TableHead>المبلغ</TableHead>
-                                        <TableHead>تاريخ الإنشاء</TableHead>
+                                        <TableHead>الإجراءات</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {isLoading ? (
-                                        <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin" /></TableCell></TableRow>
-                                    ) : !selectedId ? (
-                                        <TableRow><TableCell colSpan={6} className="h-24 text-center">الرجاء اختيار كيان لعرض أرشيفه.</TableCell></TableRow>
-                                    ) : archivedShipments?.length === 0 ? (
-                                        <TableRow><TableCell colSpan={6} className="h-24 text-center">لا توجد شحنات مؤرشفة تطابق الفلاتر.</TableCell></TableRow>
-                                    ) : (
-                                        archivedShipments?.map(shipment => (
-                                            <TableRow key={shipment.id}>
-                                                <TableCell className="font-mono">{shipment.shipmentCode}</TableCell>
-                                                <TableCell>{shipment.recipientName}</TableCell>
-                                                <TableCell className="max-w-xs truncate">{shipment.address}, {governorates?.find(g => g.id === shipment.governorateId)?.name}</TableCell>
-                                                <TableCell>{shipment.status}</TableCell>
-                                                <TableCell>{new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP" }).format(shipment.totalAmount)}</TableCell>
-                                                <TableCell>{formatToCairoTime(shipment.createdAt)}</TableCell>
-                                            </TableRow>
-                                        ))
-                                    )}
+                                    {filteredArchivedShipments.map(shipment => (
+                                        <TableRow key={shipment.id}>
+                                            <TableCell className="font-mono">{shipment.shipmentCode}</TableCell>
+                                            <TableCell>{shipment.recipientName}</TableCell>
+                                            <TableCell>{shipment.totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                            <TableCell>{shipment.paidAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                            <TableCell>{users?.find(u => u.id === shipment.assignedCourierId)?.name}</TableCell>
+                                            <TableCell>{companies?.find(c => c.id === shipment.companyId)?.name}</TableCell>
+                                            <TableCell>{statuses?.find(s => s.id === shipment.status)?.label || shipment.status}</TableCell>
+                                            <TableCell className="flex gap-2">
+                                                <Button variant="ghost" size="icon" onClick={() => setDetailsShipment(shipment)}>
+                                                    <History className="h-4 w-4 text-blue-500" />
+                                                </Button>
+                                                <Button variant="ghost" size="icon" onClick={() => handleUnarchive(shipment)}>
+                                                    <ArchiveRestore className="h-4 w-4 text-green-500" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
                                 </TableBody>
                             </Table>
                         </ScrollArea>
-                    </CardContent>
-                </Card>
+                    )}
+                </div>
             </main>
+            {detailsShipment && (
+                <ShipmentDetailsDialog 
+                    open={!!detailsShipment}
+                    onOpenChange={(open) => !open && setDetailsShipment(null)}
+                    shipment={detailsShipment}
+                    company={companies?.find(c => c.id === detailsShipment.companyId)}
+                    courier={users?.find(u => u.id === detailsShipment.assignedCourierId)}
+                    governorate={governorates?.find(g => g.id === detailsShipment.governorateId)}
+                />
+            )}
         </div>
     );
 };
