@@ -1,4 +1,5 @@
 
+
 "use client"
 import * as React from "react"
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -48,6 +49,7 @@ import {
     ChevronLeft,
     ChevronRight,
     History,
+    Undo,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -126,7 +128,7 @@ export const statusText: Record<string, string> = {
     'Partially Delivered': 'تم التسليم جزئياً',
     'Evasion (Phone)': 'تهرب هاتفياً',
     'Evasion (Delivery Attempt)': 'تهرب بعد الوصول',
-    Cancelled: 'تم الإلغاء',
+    Cancelled: 'فشل التسليم',
     Returned: 'مرتجع',
     'Custom-Return': 'استرجاع مخصص',
     Postponed: 'مؤجل',
@@ -185,6 +187,11 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, onBulkUpdate, rol
       onBulkUpdate([shipment], { isWarehouseReturn: !shipment.isWarehouseReturn });
     };
 
+    const handleToggleArchive = (type: 'company' | 'courier') => {
+        const key = type === 'company' ? 'isArchivedForCompany' : 'isArchivedForCourier';
+        onBulkUpdate([shipment], { [key]: !shipment[key] });
+    }
+
 
   return (
     <>
@@ -206,12 +213,16 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, onBulkUpdate, rol
         {role === 'admin' && (
             <>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onBulkUpdate([shipment], { isArchivedForCompany: true })}>
+                <DropdownMenuItem onClick={() => handleToggleArchive('company')} disabled={shipment.isArchivedForCompany}>
                     <Building className="ms-2 h-4 w-4 text-blue-500" /> أرشفة للشركة
                 </DropdownMenuItem>
-                 <DropdownMenuItem onClick={() => onBulkUpdate([shipment], { isArchivedForCourier: true })}>
+                {shipment.isArchivedForCompany && <DropdownMenuItem onClick={() => handleToggleArchive('company')}><Undo className="ms-2 h-4 w-4 text-blue-500" /> إلغاء أرشفة الشركة</DropdownMenuItem>}
+
+                 <DropdownMenuItem onClick={() => handleToggleArchive('courier')} disabled={shipment.isArchivedForCourier}>
                     <UserIcon className="ms-2 h-4 w-4 text-green-500" /> أرشفة للمندوب
                 </DropdownMenuItem>
+                 {shipment.isArchivedForCourier && <DropdownMenuItem onClick={() => handleToggleArchive('courier')}><Undo className="ms-2 h-4 w-4 text-green-500" /> إلغاء أرشفة المندوب</DropdownMenuItem>}
+
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleToggleWarehouseReturn}>
                     <Warehouse className="ms-2 h-4 w-4" /> 
@@ -505,7 +516,7 @@ export function ShipmentsTable({
     onBulkPrint?: (selectedRows: Shipment[]) => void,
     filters?: ColumnFiltersState,
     onFiltersChange?: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
-    activeTab?: 'none' | 'company' | 'courier' | 'returns-with-couriers' | 'returns-in-warehouse' | 'returned-to-company',
+    activeTab?: 'none' | 'company' | 'courier' | 'returns-with-couriers' | 'returns-in-warehouse' | 'returned-to-company' | 'returning-to-company',
 }) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -718,16 +729,16 @@ export function ShipmentsTable({
                         <>
                            <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isWarehouseReturn: true })}>
                                 <Warehouse className="me-2 h-3.5 w-3.5" />
-                                تم الرجوع للمخزن
+                                للمخزن
                             </Button>
                              <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isReturnedToCompany: true })}>
                                 <Building className="me-2 h-3.5 w-3.5" />
-                                تم الرجوع للشركة
+                                للشركة
                             </Button>
                         </>
                     )}
                     {role === 'admin' && activeTab === 'returns-in-warehouse' && (
-                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isReturnedToCompany: true })}>
+                         <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isReturnedToCompany: true })}>
                             <Building className="me-2 h-3.5 w-3.5" />
                             تم الرجوع للشركة
                         </Button>

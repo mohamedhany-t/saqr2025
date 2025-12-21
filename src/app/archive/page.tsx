@@ -1,8 +1,9 @@
+
 "use client";
 import React, { useState, useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, where, Timestamp } from 'firebase/firestore';
-import type { Shipment, Company, User, Governorate, ArchivedCourierPayment, ArchivedCompanyPayment } from '@/lib/types';
+import type { Shipment, Company, User, Governorate } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, FileUp, CalendarIcon } from 'lucide-react';
@@ -34,8 +35,14 @@ const ArchivePage = () => {
 
     const shipmentsQuery = useMemoFirebase(() => {
         if (!firestore || !selectedId) return null;
-        const collectionName = entityType === 'courier' ? 'archived_courier_shipments' : 'archived_company_shipments';
-        let q = query(collection(firestore, collectionName), where(entityType === 'courier' ? 'assignedCourierId' : 'companyId', '==', selectedId));
+        
+        let q;
+        if(entityType === 'courier') {
+            q = query(collection(firestore, 'archived_courier_shipments'), where('assignedCourierId', '==', selectedId));
+        } else {
+             q = query(collection(firestore, 'archived_company_shipments'), where('companyId', '==', selectedId));
+        }
+       
         if (dateRange?.from) {
             q = query(q, where('createdAt', '>=', Timestamp.fromDate(dateRange.from)));
         }
