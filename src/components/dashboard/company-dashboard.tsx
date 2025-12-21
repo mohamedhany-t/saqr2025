@@ -1,5 +1,4 @@
 
-
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -168,7 +167,7 @@ export default function CompanyDashboard({ user, role, searchTerm }: CompanyDash
             const worksheet = workbook.Sheets[sheetName];
             const json = utils.sheet_to_json<any>(worksheet);
 
-            const result: ImportResult = { added: 0, updated: 0, rejected: 0, total: json.length, processing: true, errors: [] };
+            const result: ImportResult = { added: 0, updated: 0, rejected: 0, total: json.length, processing: true, errors: [], shipmentsToUpdate: [] };
             setImportResult(result);
             
             const validRows: any[] = [];
