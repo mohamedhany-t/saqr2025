@@ -65,8 +65,6 @@ const ArchivePage = () => {
             filters.push(idFilter);
         }
         
-        // The date range filter will be applied on the client side to avoid composite index issues.
-        
         return query(collection(firestore, 'shipments'), and(...filters));
 
     }, [firestore, selectedId, entityType]);
@@ -142,14 +140,28 @@ const ArchivePage = () => {
         if (!firestore) return;
         const shipmentRef = doc(firestore, 'shipments', shipment.id);
         
-        let fieldToUpdate = {};
-        if (shipment.isArchivedForCompany) {
-             fieldToUpdate = { ...fieldToUpdate, isArchivedForCompany: false };
-        }
-        if (shipment.isArchivedForCourier) {
-             fieldToUpdate = { ...fieldToUpdate, isArchivedForCourier: false };
+        let fieldToUpdate: { [key: string]: boolean } = {};
+        
+        // If a specific entity type is selected in the filter, only unarchive for that entity.
+        if (selectedId) {
+            if (entityType === 'company') {
+                fieldToUpdate['isArchivedForCompany'] = false;
+            } else if (entityType === 'courier') {
+                fieldToUpdate['isArchivedForCourier'] = false;
+            }
+        } else {
+            // If no specific entity is selected (showing 'all'), unarchive for both as a fallback.
+            fieldToUpdate = {
+                isArchivedForCompany: false,
+                isArchivedForCourier: false,
+            };
         }
         
+        if (Object.keys(fieldToUpdate).length === 0) {
+            toast({ title: 'خطأ', description: 'لا يمكن تحديد طرف لإلغاء الأرشفة.', variant: 'destructive' });
+            return;
+        }
+
         try {
             await writeBatch(firestore).update(shipmentRef, fieldToUpdate).commit();
             toast({ title: 'تم إلغاء الأرشفة بنجاح' });
@@ -248,7 +260,7 @@ const ArchivePage = () => {
                                                 <Button variant="ghost" size="icon" onClick={() => setDetailsShipment(shipment)}>
                                                     <History className="h-4 w-4 text-blue-500" />
                                                 </Button>
-                                                <Button variant="ghost" size="icon" onClick={() => handleUnarchive(shipment)}>
+                                                <Button variant="ghost" size="icon" onClick={() => handleUnarchive(shipment)} disabled={!selectedId}>
                                                     <ArchiveRestore className="h-4 w-4 text-green-500" />
                                                 </Button>
                                             </TableCell>
@@ -275,5 +287,3 @@ const ArchivePage = () => {
 };
 
 export default ArchivePage;
-
-    
