@@ -1353,7 +1353,6 @@ const handleArchiveCourierData = async () => {
             paymentDate: serverTimestamp(),
             recordedById: user.id,
             notes: "تسوية وحفظ تلقائي للحساب",
-            isArchived: true
         };
         batch.set(paymentRef, newPayment);
     }
@@ -1410,7 +1409,6 @@ const handleArchiveCompanyData = async () => {
             paymentDate: serverTimestamp(),
             recordedById: user.id,
             notes: "تسوية وحفظ تلقائي للحساب",
-            isArchived: true
         };
         batch.set(paymentRef, newPayment);
     }
@@ -1443,10 +1441,16 @@ const handleArchiveCompanyData = async () => {
 };
 
   
-  const filteredShipments = React.useMemo(() => {
+  const activeShipments = React.useMemo(() => {
     if (!allShipmentsForStats) return [];
+    return allShipmentsForStats.filter(s => !s.isArchivedForCompany && !s.isArchivedForCourier);
+  }, [allShipmentsForStats]);
+
+
+  const filteredShipments = React.useMemo(() => {
+    if (!activeShipments) return [];
   
-    let baseShipments = allShipmentsForStats;
+    let baseShipments = activeShipments;
   
     // Apply main search term if it exists
     if (searchTerm) {
@@ -1480,7 +1484,7 @@ const handleArchiveCompanyData = async () => {
     }
 
     return baseShipments;
-  }, [allShipmentsForStats, searchTerm, columnFilters]);
+  }, [activeShipments, searchTerm, columnFilters]);
   
   
   const unassignedShipments = React.useMemo(() => {
@@ -1495,8 +1499,8 @@ const handleArchiveCompanyData = async () => {
 
     
   const recentlyUpdatedShipments = React.useMemo(() => {
-    const activeShipments = filteredShipments || [];
-    const sorted = [...activeShipments].sort((a, b) => {
+    const activeShipmentsForSort = filteredShipments || [];
+    const sorted = [...activeShipmentsForSort].sort((a, b) => {
         const timeA = getSafeDate(a.updatedAt)?.getTime() || 0;
         const timeB = getSafeDate(b.updatedAt)?.getTime() || 0;
         return timeB - timeA;
