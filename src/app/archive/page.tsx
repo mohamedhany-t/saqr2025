@@ -36,19 +36,19 @@ const ArchivePage = () => {
     const { data: companies, isLoading: companiesLoading } = useCollection<Company>(useMemoFirebase(() => firestore ? collection(firestore, 'companies') : null, [firestore]));
     const { data: users, isLoading: usersLoading } = useCollection<User>(useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]));
     const { data: governorates, isLoading: governoratesLoading } = useCollection<Governorate>(useMemoFirebase(() => firestore ? collection(firestore, 'governorates') : null, [firestore]));
-    const { data: statuses, isLoading: statusesLoading } = useCollection<ShipmentStatusConfig>(useMemoFirebase(() => firestore ? collection(firestore, 'shipment_statuses') : null, [firestore]));
+    const { data: statuses, isLoading: statusesLoading } = useCollection<ShipmentStatusConfig>(useMemoFirebase(() => firestore ? query(collection(firestore, 'shipment_statuses')) : null, [firestore]));
 
     const couriers = useMemo(() => users?.filter(u => u.role === 'courier') || [], [users]);
 
     const shipmentsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
         
-        let filters: any[] = [];
-
-        const archiveFilter = entityType === 'courier'
-            ? where('isArchivedForCourier', '==', true)
-            : where('isArchivedForCompany', '==', true);
-        filters.push(archiveFilter);
+        let filters: any[] = [
+            or(
+                where('isArchivedForCourier', '==', true),
+                where('isArchivedForCompany', '==', true)
+            )
+        ];
         
         if (selectedId) {
             const idFilter = entityType === 'courier'
@@ -212,8 +212,8 @@ const ArchivePage = () => {
                                         <TableRow key={shipment.id}>
                                             <TableCell className="font-mono">{shipment.shipmentCode}</TableCell>
                                             <TableCell>{shipment.recipientName}</TableCell>
-                                            <TableCell>{shipment.totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                            <TableCell>{shipment.paidAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                            <TableCell>{(shipment.totalAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                            <TableCell>{(shipment.paidAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
                                             <TableCell>{users?.find(u => u.id === shipment.assignedCourierId)?.name}</TableCell>
                                             <TableCell>{companies?.find(c => c.id === shipment.companyId)?.name}</TableCell>
                                             <TableCell>{statuses?.find(s => s.id === shipment.status)?.label || shipment.status}</TableCell>
