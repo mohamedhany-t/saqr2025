@@ -2,7 +2,7 @@
 "use client";
 import React, { useState, useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where, Timestamp } from 'firebase/firestore';
+import { collection, query, where, Timestamp, or } from 'firebase/firestore';
 import type { Shipment, Company, User, Governorate } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,15 +34,30 @@ const ArchivePage = () => {
     const couriers = useMemo(() => users?.filter(u => u.role === 'courier') || [], [users]);
 
     const shipmentsQuery = useMemoFirebase(() => {
-        if (!firestore || !selectedId) return null;
+        if (!firestore) return null;
         
-        let q;
-        if(entityType === 'courier') {
-            q = query(collection(firestore, 'archived_courier_shipments'), where('assignedCourierId', '==', selectedId));
-        } else {
-             q = query(collection(firestore, 'archived_company_shipments'), where('companyId', '==', selectedId));
+        let q = query(collection(firestore, 'shipments'));
+
+        const archiveFilter = entityType === 'courier'
+            ? where('isArchivedForCourier', '==', true)
+            : where('isArchivedForCompany', '==', true);
+        
+        let idFilter;
+        if (selectedId) {
+            idFilter = entityType === 'courier'
+                ? where('assignedCourierId', '==', selectedId)
+                : where('companyId', '==', selectedId);
         }
-       
+
+        const filters = [archiveFilter, idFilter].filter(Boolean);
+        
+        if (filters.length > 0) {
+            q = query(q, ...filters);
+        } else {
+            // Fallback to a general query for archived items if no specific ID is selected
+            q = query(q, or(where('isArchivedForCourier', '==', true), where('isArchivedForCompany', '==', true)));
+        }
+
         if (dateRange?.from) {
             q = query(q, where('createdAt', '>=', Timestamp.fromDate(dateRange.from)));
         }
@@ -67,7 +82,7 @@ const ArchivePage = () => {
             : companies?.find(c => c.id === selectedId)?.name;
 
         const reportHeader = {
-            title: `تقرير أرشيف: ${entityName}`,
+            title: `تقرير أرشيف: ${entityName || 'الكل'}`,
             date: `تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')}`
         };
 
@@ -84,7 +99,7 @@ const ArchivePage = () => {
             { accessorKey: "paidAmount", header: "المدفوع" },
         ];
         
-        exportToExcel(archivedShipments, columns, `archive_${entityName?.replace(/\s/g, '_')}`, governorates || [], companies || [], users || [], reportHeader);
+        exportToExcel(archivedShipments, columns, `archive_${entityName?.replace(/\s/g, '_') || 'all'}`, governorates || [], companies || [], users || [], reportHeader);
     };
 
     return (
