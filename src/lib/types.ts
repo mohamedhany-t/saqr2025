@@ -161,11 +161,7 @@ export interface CourierPayment {
     paymentDate: any; // Can be Date or Firebase Timestamp
     recordedById: string; // Admin UID
     notes?: string;
-    isArchived?: boolean; // For settling courier accounts
-}
-
-export interface ArchivedCourierPayment extends Omit<CourierPayment, 'isArchived'> {
-    archivedAt: any;
+    isArchived?: boolean; 
 }
 
 export interface CompanyPayment {
@@ -176,10 +172,6 @@ export interface CompanyPayment {
     recordedById: string; // Admin UID
     notes?: string;
     isArchived?: boolean;
-}
-
-export interface ArchivedCompanyPayment extends Omit<CompanyPayment, 'isArchived'> {
-    archivedAt: any;
 }
 
 export interface Chat {

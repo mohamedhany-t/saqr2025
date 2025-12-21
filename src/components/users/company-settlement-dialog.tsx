@@ -321,7 +321,7 @@ export function CompanySettlementDialog({
 
                         <div className="mt-4 p-3 bg-yellow-100 border-r-4 border-yellow-500 text-yellow-800 rounded-r-lg">
                             <h4 className="font-bold flex items-center gap-2"><AlertTriangle/> إجراء نهائي</h4>
-                            <p className="text-sm">سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ الصافي وأرشفة جميع الشحنات التي تمت مطابقتها لهذه الشركة. لا يمكن التراجع عن هذا الإجراء.</p>
+                            <p className="text-sm">سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ الصافي وتحديث علامة الأرشفة (`isArchivedForCompany`) لجميع الشحنات التي تمت مطابقتها لهذه الشركة. لا يمكن التراجع عن هذا الإجراء.</p>
                         </div>
                     </div>
                 )}

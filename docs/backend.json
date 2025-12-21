@@ -127,9 +127,13 @@
           "type": "string",
           "description": "Reference to Courier. (Relationship: Courier 1:N Shipment)"
         },
-        "isArchived": {
+        "isArchivedForCourier": {
             "type": "boolean",
-            "description": "Flag to indicate if a shipment is archived and excluded from active calculations."
+            "description": "Flag to indicate if a shipment is archived for the courier and excluded from their active calculations."
+        },
+        "isArchivedForCompany": {
+            "type": "boolean",
+            "description": "Flag to indicate if a shipment is archived for the company and excluded from their active calculations."
         },
         "isExchange": {
             "type": "boolean",
@@ -460,22 +464,6 @@
           "description": "Stores records of active payments made to companies.",
           "params": [{ "name": "paymentId", "description": "Unique ID for the payment." }]
         }
-      },
-       {
-        "path": "/archived_courier_shipments/{shipmentId}",
-        "definition": { "entityName": "Shipment", "schema": { "$ref": "#/backend/entities/Shipment" } }
-      },
-      {
-        "path": "/archived_company_shipments/{shipmentId}",
-        "definition": { "entityName": "Shipment", "schema": { "$ref": "#/backend/entities/Shipment" } }
-      },
-      {
-        "path": "/archived_courier_payments/{paymentId}",
-        "definition": { "entityName": "CourierPayment", "schema": { "$ref": "#/backend/entities/CourierPayment" } }
-      },
-      {
-        "path": "/archived_company_payments/{paymentId}",
-        "definition": { "entityName": "CompanyPayment", "schema": { "$ref": "#/backend/entities/CompanyPayment" } }
       },
       {
         "path": "/chats/{chatId}",
