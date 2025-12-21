@@ -302,7 +302,6 @@ const MobileShipmentsView = ({
                     <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
                     <TabsTrigger value="returns-with-couriers">مرتجعات بالخارج</TabsTrigger>
                     <TabsTrigger value="returns-in-warehouse">مرتجعات بالمخزن</TabsTrigger>
-                    <TabsTrigger value="returning-to-company">قيد التوصيل للشركة</TabsTrigger>
                     <TabsTrigger value="returned-to-company">وصلت للشركة</TabsTrigger>
                 </TabsList>
                 <div className="flex flex-col gap-4">
@@ -323,7 +322,6 @@ const MobileShipmentsView = ({
             <TabsContent value="postponed"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
             <TabsContent value="returns-with-couriers"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
             <TabsContent value="returns-in-warehouse"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
-            <TabsContent value="returning-to-company"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
             <TabsContent value="returned-to-company"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
             
             {selectedCount > 0 && (
@@ -388,22 +386,12 @@ const MobileShipmentsView = ({
                                 <Warehouse className="me-2 h-4 w-4" />
                                 للمخزن
                             </Button>
-                             <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isReturningToCompany: true })}>
-                                <Building className="me-2 h-4 w-4" />
-                                للشركة
-                            </Button>
                         </>
                     )}
                     {activeTab === 'returns-in-warehouse' && (
                          <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isReturningToCompany: true })}>
                             <Building className="me-2 h-4 w-4" />
                             توصيل للشركة
-                        </Button>
-                    )}
-                    {activeTab === 'returning-to-company' && (
-                         <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isReturnedToCompany: true })}>
-                            <Building className="me-2 h-4 w-4" />
-                            تأكيد الوصول للشركة
                         </Button>
                     )}
                     
@@ -494,7 +482,6 @@ const DesktopShipmentsView = ({
                 <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
                 <TabsTrigger value="returns-with-couriers">مرتجعات لدى المناديب</TabsTrigger>
                 <TabsTrigger value="returns-in-warehouse">مرتجعات وصلت المخزن</TabsTrigger>
-                <TabsTrigger value="returning-to-company">قيد التوصيل للشركة</TabsTrigger>
                 <TabsTrigger value="returned-to-company">وصلت للشركة</TabsTrigger>
             </TabsList>
             <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments)}</TabsContent>
@@ -505,7 +492,6 @@ const DesktopShipmentsView = ({
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
             <TabsContent value="returns-with-couriers">{renderShipmentTable(returnsWithCouriers, 'returns-with-couriers')}</TabsContent>
             <TabsContent value="returns-in-warehouse">{renderShipmentTable(inWarehouseShipments, 'returns-in-warehouse')}</TabsContent>
-            <TabsContent value="returning-to-company">{renderShipmentTable(returningToCompanyShipments, 'returning-to-company')}</TabsContent>
             <TabsContent value="returned-to-company">{renderShipmentTable(returnedToCompanyShipments, 'returned-to-company')}</TabsContent>
         </Tabs>
     )
@@ -828,7 +814,7 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
     return null;
   };
 
-const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !firestore || !authUser || !companies || !governorates) return;
 
@@ -856,17 +842,20 @@ const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
             const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
 
             for (const row of json) {
-                // --- Data Extraction and Validation from sheet ---
                 const shipmentCodeValue = row['كود الشحنة'] ? String(row['كود الشحنة']).trim() : null;
                 const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
                 const foundCompany = companies.find(c => c.name === companyNameFromSheet);
 
                 let existingDoc: DocumentSnapshot<DocumentData> | null = null;
-                if(shipmentCodeValue) {
-                    const existingDocQuery = query(collection(firestore, 'shipments'), where("shipmentCode", "==", shipmentCodeValue));
-                    const snapshot = await getDocs(existingDocQuery);
+                if (shipmentCodeValue) {
+                    const existingDocsQuery = query(collection(firestore, 'shipments'), where("shipmentCode", "==", shipmentCodeValue));
+                    const snapshot = await getDocs(existingDocsQuery);
                     if (!snapshot.empty) {
-                        existingDoc = snapshot.docs[0];
+                        // Find the first non-fully-archived shipment if it exists
+                        existingDoc = snapshot.docs.find(doc => {
+                            const data = doc.data();
+                            return !(data.isArchivedForCompany && data.isArchivedForCourier);
+                        }) || null;
                     }
                 }
 
@@ -878,7 +867,6 @@ const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
                 const governorateName = String(row['المحافظة'] || '').trim();
                 const foundGovernorate = governorates.find(g => g.name === governorateName);
                 
-                // --- Prepare Shipment Data ---
                 const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
                 const creationDate = parseExcelDate(row['التاريخ']);
                 const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
@@ -901,14 +889,12 @@ const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
                 const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
 
                 if (existingDoc) {
-                    // It's an update
                     result.shipmentsToUpdate.push({
                         existing: existingDoc.data() as Shipment,
                         new: { ...cleanShipmentData, shipmentId: existingDoc.id } as Partial<Shipment>,
                     });
                     result.updated++;
                 } else {
-                    // It's an addition
                     const newDocRef = doc(collection(firestore, "shipments"));
                     await handleShipmentUpdateFn({ 
                         shipmentId: newDocRef.id, 
@@ -920,12 +906,10 @@ const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
                 setImportResult({ ...result });
             }
 
-            // Final updates based on collected changes.
             if (result.shipmentsToUpdate.length > 0) {
                  for (const update of result.shipmentsToUpdate) {
                     const existingShipment = update.existing;
                     let dataToUpdate: Partial<Shipment> & { shipmentId: string } = { ...update.new, shipmentId: existingShipment.id };
-                     // Don't override status or courier if already assigned
                     if (existingShipment.assignedCourierId && existingShipment.status !== 'Pending') {
                       delete dataToUpdate.status;
                       delete dataToUpdate.assignedCourierId;
@@ -960,7 +944,6 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
             ...data,
         };
 
-        // When creating a new shipment, ensure an ID is generated and passed
         if (!id) {
             const newDocRef = doc(collection(firestore, "shipments"));
             payload.shipmentId = newDocRef.id;
@@ -977,7 +960,6 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
 
         handleSheetOpenChange(false);
 
-        // Send push notification if a courier is assigned/changed.
         if (data.assignedCourierId && (!editingShipment || data.assignedCourierId !== editingShipment.assignedCourierId)) {
             const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${payload.shipmentId}` : `/?edit=${payload.shipmentId}`;
             sendPushNotification({
@@ -1443,7 +1425,7 @@ const handleArchiveCompanyData = async () => {
   
   const activeShipments = React.useMemo(() => {
     if (!allShipmentsForStats) return [];
-    return allShipmentsForStats.filter(s => !s.isArchivedForCompany && !s.isArchivedForCourier);
+    return allShipmentsForStats.filter(s => !(s.isArchivedForCompany && s.isArchivedForCourier));
   }, [allShipmentsForStats]);
 
 
@@ -2527,3 +2509,4 @@ const generateShipmentCode = () => {
     </div>
   );
 }
+

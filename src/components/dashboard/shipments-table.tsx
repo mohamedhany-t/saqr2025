@@ -131,7 +131,7 @@ export const statusText: Record<string, string> = {
     'Custom-Return': 'استرجاع مخصص',
     Postponed: 'مؤجل',
     'Returned to Sender': 'تم الرجوع للراسل',
-    'Refused (Paid)': 'رفض ودفع الشحن',
+    'Refused (Paid)': 'رفض ودفع مصاريف شحن',
     'Refused (Unpaid)': 'رفض ولم يدفع مصاريف شحن',
     'PriceChangeRequested': 'طلب تعديل سعر',
     'PriceChangeRejected': 'مرفوض - تابع مع الإدارة'
@@ -211,15 +211,14 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, onBulkUpdate, rol
         {role === 'admin' && (
             <>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => handleToggleArchive('company')} disabled={shipment.isArchivedForCompany}>
-                    <Building className="ms-2 h-4 w-4 text-blue-500" /> أرشفة للشركة
+                <DropdownMenuItem onClick={() => handleToggleArchive('company')} >
+                    <Building className="ms-2 h-4 w-4 text-blue-500" /> 
+                    {shipment.isArchivedForCompany ? 'إلغاء أرشفة الشركة' : 'أرشفة للشركة'}
                 </DropdownMenuItem>
-                {shipment.isArchivedForCompany && <DropdownMenuItem onClick={() => handleToggleArchive('company')}><Undo className="ms-2 h-4 w-4 text-blue-500" /> إلغاء أرشفة الشركة</DropdownMenuItem>}
-
-                 <DropdownMenuItem onClick={() => handleToggleArchive('courier')} disabled={shipment.isArchivedForCourier}>
-                    <UserIcon className="ms-2 h-4 w-4 text-green-500" /> أرشفة للمندوب
+                 <DropdownMenuItem onClick={() => handleToggleArchive('courier')}>
+                    <UserIcon className="ms-2 h-4 w-4 text-green-500" />
+                    {shipment.isArchivedForCourier ? 'إلغاء أرشفة المندوب' : 'أرشفة للمندوب'}
                 </DropdownMenuItem>
-                 {shipment.isArchivedForCourier && <DropdownMenuItem onClick={() => handleToggleArchive('courier')}><Undo className="ms-2 h-4 w-4 text-green-500" /> إلغاء أرشفة المندوب</DropdownMenuItem>}
 
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleToggleWarehouseReturn}>
@@ -421,7 +420,8 @@ export const getColumns = ({
                             <Archive className="h-4 w-4 text-muted-foreground" />
                         </TooltipTrigger>
                         <TooltipContent>
-                            <p>مؤرشفة</p>
+                            {shipment.isArchivedForCompany && <p>مؤرشفة للشركة</p>}
+                             {shipment.isArchivedForCourier && <p>مؤرشفة للمندوب</p>}
                         </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
@@ -664,7 +664,7 @@ export function ShipmentsTable({
                  <ShipmentFilters 
                     governorates={governorates}
                     companies={companies}
-                    courierUsers={couriers}
+                    couriers={couriers}
                     statuses={statuses}
                     onFiltersChange={onFiltersChange}
                 />
@@ -713,16 +713,12 @@ export function ShipmentsTable({
                                 <Warehouse className="me-2 h-3.5 w-3.5" />
                                 للمخزن
                             </Button>
-                             <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isReturnedToCompany: true })}>
-                                <Building className="me-2 h-3.5 w-3.5" />
-                                للشركة
-                            </Button>
                         </>
                     )}
                     {role === 'admin' && activeTab === 'returns-in-warehouse' && (
-                         <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isReturnedToCompany: true })}>
+                         <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isReturningToCompany: true })}>
                             <Building className="me-2 h-3.5 w-3.5" />
-                            تم الرجوع للشركة
+                            توصيل للشركة
                         </Button>
                     )}
                     {role === 'admin' && activeTab === 'returned-to-company' && (
@@ -731,39 +727,15 @@ export function ShipmentsTable({
                             أرشفة للشركة
                         </Button>
                     )}
-                    {role === 'admin' && activeTab !== 'returns-with-couriers' && activeTab !== 'returns-in-warehouse' && activeTab !== 'returned-to-company' && (
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm" className="h-8 gap-1">
-                                    <Archive className="h-3.5 w-3.5" />
-                                    <span className="sr-only sm:not-sr-only">أرشفة</span>
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem onSelect={() => handleGenericBulkUpdate({ isArchivedForCompany: true })}>
-                                    <Building className="ms-2 h-4 w-4" /> أرشفة للشركة
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => handleGenericBulkUpdate({ isArchivedForCourier: true })}>
-                                    <UserIcon className="ms-2 h-4 w-4" /> أرشفة للمندوب
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    )}
-                    {activeTab === 'company' && role === 'admin' && (
-                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isArchivedForCompany: false })}>
-                            <ArchiveRestore className="h-3.5 w-3.5" />
-                            <span className="sr-only sm:not-sr-only">إلغاء أرشفة الشركة</span>
-                        </Button>
-                    )}
-                     {activeTab === 'courier' && role === 'admin' && (
-                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isArchivedForCourier: false })}>
-                            <ArchiveRestore className="h-3.5 w-3.5" />
-                            <span className="sr-only sm:not-sr-only">إلغاء أرشفة المندوب</span>
-                        </Button>
-                    )}
                     {role === 'admin' && (
                         <>
-                             <DropdownMenu>
+                             <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isArchivedForCompany: true })}>
+                                <Building className="ms-2 h-4 w-4" /> أرشفة للشركة
+                            </Button>
+                             <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isArchivedForCourier: true })}>
+                                <UserIcon className="ms-2 h-4 w-4" /> أرشفة للمندوب
+                            </Button>
+                            <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="outline" size="sm" className="h-8 gap-1">
                                         <Building className="h-3.5 w-3.5" />
