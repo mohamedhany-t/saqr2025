@@ -842,7 +842,7 @@ const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
             const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
 
             for (const row of json) {
-                const shipmentCodeValue = row['كود الشحنة'] ? String(row['كود الشحنة']).trim() : null;
+                const shipmentCodeValue = row['كود الشحنة'] ? String(row['كود الشحنة']).trim() : undefined;
                 const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
                 const foundCompany = companies.find(c => c.name === companyNameFromSheet);
 
@@ -1537,7 +1537,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
             returnedCount: activeShipments.filter(s => returnedStatusesForCalc.includes(s.status)).length,
             totalCollected,
             totalCommission,
-            totalPaidByCourier,
+            totalPaidByCourier: allPaymentsForCourier.filter(p => !p.isArchived).reduce((acc, p) => acc + p.amount, 0),
             netDue,
             paymentHistory: allPaymentsForCourier.sort((a, b) => (getSafeDate(b.paymentDate)?.getTime() || 0) - (getSafeDate(a.paymentDate)?.getTime() || 0)),
         }
@@ -2508,6 +2508,7 @@ const generateShipmentCode = () => {
     </div>
   );
 }
+
 
 
 
