@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, User, CourierPayment, Chat, CompanyPayment, ShipmentHistory, ShipmentStatusConfig } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, User, CourierPayment, Chat, CompanyPayment, ShipmentHistory, ShipmentStatusConfig, ArchivedCourierPayment, ArchivedCompanyPayment } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { UsersTable, UserCard } from "@/components/dashboard/users-table";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
@@ -71,6 +71,18 @@ const getSafeDate = (date: any): Date | null => {
     return null;
 };
 
+const filterShipmentsBySearch = (list: Shipment[], term: string): Shipment[] => {
+    if (!term) return list;
+    const lowercasedTerm = term.toLowerCase();
+    return list.filter(shipment =>
+        String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
+        String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
+        String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
+        String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
+        String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
+    );
+  }
+
 const MobileShipmentsView = ({
     shipments,
     listIsLoading,
@@ -126,39 +138,23 @@ const MobileShipmentsView = ({
     const unassignedShipments = React.useMemo(() => shipments.filter(s => !s.assignedCourierId), [shipments]);
     const assignedShipments = React.useMemo(() => shipments.filter(s => !!s.assignedCourierId), [shipments]);
     const returnsWithCouriers = React.useMemo(() => {
-        return shipments?.filter(s => (returnedShipmentStatuses.includes(s.status) || s.isExchange) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCourier) || [];
+        return shipments?.filter(s => (returnedShipmentStatuses.includes(s.status) || s.isExchange) && !s.isWarehouseReturn && !s.isReturnedToCompany) || [];
     }, [shipments, returnedShipmentStatuses]);
-    const inWarehouseShipments = React.useMemo(() => shipments.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCompany), [shipments]);
-    const returnedToCompanyShipments = React.useMemo(() => shipments.filter(s => s.isReturnedToCompany && !s.isArchivedForCompany), [shipments]);
-    const archivedShipmentsCompany = React.useMemo(() => shipments.filter(s => s.isArchivedForCompany), [shipments]);
-    const archivedShipmentsCourier = React.useMemo(() => shipments.filter(s => s.isArchivedForCourier), [shipments]);
-
-    const filterBySearchTerm = React.useCallback((list: Shipment[]) => {
-        if (!searchTerm) return list;
-        const lowercasedTerm = searchTerm.toLowerCase();
-        return list.filter(shipment =>
-            String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
-        );
-    }, [searchTerm]);
-
+    const inWarehouseShipments = React.useMemo(() => shipments.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany), [shipments]);
+    const returnedToCompanyShipments = React.useMemo(() => shipments.filter(s => s.isReturnedToCompany), [shipments]);
+   
     const getCurrentShipmentList = () => {
       switch (activeTab) {
-        case "recently-updated": return filterBySearchTerm(recentlyUpdatedShipments);
-        case "unassigned": return filterBySearchTerm(unassignedShipments);
-        case "assigned": return filterBySearchTerm(assignedShipments);
-        case "delivered": return filterBySearchTerm(shipments.filter(s => ['Delivered'].includes(s.status)));
-        case "postponed": return filterBySearchTerm(shipments.filter(s => s.status === 'Postponed'));
-        case "returns-with-couriers": return filterBySearchTerm(returnsWithCouriers);
-        case "returns-in-warehouse": return filterBySearchTerm(inWarehouseShipments);
-        case "returned-to-company": return filterBySearchTerm(returnedToCompanyShipments);
-        case "archived-company": return filterBySearchTerm(archivedShipmentsCompany);
-        case "archived-courier": return filterBySearchTerm(archivedShipmentsCourier);
+        case "recently-updated": return filterShipmentsBySearch(recentlyUpdatedShipments, searchTerm);
+        case "unassigned": return filterShipmentsBySearch(unassignedShipments, searchTerm);
+        case "assigned": return filterShipmentsBySearch(assignedShipments, searchTerm);
+        case "delivered": return filterShipmentsBySearch(shipments.filter(s => ['Delivered'].includes(s.status)), searchTerm);
+        case "postponed": return filterShipmentsBySearch(shipments.filter(s => s.status === 'Postponed'), searchTerm);
+        case "returns-with-couriers": return filterShipmentsBySearch(returnsWithCouriers, searchTerm);
+        case "returns-in-warehouse": return filterShipmentsBySearch(inWarehouseShipments, searchTerm);
+        case "returned-to-company": return filterShipmentsBySearch(returnedToCompanyShipments, searchTerm);
         case "all-shipments":
-        default: return filterBySearchTerm(shipments);
+        default: return filterShipmentsBySearch(shipments, searchTerm);
       }
     };
     
@@ -305,8 +301,6 @@ const MobileShipmentsView = ({
                     <TabsTrigger value="returns-with-couriers">مرتجعات بالخارج</TabsTrigger>
                     <TabsTrigger value="returns-in-warehouse">مرتجعات بالمخزن</TabsTrigger>
                     <TabsTrigger value="returned-to-company">وصلت للشركة</TabsTrigger>
-                    <TabsTrigger value="archived-company">مؤرشف الشركات</TabsTrigger>
-                    <TabsTrigger value="archived-courier">مؤرشف المناديب</TabsTrigger>
                 </TabsList>
                 <div className="flex flex-col gap-4">
                     <ShipmentFilters governorates={governorates || []} companies={companies || []} courierUsers={courierUsers || []} statuses={statuses || []} onFiltersChange={setColumnFilters} />
@@ -327,8 +321,7 @@ const MobileShipmentsView = ({
             <TabsContent value="returns-with-couriers"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
             <TabsContent value="returns-in-warehouse"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
             <TabsContent value="returned-to-company"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
-            <TabsContent value="archived-company"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
-            <TabsContent value="archived-courier"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
+            
             {selectedCount > 0 && (
                 <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-2 shadow-lg flex items-center justify-around flex-wrap gap-2 z-40">
                      <span className="text-sm font-medium">{selectedCount} شحنات محددة</span>
@@ -403,24 +396,7 @@ const MobileShipmentsView = ({
                             تم الرجوع للشركة
                         </Button>
                     )}
-                     {activeTab === 'returned-to-company' && (
-                        <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isArchivedForCompany: true })}>
-                            <Archive className="me-2 h-4 w-4" />
-                            أرشفة
-                        </Button>
-                    )}
-                     {(activeTab === 'archived-company') && (
-                        <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isArchivedForCompany: false })}>
-                            <ArchiveRestore className="me-2 h-4 w-4" />
-                            إلغاء أرشفة الشركة
-                        </Button>
-                    )}
-                    {(activeTab === 'archived-courier') && (
-                        <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isArchivedForCourier: false })}>
-                            <ArchiveRestore className="me-2 h-4 w-4" />
-                            إلغاء أرشفة المندوب
-                        </Button>
-                    )}
+                    
                     <Button variant="destructive" size="icon" onClick={handleMobileBulkDelete}>
                         <Trash2 className="h-4 w-4" />
                     </Button>
@@ -435,8 +411,6 @@ const DesktopShipmentsView = ({
     role,
     filteredShipments,
     getShipmentsByStatus,
-    archivedShipmentsCompany,
-    archivedShipmentsCourier,
     inWarehouseShipments,
     returnsWithCouriers,
     returnedToCompanyShipments,
@@ -458,8 +432,6 @@ const DesktopShipmentsView = ({
     role: Role | null;
     filteredShipments: Shipment[];
     getShipmentsByStatus: (status: string | string[]) => Shipment[];
-    archivedShipmentsCompany: Shipment[];
-    archivedShipmentsCourier: Shipment[];
     inWarehouseShipments: Shipment[];
     returnsWithCouriers: Shipment[];
     returnedToCompanyShipments: Shipment[];
@@ -511,8 +483,6 @@ const DesktopShipmentsView = ({
                 <TabsTrigger value="returns-with-couriers">مرتجعات لدى المناديب</TabsTrigger>
                 <TabsTrigger value="returns-in-warehouse">مرتجعات وصلت المخزن</TabsTrigger>
                 <TabsTrigger value="returned-to-company">وصلت للشركة</TabsTrigger>
-                <TabsTrigger value="archived-company">مؤرشفة الشركات</TabsTrigger>
-                <TabsTrigger value="archived-courier">مؤرشفة المناديب</TabsTrigger>
             </TabsList>
             <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments)}</TabsContent>
             <TabsContent value="unassigned">{renderShipmentTable(unassignedShipments)}</TabsContent>
@@ -523,8 +493,6 @@ const DesktopShipmentsView = ({
             <TabsContent value="returns-with-couriers">{renderShipmentTable(returnsWithCouriers, 'returns-with-couriers')}</TabsContent>
             <TabsContent value="returns-in-warehouse">{renderShipmentTable(inWarehouseShipments, 'returns-in-warehouse')}</TabsContent>
             <TabsContent value="returned-to-company">{renderShipmentTable(returnedToCompanyShipments, 'returned-to-company')}</TabsContent>
-            <TabsContent value="archived-company">{renderShipmentTable(archivedShipmentsCompany, 'company')}</TabsContent>
-            <TabsContent value="archived-courier">{renderShipmentTable(archivedShipmentsCourier, 'courier')}</TabsContent>
         </Tabs>
     )
   }
@@ -950,13 +918,13 @@ const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
             if (result.shipmentsToUpdate.length > 0) {
                  for (const update of result.shipmentsToUpdate) {
                     const existingShipment = update.existing;
-                    let dataToUpdate: Partial<Shipment> = { ...update.new };
+                    let dataToUpdate: Partial<Shipment> = { ...update.new, shipmentId: existingShipment.id };
                      // Don't override status or courier if already assigned
                     if (existingShipment.assignedCourierId && existingShipment.status !== 'Pending') {
                       delete dataToUpdate.status;
                       delete dataToUpdate.assignedCourierId;
                     }
-                    await handleShipmentUpdateFn({ shipmentId: existingShipment.id, ...dataToUpdate });
+                    await handleShipmentUpdateFn(dataToUpdate);
                 }
             }
             
@@ -1355,69 +1323,70 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
   };
 
 
-  const handleArchiveCourierData = async () => {
-      if (!firestore || !courierToArchive || !user || !statuses) return;
-      toast({ title: `جاري أرشفة وتسوية حساب ${courierToArchive.name}...` });
-      
-      const courierDueData = courierDues.find(d => d.id === courierToArchive.id);
-      if (!courierDueData) {
-          toast({ title: "خطأ", description: "لم يتم العثور على البيانات المالية للمندوب.", variant: "destructive"});
-          setCourierToArchive(null);
-          return;
-      }
-      
-      const netDue = courierDueData.netDue;
-      const batch = writeBatch(firestore);
+const handleArchiveCourierData = async () => {
+    if (!firestore || !courierToArchive || !user || !statuses) return;
+    toast({ title: `جاري أرشفة وتسوية حساب ${courierToArchive.name}...` });
 
-      // Step 1: Create a settlement payment record if there's an amount due
-      if (netDue > 0) {
-          const paymentsCollection = collection(firestore, 'courier_payments');
-          const paymentDocRef = doc(paymentsCollection);
-          const newPayment: CourierPayment = {
-              id: paymentDocRef.id,
-              courierId: courierToArchive.id,
-              amount: netDue,
-              paymentDate: serverTimestamp(),
-              recordedById: user.id,
-              notes: "تسوية وحفظ تلقائي للحساب",
-              isArchived: true, // Archive this settlement payment immediately
-          };
-          batch.set(paymentDocRef, newPayment);
-      }
+    const courierDueData = courierDues.find(d => d.id === courierToArchive.id);
+    if (!courierDueData) {
+        toast({ title: "خطأ", description: "لم يتم العثور على البيانات المالية للمندوب.", variant: "destructive"});
+        setCourierToArchive(null);
+        return;
+    }
+    
+    const netDue = courierDueData.netDue;
+    const batch = writeBatch(firestore);
 
-      // Step 2: Archive all currently active payments for this courier.
-      const activePayments = courierPayments?.filter(p => p.courierId === courierToArchive.id && !p.isArchived) || [];
-      activePayments.forEach(payment => {
-          const paymentRef = doc(firestore, 'courier_payments', payment.id);
-          batch.update(paymentRef, { isArchived: true });
-      });
+    // Step 1: Handle settlement payment
+    if (netDue > 0) {
+        const archivedPaymentRef = doc(collection(firestore, 'archived_courier_payments'));
+        const newPayment: ArchivedCourierPayment = {
+            id: archivedPaymentRef.id,
+            courierId: courierToArchive.id,
+            amount: netDue,
+            paymentDate: new Date(),
+            archivedAt: serverTimestamp(),
+            recordedById: user.id,
+            notes: "تسوية وحفظ تلقائي للحساب",
+        };
+        batch.set(archivedPaymentRef, newPayment);
+    }
 
-      // Step 3: Archive finished shipments for this courier
-      const finishedStatuses = statuses.filter(s => s.requiresFullCollection || s.requiresPartialCollection || s.affectsCourierBalance).map(s => s.id);
-      const courierShipmentsToArchive = allShipmentsForStats?.filter(s => s.assignedCourierId === courierToArchive.id && !s.isArchivedForCourier && finishedStatuses.includes(s.status)) || [];
-      courierShipmentsToArchive.forEach(shipment => {
-          const shipmentRef = doc(firestore, 'shipments', shipment.id);
-          batch.update(shipmentRef, { isArchivedForCourier: true });
-      });
+    // Step 2: Archive all currently active payments for this courier.
+    const activePayments = courierPayments?.filter(p => p.courierId === courierToArchive.id && !p.isArchived) || [];
+    activePayments.forEach(payment => {
+        const paymentRef = doc(firestore, 'courier_payments', payment.id);
+        const archivedPaymentRef = doc(collection(firestore, 'archived_courier_payments'));
+        batch.set(archivedPaymentRef, { ...payment, archivedAt: serverTimestamp() });
+        batch.delete(paymentRef);
+    });
 
-      // Commit all changes
-      await batch.commit()
-          .then(() => {
-              toast({ title: "اكتملت التسوية بنجاح!", description: `تمت تسوية حساب ${courierToArchive.name} وأرشفة الشحنات والدفعات.` });
-          })
-          .catch(serverError => {
-              if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
-                const permissionError = new FirestorePermissionError({ path: `batch_archive_settle`, operation: 'write', requestResourceData: { note: `Batch archive/settle for courier ${courierToArchive.id} failed.` }});
-                errorEmitter.emit('permission-error', permissionError);
-              }
-          })
-          .finally(() => setCourierToArchive(null));
-  };
-  
-  const handleArchiveCompanyData = async () => {
+    // Step 3: Archive finished shipments for this courier
+    const finishedStatuses = statuses.filter(s => s.affectsCourierBalance).map(s => s.id);
+    const courierShipmentsToArchive = allShipmentsForStats?.filter(s => s.assignedCourierId === courierToArchive.id && finishedStatuses.includes(s.status)) || [];
+    
+    courierShipmentsToArchive.forEach(shipment => {
+        const shipmentRef = doc(firestore, 'shipments', shipment.id);
+        const archivedShipmentRef = doc(collection(firestore, 'archived_courier_shipments'));
+        batch.set(archivedShipmentRef, { ...shipment, archivedAt: serverTimestamp(), archivedBy: user.id });
+        batch.delete(shipmentRef);
+    });
+
+    try {
+        await batch.commit();
+        toast({ title: "اكتملت التسوية بنجاح!", description: `تمت تسوية حساب ${courierToArchive.name} وأرشفة الشحنات والدفعات.` });
+    } catch (error: any) {
+        console.error("Archiving error:", error);
+        toast({ title: "خطأ في الأرشفة", description: error.message, variant: "destructive" });
+    } finally {
+        setCourierToArchive(null);
+    }
+};
+
+const handleArchiveCompanyData = async () => {
     if (!firestore || !companyToArchive || !user || !statuses) return;
     toast({ title: `جاري أرشفة وتسوية حساب ${companyToArchive.name}...` });
-    
+
     const companyDueData = companyDues.find(d => d.id === companyToArchive.id);
     if (!companyDueData) {
         toast({ title: "خطأ", description: "لم يتم العثور على البيانات المالية للشركة.", variant: "destructive" });
@@ -1430,61 +1399,51 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
   
     // Step 1: Create a settlement payment if there's a positive balance (owed TO the company)
     if (netDue > 0) {
-      const paymentsCollection = collection(firestore, 'company_payments');
-      const paymentDocRef = doc(paymentsCollection);
-      const newPayment: CompanyPayment = {
-        id: paymentDocRef.id,
-        companyId: companyToArchive.id,
-        amount: netDue,
-        paymentDate: serverTimestamp(),
-        recordedById: user.id,
-        notes: "تسوية وحفظ تلقائي للحساب",
-        isArchived: true, // Archive this settlement payment immediately
-      };
-      batch.set(paymentDocRef, newPayment);
+        const archivedPaymentRef = doc(collection(firestore, 'archived_company_payments'));
+        const newPayment: ArchivedCompanyPayment = {
+            id: archivedPaymentRef.id,
+            companyId: companyToArchive.id,
+            amount: netDue,
+            paymentDate: new Date(),
+            archivedAt: serverTimestamp(),
+            recordedById: user.id,
+            notes: "تسوية وحفظ تلقائي للحساب",
+        };
+        batch.set(archivedPaymentRef, newPayment);
     }
   
     // Step 2: Archive all currently active payments for this company.
     const activePayments = companyPayments?.filter(p => p.companyId === companyToArchive.id && !p.isArchived) || [];
     activePayments.forEach(payment => {
-      const paymentRef = doc(firestore, 'company_payments', payment.id);
-      batch.update(paymentRef, { isArchived: true });
+        const paymentRef = doc(firestore, 'company_payments', payment.id);
+        const archivedPaymentRef = doc(collection(firestore, 'archived_company_payments'));
+        batch.set(archivedPaymentRef, { ...payment, archivedAt: serverTimestamp() });
+        batch.delete(paymentRef);
     });
   
     // Step 3: Archive finished shipments for this company
-    const finishedStatuses = statuses.filter(s => s.requiresFullCollection || s.requiresPartialCollection || s.affectsCourierBalance).map(s => s.id);
-    const companyShipmentsToArchive = allShipmentsForStats?.filter(s => s.companyId === companyToArchive.id && !s.isArchivedForCompany && finishedStatuses.includes(s.status)) || [];
+    const finishedStatuses = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
+    const companyShipmentsToArchive = allShipmentsForStats?.filter(s => s.companyId === companyToArchive.id && finishedStatuses.includes(s.status)) || [];
+    
     companyShipmentsToArchive.forEach(shipment => {
-      const shipmentRef = doc(firestore, 'shipments', shipment.id);
-      batch.update(shipmentRef, { isArchivedForCompany: true });
+        const shipmentRef = doc(firestore, 'shipments', shipment.id);
+        const archivedShipmentRef = doc(collection(firestore, 'archived_company_shipments'));
+        batch.set(archivedShipmentRef, { ...shipment, archivedAt: serverTimestamp(), archivedBy: user.id });
+        batch.delete(shipmentRef);
     });
   
-    // Commit all changes
-    await batch.commit()
-      .then(() => {
+    try {
+        await batch.commit();
         toast({ title: "اكتملت التسوية والأرشفة بنجاح!", description: `تمت تسوية حساب ${companyToArchive.name} وأرشفة جميع الشحنات والدفعات المنتهية.` });
-      })
-      .catch(serverError => {
-        if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
-          const permissionError = new FirestorePermissionError({ path: `batch_archive_settle`, operation: 'write', requestResourceData: { note: `Batch archive/settle for company ${companyToArchive.id} failed.` } });
-          errorEmitter.emit('permission-error', permissionError);
-        }
-      })
-      .finally(() => setCompanyToArchive(null));
-  };
-  
-  const filterShipmentsBySearch = (list: Shipment[], term: string): Shipment[] => {
-    if (!term) return list;
-    const lowercasedTerm = term.toLowerCase();
-    return list.filter(shipment =>
-        String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
-    );
-  }
+    } catch (error: any) {
+        console.error("Archiving error:", error);
+        toast({ title: "خطأ في الأرشفة", description: error.message, variant: "destructive" });
+    } finally {
+        setCompanyToArchive(null);
+    }
+};
 
+  
   const filteredShipments = React.useMemo(() => {
     if (!allShipmentsForStats) return [];
   
@@ -1492,7 +1451,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
   
     // Apply main search term if it exists
     if (searchTerm) {
-        return filterShipmentsBySearch(baseShipments, searchTerm).filter(s => !s.isArchivedForCompany && !s.isArchivedForCourier);
+        return filterShipmentsBySearch(baseShipments, searchTerm);
     }
   
     // Apply column filters if search term is empty
@@ -1521,65 +1480,56 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
       });
     }
 
-    return baseShipments.filter(s => !s.isArchivedForCompany && !s.isArchivedForCourier);
-  }, [allShipmentsForStats, searchTerm, columnFilters, filterShipmentsBySearch]);
+    return baseShipments;
+  }, [allShipmentsForStats, searchTerm, columnFilters]);
   
   
   const unassignedShipments = React.useMemo(() => {
-    const unassigned = allShipmentsForStats?.filter(s => !s.assignedCourierId) || [];
-    return searchTerm ? filterShipmentsBySearch(unassigned, searchTerm) : unassigned;
-  }, [allShipmentsForStats, searchTerm]);
+    const unassigned = filteredShipments?.filter(s => !s.assignedCourierId) || [];
+    return unassigned;
+  }, [filteredShipments]);
 
   const assignedShipments = React.useMemo(() => {
-      const assigned = allShipmentsForStats?.filter(s => !!s.assignedCourierId) || [];
-      return searchTerm ? filterShipmentsBySearch(assigned, searchTerm) : assigned;
-  }, [allShipmentsForStats, searchTerm]);
+      const assigned = filteredShipments?.filter(s => !!s.assignedCourierId) || [];
+      return assigned;
+  }, [filteredShipments]);
 
-    const archivedShipmentsCompany = React.useMemo(() => {
-        const archived = allShipmentsForStats?.filter(s => s.isArchivedForCompany) || [];
-        return searchTerm ? filterShipmentsBySearch(archived, searchTerm) : archived;
-    }, [allShipmentsForStats, searchTerm]);
-
-    const archivedShipmentsCourier = React.useMemo(() => {
-        const archived = allShipmentsForStats?.filter(s => s.isArchivedForCourier) || [];
-        return searchTerm ? filterShipmentsBySearch(archived, searchTerm) : archived;
-    }, [allShipmentsForStats, searchTerm]);
-
+    
   const recentlyUpdatedShipments = React.useMemo(() => {
-    const activeShipments = allShipmentsForStats?.filter(shipment => !shipment.isArchivedForCompany && !shipment.isArchivedForCourier) || [];
+    const activeShipments = filteredShipments || [];
     const sorted = [...activeShipments].sort((a, b) => {
         const timeA = getSafeDate(a.updatedAt)?.getTime() || 0;
         const timeB = getSafeDate(b.updatedAt)?.getTime() || 0;
         return timeB - timeA;
     });
-    return searchTerm ? filterShipmentsBySearch(sorted, searchTerm) : sorted;
-  }, [allShipmentsForStats, searchTerm]);
+    return sorted;
+  }, [filteredShipments]);
 
 
 const returnedShipmentStatuses = React.useMemo(() => statuses?.filter(s => s.isReturnedStatus).map(s => s.id) || [], [statuses]);
 
 const returnsWithCouriers = React.useMemo(() => {
-    const returns = allShipmentsForStats?.filter(s => (returnedShipmentStatuses.includes(s.status) || s.isExchange) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCourier) || [];
-    return searchTerm ? filterShipmentsBySearch(returns, searchTerm) : returns;
-}, [allShipmentsForStats, returnedShipmentStatuses, searchTerm]);
+    const returns = filteredShipments?.filter(s => (returnedShipmentStatuses.includes(s.status) || s.isExchange) && !s.isWarehouseReturn && !s.isReturnedToCompany) || [];
+    return returns;
+}, [filteredShipments, returnedShipmentStatuses]);
 
 const inWarehouseShipments = React.useMemo(() => {
-    const warehouse = allShipmentsForStats?.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCompany) || [];
-    return searchTerm ? filterShipmentsBySearch(warehouse, searchTerm) : warehouse;
-}, [allShipmentsForStats, searchTerm]);
+    const warehouse = filteredShipments?.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany) || [];
+    return warehouse;
+}, [filteredShipments]);
 
 const returnedToCompanyShipments = React.useMemo(() => {
-    const returned = allShipmentsForStats?.filter(s => s.isReturnedToCompany && !s.isArchivedForCompany) || [];
-    return searchTerm ? filterShipmentsBySearch(returned, searchTerm) : returned;
-}, [allShipmentsForStats, searchTerm]);
+    const returned = filteredShipments?.filter(s => s.isReturnedToCompany) || [];
+    return returned;
+}, [filteredShipments]);
 
 
   const courierDues = React.useMemo(() => {
     if (!users || !allShipmentsForStats || !courierPayments || !statuses) return [];
 
     return courierUsers.map(courier => {
-        const activeShipments = allShipmentsForStats?.filter(s => s.assignedCourierId === courier.id && !s.isArchivedForCourier) || [];
-        const activePayments = courierPayments?.filter(p => p.courierId === courier.id && !p.isArchived) || [];
+        const activeShipments = allShipmentsForStats?.filter(s => s.assignedCourierId === courier.id) || [];
+        const activePayments = courierPayments?.filter(p => p.courierId === courier.id) || [];
         
         const totalCollected = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
         const totalCommission = activeShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
@@ -1609,8 +1559,8 @@ const returnedToCompanyShipments = React.useMemo(() => {
     if (!companies || !allShipmentsForStats || !companyPayments) return [];
     
     return companies.map(company => {
-        const activeShipments = allShipmentsForStats?.filter(s => s.companyId === company.id && !s.isArchivedForCompany) || [];
-        const activePayments = companyPayments?.filter(p => p.companyId === company.id && !p.isArchived) || [];
+        const activeShipments = allShipmentsForStats?.filter(s => s.companyId === company.id) || [];
+        const activePayments = companyPayments?.filter(p => p.companyId === company.id) || [];
         
         const totalRevenue = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
         const totalCompanyCommission = activeShipments.reduce((acc, s) => acc + (s.companyCommission || 0), 0);
@@ -1634,20 +1584,20 @@ const returnedToCompanyShipments = React.useMemo(() => {
 
   const shownNotificationsRef = React.useRef<Set<string>>(new Set());
 
-  const returnedShipmentsNeedingAction = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'Returned' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
+  const returnedShipmentsNeedingAction = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'Returned') || [], [allShipmentsForStats]);
   const longPostponedShipments = React.useMemo(() => {
       return allShipmentsForStats?.filter(s => {
           const updatedAt = getSafeDate(s.updatedAt);
-          return s.status === 'Postponed' && updatedAt && differenceInDays(new Date(), updatedAt) > 3 && !s.isArchivedForCompany && !s.isArchivedForCourier;
+          return s.status === 'Postponed' && updatedAt && differenceInDays(new Date(), updatedAt) > 3;
       }) || [];
   }, [allShipmentsForStats]);
   const staleInTransitShipments = React.useMemo(() => {
       return allShipmentsForStats?.filter(s => {
           const updatedAt = getSafeDate(s.updatedAt);
-          return s.status === 'In-Transit' && updatedAt && differenceInHours(new Date(), updatedAt) > 24 && !s.isArchivedForCompany && !s.isArchivedForCourier;
+          return s.status === 'In-Transit' && updatedAt && differenceInHours(new Date(), updatedAt) > 24;
       }) || [];
   }, [allShipmentsForStats]);
-  const priceChangeRequests = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'PriceChangeRequested' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
+  const priceChangeRequests = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'PriceChangeRequested') || [], [allShipmentsForStats]);
   
   const problemCount = returnedShipmentsNeedingAction.length + longPostponedShipments.length + staleInTransitShipments.length + priceChangeRequests.length;
 
@@ -1670,7 +1620,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
 
     // Check for overloaded couriers
     courierUsers.forEach(courier => {
-        const activeShipmentCount = allShipmentsForStats?.filter(s => s.assignedCourierId === courier.id && !s.isArchivedForCourier).length || 0;
+        const activeShipmentCount = allShipmentsForStats?.filter(s => s.assignedCourierId === courier.id).length || 0;
         const notificationId = `overload_${courier.id}`;
         if (activeShipmentCount > 20 && !shownNotificationsRef.current.has(notificationId)) {
             toast({
@@ -1759,7 +1709,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
   const getShipmentsByStatus = (status: string | string[]) => {
     const statuses = Array.isArray(status) ? status : [status];
     const list = filteredShipments.filter(s => statuses.includes(s.status));
-    return searchTerm ? filterShipmentsBySearch(list, searchTerm) : list;
+    return list;
   }
   
   const listIsLoading = allShipmentsLoading || governoratesLoading || companiesLoading || usersLoading || statusesLoading || couriersDataLoading;
@@ -1863,6 +1813,12 @@ const generateShipmentCode = () => {
             </TabsTrigger>
             <TabsTrigger value="courier-management">إدارة المناديب</TabsTrigger>
             <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
+            <TabsTrigger value="archive">
+                <Link href="/archive" className="flex items-center gap-2">
+                    <Archive className="w-4 h-4" />
+                    <span>الأرشيف</span>
+                </Link>
+            </TabsTrigger>
              <TabsTrigger value="statistics">
                 <Link href="/statistics" className="flex items-center gap-2">
                     <BarChart className="w-4 h-4" />
@@ -1944,8 +1900,6 @@ const generateShipmentCode = () => {
                     role={role}
                     filteredShipments={filteredShipments}
                     getShipmentsByStatus={getShipmentsByStatus}
-                    archivedShipmentsCompany={archivedShipmentsCompany}
-                    archivedShipmentsCourier={archivedShipmentsCourier}
                     inWarehouseShipments={inWarehouseShipments}
                     returnsWithCouriers={returnsWithCouriers}
                     returnedToCompanyShipments={returnedToCompanyShipments}
@@ -2478,7 +2432,7 @@ const generateShipmentCode = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>أرشفة وتسوية حساب {courierToArchive?.name}؟</AlertDialogTitle>
             <AlertDialogDescription>
-             سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ المستحق على المندوب حاليًا، ثم أرشفة جميع الشحنات المنتهية والدفعات الحالية للمندوب. لا يمكن التراجع عن هذا الإجراء.
+             سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ المستحق على المندوب حاليًا، ثم نقل جميع الشحنات المنتهية والدفعات الحالية للمندوب إلى الأرشيف وحذفها من القوائم النشطة. لا يمكن التراجع عن هذا الإجراء.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2492,7 +2446,7 @@ const generateShipmentCode = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>أرشفة وتسوية حساب {companyToArchive?.name}؟</AlertDialogTitle>
             <AlertDialogDescription>
-              سيؤدي هذا الإجراء إلى أرشفة جميع الشحنات المنتهية والدفعات الحالية للشركة. سيتم تصفير حسابها لتبدأ دورة عمل جديدة.
+              سيؤدي هذا الإجراء إلى نقل جميع الشحنات المنتهية والدفعات الحالية للشركة إلى الأرشيف وحذفها من القوائم النشطة. سيتم تصفير حسابها لتبدأ دورة عمل جديدة.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

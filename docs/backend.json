@@ -372,7 +372,7 @@
           "schema": {
             "$ref": "#/backend/entities/Shipment"
           },
-          "description": "Stores shipment data.",
+          "description": "Stores active shipment data.",
           "params": [
             {
               "name": "shipmentId",
@@ -448,7 +448,7 @@
         "definition": {
           "entityName": "CourierPayment",
           "schema": { "$ref": "#/backend/entities/CourierPayment" },
-          "description": "Stores records of payments made by couriers.",
+          "description": "Stores records of active payments made by couriers.",
           "params": [{ "name": "paymentId", "description": "Unique ID for the payment." }]
         }
       },
@@ -457,9 +457,25 @@
         "definition": {
           "entityName": "CompanyPayment",
           "schema": { "$ref": "#/backend/entities/CompanyPayment" },
-          "description": "Stores records of payments made to companies.",
+          "description": "Stores records of active payments made to companies.",
           "params": [{ "name": "paymentId", "description": "Unique ID for the payment." }]
         }
+      },
+       {
+        "path": "/archived_courier_shipments/{shipmentId}",
+        "definition": { "entityName": "Shipment", "schema": { "$ref": "#/backend/entities/Shipment" } }
+      },
+      {
+        "path": "/archived_company_shipments/{shipmentId}",
+        "definition": { "entityName": "Shipment", "schema": { "$ref": "#/backend/entities/Shipment" } }
+      },
+      {
+        "path": "/archived_courier_payments/{paymentId}",
+        "definition": { "entityName": "CourierPayment", "schema": { "$ref": "#/backend/entities/CourierPayment" } }
+      },
+      {
+        "path": "/archived_company_payments/{paymentId}",
+        "definition": { "entityName": "CompanyPayment", "schema": { "$ref": "#/backend/entities/CompanyPayment" } }
       },
       {
         "path": "/chats/{chatId}",
@@ -534,3 +550,4 @@
     "reasoning": "The Firestore structure now includes a 'company' role. Companies are users that can manage their own shipments. Couriers are independent and are assigned to shipments directly. The 'companies' collection stores public profiles for these company users. The 'shipments' collection now uses 'companyId' to link to the user UID of the owning company."
   }
 }
+
