@@ -40,9 +40,18 @@ interface ImportProgressDialogProps {
 
 const getChangedFields = (existing: Shipment, newData: Partial<Shipment>): string[] => {
     const changes: string[] = [];
+    const fieldLabels: { [key: string]: string } = {
+        recipientName: "اسم المستلم",
+        recipientPhone: "هاتف المستلم",
+        address: "العنوان",
+        totalAmount: "المبلغ",
+        governorateId: "المحافظة",
+        senderName: "الراسل",
+    };
+
     (Object.keys(newData) as Array<keyof Shipment>).forEach(key => {
         if (newData[key] !== undefined && String(newData[key]) !== String(existing[key])) {
-            changes.push(key);
+            changes.push(fieldLabels[key] || key);
         }
     });
     return changes;
@@ -100,7 +109,7 @@ export function ImportProgressDialog({ result, onClose }: ImportProgressDialogPr
                 </div>
                  <div>
                     <p className="font-bold text-lg text-blue-600">{updated}</p>
-                    <p className="text-muted-foreground">سيتم التحديث</p>
+                    <p className="text-muted-foreground">تم التحديث</p>
                 </div>
                 <div>
                     <p className="font-bold text-lg text-destructive">{rejected}</p>
@@ -112,7 +121,7 @@ export function ImportProgressDialog({ result, onClose }: ImportProgressDialogPr
           {isFinished && shipmentsToUpdate.length > 0 && (
               <div className="space-y-2 pt-4">
                  <div className="flex justify-between items-center">
-                    <h4 className="font-semibold text-blue-600 flex items-center gap-2"><RefreshCw className="h-4 w-4" /> سيتم تحديث الشحنات التالية ({shipmentsToUpdate.length})</h4>
+                    <h4 className="font-semibold text-blue-600 flex items-center gap-2"><RefreshCw className="h-4 w-4" /> تم تحديث الشحنات التالية ({shipmentsToUpdate.length})</h4>
                  </div>
                 <ScrollArea className="h-48 border rounded-lg">
                     <Table>
@@ -120,7 +129,7 @@ export function ImportProgressDialog({ result, onClose }: ImportProgressDialogPr
                             <TableRow>
                                 <TableHead>كود الشحنة</TableHead>
                                 <TableHead>العميل</TableHead>
-                                <TableHead>الحقول التي ستتغير</TableHead>
+                                <TableHead>الحقول التي تغيرت</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>

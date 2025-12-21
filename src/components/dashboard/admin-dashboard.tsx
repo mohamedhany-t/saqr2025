@@ -892,7 +892,7 @@ const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
                      const dataToUpdate: Partial<Shipment> & { shipmentId: string } = {
                         ...cleanShipmentData, 
                         shipmentId: existingDoc.id,
-                        // Make sure to preserve existing createdAt value
+                        // Make sure to preserve existing createdAt value, converted to ISO string
                         createdAt: createdAtValue ? createdAtValue.toISOString() : undefined,
                     };
                     if (existingShipmentData.assignedCourierId && existingShipmentData.status !== 'Pending') {
@@ -900,6 +900,7 @@ const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
                       delete dataToUpdate.assignedCourierId;
                     }
                      await handleShipmentUpdateFn(dataToUpdate);
+                    result.shipmentsToUpdate.push({ existing: existingShipmentData, new: cleanShipmentData });
                     result.updated++;
 
                 } else {
@@ -1421,6 +1422,7 @@ const handleArchiveCompanyData = async () => {
   
   const activeShipments = React.useMemo(() => {
     if (!allShipmentsForStats) return [];
+    // Only hide shipments that are archived for BOTH company and courier
     return allShipmentsForStats.filter(s => !(s.isArchivedForCompany && s.isArchivedForCourier));
   }, [allShipmentsForStats]);
 
@@ -2505,6 +2507,7 @@ const generateShipmentCode = () => {
     </div>
   );
 }
+
 
 
 

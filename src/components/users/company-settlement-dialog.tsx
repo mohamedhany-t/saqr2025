@@ -120,8 +120,9 @@ export function CompanySettlementDialog({
         const uniqueKey = shipment.shipmentCode || shipment.orderNumber;
         if (processedSystemCodes.has(uniqueKey)) return;
 
+        // **THE FIX**: Only check isArchivedForCompany
         if (shipment.isArchivedForCompany) {
-            excludedShipments.push({ code, reason: "تمت أرشفة هذه الشحنة من قبل" });
+            excludedShipments.push({ code, reason: "تمت أرشفة هذه الشحنة للشركة من قبل" });
         } else if (financialStatuses.includes(shipment.status)) {
             shipmentsToSettle.push(shipment);
         } else {
