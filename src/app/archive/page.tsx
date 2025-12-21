@@ -2,7 +2,7 @@
 "use client";
 import React, { useState, useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where, Timestamp, or, writeBatch, doc } from 'firebase/firestore';
+import { collection, query, where, Timestamp, or, writeBatch, doc, and } from 'firebase/firestore';
 import type { Shipment, Company, User, Governorate, ShipmentStatusConfig } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,7 +43,7 @@ const ArchivePage = () => {
     const shipmentsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
         
-        let filters: any[] = [
+        const filters: any[] = [
             or(
                 where('isArchivedForCourier', '==', true),
                 where('isArchivedForCompany', '==', true)
@@ -66,7 +66,11 @@ const ArchivePage = () => {
             filters.push(where('createdAt', '<=', Timestamp.fromDate(toDate)));
         }
         
-        return query(collection(firestore, 'shipments'), ...filters);
+        if (filters.length === 1) {
+            return query(collection(firestore, 'shipments'), filters[0]);
+        }
+        
+        return query(collection(firestore, 'shipments'), and(...filters));
 
     }, [firestore, selectedId, entityType, dateRange]);
 
@@ -248,3 +252,5 @@ const ArchivePage = () => {
 };
 
 export default ArchivePage;
+
+    
