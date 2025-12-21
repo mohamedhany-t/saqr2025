@@ -50,21 +50,27 @@ const ArchivePage = () => {
 
     const shipmentsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
-        
-        const filters: any[] = [
-            or(
-                where('isArchivedForCourier', '==', true),
-                where('isArchivedForCompany', '==', true)
-            )
-        ];
+
+        const filters: any[] = [];
         
         if (selectedId) {
-            const idFilter = entityType === 'courier'
-                ? where('assignedCourierId', '==', selectedId)
-                : where('companyId', '==', selectedId);
-            filters.push(idFilter);
+            // If a specific entity is selected, filter by its ID and its specific archive flag
+            if (entityType === 'courier') {
+                filters.push(where('assignedCourierId', '==', selectedId));
+                filters.push(where('isArchivedForCourier', '==', true));
+            } else { // company
+                filters.push(where('companyId', '==', selectedId));
+                filters.push(where('isArchivedForCompany', '==', true));
+            }
+        } else {
+            // If no specific entity is selected, get all archived shipments
+            filters.push(or(
+                where('isArchivedForCourier', '==', true),
+                where('isArchivedForCompany', '==', true)
+            ));
         }
         
+        // Combine all filters with 'and'
         return query(collection(firestore, 'shipments'), and(...filters));
 
     }, [firestore, selectedId, entityType]);
@@ -142,8 +148,8 @@ const ArchivePage = () => {
         
         let fieldToUpdate: { [key: string]: boolean } = {};
         
-        // If a specific entity type is selected in the filter, only unarchive for that entity.
-        if (selectedId) {
+        if (selectedId && entityType) {
+            // If a specific entity type is selected in the filter, only unarchive for that entity.
             if (entityType === 'company') {
                 fieldToUpdate['isArchivedForCompany'] = false;
             } else if (entityType === 'courier') {
@@ -151,6 +157,7 @@ const ArchivePage = () => {
             }
         } else {
             // If no specific entity is selected (showing 'all'), unarchive for both as a fallback.
+            // This case might need refinement based on desired behavior for the 'All' view.
             fieldToUpdate = {
                 isArchivedForCompany: false,
                 isArchivedForCourier: false,
@@ -196,6 +203,7 @@ const ArchivePage = () => {
                         <Select dir="rtl" onValueChange={setSelectedId} value={selectedId || ''}>
                             <SelectTrigger><SelectValue placeholder={`اختر ${entityType === 'courier' ? 'مندوبًا' : 'شركة'}...`} /></SelectTrigger>
                             <SelectContent>
+                                <SelectItem value="">الكل</SelectItem>
                                 {entityType === 'courier' 
                                     ? couriers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>) 
                                     : companies?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
