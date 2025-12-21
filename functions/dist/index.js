@@ -278,58 +278,25 @@ exports.executeCompanySettlement = functions.runWith(runtimeOpts).https.onCall(a
     const { companyId, paymentAmount, shipmentIdsToArchive, settlementNote } = validation.data;
     const adminId = context.auth.uid;
     const db = admin.firestore();
-    const BATCH_SIZE = 400; // Firestore batch limit is 500 writes
-    const batches = [];
-    let currentBatch = db.batch();
-    let writeCount = 0;
-    const addWrite = () => {
-        writeCount++;
-        if (writeCount >= BATCH_SIZE) {
-            batches.push(currentBatch);
-            currentBatch = db.batch();
-            writeCount = 0;
-        }
-    };
+    const batch = db.batch();
     try {
-        // Step 1: Create settlement payment record
+        // Step 1: Create settlement payment record and archive it immediately.
         const paymentRef = db.collection('company_payments').doc();
-        currentBatch.set(paymentRef, {
+        batch.set(paymentRef, {
             companyId,
             amount: paymentAmount,
             paymentDate: admin.firestore.FieldValue.serverTimestamp(),
             recordedById: adminId,
             notes: settlementNote || 'تسوية عبر شيت',
+            isArchived: true, // Archive this settlement payment
         });
-        addWrite();
-        // Step 2: Move associated old payments to archive
-        const paymentsSnapshot = await db.collection('company_payments').where('companyId', '==', companyId).get();
-        paymentsSnapshot.forEach(doc => {
-            const archivedPaymentRef = db.collection('archived_company_payments').doc(doc.id);
-            currentBatch.set(archivedPaymentRef, Object.assign(Object.assign({}, doc.data()), { archivedAt: admin.firestore.FieldValue.serverTimestamp() }));
-            addWrite();
-            currentBatch.delete(doc.ref);
-            addWrite();
-        });
-        // Step 3: Move selected shipments to archive
+        // Step 2: Mark selected shipments as archived for the company.
         for (const shipmentId of shipmentIdsToArchive) {
             const shipmentRef = db.collection('shipments').doc(shipmentId);
-            const shipmentDoc = await shipmentRef.get(); // Read before write in transaction/batch
-            if (shipmentDoc.exists) {
-                const archivedShipmentRef = db.collection('archived_company_shipments').doc(shipmentId);
-                currentBatch.set(archivedShipmentRef, Object.assign(Object.assign({}, shipmentDoc.data()), { archivedAt: admin.firestore.FieldValue.serverTimestamp() }));
-                addWrite();
-                currentBatch.delete(shipmentRef);
-                addWrite();
-            }
+            batch.update(shipmentRef, { isArchivedForCompany: true });
         }
-        // Add the last batch if it has writes
-        if (writeCount > 0) {
-            batches.push(currentBatch);
-        }
-        // Commit all batches
-        for (const batch of batches) {
-            await batch.commit();
-        }
+        // Commit all batched writes
+        await batch.commit();
         return { success: true, message: `تمت تسوية حساب الشركة وأرشفة ${shipmentIdsToArchive.length} شحنة بنجاح.` };
     }
     catch (error) {

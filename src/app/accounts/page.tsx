@@ -31,7 +31,7 @@ type Transaction = {
 };
 
 const formatCurrency = (amount: number | undefined | null) => {
-    if (amount === undefined || amount === null || amount === 0) return '-';
+    if (amount === undefined || amount === null) return '-';
     return new Intl.NumberFormat("ar-EG", {
         style: "currency",
         currency: "EGP",
@@ -101,21 +101,21 @@ function AccountStatementsPage() {
                 relatedId = s.id;
                 status = s.status;
                 reason = s.reason;
-                description = `شحنة: ${s.recipientName} (${s.orderNumber}) - حالة: ${statuses.find(st => st.id === s.status)?.label || s.status}`;
+                description = `شحنة: ${s.recipientName} (${s.orderNumber || s.shipmentCode}) - حالة: ${statuses.find(st => st.id === s.status)?.label || s.status}`;
                 
                 const statusConfig = statuses.find(st => st.id === s.status);
                 if (!statusConfig) continue;
 
                 if (entityType === 'courier') {
-                    // Credit is what the courier collected (owes the company)
+                    // Credit (عليه): What the courier collected and owes the company.
                     credit = s.paidAmount || 0;
-                    // Debit is what the courier earned (commission)
+                    // Debit (له): The courier's commission.
                     debit = s.courierCommission || 0;
                 } else { // company
-                    // Debit is what the company earned (collected amount)
-                    debit = s.paidAmount || 0;
-                    // Credit is what the company owes (system commission)
-                    credit = s.companyCommission || 0;
+                    // Debit (له): What the company earned (collected amount minus system commission).
+                    debit = (s.paidAmount || 0) - (s.companyCommission || 0);
+                    // Credit (عليه): Nothing for now, as company commission is already deducted from debit.
+                    credit = 0;
                 }
 
                 if (s.isCustomReturn) txType = 'custom_return';
@@ -127,10 +127,10 @@ function AccountStatementsPage() {
                 txType = 'payment';
 
                 if (entityType === 'courier') {
-                    // A payment from courier decreases their debt
+                    // A payment from courier decreases their debt (Debit - له)
                     debit = p.amount;
                 } else {
-                    // A payment to company decreases what admin owes them
+                    // A payment to company decreases what admin owes them (Credit - عليه)
                     credit = p.amount;
                 }
             }
@@ -138,10 +138,13 @@ function AccountStatementsPage() {
             // Skip transactions that have no financial impact
             if (credit === 0 && debit === 0) continue;
             
+             // Correct balance calculation for both entities
             if (entityType === 'courier') {
+                // Courier's Debt = Credit (what he collected) - Debit (what he earned/paid)
                 runningBalance += (credit - debit);
-            } else {
-                 runningBalance += (debit - credit);
+            } else { // company
+                // Company's Earning = Debit (what they get) - Credit (what they were paid)
+                runningBalance += (debit - credit);
             }
             
             processedTransactions.push({
@@ -183,8 +186,8 @@ function AccountStatementsPage() {
           { accessorKey: "description", header: "البيان" },
           { accessorKey: "status", header: "الحالة" },
           { accessorKey: "reason", header: "السبب" },
-          { accessorKey: "debit", header: entityType === 'courier' ? "مدين (له)" : "دائن (له)" },
-          { accessorKey: "credit", header: entityType === 'courier' ? "دائن (عليه)" : "مدين (عليه)" },
+          { accessorKey: "debit", header: entityType === 'courier' ? "له (مدين)" : "له (دائن)" },
+          { accessorKey: "credit", header: entityType === 'courier' ? "عليه (دائن)" : "عليه (مدين)" },
           { accessorKey: "balance", header: "الرصيد" },
         ];
         
@@ -312,11 +315,11 @@ function AccountStatementsPage() {
                                     <TableRow>
                                         <TableHead>التاريخ</TableHead>
                                         <TableHead>البيان</TableHead>
-                                        <TableHead className={cn("text-center", entityType === 'courier' ? "text-red-600" : "text-green-600")}>
-                                            {entityType === 'courier' ? "دائن (عليه)" : "مدين (له)"}
+                                        <TableHead className={cn("text-center text-red-600")}>
+                                            {entityType === 'courier' ? "عليه (دائن)" : "عليه (مدين)"}
                                         </TableHead>
-                                        <TableHead className={cn("text-center", entityType === 'courier' ? "text-green-600" : "text-red-600")}>
-                                             {entityType === 'courier' ? "مدين (له)" : "دائن (عليه)"}
+                                        <TableHead className={cn("text-center text-green-600")}>
+                                             {entityType === 'courier' ? "له (مدين)" : "له (دائن)"}
                                         </TableHead>
                                         <TableHead className="text-center font-bold">الرصيد</TableHead>
                                     </TableRow>

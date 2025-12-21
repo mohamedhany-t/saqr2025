@@ -461,7 +461,7 @@ const DesktopShipmentsView = ({
     columnFilters: ColumnFiltersState,
     setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
   }) => {
-    const renderShipmentTable = (shipmentList: Shipment[], activeTab: 'none' | 'company' | 'courier' | 'returns-with-couriers' | 'returns-in-warehouse' | 'returning-to-company' | 'returned-to-company' = 'none') => (
+    const renderShipmentTable = (shipmentList: Shipment[], activeTab: 'none' | 'company' | 'courier' | 'returns-with-couriers' | 'returns-in-warehouse' | 'returned-to-company' | 'returning-to-company' = 'none') => (
         <ShipmentsTable 
           shipments={shipmentList} 
           isLoading={listIsLoading}
@@ -860,14 +860,6 @@ const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
                 const shipmentCodeValue = row['كود الشحنة'] ? String(row['كود الشحنة']).trim() : null;
                 const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
                 const foundCompany = companies.find(c => c.name === companyNameFromSheet);
-
-                if (!shipmentCodeValue && !foundCompany) {
-                    let reason = "بيانات أساسية مفقودة";
-                    result.rejected++;
-                    result.errors.push({ ...row, 'سبب الرفض': reason });
-                    setImportResult({ ...result });
-                    continue;
-                }
 
                 let existingDoc: DocumentSnapshot<DocumentData> | null = null;
                 if(shipmentCodeValue) {
@@ -1354,37 +1346,33 @@ const handleArchiveCourierData = async () => {
     // Step 1: Handle settlement payment if needed
     if (netDue > 0) {
         const paymentRef = doc(collection(firestore, 'courier_payments'));
-        const newPayment: CourierPayment = {
+        const newPayment: Partial<CourierPayment> = {
             id: paymentRef.id,
             courierId: courierToArchive.id,
             amount: netDue,
             paymentDate: serverTimestamp(),
             recordedById: user.id,
             notes: "تسوية وحفظ تلقائي للحساب",
+            isArchived: true
         };
         batch.set(paymentRef, newPayment);
     }
-
-    // Step 2: Archive all currently active payments for this courier.
-    const activePayments = courierPayments?.filter(p => p.courierId === courierToArchive.id) || [];
+    
+    // Step 2: Mark currently active payments for this courier as archived.
+    const activePayments = courierPayments?.filter(p => p.courierId === courierToArchive.id && !p.isArchived) || [];
     activePayments.forEach(payment => {
         const paymentRef = doc(firestore, 'courier_payments', payment.id);
-        const archivedPaymentRef = doc(collection(firestore, 'archived_courier_payments'));
-        const paymentToArchive: ArchivedCourierPayment = { ...payment, archivedAt: serverTimestamp() };
-        delete (paymentToArchive as any).isArchived; // remove isArchived flag
-        batch.set(archivedPaymentRef, paymentToArchive);
-        batch.delete(paymentRef);
+        batch.update(paymentRef, { isArchived: true });
     });
+
 
     // Step 3: Archive finished shipments for this courier
     const finishedStatuses = statuses.filter(s => s.affectsCourierBalance).map(s => s.id);
-    const courierShipmentsToArchive = allShipmentsForStats?.filter(s => s.assignedCourierId === courierToArchive.id && finishedStatuses.includes(s.status)) || [];
+    const courierShipmentsToArchive = allShipmentsForStats?.filter(s => s.assignedCourierId === courierToArchive.id && finishedStatuses.includes(s.status) && !s.isArchivedForCourier) || [];
     
     courierShipmentsToArchive.forEach(shipment => {
         const shipmentRef = doc(firestore, 'shipments', shipment.id);
-        const archivedShipmentRef = doc(collection(firestore, 'archived_courier_shipments'));
-        batch.set(archivedShipmentRef, { ...shipment, archivedAt: serverTimestamp(), archivedBy: user.id });
-        batch.delete(shipmentRef);
+        batch.update(shipmentRef, { isArchivedForCourier: true, updatedAt: serverTimestamp() });
     });
 
     try {
@@ -1415,37 +1403,32 @@ const handleArchiveCompanyData = async () => {
     // Step 1: Create a settlement payment if there's a positive balance (owed TO the company)
     if (netDue > 0) {
         const paymentRef = doc(collection(firestore, 'company_payments'));
-        const newPayment: CompanyPayment = {
+        const newPayment: Partial<CompanyPayment> = {
             id: paymentRef.id,
             companyId: companyToArchive.id,
             amount: netDue,
             paymentDate: serverTimestamp(),
             recordedById: user.id,
             notes: "تسوية وحفظ تلقائي للحساب",
+            isArchived: true
         };
         batch.set(paymentRef, newPayment);
     }
   
-    // Step 2: Archive all currently active payments for this company.
-    const activePayments = companyPayments?.filter(p => p.companyId === companyToArchive.id) || [];
+    // Step 2: Mark all currently active payments for this company as archived.
+    const activePayments = companyPayments?.filter(p => p.companyId === companyToArchive.id && !p.isArchived) || [];
     activePayments.forEach(payment => {
         const paymentRef = doc(firestore, 'company_payments', payment.id);
-        const archivedPaymentRef = doc(collection(firestore, 'archived_company_payments'));
-        const paymentToArchive: ArchivedCompanyPayment = { ...payment, archivedAt: serverTimestamp() };
-        delete (paymentToArchive as any).isArchived;
-        batch.set(archivedPaymentRef, paymentToArchive);
-        batch.delete(paymentRef);
+        batch.update(paymentRef, { isArchived: true });
     });
   
     // Step 3: Archive finished shipments for this company
     const finishedStatuses = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
-    const companyShipmentsToArchive = allShipmentsForStats?.filter(s => s.companyId === companyToArchive.id && finishedStatuses.includes(s.status)) || [];
+    const companyShipmentsToArchive = allShipmentsForStats?.filter(s => s.companyId === companyToArchive.id && finishedStatuses.includes(s.status) && !s.isArchivedForCompany) || [];
     
     companyShipmentsToArchive.forEach(shipment => {
         const shipmentRef = doc(firestore, 'shipments', shipment.id);
-        const archivedShipmentRef = doc(collection(firestore, 'archived_company_shipments'));
-        batch.set(archivedShipmentRef, { ...shipment, archivedAt: serverTimestamp(), archivedBy: user.id });
-        batch.delete(shipmentRef);
+        batch.update(shipmentRef, { isArchivedForCompany: true, updatedAt: serverTimestamp() });
     });
   
     try {
@@ -1548,8 +1531,8 @@ const returnedToCompanyShipments = React.useMemo(() => {
     if (!users || !allShipmentsForStats || !courierPayments || !statuses) return [];
 
     return courierUsers.map(courier => {
-        const activeShipments = allShipmentsForStats?.filter(s => s.assignedCourierId === courier.id) || [];
-        const activePayments = courierPayments?.filter(p => p.courierId === courier.id) || [];
+        const activeShipments = allShipmentsForStats?.filter(s => s.assignedCourierId === courier.id && !s.isArchivedForCourier) || [];
+        const activePayments = courierPayments?.filter(p => p.courierId === courier.id && !p.isArchived) || [];
         
         const totalCollected = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
         const totalCommission = activeShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
@@ -1559,13 +1542,14 @@ const returnedToCompanyShipments = React.useMemo(() => {
         
         const allPaymentsForCourier = courierPayments?.filter(p => p.courierId === courier.id) || [];
         
-        const returnedStatuses = statuses?.filter(s => s.affectsCourierBalance && !s.requiresFullCollection).map(s => s.id) || [];
+        const deliveredStatuses = statuses.filter(s => s.isDeliveredStatus).map(s => s.id);
+        const returnedStatusesForCalc = statuses.filter(s => s.affectsCourierBalance && !s.isDeliveredStatus).map(s => s.id);
         
         return {
             ...courier,
             totalShipments: activeShipments.length,
-            deliveredCount: activeShipments.filter(s => statuses?.find(st => st.id === s.status)?.requiresFullCollection).length,
-            returnedCount: activeShipments.filter(s => returnedStatuses.includes(s.status)).length,
+            deliveredCount: activeShipments.filter(s => deliveredStatuses.includes(s.status)).length,
+            returnedCount: activeShipments.filter(s => returnedStatusesForCalc.includes(s.status)).length,
             totalCollected,
             totalCommission,
             totalPaidByCourier,
@@ -1579,14 +1563,14 @@ const returnedToCompanyShipments = React.useMemo(() => {
     if (!companies || !allShipmentsForStats || !companyPayments) return [];
     
     return companies.map(company => {
-        const activeShipments = allShipmentsForStats?.filter(s => s.companyId === company.id) || [];
-        const activePayments = companyPayments?.filter(p => p.companyId === company.id) || [];
+        const activeShipments = allShipmentsForStats?.filter(s => s.companyId === company.id && !s.isArchivedForCompany) || [];
+        const activePayments = companyPayments?.filter(p => p.companyId === company.id && !p.isArchived) || [];
         
         const totalRevenue = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
         const totalCompanyCommission = activeShipments.reduce((acc, s) => acc + (s.companyCommission || 0), 0);
         const totalPaidToCompany = activePayments.reduce((acc, p) => acc + p.amount, 0);
         
-        const netDue = totalRevenue - totalCompanyCommission - totalPaidToCompany;
+        const netDue = (totalRevenue - totalCompanyCommission) - totalPaidToCompany;
         
         const allPaymentsForCompany = companyPayments?.filter(p => p.companyId === company.id) || [];
 
@@ -2206,12 +2190,12 @@ const generateShipmentCode = () => {
                                       {company.name}
                                   </CardTitle>
                                   <div className={`text-xl font-bold ${company.netDue >= 0 ? 'text-green-600' : 'text-destructive'}`}>
-                                      {company.netDue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                                      {Math.abs(company.netDue).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
                                   </div>
                               </CardHeader>
                               <CardContent className="flex-grow">
                                   <p className="text-xs text-muted-foreground">
-                                      المبلغ المستحق للدفع للشركة
+                                      {company.netDue >= 0 ? 'المبلغ المستحق للدفع للشركة' : 'المبلغ المستحق على الشركة'}
                                   </p>
                                   <div className="mt-4 space-y-2 text-sm">
                                        <div className="flex justify-between items-center border-b pb-2">
@@ -2453,7 +2437,7 @@ const generateShipmentCode = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>أرشفة وتسوية حساب {courierToArchive?.name}؟</AlertDialogTitle>
             <AlertDialogDescription>
-             سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ المستحق على المندوب حاليًا، ثم نقل جميع الشحنات المنتهية والدفعات الحالية للمندوب إلى الأرشيف وحذفها من القوائم النشطة. لا يمكن التراجع عن هذا الإجراء.
+             سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ المستحق على المندوب حاليًا، ثم وضع علامة "مؤرشف" على جميع الشحنات المنتهية والدفعات الحالية للمندوب لإخفائها من القوائم النشطة.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2467,7 +2451,7 @@ const generateShipmentCode = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>أرشفة وتسوية حساب {companyToArchive?.name}؟</AlertDialogTitle>
             <AlertDialogDescription>
-              سيؤدي هذا الإجراء إلى نقل جميع الشحنات المنتهية والدفعات الحالية للشركة إلى الأرشيف وحذفها من القوائم النشطة. سيتم تصفير حسابها لتبدأ دورة عمل جديدة.
+              سيؤدي هذا الإجراء إلى وضع علامة "مؤرشف" على جميع الشحنات المنتهية والدفعات الحالية للشركة لإخفائها من القوائم النشطة، مما يؤدي إلى تصفير حسابها لتبدأ دورة عمل جديدة.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2539,5 +2523,3 @@ const generateShipmentCode = () => {
     </div>
   );
 }
-
-    
