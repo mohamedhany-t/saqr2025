@@ -664,7 +664,7 @@ export function ShipmentsTable({
                  <ShipmentFilters 
                     governorates={governorates}
                     companies={companies}
-                    couriers={couriers}
+                    courierUsers={couriers}
                     statuses={statuses}
                     onFiltersChange={onFiltersChange}
                 />
