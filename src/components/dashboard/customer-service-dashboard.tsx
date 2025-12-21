@@ -336,7 +336,8 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
                 rejected: 0,
                 total: json.length,
                 errors: [],
-                processing: true
+                processing: true,
+                shipmentsToUpdate: [],
             };
             setImportResult(result);
 
