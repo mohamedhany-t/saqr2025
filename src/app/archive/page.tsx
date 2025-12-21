@@ -16,13 +16,21 @@ import { formatToCairoTime, cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import type { DateRange } from 'react-day-picker';
-import { format } from 'date-fns';
+import { format, startOfDay, endOfDay } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { exportToExcel } from '@/lib/export';
 import { Header } from '@/components/dashboard/header';
 import { Input } from '@/components/ui/input';
 import { ShipmentDetailsDialog } from '@/components/shipments/shipment-details-dialog';
 import { useToast } from '@/hooks/use-toast';
+
+const getSafeDate = (date: any): Date | null => {
+    if (!date) return null;
+    if (typeof date.toDate === 'function') return date.toDate();
+    if (date instanceof Date) return date;
+    const parsedDate = new Date(date);
+    return !isNaN(parsedDate.getTime()) ? parsedDate : null;
+};
 
 const ArchivePage = () => {
     const firestore = useFirestore();
@@ -56,38 +64,46 @@ const ArchivePage = () => {
                 : where('companyId', '==', selectedId);
             filters.push(idFilter);
         }
-
-        if (dateRange?.from) {
-            filters.push(where('createdAt', '>=', Timestamp.fromDate(dateRange.from)));
-        }
-        if (dateRange?.to) {
-            const toDate = new Date(dateRange.to);
-            toDate.setHours(23, 59, 59, 999);
-            filters.push(where('createdAt', '<=', Timestamp.fromDate(toDate)));
-        }
         
-        if (filters.length === 1) {
-            return query(collection(firestore, 'shipments'), filters[0]);
-        }
+        // The date range filter will be applied on the client side to avoid composite index issues.
         
         return query(collection(firestore, 'shipments'), and(...filters));
 
-    }, [firestore, selectedId, entityType, dateRange]);
+    }, [firestore, selectedId, entityType]);
 
     const { data: archivedShipments, isLoading: shipmentsLoading } = useCollection<Shipment>(shipmentsQuery);
     
     const filteredArchivedShipments = useMemo(() => {
         if (!archivedShipments) return [];
-        if (!searchTerm) return archivedShipments;
+        
+        let clientFiltered = archivedShipments;
+
+        // Apply date range filter on the client side
+        if (dateRange?.from) {
+            const fromDate = startOfDay(dateRange.from);
+            clientFiltered = clientFiltered.filter(s => {
+                const shipmentDate = getSafeDate(s.createdAt);
+                return shipmentDate ? shipmentDate >= fromDate : false;
+            });
+        }
+        if (dateRange?.to) {
+            const toDate = endOfDay(dateRange.to);
+            clientFiltered = clientFiltered.filter(s => {
+                const shipmentDate = getSafeDate(s.createdAt);
+                return shipmentDate ? shipmentDate <= toDate : false;
+            });
+        }
+
+        if (!searchTerm) return clientFiltered;
         
         const lowercasedTerm = searchTerm.toLowerCase();
-        return archivedShipments.filter(shipment =>
+        return clientFiltered.filter(shipment =>
             shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
             shipment.recipientName?.toLowerCase().includes(lowercasedTerm) ||
             shipment.recipientPhone?.toLowerCase().includes(lowercasedTerm) ||
             shipment.address?.toLowerCase().includes(lowercasedTerm)
         );
-    }, [archivedShipments, searchTerm]);
+    }, [archivedShipments, searchTerm, dateRange]);
 
     const isLoading = companiesLoading || usersLoading || governoratesLoading || shipmentsLoading || statusesLoading;
 
@@ -125,10 +141,17 @@ const ArchivePage = () => {
     const handleUnarchive = async (shipment: Shipment) => {
         if (!firestore) return;
         const shipmentRef = doc(firestore, 'shipments', shipment.id);
-        const fieldToUpdate = entityType === 'courier' ? 'isArchivedForCourier' : 'isArchivedForCompany';
+        
+        let fieldToUpdate = {};
+        if (shipment.isArchivedForCompany) {
+             fieldToUpdate = { ...fieldToUpdate, isArchivedForCompany: false };
+        }
+        if (shipment.isArchivedForCourier) {
+             fieldToUpdate = { ...fieldToUpdate, isArchivedForCourier: false };
+        }
         
         try {
-            await writeBatch(firestore).update(shipmentRef, { [fieldToUpdate]: false }).commit();
+            await writeBatch(firestore).update(shipmentRef, fieldToUpdate).commit();
             toast({ title: 'تم إلغاء الأرشفة بنجاح' });
         } catch (error) {
             toast({ title: 'فشل إلغاء الأرشفة', variant: 'destructive' });
