@@ -218,28 +218,69 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
 
 export async function settleCompanyAccount(companyId: string, paymentAmount: number, shipmentIdsToArchive: string[], settlementNote: string, adminId: string) {
     const db = getAdminFirestore();
-    const batch = db.batch();
+    const BATCH_SIZE = 400; // Firestore batch limit is 500 writes
+    const batches: FirebaseFirestore.WriteBatch[] = [];
+    let currentBatch = db.batch();
+    let writeCount = 0;
 
-    // 1. Create a settlement payment record.
-    const paymentRef = db.collection('company_payments').doc();
-    batch.set(paymentRef, {
-        companyId,
-        amount: paymentAmount,
-        paymentDate: new Date(),
-        recordedById: adminId,
-        notes: settlementNote,
-        isArchived: true, // Archive settlement payment immediately
-    });
+    const addWrite = (batch: FirebaseFirestore.WriteBatch) => {
+        writeCount++;
+        if (writeCount >= BATCH_SIZE) {
+            batches.push(batch);
+            currentBatch = db.batch();
+            writeCount = 0;
+        }
+        return currentBatch;
+    };
 
-    // 2. Archive the selected shipments for the company.
-    shipmentIdsToArchive.forEach(shipmentId => {
-        const shipmentRef = db.collection('shipments').doc(shipmentId);
-        batch.update(shipmentRef, { isArchivedForCompany: true });
-    });
 
     try {
-        await batch.commit();
+        // 1. Create a settlement payment record.
+        const paymentRef = db.collection('company_payments').doc();
+        currentBatch.set(paymentRef, {
+            companyId,
+            amount: paymentAmount,
+            paymentDate: FieldValue.serverTimestamp(),
+            recordedById: adminId,
+            notes: settlementNote,
+        });
+        currentBatch = addWrite(currentBatch);
+        
+        // 2. Move associated old payments to archive
+        const paymentsSnapshot = await db.collection('company_payments').where('companyId', '==', companyId).get();
+        paymentsSnapshot.forEach(doc => {
+            const archivedPaymentRef = db.collection('archived_company_payments').doc(doc.id);
+            currentBatch.set(archivedPaymentRef, { ...doc.data(), archivedAt: FieldValue.serverTimestamp() });
+            currentBatch = addWrite(currentBatch);
+            currentBatch.delete(doc.ref);
+            currentBatch = addWrite(currentBatch);
+        });
+
+        // 3. Move selected shipments to archive
+        for (const shipmentId of shipmentIdsToArchive) {
+            const shipmentRef = db.collection('shipments').doc(shipmentId);
+            const shipmentDoc = await shipmentRef.get();
+            if (shipmentDoc.exists) {
+                const archivedShipmentRef = db.collection('archived_company_shipments').doc(shipmentId);
+                currentBatch.set(archivedShipmentRef, { ...shipmentDoc.data(), archivedAt: FieldValue.serverTimestamp() });
+                currentBatch = addWrite(currentBatch);
+                currentBatch.delete(shipmentRef);
+                currentBatch = addWrite(currentBatch);
+            }
+        }
+
+        // Add the last batch if it has any writes
+        if (writeCount > 0) {
+            batches.push(currentBatch);
+        }
+
+        // Commit all batches
+        for (const batch of batches) {
+            await batch.commit();
+        }
+
         return { success: true, message: `تمت تسوية حساب الشركة وأرشفة ${shipmentIdsToArchive.length} شحنة بنجاح.` };
+
     } catch (error: any) {
         console.error("Error settling company account:", error);
         return { success: false, error: "حدث خطأ أثناء تنفيذ التسوية على الخادم." };

@@ -449,7 +449,7 @@ const DesktopShipmentsView = ({
     columnFilters: ColumnFiltersState,
     setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
   }) => {
-    const renderShipmentTable = (shipmentList: Shipment[], activeTab: 'none' | 'company' | 'courier' | 'returns-with-couriers' | 'returns-in-warehouse' | 'returned-to-company' = 'none') => (
+    const renderShipmentTable = (shipmentList: Shipment[], activeTab: 'none' | 'company' | 'courier' | 'returns-with-couriers' | 'returns-in-warehouse' | 'returned-to-company' | 'returning-to-company' = 'none') => (
         <ShipmentsTable 
           shipments={shipmentList} 
           isLoading={listIsLoading}
@@ -918,7 +918,7 @@ const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
             if (result.shipmentsToUpdate.length > 0) {
                  for (const update of result.shipmentsToUpdate) {
                     const existingShipment = update.existing;
-                    let dataToUpdate: Partial<Shipment> = { ...update.new, shipmentId: existingShipment.id };
+                    let dataToUpdate: Partial<Shipment> & { shipmentId: string } = { ...update.new, shipmentId: existingShipment.id };
                      // Don't override status or courier if already assigned
                     if (existingShipment.assignedCourierId && existingShipment.status !== 'Pending') {
                       delete dataToUpdate.status;
@@ -1337,27 +1337,28 @@ const handleArchiveCourierData = async () => {
     const netDue = courierDueData.netDue;
     const batch = writeBatch(firestore);
 
-    // Step 1: Handle settlement payment
+    // Step 1: Handle settlement payment if needed
     if (netDue > 0) {
-        const archivedPaymentRef = doc(collection(firestore, 'archived_courier_payments'));
-        const newPayment: ArchivedCourierPayment = {
-            id: archivedPaymentRef.id,
+        const paymentRef = doc(collection(firestore, 'courier_payments'));
+        const newPayment: CourierPayment = {
+            id: paymentRef.id,
             courierId: courierToArchive.id,
             amount: netDue,
-            paymentDate: new Date(),
-            archivedAt: serverTimestamp(),
+            paymentDate: serverTimestamp(),
             recordedById: user.id,
             notes: "تسوية وحفظ تلقائي للحساب",
         };
-        batch.set(archivedPaymentRef, newPayment);
+        batch.set(paymentRef, newPayment);
     }
 
     // Step 2: Archive all currently active payments for this courier.
-    const activePayments = courierPayments?.filter(p => p.courierId === courierToArchive.id && !p.isArchived) || [];
+    const activePayments = courierPayments?.filter(p => p.courierId === courierToArchive.id) || [];
     activePayments.forEach(payment => {
         const paymentRef = doc(firestore, 'courier_payments', payment.id);
         const archivedPaymentRef = doc(collection(firestore, 'archived_courier_payments'));
-        batch.set(archivedPaymentRef, { ...payment, archivedAt: serverTimestamp() });
+        const paymentToArchive: ArchivedCourierPayment = { ...payment, archivedAt: serverTimestamp() };
+        delete (paymentToArchive as any).isArchived; // remove isArchived flag
+        batch.set(archivedPaymentRef, paymentToArchive);
         batch.delete(paymentRef);
     });
 
@@ -1399,25 +1400,26 @@ const handleArchiveCompanyData = async () => {
   
     // Step 1: Create a settlement payment if there's a positive balance (owed TO the company)
     if (netDue > 0) {
-        const archivedPaymentRef = doc(collection(firestore, 'archived_company_payments'));
-        const newPayment: ArchivedCompanyPayment = {
-            id: archivedPaymentRef.id,
+        const paymentRef = doc(collection(firestore, 'company_payments'));
+        const newPayment: CompanyPayment = {
+            id: paymentRef.id,
             companyId: companyToArchive.id,
             amount: netDue,
-            paymentDate: new Date(),
-            archivedAt: serverTimestamp(),
+            paymentDate: serverTimestamp(),
             recordedById: user.id,
             notes: "تسوية وحفظ تلقائي للحساب",
         };
-        batch.set(archivedPaymentRef, newPayment);
+        batch.set(paymentRef, newPayment);
     }
   
     // Step 2: Archive all currently active payments for this company.
-    const activePayments = companyPayments?.filter(p => p.companyId === companyToArchive.id && !p.isArchived) || [];
+    const activePayments = companyPayments?.filter(p => p.companyId === companyToArchive.id) || [];
     activePayments.forEach(payment => {
         const paymentRef = doc(firestore, 'company_payments', payment.id);
         const archivedPaymentRef = doc(collection(firestore, 'archived_company_payments'));
-        batch.set(archivedPaymentRef, { ...payment, archivedAt: serverTimestamp() });
+        const paymentToArchive: ArchivedCompanyPayment = { ...payment, archivedAt: serverTimestamp() };
+        delete (paymentToArchive as any).isArchived;
+        batch.set(archivedPaymentRef, paymentToArchive);
         batch.delete(paymentRef);
     });
   
