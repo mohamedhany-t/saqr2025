@@ -1,4 +1,5 @@
 
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -864,7 +865,8 @@ const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
                 rejected: 0,
                 total: json.length,
                 errors: [],
-                processing: true
+                processing: true,
+                shipmentsToUpdate: [],
             };
             setImportResult(result);
 
@@ -873,48 +875,39 @@ const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
 
             for (const row of json) {
                 // --- Data Extraction and Validation from sheet ---
-                const recipientName = String(row['المرسل اليه'] || '').trim();
-                let recipientPhone = String(row['التليفون']?.toString() || '').trim();
-                if (recipientPhone.length === 10 && recipientPhone.startsWith("1")) {
-                    recipientPhone = "0" + recipientPhone;
-                }
-                const governorateName = String(row['المحافظة'] || '').trim();
+                const shipmentCodeValue = row['كود الشحنة'] ? String(row['كود الشحنة']).trim() : null;
                 const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
-                const codeFromSheet = row['كود الشحنة'] || row['رقم الشحنة'];
-                const shipmentCodeValue = codeFromSheet ? String(codeFromSheet).trim() : null;
-                const orderNumberValue = row['رقم الطلب']?.toString().trim();
-
-                // Find company and governorate IDs
                 const foundCompany = companies.find(c => c.name === companyNameFromSheet);
-                const foundGovernorate = governorates.find(g => g.name === governorateName);
 
-                // Validation checks
-                if (!recipientName || !recipientPhone || !foundCompany || !foundGovernorate) {
+                if (!shipmentCodeValue || !foundCompany) {
                     let reason = "بيانات أساسية مفقودة";
-                    if (!foundCompany) reason = `شركة "${companyNameFromSheet}" غير موجودة`;
-                    if (!foundGovernorate) reason = `محافظة "${governorateName}" غير موجودة`;
+                    if (!shipmentCodeValue) reason = `كود الشحنة مفقود`;
+                    else if (!foundCompany) reason = `شركة "${companyNameFromSheet}" غير موجودة`;
                     result.rejected++;
                     result.errors.push({ ...row, 'سبب الرفض': reason });
                     setImportResult({ ...result });
                     continue;
                 }
 
-                // --- Match Existing Shipment ---
-                let existingDoc = null;
-                if (shipmentCodeValue) {
-                    const q = query(collection(firestore, 'shipments'), where("shipmentCode", "==", shipmentCodeValue));
-                    const snapshot = await getDocs(q);
-                    if (!snapshot.empty) existingDoc = snapshot.docs[0];
+                const existingDocQuery = query(collection(firestore, 'shipments'), where("shipmentCode", "==", shipmentCodeValue));
+                const snapshot = await getDocs(existingDocQuery);
+                const existingDoc = snapshot.empty ? null : snapshot.docs[0];
+
+                const recipientName = String(row['المرسل اليه'] || '').trim();
+                let recipientPhone = String(row['التليفون']?.toString() || '').trim();
+                if (recipientPhone.length === 10 && recipientPhone.startsWith("1")) {
+                    recipientPhone = "0" + recipientPhone;
                 }
-                if (!existingDoc && orderNumberValue) {
-                    const q = query(collection(firestore, 'shipments'), where("orderNumber", "==", orderNumberValue), where("companyId", "==", foundCompany.id));
-                    const snapshot = await getDocs(q);
-                    if (!snapshot.empty) existingDoc = snapshot.docs[0];
-                }
-                if (!existingDoc) {
-                    const q = query(collection(firestore, 'shipments'), where("recipientName", "==", recipientName), where("recipientPhone", "==", recipientPhone), where("companyId", "==", foundCompany.id));
-                    const snapshot = await getDocs(q);
-                     if (!snapshot.empty) existingDoc = snapshot.docs[0];
+                const governorateName = String(row['المحافظة'] || '').trim();
+                const foundGovernorate = governorates.find(g => g.name === governorateName);
+                
+                if (!recipientName || !recipientPhone || !foundGovernorate) {
+                    let reason = "بيانات العميل مفقودة";
+                    if (!foundGovernorate) reason = `محافظة "${governorateName}" غير موجودة`;
+                    result.rejected++;
+                    result.errors.push({ ...row, 'سبب الرفض': reason });
+                    setImportResult({ ...result });
+                    continue;
                 }
 
                 // --- Prepare Shipment Data ---
@@ -923,9 +916,9 @@ const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
                 const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
                 
                 const shipmentData: Partial<Omit<Shipment, 'id'>> = {
-                    shipmentCode: shipmentCodeValue || generateShipmentCode(),
+                    shipmentCode: shipmentCodeValue,
                     senderName: row['الراسل'] || row['العميل الفرعى'],
-                    orderNumber: orderNumberValue,
+                    orderNumber: row['رقم الطلب']?.toString().trim(),
                     recipientName: recipientName,
                     recipientPhone: recipientPhone,
                     governorateId: foundGovernorate.id,
@@ -939,8 +932,15 @@ const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
 
                 const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
 
-                // --- Create or Update ---
-                if (!existingDoc) {
+                if (existingDoc) {
+                    // It's an update
+                    result.shipmentsToUpdate.push({
+                        existing: existingDoc.data() as Shipment,
+                        new: cleanShipmentData as Partial<Shipment>,
+                    });
+                    result.updated++;
+                } else {
+                    // It's an addition
                     const newDocRef = doc(collection(firestore, "shipments"));
                     await handleShipmentUpdateFn({ 
                         shipmentId: newDocRef.id, 
@@ -948,19 +948,24 @@ const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
                         createdAt: creationDate ? creationDate.toISOString() : new Date().toISOString() 
                     });
                     result.added++;
-                } else {
-                    const existingShipment = existingDoc.data() as Shipment;
-                    // Don't override status or courier if already assigned
-                    if (existingShipment.assignedCourierId) {
-                      delete cleanShipmentData.status;
-                      delete cleanShipmentData.assignedCourierId;
-                    }
-                    await handleShipmentUpdateFn({ shipmentId: existingDoc.id, ...cleanShipmentData });
-                    result.updated++;
                 }
                 setImportResult({ ...result });
             }
 
+            // Final updates based on collected changes.
+            if (result.shipmentsToUpdate.length > 0) {
+                 for (const update of result.shipmentsToUpdate) {
+                    const existingShipment = update.existing;
+                    let dataToUpdate: Partial<Shipment> = { ...update.new };
+                     // Don't override status or courier if already assigned
+                    if (existingShipment.assignedCourierId && existingShipment.status !== 'Pending') {
+                      delete dataToUpdate.status;
+                      delete dataToUpdate.assignedCourierId;
+                    }
+                    await handleShipmentUpdateFn({ shipmentId: existingShipment.id, ...dataToUpdate });
+                }
+            }
+            
             setImportResult(prev => prev ? { ...prev, processing: false } : null);
 
         } catch (error: any) {
@@ -1474,24 +1479,29 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
       .finally(() => setCompanyToArchive(null));
   };
   
+  const filterShipmentsBySearch = (list: Shipment[], term: string): Shipment[] => {
+    if (!term) return list;
+    const lowercasedTerm = term.toLowerCase();
+    return list.filter(shipment =>
+        String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
+        String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
+        String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
+        String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
+        String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
+    );
+  }
+
   const filteredShipments = React.useMemo(() => {
     if (!allShipmentsForStats) return [];
-
-    let baseShipments = allShipmentsForStats.filter(s => 
-        !s.isArchivedForCompany && !s.isArchivedForCourier
-    );
-
+  
+    let baseShipments = allShipmentsForStats;
+  
+    // Apply main search term if it exists
     if (searchTerm) {
-        const lowercasedTerm = searchTerm.toLowerCase();
-        return allShipmentsForStats.filter(shipment =>
-            String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
-            String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
-        );
+        return filterShipmentsBySearch(baseShipments, searchTerm);
     }
   
+    // Apply column filters if search term is empty
     if (columnFilters.length > 0) {
       return baseShipments.filter((shipment) => {
         const dateRangeFilter = columnFilters.find(f => f.id === 'createdAt');
@@ -1517,61 +1527,44 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
       });
     }
 
-    return baseShipments;
-  }, [allShipmentsForStats, searchTerm, columnFilters]);
+    return baseShipments.filter(s => !s.isArchivedForCompany && !s.isArchivedForCourier);
+  }, [allShipmentsForStats, searchTerm, columnFilters, filterShipmentsBySearch]);
   
-  const filterShipmentsBySearch = (list: Shipment[], term: string): Shipment[] => {
-    if (!term) return list;
-    const lowercasedTerm = term.toLowerCase();
-    return list.filter(shipment =>
-        String(shipment.shipmentCode || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.orderNumber || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.recipientName || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
-        String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
-    );
-  }
   
-  const unassignedShipments = React.useMemo(() => filterShipmentsBySearch(allShipmentsForStats?.filter(s => !s.assignedCourierId) || [], searchTerm), [allShipmentsForStats, searchTerm]);
-  const assignedShipments = React.useMemo(() => filterShipmentsBySearch(allShipmentsForStats?.filter(s => !!s.assignedCourierId) || [], searchTerm), [allShipmentsForStats, searchTerm]);
+  const unassignedShipments = React.useMemo(() => allShipmentsForStats?.filter(s => !s.assignedCourierId) || [], [allShipmentsForStats]);
+  const assignedShipments = React.useMemo(() => allShipmentsForStats?.filter(s => !!s.assignedCourierId) || [], [allShipmentsForStats]);
 
     const archivedShipmentsCompany = React.useMemo(() => {
-        const archived = allShipmentsForStats?.filter(s => s.isArchivedForCompany) || [];
-        return searchTerm ? filterShipmentsBySearch(archived, searchTerm) : archived;
-    }, [allShipmentsForStats, searchTerm]);
+        return allShipmentsForStats?.filter(s => s.isArchivedForCompany) || [];
+    }, [allShipmentsForStats]);
 
     const archivedShipmentsCourier = React.useMemo(() => {
-        const archived = allShipmentsForStats?.filter(s => s.isArchivedForCourier) || [];
-        return searchTerm ? filterShipmentsBySearch(archived, searchTerm) : archived;
-    }, [allShipmentsForStats, searchTerm]);
+        return allShipmentsForStats?.filter(s => s.isArchivedForCourier) || [];
+    }, [allShipmentsForStats]);
 
   const recentlyUpdatedShipments = React.useMemo(() => {
     const activeShipments = allShipmentsForStats?.filter(shipment => !shipment.isArchivedForCompany && !shipment.isArchivedForCourier) || [];
-    const sorted = activeShipments.sort((a, b) => {
+    return [...activeShipments].sort((a, b) => {
         const timeA = getSafeDate(a.updatedAt)?.getTime() || 0;
         const timeB = getSafeDate(b.updatedAt)?.getTime() || 0;
         return timeB - timeA;
     });
-    return searchTerm ? filterShipmentsBySearch(sorted, searchTerm) : sorted;
-  }, [allShipmentsForStats, searchTerm]);
+  }, [allShipmentsForStats]);
 
 
 const returnedShipmentStatuses = React.useMemo(() => statuses?.filter(s => s.isReturnedStatus).map(s => s.id) || [], [statuses]);
 
 const returnsWithCouriers = React.useMemo(() => {
-    const list = allShipmentsForStats?.filter(s => (returnedShipmentStatuses.includes(s.status) || s.isExchange) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCourier) || [];
-    return searchTerm ? filterShipmentsBySearch(list, searchTerm) : list;
-}, [allShipmentsForStats, returnedShipmentStatuses, searchTerm]);
+    return allShipmentsForStats?.filter(s => (returnedShipmentStatuses.includes(s.status) || s.isExchange) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCourier) || [];
+}, [allShipmentsForStats, returnedShipmentStatuses]);
 
 const inWarehouseShipments = React.useMemo(() => {
-    const list = allShipmentsForStats?.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCompany) || [];
-    return searchTerm ? filterShipmentsBySearch(list, searchTerm) : list;
-}, [allShipmentsForStats, searchTerm]);
+    return allShipmentsForStats?.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany && !s.isArchivedForCompany) || [];
+}, [allShipmentsForStats]);
 
 const returnedToCompanyShipments = React.useMemo(() => {
-    const list = allShipmentsForStats?.filter(s => s.isReturnedToCompany && !s.isArchivedForCompany) || [];
-    return searchTerm ? filterShipmentsBySearch(list, searchTerm) : list;
-}, [allShipmentsForStats, searchTerm]);
+    return allShipmentsForStats?.filter(s => s.isReturnedToCompany && !s.isArchivedForCompany) || [];
+}, [allShipmentsForStats]);
 
 
   const courierDues = React.useMemo(() => {
@@ -2306,12 +2299,7 @@ const generateShipmentCode = () => {
                                         adminUser={user}
                                         statuses={statuses || []}
                                         onSettlementComplete={() => {}}
-                                    >
-                                        <Button variant="default" className="w-full">
-                                            <FileSpreadsheet className="me-2 h-4 w-4" />
-                                            تسوية عبر شيت
-                                        </Button>
-                                    </CompanySettlementDialog>
+                                    />
                                   <Button variant="outline" className="w-full" onClick={() => openCompanyPaymentForm(company)} disabled={company.netDue <= 0}>
                                       <Banknote className="me-2 h-4 w-4" />
                                       تسوية يدوية
@@ -2564,3 +2552,4 @@ const generateShipmentCode = () => {
     </div>
   );
 }
+

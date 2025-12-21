@@ -1,4 +1,5 @@
 
+
 'use client';
 import React from 'react';
 import {
@@ -11,10 +12,12 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, CheckCircle, AlertTriangle, Download } from 'lucide-react';
+import { Loader2, CheckCircle, AlertTriangle, Download, RefreshCw } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { ScrollArea } from '../ui/scroll-area';
 import { exportToExcel } from '@/lib/export';
+import type { Shipment } from '@/lib/types';
+import { Badge } from '../ui/badge';
 
 export interface ImportResult {
   added: number;
@@ -24,6 +27,10 @@ export interface ImportResult {
   processing: boolean;
   errors: any[];
   finalError?: string;
+  shipmentsToUpdate: {
+    existing: Shipment;
+    new: Partial<Shipment>;
+  }[];
 }
 
 interface ImportProgressDialogProps {
@@ -31,8 +38,18 @@ interface ImportProgressDialogProps {
   onClose: () => void;
 }
 
+const getChangedFields = (existing: Shipment, newData: Partial<Shipment>): string[] => {
+    const changes: string[] = [];
+    (Object.keys(newData) as Array<keyof Shipment>).forEach(key => {
+        if (newData[key] !== undefined && String(newData[key]) !== String(existing[key])) {
+            changes.push(key);
+        }
+    });
+    return changes;
+}
+
 export function ImportProgressDialog({ result, onClose }: ImportProgressDialogProps) {
-  const { added, updated, total, processing, errors, finalError, rejected } = result;
+  const { added, updated, total, processing, errors, finalError, rejected, shipmentsToUpdate } = result;
   const processedCount = added + updated + rejected;
   const progressPercentage = total > 0 ? (processedCount / total) * 100 : 0;
   const isFinished = !processing;
@@ -50,7 +67,7 @@ export function ImportProgressDialog({ result, onClose }: ImportProgressDialogPr
 
   return (
     <Dialog open={true} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-2xl" dir="rtl">
+      <DialogContent className="sm:max-w-4xl" dir="rtl">
         <DialogHeader>
           <DialogTitle>
             {isFinished ? 'تقرير استيراد الشحنات' : 'جاري استيراد الشحنات...'}
@@ -83,7 +100,7 @@ export function ImportProgressDialog({ result, onClose }: ImportProgressDialogPr
                 </div>
                  <div>
                     <p className="font-bold text-lg text-blue-600">{updated}</p>
-                    <p className="text-muted-foreground">تم التحديث</p>
+                    <p className="text-muted-foreground">سيتم التحديث</p>
                 </div>
                 <div>
                     <p className="font-bold text-lg text-destructive">{rejected}</p>
@@ -91,11 +108,43 @@ export function ImportProgressDialog({ result, onClose }: ImportProgressDialogPr
                 </div>
             </div>
           </div>
+
+          {isFinished && shipmentsToUpdate.length > 0 && (
+              <div className="space-y-2 pt-4">
+                 <div className="flex justify-between items-center">
+                    <h4 className="font-semibold text-blue-600 flex items-center gap-2"><RefreshCw className="h-4 w-4" /> سيتم تحديث الشحنات التالية ({shipmentsToUpdate.length})</h4>
+                 </div>
+                <ScrollArea className="h-48 border rounded-lg">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>كود الشحنة</TableHead>
+                                <TableHead>العميل</TableHead>
+                                <TableHead>الحقول التي ستتغير</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {shipmentsToUpdate.map((update, index) => (
+                                <TableRow key={index}>
+                                    <TableCell className="font-mono">{update.existing.shipmentCode}</TableCell>
+                                    <TableCell>{update.existing.recipientName}</TableCell>
+                                    <TableCell>
+                                        <div className="flex flex-wrap gap-1">
+                                            {getChangedFields(update.existing, update.new).map(field => <Badge key={field} variant="secondary">{field}</Badge>)}
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </ScrollArea>
+              </div>
+          )}
           
           {isFinished && errors.length > 0 && (
             <div className="space-y-2 pt-4">
                  <div className="flex justify-between items-center">
-                    <h4 className="font-semibold">قائمة الأخطاء</h4>
+                    <h4 className="font-semibold">قائمة الأخطاء ({errors.length})</h4>
                     <Button variant="outline" size="sm" onClick={handleDownloadErrors}>
                         <Download className="me-2 h-4 w-4" />
                         تحميل ملف الأخطاء
@@ -105,7 +154,7 @@ export function ImportProgressDialog({ result, onClose }: ImportProgressDialogPr
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>رقم الطلب</TableHead>
+                                <TableHead>كود الشحنة</TableHead>
                                 <TableHead>العميل</TableHead>
                                 <TableHead>سبب الرفض</TableHead>
                             </TableRow>
@@ -113,7 +162,7 @@ export function ImportProgressDialog({ result, onClose }: ImportProgressDialogPr
                         <TableBody>
                             {errors.slice(0, 10).map((err, index) => (
                                 <TableRow key={index}>
-                                    <TableCell>{err['رقم الطلب'] || 'N/A'}</TableCell>
+                                    <TableCell>{err['كود الشحنة'] || 'N/A'}</TableCell>
                                     <TableCell>{err['المرسل اليه'] || 'N/A'}</TableCell>
                                     <TableCell className="text-destructive">{err['سبب الرفض']}</TableCell>
                                 </TableRow>
@@ -128,8 +177,8 @@ export function ImportProgressDialog({ result, onClose }: ImportProgressDialogPr
         </div>
 
         <DialogFooter>
-          <Button onClick={onClose} disabled={!isFinished}>
-            {isFinished ? 'إغلاق' : 'جاري المعالجة...'}
+          <Button onClick={onClose}>
+            إغلاق
           </Button>
         </DialogFooter>
       </DialogContent>
