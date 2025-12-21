@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShipmentsTable } from "@/components/dashboard/shipments-table";
-import type { Role, Shipment, Company, Governorate, Courier, User, CourierPayment, Chat, CompanyPayment, ShipmentHistory, ShipmentStatusConfig, ArchivedCourierPayment, ArchivedCompanyPayment } from "@/lib/types";
+import type { Role, Shipment, Company, Governorate, Courier, User, CourierPayment, Chat, CompanyPayment, ShipmentHistory, ShipmentStatusConfig } from "@/lib/types";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { UsersTable, UserCard } from "@/components/dashboard/users-table";
 import { ShipmentFormSheet } from "@/components/shipments/shipment-form-sheet";
@@ -482,6 +482,7 @@ const DesktopShipmentsView = ({
                 <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
                 <TabsTrigger value="returns-with-couriers">مرتجعات لدى المناديب</TabsTrigger>
                 <TabsTrigger value="returns-in-warehouse">مرتجعات وصلت المخزن</TabsTrigger>
+                <TabsTrigger value="returned-to-company">وصلت للشركة</TabsTrigger>
             </TabsList>
             <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments)}</TabsContent>
             <TabsContent value="unassigned">{renderShipmentTable(unassignedShipments)}</TabsContent>
@@ -491,6 +492,7 @@ const DesktopShipmentsView = ({
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
             <TabsContent value="returns-with-couriers">{renderShipmentTable(returnsWithCouriers, 'returns-with-couriers')}</TabsContent>
             <TabsContent value="returns-in-warehouse">{renderShipmentTable(inWarehouseShipments, 'returns-in-warehouse')}</TabsContent>
+            <TabsContent value="returned-to-company">{renderShipmentTable(returnedToCompanyShipments, 'returned-to-company')}</TabsContent>
         </Tabs>
     )
   }
@@ -1387,6 +1389,7 @@ const handleArchiveCompanyData = async () => {
             paymentDate: serverTimestamp(),
             recordedById: user.id,
             notes: "تسوية وحفظ تلقائي للحساب",
+            isArchived: true, // Archive settlement payment immediately
         };
         batch.set(paymentRef, newPayment);
     }
@@ -2505,6 +2508,7 @@ const generateShipmentCode = () => {
     </div>
   );
 }
+
 
 
 
