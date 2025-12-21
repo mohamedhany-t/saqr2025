@@ -179,7 +179,6 @@ export function CompanySettlementDialog({
           paymentAmount: analysis.netDue,
           shipmentIdsToArchive: analysis.shipmentsToSettle.map(s => s.id),
           settlementNote: `تسوية عبر شيت: ${analysis.fileName}`,
-          adminId: adminUser.id
         };
 
         const result = await executeSettlement(dataToSend);
@@ -338,3 +337,5 @@ export function CompanySettlementDialog({
     </Dialog>
   );
 }
+
+    

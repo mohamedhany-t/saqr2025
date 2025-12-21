@@ -138,9 +138,10 @@ const MobileShipmentsView = ({
     const unassignedShipments = React.useMemo(() => shipments.filter(s => !s.assignedCourierId), [shipments]);
     const assignedShipments = React.useMemo(() => shipments.filter(s => !!s.assignedCourierId), [shipments]);
     const returnsWithCouriers = React.useMemo(() => {
-        return shipments?.filter(s => (returnedShipmentStatuses.includes(s.status) || s.isExchange) && !s.isWarehouseReturn && !s.isReturnedToCompany) || [];
+        return shipments?.filter(s => (returnedShipmentStatuses.includes(s.status) || s.isExchange) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isReturningToCompany) || [];
     }, [shipments, returnedShipmentStatuses]);
-    const inWarehouseShipments = React.useMemo(() => shipments.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany), [shipments]);
+    const inWarehouseShipments = React.useMemo(() => shipments.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany && !s.isReturningToCompany), [shipments]);
+    const returningToCompanyShipments = React.useMemo(() => shipments.filter(s => s.isReturningToCompany && !s.isReturnedToCompany), [shipments]);
     const returnedToCompanyShipments = React.useMemo(() => shipments.filter(s => s.isReturnedToCompany), [shipments]);
    
     const getCurrentShipmentList = () => {
@@ -152,6 +153,7 @@ const MobileShipmentsView = ({
         case "postponed": return filterShipmentsBySearch(shipments.filter(s => s.status === 'Postponed'), searchTerm);
         case "returns-with-couriers": return filterShipmentsBySearch(returnsWithCouriers, searchTerm);
         case "returns-in-warehouse": return filterShipmentsBySearch(inWarehouseShipments, searchTerm);
+        case "returning-to-company": return filterShipmentsBySearch(returningToCompanyShipments, searchTerm);
         case "returned-to-company": return filterShipmentsBySearch(returnedToCompanyShipments, searchTerm);
         case "all-shipments":
         default: return filterShipmentsBySearch(shipments, searchTerm);
@@ -300,6 +302,7 @@ const MobileShipmentsView = ({
                     <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
                     <TabsTrigger value="returns-with-couriers">مرتجعات بالخارج</TabsTrigger>
                     <TabsTrigger value="returns-in-warehouse">مرتجعات بالمخزن</TabsTrigger>
+                    <TabsTrigger value="returning-to-company">قيد التوصيل للشركة</TabsTrigger>
                     <TabsTrigger value="returned-to-company">وصلت للشركة</TabsTrigger>
                 </TabsList>
                 <div className="flex flex-col gap-4">
@@ -320,6 +323,7 @@ const MobileShipmentsView = ({
             <TabsContent value="postponed"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
             <TabsContent value="returns-with-couriers"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
             <TabsContent value="returns-in-warehouse"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
+            <TabsContent value="returning-to-company"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
             <TabsContent value="returned-to-company"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
             
             {selectedCount > 0 && (
@@ -384,16 +388,22 @@ const MobileShipmentsView = ({
                                 <Warehouse className="me-2 h-4 w-4" />
                                 للمخزن
                             </Button>
-                             <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isReturnedToCompany: true })}>
+                             <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isReturningToCompany: true })}>
                                 <Building className="me-2 h-4 w-4" />
                                 للشركة
                             </Button>
                         </>
                     )}
                     {activeTab === 'returns-in-warehouse' && (
+                         <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isReturningToCompany: true })}>
+                            <Building className="me-2 h-4 w-4" />
+                            توصيل للشركة
+                        </Button>
+                    )}
+                    {activeTab === 'returning-to-company' && (
                          <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isReturnedToCompany: true })}>
                             <Building className="me-2 h-4 w-4" />
-                            تم الرجوع للشركة
+                            تأكيد الوصول للشركة
                         </Button>
                     )}
                     
@@ -413,6 +423,7 @@ const DesktopShipmentsView = ({
     getShipmentsByStatus,
     inWarehouseShipments,
     returnsWithCouriers,
+    returningToCompanyShipments,
     returnedToCompanyShipments,
     recentlyUpdatedShipments,
     unassignedShipments,
@@ -434,6 +445,7 @@ const DesktopShipmentsView = ({
     getShipmentsByStatus: (status: string | string[]) => Shipment[];
     inWarehouseShipments: Shipment[];
     returnsWithCouriers: Shipment[];
+    returningToCompanyShipments: Shipment[];
     returnedToCompanyShipments: Shipment[];
     recentlyUpdatedShipments: Shipment[];
     unassignedShipments: Shipment[];
@@ -449,7 +461,7 @@ const DesktopShipmentsView = ({
     columnFilters: ColumnFiltersState,
     setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
   }) => {
-    const renderShipmentTable = (shipmentList: Shipment[], activeTab: 'none' | 'company' | 'courier' | 'returns-with-couriers' | 'returns-in-warehouse' | 'returned-to-company' | 'returning-to-company' = 'none') => (
+    const renderShipmentTable = (shipmentList: Shipment[], activeTab: 'none' | 'company' | 'courier' | 'returns-with-couriers' | 'returns-in-warehouse' | 'returning-to-company' | 'returned-to-company' = 'none') => (
         <ShipmentsTable 
           shipments={shipmentList} 
           isLoading={listIsLoading}
@@ -482,6 +494,7 @@ const DesktopShipmentsView = ({
                 <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
                 <TabsTrigger value="returns-with-couriers">مرتجعات لدى المناديب</TabsTrigger>
                 <TabsTrigger value="returns-in-warehouse">مرتجعات وصلت المخزن</TabsTrigger>
+                <TabsTrigger value="returning-to-company">قيد التوصيل للشركة</TabsTrigger>
                 <TabsTrigger value="returned-to-company">وصلت للشركة</TabsTrigger>
             </TabsList>
             <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments)}</TabsContent>
@@ -492,6 +505,7 @@ const DesktopShipmentsView = ({
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
             <TabsContent value="returns-with-couriers">{renderShipmentTable(returnsWithCouriers, 'returns-with-couriers')}</TabsContent>
             <TabsContent value="returns-in-warehouse">{renderShipmentTable(inWarehouseShipments, 'returns-in-warehouse')}</TabsContent>
+            <TabsContent value="returning-to-company">{renderShipmentTable(returningToCompanyShipments, 'returning-to-company')}</TabsContent>
             <TabsContent value="returned-to-company">{renderShipmentTable(returnedToCompanyShipments, 'returned-to-company')}</TabsContent>
         </Tabs>
     )
@@ -1511,13 +1525,17 @@ const handleArchiveCompanyData = async () => {
 const returnedShipmentStatuses = React.useMemo(() => statuses?.filter(s => s.isReturnedStatus).map(s => s.id) || [], [statuses]);
 
 const returnsWithCouriers = React.useMemo(() => {
-    const returns = filteredShipments?.filter(s => (returnedShipmentStatuses.includes(s.status) || s.isExchange) && !s.isWarehouseReturn && !s.isReturnedToCompany) || [];
+    const returns = filteredShipments?.filter(s => (returnedShipmentStatuses.includes(s.status) || s.isExchange) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isReturningToCompany) || [];
     return returns;
 }, [filteredShipments, returnedShipmentStatuses]);
 
 const inWarehouseShipments = React.useMemo(() => {
-    const warehouse = filteredShipments?.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany) || [];
+    const warehouse = filteredShipments?.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany && !s.isReturningToCompany) || [];
     return warehouse;
+}, [filteredShipments]);
+
+const returningToCompanyShipments = React.useMemo(() => {
+    return filteredShipments?.filter(s => s.isReturningToCompany && !s.isReturnedToCompany) || [];
 }, [filteredShipments]);
 
 const returnedToCompanyShipments = React.useMemo(() => {
@@ -1904,6 +1922,7 @@ const generateShipmentCode = () => {
                     getShipmentsByStatus={getShipmentsByStatus}
                     inWarehouseShipments={inWarehouseShipments}
                     returnsWithCouriers={returnsWithCouriers}
+                    returningToCompanyShipments={returningToCompanyShipments}
                     returnedToCompanyShipments={returnedToCompanyShipments}
                     recentlyUpdatedShipments={recentlyUpdatedShipments}
                     unassignedShipments={unassignedShipments}
@@ -2520,3 +2539,5 @@ const generateShipmentCode = () => {
     </div>
   );
 }
+
+    
