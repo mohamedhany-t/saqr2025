@@ -80,11 +80,15 @@ const getChangedFields = (existing: Shipment, newData: Partial<Shipment>): strin
 
 export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: ImportProgressDialogProps) {
   const { added, updated, total, processing, errors, finalError, rejected, shipmentsToUpdate } = result;
+  
+  // Initialize state once, ensuring it's empty to start.
   const [updateSelection, setUpdateSelection] = React.useState<Record<string, boolean>>(() => {
     const initialSelection: Record<string, boolean> = {};
-    shipmentsToUpdate.forEach(update => {
-      initialSelection[update.existing.id] = true;
-    });
+    if (shipmentsToUpdate) {
+        shipmentsToUpdate.forEach(update => {
+            initialSelection[update.existing.id] = true; // Default all to true initially
+        });
+    }
     return initialSelection;
   });
 
@@ -111,13 +115,13 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
   }
 
   const toggleAllUpdates = () => {
-    const areAllCurrentlySelected = shipmentsToUpdate.every(u => updateSelection[u.existing.id]);
-    const newSelectionState: Record<string, boolean> = {};
+    const areAllSelected = Object.values(updateSelection).every(Boolean) && Object.keys(updateSelection).length === shipmentsToUpdate.length;
+    const newSelection: Record<string, boolean> = {};
     shipmentsToUpdate.forEach(u => {
-        newSelectionState[u.existing.id] = !areAllCurrentlySelected;
+      newSelection[u.existing.id] = !areAllSelected;
     });
-    setUpdateSelection(newSelectionState);
-};
+    setUpdateSelection(newSelection);
+  };
 
   const selectedCount = Object.values(updateSelection).filter(Boolean).length;
   const allUpdatesSelected = shipmentsToUpdate.length > 0 && selectedCount === shipmentsToUpdate.length;
