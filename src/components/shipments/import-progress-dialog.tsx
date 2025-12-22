@@ -59,7 +59,7 @@ const getChangedFields = (existing: Shipment, newData: Partial<Shipment>): strin
 }
 
 export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: ImportProgressDialogProps) {
-  const { added, updated, total, processing, errors, finalError, shipmentsToUpdate } = result;
+  const { added, updated, rejected, total, processing, errors, finalError, shipmentsToUpdate } = result;
 
   const [view, setView] = useState<'summary' | 'selection'>('summary');
   const [selection, setSelection] = useState<Record<string, boolean>>({});
@@ -171,34 +171,6 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
                       </Button>
                   </div>
               </div>
-
-              <div className="space-y-2">
-                <h5 className="font-medium">معاينة الشحنات التي سيتم تحديثها:</h5>
-                <ScrollArea className="h-48 border rounded-lg">
-                  <Table>
-                      <TableHeader>
-                          <TableRow>
-                              <TableHead>كود الشحنة</TableHead>
-                              <TableHead>العميل</TableHead>
-                              <TableHead>الحقول التي تغيرت</TableHead>
-                          </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                          {shipmentsToUpdate.map((update) => (
-                              <TableRow key={update.existing.id}>
-                                  <TableCell className="font-mono">{update.existing.shipmentCode}</TableCell>
-                                  <TableCell>{update.existing.recipientName}</TableCell>
-                                  <TableCell>
-                                      <div className="flex flex-wrap gap-1">
-                                          {getChangedFields(update.existing, update.new).map(field => <Badge key={field} variant="secondary">{field}</Badge>)}
-                                      </div>
-                                  </TableCell>
-                              </TableRow>
-                          ))}
-                      </TableBody>
-                  </Table>
-                </ScrollArea>
-              </div>
             </div>
         )}
         
@@ -261,7 +233,7 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
               <TableRow>
                 <TableHead className="w-[50px]">
                   <Checkbox
-                    checked={selectedCount === shipmentsToUpdate.length}
+                    checked={shipmentsToUpdate.length > 0 && selectedCount === shipmentsToUpdate.length}
                     onCheckedChange={toggleAll}
                   />
                 </TableHead>
@@ -277,10 +249,15 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
                     <Checkbox
                       checked={!!selection[update.existing.id]}
                       onCheckedChange={(checked) => {
-                        setSelection(prev => ({
-                          ...prev,
-                          [update.existing.id]: !!checked
-                        }));
+                        setSelection(prev => {
+                          const newSelection = {...prev};
+                          if (checked) {
+                            newSelection[update.existing.id] = true;
+                          } else {
+                            delete newSelection[update.existing.id];
+                          }
+                          return newSelection;
+                        });
                       }}
                     />
                   </TableCell>
