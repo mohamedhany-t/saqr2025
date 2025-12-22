@@ -347,7 +347,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
 
             for (const row of json) {
                 // --- Data Extraction and Validation from sheet ---
-                const recipientName = String(row['المرسل اليه'] || '').trim();
+                const recipientName = String(row['المرسل اليه'] || 'بدون اسم').trim();
                 let recipientPhone = String(row['التليفون']?.toString() || '').trim();
                 if (recipientPhone.length === 10 && recipientPhone.startsWith("1")) {
                     recipientPhone = "0" + recipientPhone;
@@ -363,7 +363,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
                 const foundGovernorate = governorates.find(g => g.name === governorateName);
 
                 // Validation checks
-                if (!recipientName || !recipientPhone || !foundCompany || !foundGovernorate) {
+                if (!recipientPhone || !foundCompany || !foundGovernorate) {
                     let reason = "بيانات أساسية مفقودة";
                     if (!foundCompany) reason = `شركة "${companyNameFromSheet}" غير موجودة`;
                     if (!foundGovernorate) reason = `محافظة "${governorateName}" غير موجودة`;
@@ -398,7 +398,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
                 
                 const shipmentData: Partial<Omit<Shipment, 'id'>> = {
                     shipmentCode: shipmentCodeValue || generateShipmentCode(),
-                    senderName: row['الراسل'] || row['العميل الفرعى'],
+                    senderName: row['الراسل'] || row['العميل الفرعي'],
                     orderNumber: orderNumberValue,
                     recipientName: recipientName,
                     recipientPhone: recipientPhone,
@@ -783,7 +783,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
             isLoading={listIsLoading}
             governorates={governorates || []}
             companies={companies || []}
-            couriers={courierUsers}
+            couriers={courierUsers || []}
             statuses={statuses || []}
             onEdit={openShipmentForm}
             role={role}
