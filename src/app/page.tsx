@@ -8,7 +8,6 @@ import { useUser, useUserProfile } from "@/firebase";
 import AdminDashboard from "@/components/dashboard/admin-dashboard";
 import CourierDashboard from "@/components/dashboard/courier-dashboard";
 import CompanyDashboard from "@/components/dashboard/company-dashboard";
-import CustomerServiceDashboard from "@/components/dashboard/customer-service-dashboard";
 import { Header } from "@/components/dashboard/header";
 import { PwaAndNotificationHandler } from "@/components/pwa-and-notification-handler";
 
@@ -65,13 +64,12 @@ function PageContent() {
 
     switch (role) {
       case "admin":
+      case "customer-service":
         return <AdminDashboard {...dashboardProps} />;
       case "company":
         return <CompanyDashboard user={userProfile} role={role} searchTerm={searchTerm} />;
       case "courier":
         return <CourierDashboard user={userProfile} role={role} searchTerm={searchTerm} onSearchChange={setSearchTerm} />;
-      case "customer-service":
-        return <CustomerServiceDashboard {...dashboardProps} />;
       default:
          return (
              <div className="flex min-h-screen w-full items-center justify-center bg-muted/30">
