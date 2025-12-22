@@ -318,16 +318,15 @@ export function ReportsPage({
         if (!company) return;
 
         let companyReturns = shipments.filter(s => 
-            s.companyId === selectedCompanyForReturnsId &&
-            (s.isReturnedToCompany === true || s.isReturningToCompany === true)
+            s.companyId === selectedCompanyForReturnsId && s.isReturningToCompany === true
         );
         companyReturns = filterByDateRange(companyReturns, returnsSheetDateRange);
 
         const dateString = formatDateForFilename(returnsSheetDateRange);
-        const fileName = `شيت مرتجعات مستلمة - ${company.name} - ${dateString}`;
+        const fileName = `شيت مرتجعات للتسليم - ${company.name} - ${dateString}`;
 
         const reportHeader = {
-            title: `شيت مرتجعات تم استلامها بواسطة شركة: ${company.name}`,
+            title: `شيت مرتجعات جاهزة للتسليم لشركة: ${company.name}`,
             date: `تاريخ التقرير: ${formatDateRangeForDisplay(returnsSheetDateRange)}`
         };
 
@@ -566,7 +565,7 @@ export function ReportsPage({
             <div className="mb-8">
                 <h2 className="text-2xl font-bold mb-2">شيت مرتجعات الشركات</h2>
                 <p className="text-muted-foreground">
-                    اختر شركة لتصدير شيت بجميع المرتجعات التي تم تسليمها للشركة بالفعل.
+                    اختر شركة لتصدير شيت بجميع المرتجعات التي في طريقها للعودة إلى الشركة.
                 </p>
                 <div className="mt-4">
                     <Card>
