@@ -68,6 +68,7 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
 
   React.useEffect(() => {
     if (shipmentsToUpdate.length > 0) {
+        // Start with all updates selected by default
         const initialSelection: Record<string, boolean> = {};
         shipmentsToUpdate.forEach(update => {
             initialSelection[update.existing.id] = true;
@@ -97,15 +98,12 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
   const allUpdatesSelected = shipmentsToUpdate.length > 0 && shipmentsToUpdate.every(u => updateSelection[u.existing.id]);
 
   const toggleAllUpdates = () => {
-      const newSelection: { [key: string]: boolean } = {};
-      if (allUpdatesSelected) {
-          // If all are selected, unselect all
-          shipmentsToUpdate.forEach(u => newSelection[u.existing.id] = false);
-      } else {
-          // Otherwise, select all
-          shipmentsToUpdate.forEach(u => newSelection[u.existing.id] = true);
-      }
-      setUpdateSelection(newSelection);
+    const newSelection: Record<string, boolean> = {};
+    const shouldSelectAll = !allUpdatesSelected;
+    shipmentsToUpdate.forEach(update => {
+        newSelection[update.existing.id] = shouldSelectAll;
+    });
+    setUpdateSelection(newSelection);
   };
 
 
@@ -253,4 +251,5 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
 }
 
     
+
 
