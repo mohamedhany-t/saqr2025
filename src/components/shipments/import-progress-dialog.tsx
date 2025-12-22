@@ -62,14 +62,11 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
   const { added, updated, total, processing, errors, finalError, shipmentsToUpdate } = result;
   
   const [view, setView] = useState<'summary' | 'selection'>('summary');
-  const [updateSelection, setUpdateSelection] = useState(new Set<string>());
-  // A key to force re-render the table body, solving the visual bug
-  const [tableKey, setTableKey] = useState(Date.now());
-
+  const [selection, setSelection] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     // Reset selection when the dialog re-opens or result changes
-    setUpdateSelection(new Set());
+    setSelection({});
     setView('summary');
   }, [result]);
   
@@ -77,37 +74,30 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
   const processedCount = added + updated + rejected;
   const progressPercentage = total > 0 ? (processedCount / total) * 100 : 0;
   const isFinished = !processing;
-  const selectedCount = updateSelection.size;
+  const selectedCount = Object.values(selection).filter(Boolean).length;
 
-  const toggleUpdateSelection = (shipmentId: string) => {
-    setUpdateSelection(prev => {
-        const newSelection = new Set(prev);
-        if (newSelection.has(shipmentId)) {
-            newSelection.delete(shipmentId);
-        } else {
-            newSelection.add(shipmentId);
-        }
-        return newSelection;
-    });
-    setTableKey(Date.now()); // Force re-render
+  const handleToggleSelection = (shipmentId: string) => {
+    setSelection(prev => ({
+        ...prev,
+        [shipmentId]: !prev[shipmentId],
+    }));
   };
-  
-  const toggleAllUpdates = () => {
-    setUpdateSelection(prev => {
-        if (prev.size === shipmentsToUpdate.length) {
-            return new Set<string>(); // Deselect all
-        } else {
-            const allIds = shipmentsToUpdate.map(update => update.existing.id);
-            return new Set(allIds); // Select all
-        }
-    });
-    setTableKey(Date.now()); // Force re-render
+
+  const handleToggleAll = () => {
+    const areAllSelected = selectedCount === shipmentsToUpdate.length;
+    const newSelection: Record<string, boolean> = {};
+    if (!areAllSelected) {
+        shipmentsToUpdate.forEach(update => {
+            newSelection[update.existing.id] = true;
+        });
+    }
+    setSelection(newSelection);
   };
 
 
   const handleConfirmSelected = () => {
     if (onConfirmUpdates) {
-        const updatesToApply = shipmentsToUpdate.filter(update => updateSelection.has(update.existing.id));
+        const updatesToApply = shipmentsToUpdate.filter(update => selection[update.existing.id]);
         onConfirmUpdates(updatesToApply);
     }
   }
@@ -244,7 +234,7 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
                 <TableHead className="w-[50px]">
                   <Checkbox
                     checked={shipmentsToUpdate.length > 0 && selectedCount === shipmentsToUpdate.length}
-                    onCheckedChange={toggleAllUpdates}
+                    onCheckedChange={handleToggleAll}
                   />
                 </TableHead>
                 <TableHead>كود الشحنة</TableHead>
@@ -252,14 +242,13 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
                 <TableHead>التغييرات</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody key={tableKey}>
+            <TableBody>
               {shipmentsToUpdate.map((update) => (
                 <TableRow key={update.existing.id}>
                   <TableCell>
                     <Checkbox
-                      key={update.existing.id}
-                      defaultChecked={updateSelection.has(update.existing.id)}
-                      onCheckedChange={() => toggleUpdateSelection(update.existing.id)}
+                      checked={!!selection[update.existing.id]}
+                      onCheckedChange={() => handleToggleSelection(update.existing.id)}
                     />
                   </TableCell>
                   <TableCell className="font-mono">{update.existing.shipmentCode}</TableCell>
