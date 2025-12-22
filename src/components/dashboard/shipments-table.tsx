@@ -20,6 +20,7 @@ import {
 import {
     CheckCircle2,
     Truck,
+    Truck as CourierIcon,
     XCircle,
     FileText,
     MoreHorizontal,
@@ -665,7 +666,7 @@ export function ShipmentsTable({
                  <ShipmentFilters 
                     governorates={governorates}
                     companies={companies}
-                    courierUsers={couriers}
+                    couriers={couriers}
                     statuses={statuses}
                     onFiltersChange={onFiltersChange}
                 />
