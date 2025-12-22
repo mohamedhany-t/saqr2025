@@ -1,5 +1,4 @@
 
-
 'use client';
 import React from 'react';
 import {
@@ -12,13 +11,33 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, CheckCircle, AlertTriangle, Download, RefreshCw } from 'lucide-react';
+import { Loader2, CheckCircle, AlertTriangle, Download, RefreshCw, Check } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { ScrollArea } from '../ui/scroll-area';
 import { exportToExcel } from '@/lib/export';
 import type { Shipment } from '@/lib/types';
 import { Badge } from '../ui/badge';
-import { Checkbox } from '../ui/checkbox';
+import { cn } from '@/lib/utils';
+
+// Custom Simple Checkbox to avoid re-rendering issues
+const SimpleCheckbox = ({ checked, onCheckedChange, 'aria-label': ariaLabel }: { checked: boolean, onCheckedChange: (checked: boolean) => void, 'aria-label': string }) => {
+    return (
+        <button
+            type="button"
+            role="checkbox"
+            aria-checked={checked}
+            onClick={() => onCheckedChange(!checked)}
+            className={cn(
+                "h-4 w-4 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                checked && "bg-primary text-primary-foreground"
+            )}
+            aria-label={ariaLabel}
+        >
+            {checked && <Check className="h-4 w-4" />}
+        </button>
+    );
+};
+
 
 export interface ImportResult {
   added: number;
@@ -62,7 +81,6 @@ const getChangedFields = (existing: Shipment, newData: Partial<Shipment>): strin
 export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: ImportProgressDialogProps) {
   const { added, updated, total, processing, errors, finalError, rejected, shipmentsToUpdate } = result;
   const [updateSelection, setUpdateSelection] = React.useState<Record<string, boolean>>(() => {
-    // Initialize all to be selected by default
     const initialSelection: Record<string, boolean> = {};
     shipmentsToUpdate.forEach(update => {
       initialSelection[update.existing.id] = true;
@@ -94,12 +112,12 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
 
   const toggleAllUpdates = () => {
     const areAllCurrentlySelected = shipmentsToUpdate.every(u => updateSelection[u.existing.id]);
-    const newSelection: Record<string, boolean> = {};
+    const newSelectionState: Record<string, boolean> = {};
     shipmentsToUpdate.forEach(u => {
-        newSelection[u.existing.id] = !areAllCurrentlySelected;
+        newSelectionState[u.existing.id] = !areAllCurrentlySelected;
     });
-    setUpdateSelection(newSelection);
-  };
+    setUpdateSelection(newSelectionState);
+};
 
   const selectedCount = Object.values(updateSelection).filter(Boolean).length;
   const allUpdatesSelected = shipmentsToUpdate.length > 0 && selectedCount === shipmentsToUpdate.length;
@@ -159,7 +177,7 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
                         <TableHeader>
                             <TableRow>
                                 <TableHead className="w-12">
-                                     <Checkbox
+                                     <SimpleCheckbox
                                         checked={allUpdatesSelected}
                                         onCheckedChange={toggleAllUpdates}
                                         aria-label="تحديد الكل"
@@ -174,8 +192,7 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
                             {shipmentsToUpdate.map((update) => (
                                 <TableRow key={update.existing.id}>
                                      <TableCell>
-                                        <Checkbox
-                                            key={update.existing.id}
+                                        <SimpleCheckbox
                                             checked={updateSelection[update.existing.id] ?? false}
                                             onCheckedChange={(checked) => {
                                                 setUpdateSelection(prev => ({
