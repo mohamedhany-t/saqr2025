@@ -61,20 +61,19 @@ const getChangedFields = (existing: Shipment, newData: Partial<Shipment>): strin
 
 export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: ImportProgressDialogProps) {
   const { added, updated, total, processing, errors, finalError, rejected, shipmentsToUpdate } = result;
-  const [updateSelection, setUpdateSelection] = React.useState<Record<string, boolean>>({});
+  const [updateSelection, setUpdateSelection] = React.useState<Record<string, boolean>>(() => {
+    // Initialize all to be selected by default
+    const initialSelection: Record<string, boolean> = {};
+    shipmentsToUpdate.forEach(update => {
+      initialSelection[update.existing.id] = true;
+    });
+    return initialSelection;
+  });
+
   const processedCount = added + updated + rejected;
   const progressPercentage = total > 0 ? (processedCount / total) * 100 : 0;
   const isFinished = !processing;
   
-  React.useEffect(() => {
-    const initialSelection: Record<string, boolean> = {};
-    shipmentsToUpdate.forEach(update => {
-        initialSelection[update.existing.id] = true;
-    });
-    setUpdateSelection(initialSelection);
-  }, []); // Run only once when the component mounts with the initial data
-
-
   const handleConfirm = () => {
     if (onConfirmUpdates) {
         const selectedUpdates = shipmentsToUpdate.filter(u => updateSelection[u.existing.id]);
@@ -94,19 +93,16 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
   }
 
   const toggleAllUpdates = () => {
-    setUpdateSelection(prevSelection => {
-        const areAnySelected = shipmentsToUpdate.some(u => prevSelection[u.existing.id]);
-        const newSelection: Record<string, boolean> = {};
-        const selectAll = !areAnySelected;
-        shipmentsToUpdate.forEach(u => {
-            newSelection[u.existing.id] = selectAll;
-        });
-        return newSelection;
+    const areAllCurrentlySelected = shipmentsToUpdate.every(u => updateSelection[u.existing.id]);
+    const newSelection: Record<string, boolean> = {};
+    shipmentsToUpdate.forEach(u => {
+        newSelection[u.existing.id] = !areAllCurrentlySelected;
     });
+    setUpdateSelection(newSelection);
   };
 
   const selectedCount = Object.values(updateSelection).filter(Boolean).length;
-  const allUpdatesSelected = selectedCount === shipmentsToUpdate.length && shipmentsToUpdate.length > 0;
+  const allUpdatesSelected = shipmentsToUpdate.length > 0 && selectedCount === shipmentsToUpdate.length;
 
 
   return (
