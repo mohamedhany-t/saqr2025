@@ -1,5 +1,4 @@
 
-
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -1780,70 +1779,80 @@ const generateShipmentCode = () => {
         <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
         <div className="flex items-center">
             <TabsList className="flex-nowrap overflow-x-auto justify-start">
-            <TabsTrigger value="shipments">الشحنات</TabsTrigger>
-            <TabsTrigger value="duplicates">
-                <Link href="/duplicates" className="flex items-center gap-2">
-                    <Copy className="w-4 h-4" />
-                    <span>الشحنات المكررة</span>
-                </Link>
-            </TabsTrigger>
-             <TabsTrigger value="comparison">
-                <Link href="/comparison" className="flex items-center gap-2">
-                    <GitCompareArrows className="w-4 h-4" />
-                    <span>مقارنة الشيتات</span>
-                </Link>
-            </TabsTrigger>
-            <TabsTrigger value="expenses">
-                <Link href="/expenses">المصروفات</Link>
-            </TabsTrigger>
-            <TabsTrigger value="print-center">
-                <Printer className="w-4 h-4 me-2"/>
-                مركز الطباعة
-            </TabsTrigger>
-            <TabsTrigger value="problem-inbox" className="relative">
-              صندوق المشاكل
-              {problemCount > 0 && (
-                <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 justify-center p-0">{problemCount}</Badge>
+              <TabsTrigger value="shipments">الشحنات</TabsTrigger>
+              <TabsTrigger value="duplicates">
+                  <Link href="/duplicates" className="flex items-center gap-2">
+                      <Copy className="w-4 h-4" />
+                      <span>الشحنات المكررة</span>
+                  </Link>
+              </TabsTrigger>
+              <TabsTrigger value="comparison">
+                  <Link href="/comparison" className="flex items-center gap-2">
+                      <GitCompareArrows className="w-4 h-4" />
+                      <span>مقارنة الشيتات</span>
+                  </Link>
+              </TabsTrigger>
+              {role === 'admin' && (
+                <TabsTrigger value="expenses">
+                    <Link href="/expenses">المصروفات</Link>
+                </TabsTrigger>
               )}
-            </TabsTrigger>
-            <TabsTrigger value="courier-management">إدارة المناديب</TabsTrigger>
-            <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
-            <TabsTrigger value="archive">
-                <Link href="/archive" className="flex items-center gap-2">
-                    <Archive className="w-4 h-4" />
-                    <span>الأرشيف</span>
-                </Link>
-            </TabsTrigger>
-             <TabsTrigger value="statistics">
-                <Link href="/statistics" className="flex items-center gap-2">
-                    <BarChart className="w-4 h-4" />
-                    <span>الإحصائيات</span>
-                </Link>
-            </TabsTrigger>
-            <TabsTrigger value="account-statements">
-                <Link href="/accounts" className="flex items-center gap-2">
-                    <FileSpreadsheet className="w-4 h-4" />
-                    <span>كشوفات الحسابات</span>
-                </Link>
-            </TabsTrigger>
-            <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
-             <TabsTrigger value="settings">
-                <Link href="/settings" className="flex items-center gap-2">
-                    <Settings className="w-4 h-4" />
-                    <span>الإعدادات</span>
-                </Link>
-            </TabsTrigger>
-            <TabsTrigger value="audit-log">
-                <History className="w-4 h-4 me-2" />
-                سجل التغييرات
-            </TabsTrigger>
-            <TabsTrigger value="reports">التقارير</TabsTrigger>
-            <TabsTrigger value="chat" className="relative">
-              الدردشة
-              {totalUnreadCount > 0 && (
-                <Badge className="absolute -top-2 -right-2 h-5 w-5 justify-center p-0">{totalUnreadCount}</Badge>
+              <TabsTrigger value="print-center">
+                  <Printer className="w-4 h-4 me-2"/>
+                  مركز الطباعة
+              </TabsTrigger>
+              <TabsTrigger value="problem-inbox" className="relative">
+                صندوق المشاكل
+                {problemCount > 0 && (
+                  <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 justify-center p-0">{problemCount}</Badge>
+                )}
+              </TabsTrigger>
+              {role === 'admin' && (
+                <>
+                  <TabsTrigger value="courier-management">إدارة المناديب</TabsTrigger>
+                  <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
+                </>
               )}
-            </TabsTrigger>
+              <TabsTrigger value="archive">
+                  <Link href="/archive" className="flex items-center gap-2">
+                      <Archive className="w-4 h-4" />
+                      <span>الأرشيف</span>
+                  </Link>
+              </TabsTrigger>
+              <TabsTrigger value="statistics">
+                  <Link href="/statistics" className="flex items-center gap-2">
+                      <BarChart className="w-4 h-4" />
+                      <span>الإحصائيات</span>
+                  </Link>
+              </TabsTrigger>
+              {role === 'admin' && (
+                <>
+                  <TabsTrigger value="account-statements">
+                      <Link href="/accounts" className="flex items-center gap-2">
+                          <FileSpreadsheet className="w-4 h-4" />
+                          <span>كشوفات الحسابات</span>
+                      </Link>
+                  </TabsTrigger>
+                  <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
+                  <TabsTrigger value="settings">
+                      <Link href="/settings" className="flex items-center gap-2">
+                          <Settings className="w-4 h-4" />
+                          <span>الإعدادات</span>
+                      </Link>
+                  </TabsTrigger>
+                  <TabsTrigger value="audit-log">
+                      <History className="w-4 h-4 me-2" />
+                      سجل التغييرات
+                  </TabsTrigger>
+                  <TabsTrigger value="reports">التقارير</TabsTrigger>
+                </>
+              )}
+              <TabsTrigger value="chat" className="relative">
+                الدردشة
+                {totalUnreadCount > 0 && (
+                  <Badge className="absolute -top-2 -right-2 h-5 w-5 justify-center p-0">{totalUnreadCount}</Badge>
+                )}
+              </TabsTrigger>
             </TabsList>
             <div className="ms-auto flex items-center gap-2">
                 <input
@@ -2031,325 +2040,329 @@ const generateShipmentCode = () => {
                 )}
           </div>
         </TabsContent>
-        <TabsContent value="courier-management">
-             <div className="mt-8">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-headline font-semibold">إدارة حسابات المناديب</h2>
-                     <div className="relative">
-                        <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="ابحث عن مندوب..."
-                            value={managementSearchTerm}
-                            onChange={(e) => setManagementSearchTerm(e.target.value)}
-                            className="pr-8 sm:w-[300px]"
-                        />
-                    </div>
-                </div>
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {filteredCourierDues.map(courier => (
-                            <Card key={courier.id} className="flex flex-col">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                                        <UserIcon className="h-4 w-4 text-muted-foreground" />
-                                        {courier.name}
-                                    </CardTitle>
-                                    <div className={`text-xl font-bold ${courier.netDue >= 0 ? 'text-destructive' : 'text-green-600'}`}>
-                                        {Math.abs(courier.netDue).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="flex-grow">
-                                    <p className="text-xs text-muted-foreground">
-                                        {courier.netDue > 0 ? "المبلغ المستحق على المندوب" : (courier.netDue < 0 ? "المبلغ المستحق للمندوب" : "الحساب مسوى")}
-                                    </p>
-                                    <div className="mt-4 space-y-2 text-sm">
-                                         <div className="flex justify-between items-center border-b pb-2">
-                                            <span className="flex items-center gap-2 text-muted-foreground">
-                                                <CourierIcon className="h-4 w-4" />
-                                                إجمالي الشحنات:
-                                            </span>
-                                            <span className="font-medium">{courier.totalShipments}</span>
-                                        </div>
-                                         <div className="flex justify-between items-center">
-                                            <span className="flex items-center gap-2 text-muted-foreground">
-                                                تم التسليم:
-                                            </span>
-                                            <span className="font-medium text-green-600">{courier.deliveredCount}</span>
-                                        </div>
-                                         <div className="flex justify-between items-center">
-                                            <span className="flex items-center gap-2 text-muted-foreground">
-                                                مرتجعات:
-                                            </span>
-                                            <span className="font-medium text-red-600">{courier.returnedCount}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center pt-2 border-t">
-                                            <span className="flex items-center gap-2 text-muted-foreground">
-                                                <DollarSign className="h-4 w-4" />
-                                                إجمالي التحصيل:
-                                            </span>
-                                            <span className="font-medium">{courier.totalCollected.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="flex items-center gap-2 text-muted-foreground">
-                                                <BadgePercent className="h-4 w-4" />
-                                                إجمالي العمولات:
-                                            </span>
-                                            <span className="font-medium">{courier.totalCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                        </div>
-                                         <div className="flex justify-between items-center border-t pt-2 mt-2">
-                                            <span className="flex items-center gap-2 text-muted-foreground">
-                                                <WalletCards className="h-4 w-4" />
-                                                إجمالي المدفوعات:
-                                            </span>
-                                            <span className="font-medium text-green-700">{courier.totalPaidByCourier.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                        </div>
-                                        
-                                        {courier.paymentHistory && courier.paymentHistory.length > 0 && (
-                                            <Collapsible className="pt-2 text-xs">
-                                                <CollapsibleTrigger asChild>
-                                                    <Button variant="ghost" size="sm" className="flex items-center gap-2 w-full justify-start p-0 h-auto text-xs">
-                                                        <History className="h-3 w-3"/>
-                                                        <span>عرض سجل الدفعات ({courier.paymentHistory.length})</span>
-                                                    </Button>
-                                                </CollapsibleTrigger>
-                                                <CollapsibleContent className="space-y-2 mt-2">
-                                                  {courier.paymentHistory.map(payment => (
-                                                      <div key={payment.id} className="flex justify-between items-center text-muted-foreground p-2 rounded-md bg-muted/50">
-                                                          <div>
-                                                              <span className="font-semibold">{payment.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
-                                                              <span className="mx-2">-</span>
-                                                              <span>{new Date(payment.paymentDate?.toDate?.() || Date.now()).toLocaleDateString('ar-EG')}</span>
-                                                          </div>
-                                                          <div className="flex items-center">
-                                                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openCourierPaymentForm(courier, payment)}>
-                                                                  <Pencil className="h-3 w-3" />
-                                                              </Button>
-                                                              <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setCourierPaymentToDelete(payment)}>
-                                                                  <Trash2 className="h-3 w-3" />
-                                                              </Button>
-                                                          </div>
-                                                      </div>
-                                                  ))}
-                                                </CollapsibleContent>
-                                            </Collapsible>
-                                        )}
-                                    </div>
-                                </CardContent>
-                                <CardFooter className="flex flex-col items-stretch gap-2">
-                                     <div className="flex gap-2 w-full">
-                                        <Button variant="outline" className="w-full" onClick={() => openCourierPaymentForm(courier)} disabled={courier.netDue <= 0}>
-                                            <HandCoins className="me-2 h-4 w-4" />
-                                            تسوية الحساب
-                                        </Button>
-                                        <Button variant="outline" size="icon" onClick={() => openAdminNoteDialog(courier)}>
-                                            <MessageSquarePlus className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                    {courier.totalShipments > 0 && (
-                                        <Button variant="secondary" className="w-full" onClick={() => setCourierToArchive(courier)}>
-                                            <Archive className="me-2 h-4 w-4" />
-                                            أرشفة وتسوية الكل
-                                        </Button>
-                                    )}
-                                </CardFooter>
-                            </Card>
-                        ))}
-                    </div>
-                </div>
-        </TabsContent>
-         <TabsContent value="company-management">
-          <div className="mt-8">
-              <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
-                  <h2 className="text-2xl font-headline font-semibold">إدارة حسابات الشركات</h2>
-                  <div className="flex items-center gap-2">
-                      <div className="relative">
-                          <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                          <Input
-                              placeholder="ابحث عن شركة..."
-                              value={managementSearchTerm}
-                              onChange={(e) => setManagementSearchTerm(e.target.value)}
-                              className="pr-8 sm:w-[250px]"
-                          />
-                      </div>
-                  </div>
-              </div>
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                      {filteredCompanyDues.map(company => (
-                           <Card key={company.id} className="flex flex-col">
-                              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                                      <Building className="h-4 w-4 text-muted-foreground" />
-                                      {company.name}
-                                  </CardTitle>
-                                  <div className={`text-xl font-bold ${company.netDue >= 0 ? 'text-green-600' : 'text-destructive'}`}>
-                                      {Math.abs(company.netDue).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-                                  </div>
-                              </CardHeader>
-                              <CardContent className="flex-grow">
-                                  <p className="text-xs text-muted-foreground">
-                                      {company.netDue >= 0 ? 'المبلغ المستحق للدفع للشركة' : 'المبلغ المستحق على الشركة'}
-                                  </p>
-                                  <div className="mt-4 space-y-2 text-sm">
-                                       <div className="flex justify-between items-center border-b pb-2">
-                                          <span className="flex items-center gap-2 text-muted-foreground">
-                                              <Package className="h-4 w-4" />
-                                              إجمالي الشحنات:
-                                          </span>
-                                          <span className="font-medium">{company.totalShipments}</span>
-                                      </div>
-                                      <div className="flex justify-between items-center pt-2 border-t">
-                                          <span className="flex items-center gap-2 text-muted-foreground">
-                                              <DollarSign className="h-4 w-4" />
-                                              إجمالي التحصيل:
-                                          </span>
-                                          <span className="font-medium">{company.totalRevenue.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                      </div>
-                                        <div className="flex justify-between items-center">
-                                          <span className="flex items-center gap-2 text-muted-foreground">
-                                              <BadgePercent className="h-4 w-4 text-indigo-500" />
-                                              عمولات الشركة:
-                                          </span>
-                                          <span className="font-medium">{company.totalCompanyCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                      </div>
-                                       <div className="flex justify-between items-center border-t pt-2 mt-2">
-                                          <span className="flex items-center gap-2 text-muted-foreground">
-                                              <WalletCards className="h-4 w-4" />
-                                              إجمالي المدفوعات:
-                                          </span>
-                                          <span className="font-medium text-green-700">{company.totalPaidToCompany.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                      </div>
-                                      
-                                      {company.paymentHistory && company.paymentHistory.length > 0 && (
-                                          <Collapsible className="pt-2 text-xs">
-                                              <CollapsibleTrigger asChild>
-                                                  <Button variant="ghost" size="sm" className="flex items-center gap-2 w-full justify-start p-0 h-auto text-xs">
-                                                      <History className="h-3 w-3"/>
-                                                      <span>عرض سجل الدفعات ({company.paymentHistory.length})</span>
-                                                  </Button>
-                                              </CollapsibleTrigger>
-                                              <CollapsibleContent className="space-y-2 mt-2">
-                                                {company.paymentHistory.map(payment => (
-                                                    <div key={payment.id} className="flex justify-between items-center text-muted-foreground p-2 rounded-md bg-muted/50">
-                                                        <div>
-                                                            <span className="font-semibold">{payment.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
-                                                            <span className="mx-2">-</span>
-                                                            <span>{new Date(payment.paymentDate?.toDate?.() || Date.now()).toLocaleDateString('ar-EG')}</span>
-                                                        </div>
-                                                        <div className="flex items-center">
-                                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openCompanyPaymentForm(company, payment)}>
-                                                                <Pencil className="h-3 w-3" />
-                                                            </Button>
-                                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setCompanyPaymentToDelete(payment)}>
-                                                                <Trash2 className="h-3 w-3" />
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                              </CollapsibleContent>
-                                          </Collapsible>
-                                      )}
-                                  </div>
-                              </CardContent>
-                              <CardFooter className="flex flex-col items-stretch gap-2">
-                                     <CompanySettlementDialog
-                                        company={company}
-                                        allShipments={allShipmentsForStats || []}
-                                        adminUser={user}
-                                        statuses={statuses || []}
-                                        onSettlementComplete={() => {}}
-                                    >
-                                        <Button variant="default" className="w-full">
-                                            <FileSpreadsheet className="me-2 h-4 w-4" />
-                                            تسوية عبر شيت
-                                        </Button>
-                                    </CompanySettlementDialog>
-                                  <Button variant="outline" className="w-full" onClick={() => openCompanyPaymentForm(company)} disabled={company.netDue <= 0}>
-                                      <Banknote className="me-2 h-4 w-4" />
-                                      تسوية يدوية
-                                  </Button>
-                                  {company.totalShipments > 0 && (
-                                      <Button variant="secondary" className="w-full" onClick={() => setCompanyToArchive(company)}>
-                                          <Archive className="me-2 h-4 w-4" />
-                                          أرشفة وتسوية الكل
-                                      </Button>
-                                  )}
-                              </CardFooter>
-                          </Card>
-                      ))}
-                  </div>
-              </div>
-        </TabsContent>
-        <TabsContent value="account-statements">
-            <p className="p-4 text-center text-muted-foreground">يتم تحميل كشوفات الحسابات...</p>
-        </TabsContent>
-        <TabsContent value="user-management">
-            <div className="mt-8">
-                <div className="flex justify-between items-center mb-4">
-                    <div>
-                        <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين والشركات</h2>
-                        <div className="relative mt-2">
-                             <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                             <Input
-                                placeholder="ابحث عن مستخدم..."
-                                value={managementSearchTerm}
-                                onChange={(e) => setManagementSearchTerm(e.target.value)}
-                                className="pr-8 sm:w-[300px]"
-                            />
+        {role === 'admin' && (
+            <>
+                <TabsContent value="courier-management">
+                    <div className="mt-8">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-2xl font-headline font-semibold">إدارة حسابات المناديب</h2>
+                            <div className="relative">
+                                <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="ابحث عن مندوب..."
+                                    value={managementSearchTerm}
+                                    onChange={(e) => setManagementSearchTerm(e.target.value)}
+                                    className="pr-8 sm:w-[300px]"
+                                />
+                            </div>
                         </div>
+                            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                {filteredCourierDues.map(courier => (
+                                    <Card key={courier.id} className="flex flex-col">
+                                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                            <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                                <UserIcon className="h-4 w-4 text-muted-foreground" />
+                                                {courier.name}
+                                            </CardTitle>
+                                            <div className={`text-xl font-bold ${courier.netDue >= 0 ? 'text-destructive' : 'text-green-600'}`}>
+                                                {Math.abs(courier.netDue).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                                            </div>
+                                        </CardHeader>
+                                        <CardContent className="flex-grow">
+                                            <p className="text-xs text-muted-foreground">
+                                                {courier.netDue > 0 ? "المبلغ المستحق على المندوب" : (courier.netDue < 0 ? "المبلغ المستحق للمندوب" : "الحساب مسوى")}
+                                            </p>
+                                            <div className="mt-4 space-y-2 text-sm">
+                                                <div className="flex justify-between items-center border-b pb-2">
+                                                    <span className="flex items-center gap-2 text-muted-foreground">
+                                                        <CourierIcon className="h-4 w-4" />
+                                                        إجمالي الشحنات:
+                                                    </span>
+                                                    <span className="font-medium">{courier.totalShipments}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="flex items-center gap-2 text-muted-foreground">
+                                                        تم التسليم:
+                                                    </span>
+                                                    <span className="font-medium text-green-600">{courier.deliveredCount}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="flex items-center gap-2 text-muted-foreground">
+                                                        مرتجعات:
+                                                    </span>
+                                                    <span className="font-medium text-red-600">{courier.returnedCount}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center pt-2 border-t">
+                                                    <span className="flex items-center gap-2 text-muted-foreground">
+                                                        <DollarSign className="h-4 w-4" />
+                                                        إجمالي التحصيل:
+                                                    </span>
+                                                    <span className="font-medium">{courier.totalCollected.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="flex items-center gap-2 text-muted-foreground">
+                                                        <BadgePercent className="h-4 w-4" />
+                                                        إجمالي العمولات:
+                                                    </span>
+                                                    <span className="font-medium">{courier.totalCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center border-t pt-2 mt-2">
+                                                    <span className="flex items-center gap-2 text-muted-foreground">
+                                                        <WalletCards className="h-4 w-4" />
+                                                        إجمالي المدفوعات:
+                                                    </span>
+                                                    <span className="font-medium text-green-700">{courier.totalPaidByCourier.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                                </div>
+                                                
+                                                {courier.paymentHistory && courier.paymentHistory.length > 0 && (
+                                                    <Collapsible className="pt-2 text-xs">
+                                                        <CollapsibleTrigger asChild>
+                                                            <Button variant="ghost" size="sm" className="flex items-center gap-2 w-full justify-start p-0 h-auto text-xs">
+                                                                <History className="h-3 w-3"/>
+                                                                <span>عرض سجل الدفعات ({courier.paymentHistory.length})</span>
+                                                            </Button>
+                                                        </CollapsibleTrigger>
+                                                        <CollapsibleContent className="space-y-2 mt-2">
+                                                        {courier.paymentHistory.map(payment => (
+                                                            <div key={payment.id} className="flex justify-between items-center text-muted-foreground p-2 rounded-md bg-muted/50">
+                                                                <div>
+                                                                    <span className="font-semibold">{payment.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
+                                                                    <span className="mx-2">-</span>
+                                                                    <span>{new Date(payment.paymentDate?.toDate?.() || Date.now()).toLocaleDateString('ar-EG')}</span>
+                                                                </div>
+                                                                <div className="flex items-center">
+                                                                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openCourierPaymentForm(courier, payment)}>
+                                                                        <Pencil className="h-3 w-3" />
+                                                                    </Button>
+                                                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setCourierPaymentToDelete(payment)}>
+                                                                        <Trash2 className="h-3 w-3" />
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                        </CollapsibleContent>
+                                                    </Collapsible>
+                                                )}
+                                            </div>
+                                        </CardContent>
+                                        <CardFooter className="flex flex-col items-stretch gap-2">
+                                            <div className="flex gap-2 w-full">
+                                                <Button variant="outline" className="w-full" onClick={() => openCourierPaymentForm(courier)} disabled={courier.netDue <= 0}>
+                                                    <HandCoins className="me-2 h-4 w-4" />
+                                                    تسوية الحساب
+                                                </Button>
+                                                <Button variant="outline" size="icon" onClick={() => openAdminNoteDialog(courier)}>
+                                                    <MessageSquarePlus className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                            {courier.totalShipments > 0 && (
+                                                <Button variant="secondary" className="w-full" onClick={() => setCourierToArchive(courier)}>
+                                                    <Archive className="me-2 h-4 w-4" />
+                                                    أرشفة وتسوية الكل
+                                                </Button>
+                                            )}
+                                        </CardFooter>
+                                    </Card>
+                                ))}
+                            </div>
+                        </div>
+                </TabsContent>
+                <TabsContent value="company-management">
+                    <div className="mt-8">
+                        <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
+                            <h2 className="text-2xl font-headline font-semibold">إدارة حسابات الشركات</h2>
+                            <div className="flex items-center gap-2">
+                                <div className="relative">
+                                    <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        placeholder="ابحث عن شركة..."
+                                        value={managementSearchTerm}
+                                        onChange={(e) => setManagementSearchTerm(e.target.value)}
+                                        className="pr-8 sm:w-[250px]"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                {filteredCompanyDues.map(company => (
+                                    <Card key={company.id} className="flex flex-col">
+                                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                            <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                                <Building className="h-4 w-4 text-muted-foreground" />
+                                                {company.name}
+                                            </CardTitle>
+                                            <div className={`text-xl font-bold ${company.netDue >= 0 ? 'text-green-600' : 'text-destructive'}`}>
+                                                {Math.abs(company.netDue).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                                            </div>
+                                        </CardHeader>
+                                        <CardContent className="flex-grow">
+                                            <p className="text-xs text-muted-foreground">
+                                                {company.netDue >= 0 ? 'المبلغ المستحق للدفع للشركة' : 'المبلغ المستحق على الشركة'}
+                                            </p>
+                                            <div className="mt-4 space-y-2 text-sm">
+                                                <div className="flex justify-between items-center border-b pb-2">
+                                                    <span className="flex items-center gap-2 text-muted-foreground">
+                                                        <Package className="h-4 w-4" />
+                                                        إجمالي الشحنات:
+                                                    </span>
+                                                    <span className="font-medium">{company.totalShipments}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center pt-2 border-t">
+                                                    <span className="flex items-center gap-2 text-muted-foreground">
+                                                        <DollarSign className="h-4 w-4" />
+                                                        إجمالي التحصيل:
+                                                    </span>
+                                                    <span className="font-medium">{company.totalRevenue.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                                </div>
+                                                    <div className="flex justify-between items-center">
+                                                    <span className="flex items-center gap-2 text-muted-foreground">
+                                                        <BadgePercent className="h-4 w-4 text-indigo-500" />
+                                                        عمولات الشركة:
+                                                    </span>
+                                                    <span className="font-medium">{company.totalCompanyCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center border-t pt-2 mt-2">
+                                                    <span className="flex items-center gap-2 text-muted-foreground">
+                                                        <WalletCards className="h-4 w-4" />
+                                                        إجمالي المدفوعات:
+                                                    </span>
+                                                    <span className="font-medium text-green-700">{company.totalPaidToCompany.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
+                                                </div>
+                                                
+                                                {company.paymentHistory && company.paymentHistory.length > 0 && (
+                                                    <Collapsible className="pt-2 text-xs">
+                                                        <CollapsibleTrigger asChild>
+                                                            <Button variant="ghost" size="sm" className="flex items-center gap-2 w-full justify-start p-0 h-auto text-xs">
+                                                                <History className="h-3 w-3"/>
+                                                                <span>عرض سجل الدفعات ({company.paymentHistory.length})</span>
+                                                            </Button>
+                                                        </CollapsibleTrigger>
+                                                        <CollapsibleContent className="space-y-2 mt-2">
+                                                            {company.paymentHistory.map(payment => (
+                                                                <div key={payment.id} className="flex justify-between items-center text-muted-foreground p-2 rounded-md bg-muted/50">
+                                                                    <div>
+                                                                        <span className="font-semibold">{payment.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
+                                                                        <span className="mx-2">-</span>
+                                                                        <span>{new Date(payment.paymentDate?.toDate?.() || Date.now()).toLocaleDateString('ar-EG')}</span>
+                                                                    </div>
+                                                                    <div className="flex items-center">
+                                                                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openCompanyPaymentForm(company, payment)}>
+                                                                            <Pencil className="h-3 w-3" />
+                                                                        </Button>
+                                                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setCompanyPaymentToDelete(payment)}>
+                                                                            <Trash2 className="h-3 w-3" />
+                                                                        </Button>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </CollapsibleContent>
+                                                    </Collapsible>
+                                                )}
+                                            </div>
+                                        </CardContent>
+                                        <CardFooter className="flex flex-col items-stretch gap-2">
+                                                <CompanySettlementDialog
+                                                    company={company}
+                                                    allShipments={allShipmentsForStats || []}
+                                                    adminUser={user}
+                                                    statuses={statuses || []}
+                                                    onSettlementComplete={() => {}}
+                                                >
+                                                    <Button variant="default" className="w-full">
+                                                        <FileSpreadsheet className="me-2 h-4 w-4" />
+                                                        تسوية عبر شيت
+                                                    </Button>
+                                                </CompanySettlementDialog>
+                                            <Button variant="outline" className="w-full" onClick={() => openCompanyPaymentForm(company)} disabled={company.netDue <= 0}>
+                                                <Banknote className="me-2 h-4 w-4" />
+                                                تسوية يدوية
+                                            </Button>
+                                            {company.totalShipments > 0 && (
+                                                <Button variant="secondary" className="w-full" onClick={() => setCompanyToArchive(company)}>
+                                                    <Archive className="me-2 h-4 w-4" />
+                                                    أرشفة وتسوية الكل
+                                                </Button>
+                                            )}
+                                        </CardFooter>
+                                    </Card>
+                                ))}
+                            </div>
+                        </div>
+                </TabsContent>
+                <TabsContent value="account-statements">
+                    <p className="p-4 text-center text-muted-foreground">يتم تحميل كشوفات الحسابات...</p>
+                </TabsContent>
+                <TabsContent value="user-management">
+                    <div className="mt-8">
+                        <div className="flex justify-between items-center mb-4">
+                            <div>
+                                <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين والشركات</h2>
+                                <div className="relative mt-2">
+                                    <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        placeholder="ابحث عن مستخدم..."
+                                        value={managementSearchTerm}
+                                        onChange={(e) => setManagementSearchTerm(e.target.value)}
+                                        className="pr-8 sm:w-[300px]"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <UserFormSheet 
+                                    open={isUserSheetOpen}
+                                    onOpenChange={setIsUserSheetOpen}
+                                    onSave={handleSaveUser}
+                                    user={editingUser}
+                                    companyDetails={editingCompany}
+                                >
+                                    <Button size="sm" onClick={() => openUserForm()}>
+                                        <PlusCircle className="h-4 w-4" />
+                                        <span className="sr-only sm:not-sr-only">
+                                        إضافة مستخدم
+                                        </span>
+                                    </Button>
+                                </UserFormSheet>
+                            </div>
+                        </div>
+                        {isMobile ? 
+                            <div className="space-y-4">
+                                {(users || []).map(user => (
+                                    <UserCard 
+                                        key={user.id} 
+                                        user={user}
+                                        company={companies?.find(c => c.id === user.id)}
+                                        onEdit={openUserForm}
+                                        onDelete={setUserToDelete}
+                                    />
+                                ))}
+                            </div> : 
+                            <UsersTable listIsLoading={usersLoading || companiesLoading} users={users || []} onEdit={openUserForm} onDelete={setUserToDelete} searchTerm={managementSearchTerm} />
+                        }
                     </div>
-                    <div className="flex items-center gap-2">
-                        <UserFormSheet 
-                            open={isUserSheetOpen}
-                            onOpenChange={setIsUserSheetOpen}
-                            onSave={handleSaveUser}
-                            user={editingUser}
-                            companyDetails={editingCompany}
-                        >
-                            <Button size="sm" onClick={() => openUserForm()}>
-                                <PlusCircle className="h-4 w-4" />
-                                <span className="sr-only sm:not-sr-only">
-                                إضافة مستخدم
-                                </span>
-                            </Button>
-                        </UserFormSheet>
-                    </div>
-                </div>
-                 {isMobile ? 
-                     <div className="space-y-4">
-                        {(users || []).map(user => (
-                            <UserCard 
-                                key={user.id} 
-                                user={user}
-                                company={companies?.find(c => c.id === user.id)}
-                                onEdit={openUserForm}
-                                onDelete={setUserToDelete}
-                            />
-                        ))}
-                    </div> : 
-                    <UsersTable listIsLoading={usersLoading || companiesLoading} users={users || []} onEdit={openUserForm} onDelete={setUserToDelete} searchTerm={managementSearchTerm} />
-                 }
-            </div>
-        </TabsContent>
-        <TabsContent value="audit-log">
-             <AuditLogPage 
-                users={users || []}
-                shipments={allShipmentsForStats || []}
-                companies={companies || []}
-                governorates={governorates || []}
-                statuses={statuses || []}
-                isLoading={listIsLoading}
-             />
-        </TabsContent>
-        <TabsContent value="reports">
-             <ReportsPage 
-                shipments={allShipmentsForStats || []}
-                companies={companies || []}
-                couriers={courierUsers || []}
-                governorates={governorates || []}
-                companyPayments={companyPayments || []}
-                courierPayments={courierPayments || []}
-                isLoading={listIsLoading}
-             />
-        </TabsContent>
+                </TabsContent>
+                <TabsContent value="audit-log">
+                    <AuditLogPage 
+                        users={users || []}
+                        shipments={allShipmentsForStats || []}
+                        companies={companies || []}
+                        governorates={governorates || []}
+                        statuses={statuses || []}
+                        isLoading={listIsLoading}
+                    />
+                </TabsContent>
+                <TabsContent value="reports">
+                    <ReportsPage 
+                        shipments={allShipmentsForStats || []}
+                        companies={companies || []}
+                        couriers={courierUsers || []}
+                        governorates={governorates || []}
+                        companyPayments={companyPayments || []}
+                        courierPayments={courierPayments || []}
+                        isLoading={listIsLoading}
+                    />
+                </TabsContent>
+            </>
+        )}
         <TabsContent value="chat">
            <ChatInterface initialChatId={initialChatId}/>
         </TabsContent>
@@ -2529,13 +2542,3 @@ const generateShipmentCode = () => {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
