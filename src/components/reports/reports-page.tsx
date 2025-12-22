@@ -318,7 +318,7 @@ export function ReportsPage({
         if (!company) return;
 
         let companyReturns = shipments.filter(s => 
-            s.companyId === selectedCompanyForReturnsId && s.isReturningToCompany === true
+            s.companyId === selectedCompanyForReturnsId && s.isReturningToCompany === true && !s.isReturnedToCompany
         );
         companyReturns = filterByDateRange(companyReturns, returnsSheetDateRange);
 
