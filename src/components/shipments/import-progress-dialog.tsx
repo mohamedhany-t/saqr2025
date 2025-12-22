@@ -97,12 +97,17 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
   const allUpdatesSelected = shipmentsToUpdate.length > 0 && shipmentsToUpdate.every(u => updateSelection[u.existing.id]);
 
   const toggleAllUpdates = () => {
-    const newSelection: Record<string, boolean> = {};
-    if (!allUpdatesSelected) {
-        shipmentsToUpdate.forEach(u => newSelection[u.existing.id] = true);
-    }
-    setUpdateSelection(newSelection);
-  }
+      const newSelection: { [key: string]: boolean } = {};
+      if (allUpdatesSelected) {
+          // If all are selected, unselect all
+          shipmentsToUpdate.forEach(u => newSelection[u.existing.id] = false);
+      } else {
+          // Otherwise, select all
+          shipmentsToUpdate.forEach(u => newSelection[u.existing.id] = true);
+      }
+      setUpdateSelection(newSelection);
+  };
+
 
   return (
     <Dialog open={true} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -173,9 +178,12 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
                                 <TableRow key={index}>
                                      <TableCell>
                                         <Checkbox
-                                            checked={!!updateSelection[update.existing.id]}
+                                            checked={updateSelection[update.existing.id] ?? false}
                                             onCheckedChange={(checked) => {
-                                                setUpdateSelection(prev => ({...prev, [update.existing.id]: !!checked}))
+                                                setUpdateSelection(prev => ({
+                                                    ...prev,
+                                                    [update.existing.id]: !!checked
+                                                }));
                                             }}
                                         />
                                     </TableCell>
@@ -245,3 +253,4 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
 }
 
     
+

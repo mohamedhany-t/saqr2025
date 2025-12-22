@@ -379,26 +379,28 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
 
     const deliveredStatusIds = statuses.filter(s => s.isDeliveredStatus).map(s => s.id);
     const returnedStatusIds = statuses.filter(s => s.isReturnedStatus).map(s => s.id);
+    
+    const isFinalStatus = (status: string) => deliveredStatusIds.includes(status) || returnedStatusIds.includes(status);
 
     const retry = shipments.filter(s => s.retryAttempt === true);
     const finished = shipments.filter(s => deliveredStatusIds.includes(s.status));
     
-    // Exchange/Custom return should not be in the returned list initially
     const returned = shipments.filter(s => 
-        returnedStatusIds.includes(s.status) &&
-        !s.isExchange && 
-        !s.isCustomReturn &&
+        (returnedStatusIds.includes(s.status) || s.isExchange || s.isCustomReturn) &&
         !s.retryAttempt
     );
     
     const postponed = shipments.filter(s => s.status === 'Postponed' && !s.retryAttempt);
     
-    let active = shipments.filter(s => 
-        !deliveredStatusIds.includes(s.status) && 
-        !returnedStatusIds.includes(s.status) &&
-        s.status !== 'Postponed' &&
-        !s.retryAttempt
-    );
+    let active = shipments.filter(s => {
+        // A shipment is active if it's NOT in a final state, not postponed, and not a retry.
+        // Special cases (exchange/custom return) are active if they are not in a final state.
+        if (s.isExchange || s.isCustomReturn) {
+            return !isFinalStatus(s.status);
+        }
+        
+        return !isFinalStatus(s.status) && s.status !== 'Postponed' && !s.retryAttempt;
+    });
     
     // Sort active shipments to show urgent, exchange, and custom returns first
     active.sort((a, b) => {
@@ -694,3 +696,4 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
     </>
   );
 }
+
