@@ -59,48 +59,58 @@ const getChangedFields = (existing: Shipment, newData: Partial<Shipment>): strin
 }
 
 export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: ImportProgressDialogProps) {
-  const { added, updated, rejected, total, processing, errors, finalError, shipmentsToUpdate } = result;
-
+  const { added, updated, total, processing, errors, finalError, shipmentsToUpdate } = result;
+  
   const [view, setView] = useState<'summary' | 'selection'>('summary');
-  const [selection, setSelection] = useState<Record<string, boolean>>({});
+  const [updateSelection, setUpdateSelection] = useState(new Set<string>());
+  // A key to force re-render the table body, solving the visual bug
+  const [tableKey, setTableKey] = useState(Date.now());
+
 
   useEffect(() => {
     // Reset selection when the dialog re-opens or result changes
-    setSelection({});
+    setUpdateSelection(new Set());
     setView('summary');
   }, [result]);
   
+  const rejected = result.rejected || 0;
   const processedCount = added + updated + rejected;
   const progressPercentage = total > 0 ? (processedCount / total) * 100 : 0;
   const isFinished = !processing;
-  const selectedCount = Object.values(selection).filter(Boolean).length;
+  const selectedCount = updateSelection.size;
+
+  const toggleUpdateSelection = (shipmentId: string) => {
+    setUpdateSelection(prev => {
+        const newSelection = new Set(prev);
+        if (newSelection.has(shipmentId)) {
+            newSelection.delete(shipmentId);
+        } else {
+            newSelection.add(shipmentId);
+        }
+        return newSelection;
+    });
+    setTableKey(Date.now()); // Force re-render
+  };
   
-  const handleConfirmAll = () => {
-    if (onConfirmUpdates) {
-        onConfirmUpdates(shipmentsToUpdate);
-    }
-  }
+  const toggleAllUpdates = () => {
+    setUpdateSelection(prev => {
+        if (prev.size === shipmentsToUpdate.length) {
+            return new Set<string>(); // Deselect all
+        } else {
+            const allIds = shipmentsToUpdate.map(update => update.existing.id);
+            return new Set(allIds); // Select all
+        }
+    });
+    setTableKey(Date.now()); // Force re-render
+  };
+
 
   const handleConfirmSelected = () => {
     if (onConfirmUpdates) {
-        const selectedIds = Object.keys(selection).filter(id => selection[id]);
-        const updatesToApply = shipmentsToUpdate.filter(update => selectedIds.includes(update.existing.id));
+        const updatesToApply = shipmentsToUpdate.filter(update => updateSelection.has(update.existing.id));
         onConfirmUpdates(updatesToApply);
     }
   }
-
-  const toggleAll = () => {
-    const allSelected = selectedCount === shipmentsToUpdate.length;
-    if (allSelected) {
-      setSelection({});
-    } else {
-      const newSelection: Record<string, boolean> = {};
-      shipmentsToUpdate.forEach(update => {
-        newSelection[update.existing.id] = true;
-      });
-      setSelection(newSelection);
-    }
-  };
 
   const handleDownloadErrors = () => {
     if (errors.length === 0) return;
@@ -161,7 +171,7 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
               <div className="p-4 bg-blue-50 border-r-4 border-blue-500 rounded-r-lg">
                   <h4 className="font-semibold text-blue-700 flex items-center gap-2"><RefreshCw className="h-4 w-4" /> تم العثور على {shipmentsToUpdate.length} شحنة جاهزة للتحديث</h4>
                    <div className="mt-4 flex gap-2">
-                      <Button onClick={handleConfirmAll} size="sm">
+                      <Button onClick={() => onConfirmUpdates(shipmentsToUpdate)} size="sm">
                           <CheckCircle className="me-2 h-4 w-4" />
                           موافق، قم بتحديث الكل ({shipmentsToUpdate.length})
                       </Button>
@@ -234,7 +244,7 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
                 <TableHead className="w-[50px]">
                   <Checkbox
                     checked={shipmentsToUpdate.length > 0 && selectedCount === shipmentsToUpdate.length}
-                    onCheckedChange={toggleAll}
+                    onCheckedChange={toggleAllUpdates}
                   />
                 </TableHead>
                 <TableHead>كود الشحنة</TableHead>
@@ -242,23 +252,14 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
                 <TableHead>التغييرات</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <TableBody key={tableKey}>
               {shipmentsToUpdate.map((update) => (
                 <TableRow key={update.existing.id}>
                   <TableCell>
                     <Checkbox
-                      checked={!!selection[update.existing.id]}
-                      onCheckedChange={(checked) => {
-                        setSelection(prev => {
-                          const newSelection = {...prev};
-                          if (checked) {
-                            newSelection[update.existing.id] = true;
-                          } else {
-                            delete newSelection[update.existing.id];
-                          }
-                          return newSelection;
-                        });
-                      }}
+                      key={update.existing.id}
+                      defaultChecked={updateSelection.has(update.existing.id)}
+                      onCheckedChange={() => toggleUpdateSelection(update.existing.id)}
                     />
                   </TableCell>
                   <TableCell className="font-mono">{update.existing.shipmentCode}</TableCell>
