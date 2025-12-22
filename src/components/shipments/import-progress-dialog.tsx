@@ -1,4 +1,3 @@
-
 'use client';
 import React from 'react';
 import {
@@ -17,27 +16,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { exportToExcel } from '@/lib/export';
 import type { Shipment } from '@/lib/types';
 import { Badge } from '../ui/badge';
-import { cn } from '@/lib/utils';
-
-// Custom Simple Checkbox to avoid re-rendering issues
-const SimpleCheckbox = ({ checked, onCheckedChange, 'aria-label': ariaLabel }: { checked: boolean, onCheckedChange: (checked: boolean) => void, 'aria-label': string }) => {
-    return (
-        <button
-            type="button"
-            role="checkbox"
-            aria-checked={checked}
-            onClick={() => onCheckedChange(!checked)}
-            className={cn(
-                "h-4 w-4 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                checked && "bg-primary text-primary-foreground"
-            )}
-            aria-label={ariaLabel}
-        >
-            {checked && <Check className="h-4 w-4" />}
-        </button>
-    );
-};
-
+import { Checkbox } from '../ui/checkbox';
 
 export interface ImportResult {
   added: number;
@@ -84,12 +63,6 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
   const [selectionMode, setSelectionMode] = React.useState(false);
   const [updateSelection, setUpdateSelection] = React.useState<Record<string, boolean>>({});
 
-  React.useEffect(() => {
-    // Reset state when result changes
-    setSelectionMode(false);
-    setUpdateSelection({});
-  }, [result]);
-
   const processedCount = added + updated + rejected;
   const progressPercentage = total > 0 ? (processedCount / total) * 100 : 0;
   const isFinished = !processing;
@@ -116,7 +89,16 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
     exportToExcel(errors, errorColumns, "shipments_import_errors", [], [], []);
   }
   
-  const selectedCount = Object.keys(updateSelection).filter(k => updateSelection[k]).length;
+  const selectedCount = Object.values(updateSelection).filter(Boolean).length;
+  const allSelected = shipmentsToUpdate.length > 0 && selectedCount === shipmentsToUpdate.length;
+
+  const handleToggleAll = (checked: boolean) => {
+    const newSelection: Record<string, boolean> = {};
+    if (checked) {
+        shipmentsToUpdate.forEach(u => newSelection[u.existing.id] = true);
+    }
+    setUpdateSelection(newSelection);
+  };
 
   return (
     <Dialog open={true} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -187,15 +169,9 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
                           <TableHeader>
                               <TableRow>
                                   <TableHead className="w-12">
-                                       <SimpleCheckbox
-                                          checked={shipmentsToUpdate.length > 0 && selectedCount === shipmentsToUpdate.length}
-                                          onCheckedChange={(checked) => {
-                                            const newSelection: Record<string, boolean> = {};
-                                            if (checked) {
-                                                shipmentsToUpdate.forEach(u => newSelection[u.existing.id] = true);
-                                            }
-                                            setUpdateSelection(newSelection);
-                                          }}
+                                       <Checkbox
+                                          checked={allSelected}
+                                          onCheckedChange={(checked) => handleToggleAll(!!checked)}
                                           aria-label="تحديد الكل"
                                       />
                                   </TableHead>
@@ -208,12 +184,12 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
                               {shipmentsToUpdate.map((update) => (
                                   <TableRow key={update.existing.id}>
                                        <TableCell>
-                                          <SimpleCheckbox
-                                              checked={!!updateSelection[update.existing.id]}
+                                          <Checkbox
+                                              checked={updateSelection[update.existing.id] || false}
                                               onCheckedChange={(checked) => {
                                                   setUpdateSelection(prev => ({
                                                       ...prev,
-                                                      [update.existing.id]: checked
+                                                      [update.existing.id]: !!checked
                                                   }));
                                               }}
                                               aria-label={`تحديد شحنة ${update.existing.shipmentCode}`}
