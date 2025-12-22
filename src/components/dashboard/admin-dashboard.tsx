@@ -302,6 +302,7 @@ const MobileShipmentsView = ({
                     <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
                     <TabsTrigger value="returns-with-couriers">مرتجعات بالخارج</TabsTrigger>
                     <TabsTrigger value="returns-in-warehouse">مرتجعات بالمخزن</TabsTrigger>
+                    <TabsTrigger value="returning-to-company">قيد التوصيل للشركة</TabsTrigger>
                     <TabsTrigger value="returned-to-company">وصلت للشركة</TabsTrigger>
                 </TabsList>
                 <div className="flex flex-col gap-4">
@@ -322,6 +323,7 @@ const MobileShipmentsView = ({
             <TabsContent value="postponed"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
             <TabsContent value="returns-with-couriers"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
             <TabsContent value="returns-in-warehouse"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
+            <TabsContent value="returning-to-company"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
             <TabsContent value="returned-to-company"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
             
             {selectedCount > 0 && (
@@ -384,9 +386,13 @@ const MobileShipmentsView = ({
                         <Warehouse className="me-2 h-4 w-4" />
                         للمخزن
                     </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isReturningToCompany: true })}>
+                        <CourierIcon className="me-2 h-4 w-4" />
+                        توصيل للشركة
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isReturnedToCompany: true })}>
                         <Building className="me-2 h-4 w-4" />
-                        للشركة
+                        وصلت للشركة
                     </Button>
                     
                     <Button variant="destructive" size="icon" onClick={handleMobileBulkDelete}>
@@ -476,6 +482,7 @@ const DesktopShipmentsView = ({
                 <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
                 <TabsTrigger value="returns-with-couriers">مرتجعات لدى المناديب</TabsTrigger>
                 <TabsTrigger value="returns-in-warehouse">مرتجعات وصلت المخزن</TabsTrigger>
+                <TabsTrigger value="returning-to-company">قيد التوصيل للشركة</TabsTrigger>
                 <TabsTrigger value="returned-to-company">وصلت للشركة</TabsTrigger>
             </TabsList>
             <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments)}</TabsContent>
@@ -486,6 +493,7 @@ const DesktopShipmentsView = ({
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
             <TabsContent value="returns-with-couriers">{renderShipmentTable(returnsWithCouriers, 'returns-with-couriers')}</TabsContent>
             <TabsContent value="returns-in-warehouse">{renderShipmentTable(inWarehouseShipments, 'returns-in-warehouse')}</TabsContent>
+            <TabsContent value="returning-to-company">{renderShipmentTable(returningToCompanyShipments, 'returning-to-company')}</TabsContent>
             <TabsContent value="returned-to-company">{renderShipmentTable(returnedToCompanyShipments, 'returned-to-company')}</TabsContent>
         </Tabs>
     )
@@ -1652,7 +1660,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
     toast({ title: `جاري تحديث ${selectedRows.length} شحنة...` });
 
     const updatePromises = selectedRows.map(row => {
-        const payload = { ...update };
+        const payload: Partial<Shipment> = { ...update };
         if (payload.retryAttempt) {
             payload.status = 'Pending';
             payload.isArchivedForCompany = false;
@@ -2521,6 +2529,7 @@ const generateShipmentCode = () => {
     </div>
   );
 }
+
 
 
 

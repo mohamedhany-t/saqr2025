@@ -53,6 +53,7 @@ const shipmentSchema = z.object({
   courierCommission: z.coerce.number().optional(),
   companyCommission: z.coerce.number().optional(),
   isWarehouseReturn: z.boolean().optional(),
+  isReturningToCompany: z.boolean().optional(),
   isReturnedToCompany: z.boolean().optional(),
   isExchange: z.boolean().optional(),
   isUrgent: z.boolean().optional(),
@@ -144,6 +145,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
       courierCommission: undefined,
       companyCommission: undefined,
       isWarehouseReturn: false,
+      isReturningToCompany: false,
       isReturnedToCompany: false,
       isExchange: false,
       isUrgent: false,
@@ -184,6 +186,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           courierCommission: shipment.courierCommission ?? 0,
           companyCommission: shipment.companyCommission ?? 0,
           isWarehouseReturn: shipment.isWarehouseReturn ?? false,
+          isReturningToCompany: shipment.isReturningToCompany ?? false,
           isReturnedToCompany: shipment.isReturnedToCompany ?? false,
           isExchange: shipment.isExchange ?? false,
           isUrgent: shipment.isUrgent ?? false,
@@ -211,6 +214,7 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
           requestedAmount: undefined,
           amountChangeReason: '',
           isWarehouseReturn: false,
+          isReturningToCompany: false,
           isReturnedToCompany: false,
           isExchange: false,
           isUrgent: false,
@@ -564,6 +568,22 @@ export function ShipmentFormSheet({ children, open, onOpenChange, shipment, onSa
                                 <FormControl className="col-span-3">
                                    <Checkbox
                                         id="isWarehouseReturn"
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                    />
+                                </FormControl>
+                            </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="isReturningToCompany"
+                        render={({ field }) => (
+                            <FormItem className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="isReturningToCompany" className="text-right">قيد التوصيل للشركة؟</Label>
+                                <FormControl className="col-span-3">
+                                   <Checkbox
+                                        id="isReturningToCompany"
                                         checked={field.value}
                                         onCheckedChange={field.onChange}
                                     />

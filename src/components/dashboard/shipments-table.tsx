@@ -1,3 +1,4 @@
+
 "use client"
 import * as React from "react"
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -707,24 +708,22 @@ export function ShipmentsTable({
                             إعادة محاولة
                         </Button>
                     )}
-                    {role === 'admin' && activeTab === 'returns-with-couriers' && (
-                        <>
-                           <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isWarehouseReturn: true })}>
-                                <Warehouse className="me-2 h-3.5 w-3.5" />
-                                للمخزن
-                            </Button>
-                        </>
+                    {(role === 'admin' || role === 'customer-service') && activeTab === 'returns-with-couriers' && (
+                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isWarehouseReturn: true })}>
+                            <Warehouse className="me-2 h-3.5 w-3.5" />
+                            للمخزن
+                        </Button>
                     )}
-                    {role === 'admin' && activeTab === 'returns-in-warehouse' && (
-                         <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isReturningToCompany: true })}>
-                            <Building className="me-2 h-3.5 w-3.5" />
+                    {(role === 'admin' || role === 'customer-service') && activeTab === 'returns-in-warehouse' && (
+                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isReturningToCompany: true })}>
+                            <CourierIcon className="me-2 h-3.5 w-3.5" />
                             توصيل للشركة
                         </Button>
                     )}
-                    {role === 'admin' && activeTab === 'returned-to-company' && (
-                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isArchivedForCompany: true })}>
-                            <Archive className="me-2 h-3.5 w-3.5" />
-                            أرشفة للشركة
+                    {(role === 'admin' || role === 'customer-service') && activeTab === 'returning-to-company' && (
+                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ isReturnedToCompany: true })}>
+                            <Building className="me-2 h-3.5 w-3.5" />
+                            وصلت للشركة
                         </Button>
                     )}
                     {role === 'admin' && (
@@ -771,7 +770,7 @@ export function ShipmentsTable({
                             </Button>}
                         </>
                     )}
-                    {(role === 'company') && (
+                    {(role === 'company' || role === 'customer-service') && (
                          <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" size="sm" className="h-8 gap-1">
