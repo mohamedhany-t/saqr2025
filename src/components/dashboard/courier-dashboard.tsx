@@ -15,7 +15,7 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
 import { StatsCards } from "@/components/dashboard/stats-cards";
-import { Loader2, MessageSquare, Database, Route, CheckCircle, Archive, Truck, QrCode, CalendarClock, RefreshCw } from "lucide-react";
+import { Loader2, MessageSquare, Database, Route, CheckCircle, Archive, Truck, QrCode, CalendarClock, RefreshCw, Star } from "lucide-react";
 import ChatInterface from "../chat/chat-interface";
 import { sendPushNotification } from "@/lib/actions";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
@@ -382,22 +382,35 @@ const handleBulkUpdateShipments = async (selectedRows: Shipment[], update: Parti
 
     const retry = shipments.filter(s => s.retryAttempt === true);
     const finished = shipments.filter(s => deliveredStatusIds.includes(s.status));
-    const returned = shipments.filter(s => (returnedStatusIds.includes(s.status) || s.isExchange) && !s.retryAttempt);
+    
+    // Exchange/Custom return should not be in the returned list initially
+    const returned = shipments.filter(s => 
+        returnedStatusIds.includes(s.status) &&
+        !s.isExchange && 
+        !s.isCustomReturn &&
+        !s.retryAttempt
+    );
+    
     const postponed = shipments.filter(s => s.status === 'Postponed' && !s.retryAttempt);
     
     let active = shipments.filter(s => 
-        !s.isExchange &&
         !deliveredStatusIds.includes(s.status) && 
         !returnedStatusIds.includes(s.status) &&
         s.status !== 'Postponed' &&
         !s.retryAttempt
     );
     
-    // Sort active shipments to show urgent ones first
+    // Sort active shipments to show urgent, exchange, and custom returns first
     active.sort((a, b) => {
-        const aUrgent = a.isUrgent ? 1 : 0;
-        const bUrgent = b.isUrgent ? 1 : 0;
-        return bUrgent - aUrgent;
+        const aPriority = (a.isUrgent ? 4 : 0) + (a.isExchange ? 2 : 0) + (a.isCustomReturn ? 1 : 0);
+        const bPriority = (b.isUrgent ? 4 : 0) + (b.isExchange ? 2 : 0) + (b.isCustomReturn ? 1 : 0);
+        if (aPriority !== bPriority) {
+            return bPriority - aPriority;
+        }
+        // If priority is the same, sort by creation date (newest first)
+        const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
+        const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
+        return dateB.getTime() - dateA.getTime();
     });
     
     return { activeShipments: active, postponedShipments: postponed, returnedShipments: returned, finishedShipments: finished, retryShipments: retry };

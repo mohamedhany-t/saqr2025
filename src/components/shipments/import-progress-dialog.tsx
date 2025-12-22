@@ -18,6 +18,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { exportToExcel } from '@/lib/export';
 import type { Shipment } from '@/lib/types';
 import { Badge } from '../ui/badge';
+import { Checkbox } from '../ui/checkbox';
 
 export interface ImportResult {
   added: number;
@@ -36,6 +37,7 @@ export interface ImportResult {
 interface ImportProgressDialogProps {
   result: ImportResult;
   onClose: () => void;
+  onConfirmUpdates?: (updates: { existing: Shipment, new: Partial<Shipment>}[]) => void;
 }
 
 const getChangedFields = (existing: Shipment, newData: Partial<Shipment>): string[] => {
@@ -57,11 +59,22 @@ const getChangedFields = (existing: Shipment, newData: Partial<Shipment>): strin
     return changes;
 }
 
-export function ImportProgressDialog({ result, onClose }: ImportProgressDialogProps) {
+export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: ImportProgressDialogProps) {
   const { added, updated, total, processing, errors, finalError, rejected, shipmentsToUpdate } = result;
+  const [updateSelection, setUpdateSelection] = React.useState<Record<string, boolean>>({});
   const processedCount = added + updated + rejected;
   const progressPercentage = total > 0 ? (processedCount / total) * 100 : 0;
   const isFinished = !processing;
+
+  React.useEffect(() => {
+    if (shipmentsToUpdate.length > 0) {
+        const initialSelection: Record<string, boolean> = {};
+        shipmentsToUpdate.forEach(update => {
+            initialSelection[update.existing.id] = true;
+        });
+        setUpdateSelection(initialSelection);
+    }
+  }, [shipmentsToUpdate]);
 
   const handleDownloadErrors = () => {
     if (errors.length === 0) return;
@@ -72,6 +85,23 @@ export function ImportProgressDialog({ result, onClose }: ImportProgressDialogPr
         { accessorKey: "سبب الرفض", header: "سبب الرفض" }
     ];
     exportToExcel(errors, errorColumns, "shipments_import_errors", [], [], []);
+  }
+
+  const handleConfirm = () => {
+    if (onConfirmUpdates) {
+        const selectedUpdates = shipmentsToUpdate.filter(u => updateSelection[u.existing.id]);
+        onConfirmUpdates(selectedUpdates);
+    }
+  }
+
+  const allUpdatesSelected = shipmentsToUpdate.length > 0 && shipmentsToUpdate.every(u => updateSelection[u.existing.id]);
+
+  const toggleAllUpdates = () => {
+    const newSelection: Record<string, boolean> = {};
+    if (!allUpdatesSelected) {
+        shipmentsToUpdate.forEach(u => newSelection[u.existing.id] = true);
+    }
+    setUpdateSelection(newSelection);
   }
 
   return (
@@ -118,15 +148,21 @@ export function ImportProgressDialog({ result, onClose }: ImportProgressDialogPr
             </div>
           </div>
 
-          {isFinished && shipmentsToUpdate.length > 0 && (
+          {isFinished && shipmentsToUpdate.length > 0 && onConfirmUpdates && (
               <div className="space-y-2 pt-4">
                  <div className="flex justify-between items-center">
-                    <h4 className="font-semibold text-blue-600 flex items-center gap-2"><RefreshCw className="h-4 w-4" /> تم تحديث الشحنات التالية ({shipmentsToUpdate.length})</h4>
+                    <h4 className="font-semibold text-blue-600 flex items-center gap-2"><RefreshCw className="h-4 w-4" /> معاينة الشحنات للتحديث ({shipmentsToUpdate.length})</h4>
                  </div>
                 <ScrollArea className="h-48 border rounded-lg">
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                <TableHead className="w-12">
+                                     <Checkbox
+                                        checked={allUpdatesSelected}
+                                        onCheckedChange={toggleAllUpdates}
+                                    />
+                                </TableHead>
                                 <TableHead>كود الشحنة</TableHead>
                                 <TableHead>العميل</TableHead>
                                 <TableHead>الحقول التي تغيرت</TableHead>
@@ -135,6 +171,14 @@ export function ImportProgressDialog({ result, onClose }: ImportProgressDialogPr
                         <TableBody>
                             {shipmentsToUpdate.map((update, index) => (
                                 <TableRow key={index}>
+                                     <TableCell>
+                                        <Checkbox
+                                            checked={!!updateSelection[update.existing.id]}
+                                            onCheckedChange={(checked) => {
+                                                setUpdateSelection(prev => ({...prev, [update.existing.id]: !!checked}))
+                                            }}
+                                        />
+                                    </TableCell>
                                     <TableCell className="font-mono">{update.existing.shipmentCode}</TableCell>
                                     <TableCell>{update.existing.recipientName}</TableCell>
                                     <TableCell>
@@ -147,6 +191,11 @@ export function ImportProgressDialog({ result, onClose }: ImportProgressDialogPr
                         </TableBody>
                     </Table>
                 </ScrollArea>
+                <div className="flex justify-end">
+                     <Button onClick={handleConfirm} disabled={Object.values(updateSelection).filter(Boolean).length === 0}>
+                        تحديث الشحنات المحددة ({Object.values(updateSelection).filter(Boolean).length})
+                    </Button>
+                </div>
               </div>
           )}
           

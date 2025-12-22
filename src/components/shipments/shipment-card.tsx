@@ -1,4 +1,5 @@
 
+
 'use client';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -105,15 +106,15 @@ export function ShipmentCard({
 
             const template = whatsappTemplates?.customerServiceTemplate || '';
             message = template
-                .replace('{customer_name}', recipientName || '')
-                .replace('{customer_service_name}', userProfile?.name || '')
-                .replace('{shipment_code}', shipmentCode || '')
-                .replace('{company_name}', companyName || '')
-                .replace('{courier_name}', assignedCourier?.name || 'غير محدد')
-                .replace('{courier_phone}', assignedCourier?.phone || 'غير متوفر')
-                .replace('{total_amount}', totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) || '')
-                .replace('{address}', `${address}, ${governorateName}` || '')
-                .replace('{tracking_link}', trackingUrl);
+                .replace(/\{customer_name\}/g, recipientName || '')
+                .replace(/\{customer_service_name\}/g, userProfile?.name || '')
+                .replace(/\{shipment_code\}/g, shipmentCode || '')
+                .replace(/\{company_name\}/g, companyName || '')
+                .replace(/\{courier_name\}/g, assignedCourier?.name || 'غير محدد')
+                .replace(/\{courier_phone\}/g, assignedCourier?.phone || 'غير متوفر')
+                .replace(/\{total_amount\}/g, totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) || '')
+                .replace(/\{address\}/g, `${address}, ${governorateName}` || '')
+                .replace(/\{tracking_link\}/g, trackingUrl);
         }
 
 
@@ -183,7 +184,7 @@ export function ShipmentCard({
 
     const timeAgo = formatToCairoTime(createdAt);
     
-    const canEdit = isAdmin || isCourier;
+    const canEdit = isAdmin || isCourier || isCustomerService;
     const isPriceChangePending = status === 'PriceChangeRequested';
 
     return (
@@ -286,16 +287,27 @@ export function ShipmentCard({
                         </Button>
                      </div>
                     
-                    {isAdmin ? (
+                    {(isAdmin || isCustomerService) ? (
                         <div className="flex items-center gap-2">
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-9 w-9 text-green-600" onClick={handleWhatsApp} disabled={!hasPhoneNumber}>
+                                            <MessageSquare className="h-5 w-5" />
+                                            <span className="sr-only">واتساب</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    {!hasPhoneNumber && <TooltipContent><p>لا يوجد رقم هاتف</p></TooltipContent>}
+                                </Tooltip>
+                            </TooltipProvider>
                              <Button variant="ghost" size="icon" className="h-9 w-9 text-blue-600" onClick={handlePrint}>
                                 <Printer className="h-5 w-5" />
                                 <span className="sr-only">طباعة</span>
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-9 w-9 text-red-600" onClick={handleDelete}>
+                            {isAdmin && <Button variant="ghost" size="icon" className="h-9 w-9 text-red-600" onClick={handleDelete}>
                                 <Trash2 className="h-5 w-5" />
                                 <span className="sr-only">حذف</span>
-                            </Button>
+                            </Button>}
                         </div>
                     ) : (
                         <div className="flex items-center gap-2">

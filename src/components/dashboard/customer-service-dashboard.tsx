@@ -13,7 +13,7 @@ import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebas
 import { collection, query, where, doc, getDoc, writeBatch, serverTimestamp, getDocs } from "firebase/firestore";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { ShipmentCard } from "@/components/shipments/shipment-card";
-import { AlertTriangle, CheckSquare, DollarSign, MessageSquare, Check, X, ScanLine, FileUp, PlusCircle, Printer, GitCompareArrows, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckSquare, DollarSign, MessageSquare, Check, X, ScanLine, FileUp, PlusCircle, Printer, GitCompareArrows, Loader2, User as UserIcon, Building, Warehouse } from "lucide-react";
 import ChatInterface from "../chat/chat-interface";
 import { Badge } from "../ui/badge";
 import { differenceInDays, differenceInHours } from "date-fns";
@@ -37,6 +37,7 @@ import { ImportResult, ImportProgressDialog } from "@/components/shipments/impor
 import { read, utils } from "xlsx";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { useFirebaseApp } from "@/firebase";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 
 const getSafeDate = (date: any): Date | null => {
     if (!date) return null;
@@ -549,7 +550,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
         } else {
             updatePayload = {
                 status: 'PriceChangeRejected',
-                reason: `تم رفض طلب تعديل السعر (السعر المقترح: ${shipment.requestedAmount}).`,
+                reason: `تم رفض طلب تعديل سعر (السعر المقترح: ${shipment.requestedAmount}).`,
                 isPriceChangeDecision: true,
             };
         }
@@ -626,6 +627,7 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
       }) || [];
   }, [allShipmentsForStats]);
   const priceChangeRequests = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'PriceChangeRequested' && !s.isArchivedForCompany && !s.isArchivedForCourier) || [], [allShipmentsForStats]);
+  const returnsWithCouriers = React.useMemo(() => shipments?.filter(s => (statuses?.filter(st => st.isReturnedStatus).map(st => st.id).includes(s.status) || s.isExchange) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isReturningToCompany) || [], [shipments, statuses]);
   
   const problemCount = returnedShipmentsNeedingAction.length + longPostponedShipments.length + staleInTransitShipments.length + priceChangeRequests.length;
 
@@ -696,8 +698,9 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
     <div className="flex flex-col w-full">
       <Tabs defaultValue="shipments">
         <div className="flex items-center">
-            <TabsList className="grid w-full grid-cols-4">
+             <TabsList className="flex-nowrap overflow-x-auto justify-start">
                 <TabsTrigger value="shipments">الشحنات</TabsTrigger>
+                <TabsTrigger value="returns-with-couriers">مرتجعات لدى المندوب</TabsTrigger>
                 <TabsTrigger value="print-center">
                     <Printer className="w-4 h-4 me-2"/>
                     مركز الطباعة
@@ -731,18 +734,6 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
                 <Button size="sm" onClick={() => openShipmentForm()}>
                     <PlusCircle className="h-4 w-4 me-2" />
                     <span className="sr-only sm:not-sr-only">شحنة جديدة</span>
-                </Button>
-                <Button asChild variant="outline" size="sm">
-                    <Link href="/scan">
-                        <ScanLine className="h-4 w-4 me-2" />
-                        <span className="sr-only sm:not-sr-only">مسح باركود</span>
-                    </Link>
-                </Button>
-                 <Button asChild variant="outline" size="sm">
-                    <Link href="/comparison">
-                         <GitCompareArrows className="h-4 w-4 me-2" />
-                        <span className="sr-only sm:not-sr-only">مقارنة الشيتات</span>
-                    </Link>
                 </Button>
             </div>
         </div>
@@ -785,6 +776,20 @@ export default function CustomerServiceDashboard({ user, role, searchTerm }: Cus
               {isMobile ? renderShipmentList(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']), listIsLoading) : renderDesktopTable(getShipmentsByStatus(['Returned', 'Cancelled', 'Refused (Unpaid)', 'Evasion (Phone)', 'Partially Delivered', 'Evasion (Delivery Attempt)', 'Refused (Paid)']), listIsLoading)}
             </TabsContent>
           </Tabs>
+        </TabsContent>
+        <TabsContent value="returns-with-couriers">
+          <ShipmentsTable 
+            shipments={returnsWithCouriers}
+            isLoading={listIsLoading}
+            governorates={governorates || []}
+            companies={companies || []}
+            couriers={courierUsers}
+            statuses={statuses || []}
+            onEdit={openShipmentForm}
+            role={role}
+            onBulkUpdate={handleGenericBulkUpdate}
+            activeTab="returns-with-couriers"
+            />
         </TabsContent>
         <TabsContent value="print-center">
              <PrintCenterPage 

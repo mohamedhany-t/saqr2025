@@ -380,20 +380,14 @@ const MobileShipmentsView = ({
                         <Printer className="me-2 h-4 w-4" />
                         <span>طباعة</span>
                     </Button>
-                    {activeTab === 'returns-with-couriers' && (
-                        <>
-                           <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isWarehouseReturn: true })}>
-                                <Warehouse className="me-2 h-4 w-4" />
-                                للمخزن
-                            </Button>
-                        </>
-                    )}
-                    {activeTab === 'returns-in-warehouse' && (
-                         <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isReturningToCompany: true })}>
-                            <Building className="me-2 h-4 w-4" />
-                            توصيل للشركة
-                        </Button>
-                    )}
+                    <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isWarehouseReturn: true })}>
+                        <Warehouse className="me-2 h-4 w-4" />
+                        للمخزن
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isReturnedToCompany: true })}>
+                        <Building className="me-2 h-4 w-4" />
+                        للشركة
+                    </Button>
                     
                     <Button variant="destructive" size="icon" onClick={handleMobileBulkDelete}>
                         <Trash2 className="h-4 w-4" />
@@ -858,7 +852,7 @@ const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
                     }
                 }
 
-                const recipientName = String(row['المرسل اليه'] || '').trim();
+                const recipientName = String(row['المرسل اليه'] || 'بدون اسم').trim();
                 let recipientPhone = String(row['التليفون']?.toString() || '').trim();
                 if (recipientPhone.length === 10 && recipientPhone.startsWith("1")) {
                     recipientPhone = "0" + recipientPhone;
@@ -899,10 +893,8 @@ const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
                       delete dataToUpdate.status;
                       delete dataToUpdate.assignedCourierId;
                     }
-                     await handleShipmentUpdateFn(dataToUpdate);
-                    result.shipmentsToUpdate.push({ existing: existingShipmentData, new: cleanShipmentData });
+                    result.shipmentsToUpdate.push({ existing: existingShipmentData, new: dataToUpdate });
                     result.updated++;
-
                 } else {
                     const newDocRef = doc(collection(firestore, "shipments"));
                     await handleShipmentUpdateFn({ 
@@ -1659,10 +1651,16 @@ const returnedToCompanyShipments = React.useMemo(() => {
 
     toast({ title: `جاري تحديث ${selectedRows.length} شحنة...` });
 
-    const updatePromises = selectedRows.map(row => 
-        handleShipmentUpdateFn({ shipmentId: row.id, ...update })
+    const updatePromises = selectedRows.map(row => {
+        const payload = { ...update };
+        if (payload.retryAttempt) {
+            payload.status = 'Pending';
+            payload.isArchivedForCompany = false;
+            payload.isArchivedForCourier = false;
+        }
+        return handleShipmentUpdateFn({ shipmentId: row.id, ...payload })
           .catch(error => ({ error, shipmentId: row.id }))
-    );
+    });
 
     const results = await Promise.all(updatePromises);
     const failedUpdates = results.filter(res => res && 'error' in res);
@@ -1730,7 +1728,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
     } else {
         updatePayload = {
             status: 'PriceChangeRejected',
-            reason: `تم رفض طلب تعديل السعر (السعر المقترح: ${shipment.requestedAmount}).`,
+            reason: `تم رفض طلب تعديل سعر (السعر المقترح: ${shipment.requestedAmount}).`,
             isPriceChangeDecision: true,
         };
     }
@@ -2503,11 +2501,27 @@ const generateShipmentCode = () => {
         <ImportProgressDialog
           result={importResult}
           onClose={() => setImportResult(null)}
+          onConfirmUpdates={async (updatesToApply) => {
+                if (!updatesToApply || updatesToApply.length === 0) return;
+                const functions = getFunctions(app);
+                const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
+
+                toast({ title: `جاري تحديث ${updatesToApply.length} شحنة...` });
+
+                const updatePromises = updatesToApply.map(updateData => 
+                    handleShipmentUpdateFn(updateData.new).catch(err => ({ error: true, data: updateData.new }))
+                );
+                
+                await Promise.all(updatePromises);
+                toast({ title: "اكتملت عملية التحديث."});
+                setImportResult(null); // Close dialog after confirmation
+            }}
         />
       )}
     </div>
   );
 }
+
 
 
 
