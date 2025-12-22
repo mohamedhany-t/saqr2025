@@ -65,17 +65,22 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
   const processedCount = added + updated + rejected;
   const progressPercentage = total > 0 ? (processedCount / total) * 100 : 0;
   const isFinished = !processing;
-
+  
   React.useEffect(() => {
-    if (shipmentsToUpdate.length > 0) {
-        // Start with all updates selected by default
-        const initialSelection: Record<string, boolean> = {};
-        shipmentsToUpdate.forEach(update => {
-            initialSelection[update.existing.id] = true;
-        });
-        setUpdateSelection(initialSelection);
+    const initialSelection: Record<string, boolean> = {};
+    shipmentsToUpdate.forEach(update => {
+        initialSelection[update.existing.id] = true;
+    });
+    setUpdateSelection(initialSelection);
+  }, []); // Run only once when the component mounts with the initial data
+
+
+  const handleConfirm = () => {
+    if (onConfirmUpdates) {
+        const selectedUpdates = shipmentsToUpdate.filter(u => updateSelection[u.existing.id]);
+        onConfirmUpdates(selectedUpdates);
     }
-  }, [shipmentsToUpdate]);
+  }
 
   const handleDownloadErrors = () => {
     if (errors.length === 0) return;
@@ -88,23 +93,20 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
     exportToExcel(errors, errorColumns, "shipments_import_errors", [], [], []);
   }
 
-  const handleConfirm = () => {
-    if (onConfirmUpdates) {
-        const selectedUpdates = shipmentsToUpdate.filter(u => updateSelection[u.existing.id]);
-        onConfirmUpdates(selectedUpdates);
-    }
-  }
-
-  const allUpdatesSelected = shipmentsToUpdate.length > 0 && shipmentsToUpdate.every(u => updateSelection[u.existing.id]);
-
   const toggleAllUpdates = () => {
-    const newSelection: Record<string, boolean> = {};
-    const shouldSelectAll = !allUpdatesSelected;
-    shipmentsToUpdate.forEach(update => {
-        newSelection[update.existing.id] = shouldSelectAll;
+    setUpdateSelection(prevSelection => {
+        const areAnySelected = shipmentsToUpdate.some(u => prevSelection[u.existing.id]);
+        const newSelection: Record<string, boolean> = {};
+        const selectAll = !areAnySelected;
+        shipmentsToUpdate.forEach(u => {
+            newSelection[u.existing.id] = selectAll;
+        });
+        return newSelection;
     });
-    setUpdateSelection(newSelection);
   };
+
+  const selectedCount = Object.values(updateSelection).filter(Boolean).length;
+  const allUpdatesSelected = selectedCount === shipmentsToUpdate.length && shipmentsToUpdate.length > 0;
 
 
   return (
@@ -164,6 +166,7 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
                                      <Checkbox
                                         checked={allUpdatesSelected}
                                         onCheckedChange={toggleAllUpdates}
+                                        aria-label="تحديد الكل"
                                     />
                                 </TableHead>
                                 <TableHead>كود الشحنة</TableHead>
@@ -172,10 +175,11 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {shipmentsToUpdate.map((update, index) => (
-                                <TableRow key={index}>
+                            {shipmentsToUpdate.map((update) => (
+                                <TableRow key={update.existing.id}>
                                      <TableCell>
                                         <Checkbox
+                                            key={update.existing.id}
                                             checked={updateSelection[update.existing.id] ?? false}
                                             onCheckedChange={(checked) => {
                                                 setUpdateSelection(prev => ({
@@ -183,6 +187,7 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
                                                     [update.existing.id]: !!checked
                                                 }));
                                             }}
+                                            aria-label={`تحديد شحنة ${update.existing.shipmentCode}`}
                                         />
                                     </TableCell>
                                     <TableCell className="font-mono">{update.existing.shipmentCode}</TableCell>
@@ -198,8 +203,8 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
                     </Table>
                 </ScrollArea>
                 <div className="flex justify-end">
-                     <Button onClick={handleConfirm} disabled={Object.values(updateSelection).filter(Boolean).length === 0}>
-                        تحديث الشحنات المحددة ({Object.values(updateSelection).filter(Boolean).length})
+                     <Button onClick={handleConfirm} disabled={selectedCount === 0}>
+                        تحديث الشحنات المحددة ({selectedCount})
                     </Button>
                 </div>
               </div>
@@ -249,7 +254,3 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
     </Dialog>
   );
 }
-
-    
-
-
