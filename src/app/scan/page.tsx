@@ -37,8 +37,8 @@ export default function ScanPage() {
 
     // Data fetching
     const { data: allShipments, isLoading: shipmentsLoading } = useCollection<Shipment>(useMemoFirebase(() => firestore ? query(collection(firestore, 'shipments')) : null, [firestore]));
-    const { data: governorates, isLoading: governoratesLoading } = useCollection<Governorate>(useMemoFirebase(() => firestore ? collection(firestore, 'governorates') : null, [firestore]));
-    const { data: companies, isLoading: companiesLoading } = useCollection<Company>(useMemoFirebase(() => firestore ? collection(firestore, 'companies') : null, [firestore]));
+    const { data: governorates, isLoading: governoratesLoading } = useCollection<Governorate>(useMemoFirebase(() => firestore ? query(collection(firestore, 'governorates')) : null, [firestore]));
+    const { data: companies, isLoading: companiesLoading } = useCollection<Company>(useMemoFirebase(() => firestore ? query(collection(firestore, 'companies')) : null, [firestore]));
     const { data: courierUsers, isLoading: couriersLoading } = useCollection<User>(useMemoFirebase(() => firestore ? query(collection(firestore, 'users'), where('role', '==', 'courier')) : null, [firestore]));
     const { data: statuses, isLoading: statusesLoading } = useCollection<ShipmentStatusConfig>(useMemoFirebase(() => firestore ? query(collection(firestore, 'shipment_statuses')) : null, [firestore]));
 
@@ -278,10 +278,14 @@ export default function ScanPage() {
             </DropdownMenu>
            <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleBulkUpdate({ isWarehouseReturn: true })}>
               <Warehouse className="me-2 h-3.5 w-3.5" />
-              تم الرجوع للمخزن
+              مرتجع للمخزن
+          </Button>
+           <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleBulkUpdate({ isReturningToCompany: true })}>
+              <Building className="me-2 h-3.5 w-3.5" />
+              قيد التوصيل للشركة
           </Button>
            <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleBulkUpdate({ isReturnedToCompany: true })}>
-              <Building className="me-2 h-3.5 w-3.5" />
+              <CheckSquare className="me-2 h-3.5 w-3.5" />
               تم الرجوع للشركة
           </Button>
            <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleBulkUpdate({ isArchivedForCompany: true })}>
@@ -404,3 +408,4 @@ export default function ScanPage() {
     
 
     
+
