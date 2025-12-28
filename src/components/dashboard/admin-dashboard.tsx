@@ -1,5 +1,4 @@
 
-
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -843,24 +842,14 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
             const functions = getFunctions(app);
             const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
 
+            const shipmentsToUpdate: { existing: Shipment, new: Partial<Shipment> }[] = [];
+
             for (const row of json) {
                 // --- Data Extraction ---
                 const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
-                const senderNameFromSheet = row['الراسل']?.toString().trim() || row['العميل الفرعي']?.toString().trim();
-                let shipmentCodeValue = row['كود الشحنة'] ? String(row['كود الشحنة']).trim() : undefined;
+                const senderNameFromSheet = row['الراسل']?.toString().trim();
+                let shipmentCodeValue = String(row['كود الشحنة'] || '').trim();
                 const orderNumberValue = row['رقم الطلب']?.toString().trim();
-
-                // Smartly extract shipment code if not in its own column
-                if (!shipmentCodeValue && companyNameFromSheet) {
-                    const companyNameParts = companyNameFromSheet.split(' ');
-                    if (companyNameParts.length > 1) {
-                         const potentialCode = companyNameParts[companyNameParts.length - 1];
-                         // Simple check if it looks like a code
-                         if (potentialCode.length > 4 && /\d/.test(potentialCode)) {
-                             shipmentCodeValue = potentialCode;
-                         }
-                    }
-                }
                 
                 // --- Validation ---
                 if (!shipmentCodeValue) {
@@ -900,7 +889,7 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
                 }
                 const totalAmountValue = String(row['الاجمالي'] || row['الاجمالى'] || '0').replace(/[^0-9.]/g, '');
 
-                const shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>> = {
+                const shipmentData: Partial<Omit<Shipment, 'id'>> = {
                     shipmentCode: shipmentCodeValue,
                     senderName: senderNameFromSheet,
                     orderNumber: orderNumberValue,
@@ -913,27 +902,24 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
                     companyId: foundCompany.id,
                 };
                 
-                // Clean the object to remove undefined/null/empty string values before sending
                 const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
 
-
                 if (existingDoc) {
-                     const existingShipmentData = existingDoc.data() as Shipment;
-                     // Prevent overriding status if shipment is active
-                     if (existingShipmentData.assignedCourierId && existingShipmentData.status !== 'Pending') {
-                       delete cleanShipmentData.status;
-                     }
-                    await handleShipmentUpdateFn({ shipmentId: existingDoc.id, ...cleanShipmentData });
+                    const existingShipmentData = { id: existingDoc.id, ...existingDoc.data() } as Shipment;
+                    if (existingShipmentData.assignedCourierId && existingShipmentData.status !== 'Pending') {
+                        delete cleanShipmentData.status;
+                    }
+                    shipmentsToUpdate.push({ existing: existingShipmentData, new: cleanShipmentData });
                     result.updated++;
                 } else {
                     const newDocRef = doc(collection(firestore, "shipments"));
-                    await handleShipmentUpdateFn({ 
-                        shipmentId: newDocRef.id, 
+                    await handleShipmentUpdateFn({
+                        shipmentId: newDocRef.id,
                         ...cleanShipmentData
                     });
                     result.added++;
                 }
-                setImportResult({ ...result });
+                setImportResult({ ...result, shipmentsToUpdate });
             }
             
             setImportResult(prev => prev ? { ...prev, processing: false } : null);
@@ -2551,9 +2537,10 @@ const generateShipmentCode = () => {
 
                 toast({ title: `جاري تحديث ${updatesToApply.length} شحنة...` });
 
-                const updatePromises = updatesToApply.map(updateData => 
-                    handleShipmentUpdateFn(updateData.new).catch(err => ({ error: true, data: updateData.new }))
-                );
+                const updatePromises = updatesToApply.map(updateData => {
+                    const payload = { shipmentId: updateData.existing.id, ...updateData.new };
+                    return handleShipmentUpdateFn(payload).catch(err => ({ error: true, data: payload }));
+                });
                 
                 await Promise.all(updatePromises);
                 toast({ title: "اكتملت عملية التحديث."});

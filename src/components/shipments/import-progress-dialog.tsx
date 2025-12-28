@@ -147,7 +147,7 @@ export function ImportProgressDialog({ result, onClose, onConfirmUpdates }: Impo
               </div>
                <div>
                   <p className="font-bold text-lg text-blue-600">{updated}</p>
-                  <p className="text-muted-foreground">تم التحديث</p>
+                  <p className="text-muted-foreground">جاهزة للتحديث</p>
               </div>
               <div>
                   <p className="font-bold text-lg text-destructive">{rejected}</p>
