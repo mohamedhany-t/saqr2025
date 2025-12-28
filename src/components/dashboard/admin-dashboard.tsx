@@ -1,4 +1,5 @@
 
+
 "use client";
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -815,7 +816,7 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
     return null;
   };
 
-const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !firestore || !authUser || !companies || !governorates) return;
 
@@ -843,71 +844,92 @@ const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
             const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
 
             for (const row of json) {
-                const shipmentCodeValue = row['كود الشحنة'] ? String(row['كود الشحنة']).trim() : undefined;
+                // --- Data Extraction ---
                 const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
-                const foundCompany = companies.find(c => c.name === companyNameFromSheet);
+                const senderNameFromSheet = row['الراسل']?.toString().trim() || row['العميل الفرعي']?.toString().trim();
+                let shipmentCodeValue = row['كود الشحنة'] ? String(row['كود الشحنة']).trim() : undefined;
+                const orderNumberValue = row['رقم الطلب']?.toString().trim();
 
-                let existingDoc: DocumentSnapshot<DocumentData> | null = null;
-                if (shipmentCodeValue) {
-                    const existingDocsQuery = query(collection(firestore, 'shipments'), where("shipmentCode", "==", shipmentCodeValue));
-                    const snapshot = await getDocs(existingDocsQuery);
-                    if (!snapshot.empty) {
-                        existingDoc = snapshot.docs.find(doc => {
-                            const data = doc.data();
-                            return !(data.isArchivedForCompany && data.isArchivedForCourier);
-                        }) || null;
+                // Smartly extract shipment code if not in its own column
+                if (!shipmentCodeValue && companyNameFromSheet) {
+                    const companyNameParts = companyNameFromSheet.split(' ');
+                    if (companyNameParts.length > 1) {
+                         const potentialCode = companyNameParts[companyNameParts.length - 1];
+                         // Simple check if it looks like a code
+                         if (potentialCode.length > 4 && /\d/.test(potentialCode)) {
+                             shipmentCodeValue = potentialCode;
+                         }
                     }
                 }
+                
+                // --- Validation ---
+                if (!shipmentCodeValue) {
+                    result.rejected++;
+                    result.errors.push({ ...row, 'سبب الرفض': 'كود الشحنة مفقود' });
+                    setImportResult({ ...result });
+                    continue;
+                }
 
+                const foundCompany = companies.find(c => c.name === companyNameFromSheet);
+                if (!foundCompany) {
+                    result.rejected++;
+                    result.errors.push({ ...row, 'سبب الرفض': `شركة "${companyNameFromSheet}" غير موجودة` });
+                    setImportResult({ ...result });
+                    continue;
+                }
+
+                const governorateName = String(row['المحافظة'] || '').trim();
+                const foundGovernorate = governorates.find(g => g.name === governorateName);
+                if (!foundGovernorate) {
+                    result.rejected++;
+                    result.errors.push({ ...row, 'سبب الرفض': `محافظة "${governorateName}" غير موجودة` });
+                    setImportResult({ ...result });
+                    continue;
+                }
+
+                // --- Find Existing Shipment ---
+                const existingDocsQuery = query(collection(firestore, 'shipments'), where("shipmentCode", "==", shipmentCodeValue));
+                const snapshot = await getDocs(existingDocsQuery);
+                const existingDoc = snapshot.empty ? null : snapshot.docs[0];
+
+                // --- Prepare Data ---
                 const recipientName = String(row['المرسل اليه'] || 'بدون اسم').trim();
                 let recipientPhone = String(row['التليفون']?.toString() || '').trim();
                 if (recipientPhone.length === 10 && recipientPhone.startsWith("1")) {
                     recipientPhone = "0" + recipientPhone;
                 }
-                const governorateName = String(row['المحافظة'] || '').trim();
-                const foundGovernorate = governorates.find(g => g.name === governorateName);
-                
-                const deliveryDate = parseExcelDate(row['تاريخ التسليم للمندوب']);
-                const creationDate = parseExcelDate(row['التاريخ']);
-                const totalAmountValue = row['الاجمالي'] || row['الاجمالى'] || '0';
-                
-                const shipmentData: Partial<Omit<Shipment, 'id'>> = {
+                const totalAmountValue = String(row['الاجمالي'] || row['الاجمالى'] || '0').replace(/[^0-9.]/g, '');
+
+                const shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>> = {
                     shipmentCode: shipmentCodeValue,
-                    senderName: row['الراسل'] || row['العميل الفرعى'],
-                    orderNumber: row['رقم الطلب']?.toString().trim(),
+                    senderName: senderNameFromSheet,
+                    orderNumber: orderNumberValue,
                     recipientName: recipientName,
                     recipientPhone: recipientPhone,
-                    governorateId: foundGovernorate?.id,
+                    governorateId: foundGovernorate.id,
                     address: String(row['العنوان'] || 'N/A').trim(),
-                    totalAmount: parseFloat(String(totalAmountValue).replace(/[^0-9.]/g, '')),
+                    totalAmount: parseFloat(totalAmountValue) || 0,
                     status: 'Pending',
-                    reason: String(row['السبب'] || ''),
-                    deliveryDate: deliveryDate || new Date(),
-                    companyId: foundCompany?.id,
+                    companyId: foundCompany.id,
                 };
-
+                
+                // Clean the object to remove undefined/null/empty string values before sending
                 const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+
 
                 if (existingDoc) {
                      const existingShipmentData = existingDoc.data() as Shipment;
-                     const createdAtValue = getSafeDate(existingShipmentData.createdAt);
-                     const dataToUpdate: any = {
-                        ...cleanShipmentData, 
-                        shipmentId: existingDoc.id,
-                        createdAt: createdAtValue ? createdAtValue.toISOString() : undefined,
-                    };
-                    if (existingShipmentData.assignedCourierId && existingShipmentData.status !== 'Pending') {
-                      delete dataToUpdate.status;
-                      delete dataToUpdate.assignedCourierId;
-                    }
-                    result.shipmentsToUpdate.push({ existing: existingShipmentData, new: dataToUpdate });
+                     // Prevent overriding status if shipment is active
+                     if (existingShipmentData.assignedCourierId && existingShipmentData.status !== 'Pending') {
+                       delete cleanShipmentData.status;
+                     }
+                    await handleShipmentUpdateFn({ shipmentId: existingDoc.id, ...cleanShipmentData });
                     result.updated++;
                 } else {
                     const newDocRef = doc(collection(firestore, "shipments"));
                     await handleShipmentUpdateFn({ 
                         shipmentId: newDocRef.id, 
-                        ...cleanShipmentData, 
-                        createdAt: creationDate ? creationDate.toISOString() : new Date().toISOString() 
+                        ...cleanShipmentData
                     });
                     result.added++;
                 }
