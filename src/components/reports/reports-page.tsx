@@ -266,14 +266,20 @@ export function ReportsPage({
         let companyShipments = shipments.filter(s => s.companyId === companyId && !s.isArchivedForCompany);
         
         if (type === 'supply') {
-            // شيت التوريد يقتصر فقط على الحالات المالية النهائية
-            const financialStatusKeys = ['Delivered', 'Partially Delivered', 'Refused (Paid)'];
-            companyShipments = companyShipments.filter(s => financialStatusKeys.includes(s.status));
+            // شيت التوريد يقتصر فقط على الحالات المكتملة والنهائية التي طلبها المستخدم
+            const supplyStatusKeys = [
+                'Delivered', 
+                'Partially Delivered', 
+                'Refused (Paid)', 
+                'Refused (Unpaid)', 
+                'Evasion (Delivery Attempt)'
+            ];
+            companyShipments = companyShipments.filter(s => supplyStatusKeys.includes(s.status));
         }
 
         companyShipments = filterByDateRange(companyShipments, activeDateRange);
         
-        // إذا كان شيت أبديت، نستخدم الفلاتر المختارة، وإذا كان توريد نستخدم البيانات المفلترة برمجياً أعلاه
+        // الحالات المختارة فقط لشيت الأبديت، أما التوريد فيعتمد على الفلترة البرمجية أعلاه
         const filteredData = type === 'supply' ? companyShipments : filterShipmentsByStatus(companyShipments, companyUpdateStatuses);
         
         const dataToExport = filteredData.map(shipment => getEnhancedShipmentData(shipment, 'company'));
