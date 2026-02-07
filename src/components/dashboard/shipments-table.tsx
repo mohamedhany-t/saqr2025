@@ -50,6 +50,7 @@ import {
     ChevronRight,
     History,
     Undo,
+    RefreshCcw,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -703,6 +704,22 @@ export function ShipmentsTable({
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
+                    {(role === 'admin' || role === 'customer-service') && (
+                        <Button variant="outline" size="sm" className="h-8 gap-1 text-orange-600 hover:text-orange-700" onClick={() => handleGenericBulkUpdate({ 
+                            status: 'Pending', 
+                            assignedCourierId: '', 
+                            reason: 'إعادة تعيين الشحنة', 
+                            isWarehouseReturn: false, 
+                            isReturningToCompany: false, 
+                            isReturnedToCompany: false, 
+                            retryAttempt: false,
+                            requestedAmount: 0,
+                            amountChangeReason: ""
+                        })}>
+                            <RefreshCcw className="me-2 h-3.5 w-3.5" />
+                            إعادة تعيين
+                        </Button>
+                    )}
                     {role === 'admin' && (
                         <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleGenericBulkUpdate({ retryAttempt: true })}>
                             <BellRing className="me-2 h-3.5 w-3.5" />

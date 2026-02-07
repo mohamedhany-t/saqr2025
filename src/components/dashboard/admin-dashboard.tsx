@@ -3,7 +3,7 @@
 import React from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing, ChevronLeft, ChevronRight, BarChart, MessageSquarePlus, Wallet, Plus, Copy, Link as LinkIcon, Sparkles, Merge, GitCompareArrows } from "lucide-react";
+import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing, ChevronLeft, ChevronRight, BarChart, MessageSquarePlus, Wallet, Plus, Copy, Link as LinkIcon, Sparkles, Merge, GitCompareArrows, RefreshCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
@@ -343,6 +343,20 @@ const MobileShipmentsView = ({
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
+                    <Button variant="outline" size="sm" className="text-orange-600" onClick={() => handleMobileBulkUpdate({ 
+                        status: 'Pending', 
+                        assignedCourierId: '', 
+                        reason: 'إعادة تعيين الشحنة', 
+                        isWarehouseReturn: false, 
+                        isReturningToCompany: false, 
+                        isReturnedToCompany: false, 
+                        retryAttempt: false,
+                        requestedAmount: 0,
+                        amountChangeReason: ""
+                    })}>
+                        <RefreshCcw className="me-2 h-4 w-4" />
+                        <span>إعادة تعيين</span>
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ retryAttempt: true })}>
                         <BellRing className="me-2 h-4 w-4" />
                         <span>إعادة محاولة</span>
