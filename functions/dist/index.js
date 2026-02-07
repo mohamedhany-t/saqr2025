@@ -64,7 +64,6 @@ const db = admin.firestore();
 const corsHandler = (0, cors_1.default)({ origin: true });
 const updateShipmentStatusSchema = zod_1.z.object({
     shipmentId: zod_1.z.string(),
-    // All other fields are optional because the logic will decide what to do
     status: zod_1.z.string().optional(),
     reason: zod_1.z.string().optional(),
     collectedAmount: zod_1.z.coerce.number().optional(),
@@ -90,12 +89,11 @@ const updateShipmentStatusSchema = zod_1.z.object({
     isUrgent: zod_1.z.boolean().optional(),
     isExchange: zod_1.z.boolean().optional(),
     shipmentCode: zod_1.z.string().optional(),
-    createdAt: zod_1.z.any().optional(), // Allow passing createdAt for new shipments
+    createdAt: zod_1.z.any().optional(),
     isPriceChangeDecision: zod_1.z.boolean().optional(),
 });
-// Increase timeout for potentially long-running functions
 const runtimeOpts = {
-    timeoutSeconds: 540, // 9 minutes
+    timeoutSeconds: 540,
     memory: '256MB',
 };
 exports.handleShipmentUpdate = functions.runWith(runtimeOpts).https.onRequest((req, res) => {
@@ -164,6 +162,46 @@ exports.handleShipmentUpdate = functions.runWith(runtimeOpts).https.onRequest((r
                     throw new functions.https.HttpsError("permission-denied", "You do not have permission to perform this action.");
                 }
                 let finalUpdateData = Object.assign({}, updatePayload);
+                // --- TRACKING DATES LOGIC ---
+                // 1. Assignment Date: Set if assignedCourierId is new or changed
+                if (updatePayload.assignedCourierId !== undefined) {
+                    const newCourierId = updatePayload.assignedCourierId;
+                    const oldCourierId = oldData.assignedCourierId || null;
+                    if (newCourierId !== oldCourierId) {
+                        if (newCourierId) {
+                            finalUpdateData.deliveredToCourierAt = admin.firestore.FieldValue.serverTimestamp();
+                        }
+                        else {
+                            finalUpdateData.deliveredToCourierAt = admin.firestore.FieldValue.delete();
+                        }
+                    }
+                }
+                // 2. Courier Archival Date: Set if isArchivedForCourier is toggled to true
+                if (updatePayload.isArchivedForCourier !== undefined) {
+                    const newArchived = updatePayload.isArchivedForCourier;
+                    const oldArchived = oldData.isArchivedForCourier || false;
+                    if (newArchived !== oldArchived) {
+                        if (newArchived === true) {
+                            finalUpdateData.courierArchivedAt = admin.firestore.FieldValue.serverTimestamp();
+                        }
+                        else {
+                            finalUpdateData.courierArchivedAt = admin.firestore.FieldValue.delete();
+                        }
+                    }
+                }
+                // 3. Company Archival Date: Set if isArchivedForCompany is toggled to true
+                if (updatePayload.isArchivedForCompany !== undefined) {
+                    const newArchived = updatePayload.isArchivedForCompany;
+                    const oldArchived = oldData.isArchivedForCompany || false;
+                    if (newArchived !== oldArchived) {
+                        if (newArchived === true) {
+                            finalUpdateData.companyArchivedAt = admin.firestore.FieldValue.serverTimestamp();
+                        }
+                        else {
+                            finalUpdateData.companyArchivedAt = admin.firestore.FieldValue.delete();
+                        }
+                    }
+                }
                 if (finalUpdateData.isPriceChangeDecision) {
                     finalUpdateData.requestedAmount = admin.firestore.FieldValue.delete();
                     finalUpdateData.amountChangeReason = admin.firestore.FieldValue.delete();
@@ -215,15 +253,13 @@ exports.handleShipmentUpdate = functions.runWith(runtimeOpts).https.onRequest((r
                         }
                     }
                 }
-                // --- DETAILED AUDIT LOG ---
+                // Audit Log
                 const newData = Object.assign(Object.assign({}, oldData), finalUpdateData);
                 const changes = [];
-                // Combine keys from old and new data to catch all changes
                 const allKeys = new Set([...Object.keys(oldData), ...Object.keys(finalUpdateData)]);
                 for (const key of allKeys) {
                     const oldValue = oldData[key];
                     const newValue = newData[key];
-                    // Simple comparison, ignoring objects like Timestamps for now
                     if (JSON.stringify(oldValue) !== JSON.stringify(newValue) && typeof oldValue !== 'object' && typeof newValue !== 'object') {
                         changes.push({ field: key, oldValue: oldValue !== null && oldValue !== void 0 ? oldValue : null, newValue: newValue !== null && newValue !== void 0 ? newValue : null });
                     }
@@ -280,7 +316,6 @@ exports.executeCompanySettlement = functions.runWith(runtimeOpts).https.onCall(a
     const db = admin.firestore();
     const batch = db.batch();
     try {
-        // Step 1: Create settlement payment record and archive it immediately.
         const paymentRef = db.collection('company_payments').doc();
         batch.set(paymentRef, {
             companyId,
@@ -288,14 +323,15 @@ exports.executeCompanySettlement = functions.runWith(runtimeOpts).https.onCall(a
             paymentDate: admin.firestore.FieldValue.serverTimestamp(),
             recordedById: adminId,
             notes: settlementNote || 'تسوية عبر شيت',
-            isArchived: true, // Archive this settlement payment
+            isArchived: true,
         });
-        // Step 2: Mark selected shipments as archived for the company.
         for (const shipmentId of shipmentIdsToArchive) {
             const shipmentRef = db.collection('shipments').doc(shipmentId);
-            batch.update(shipmentRef, { isArchivedForCompany: true });
+            batch.update(shipmentRef, {
+                isArchivedForCompany: true,
+                companyArchivedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
         }
-        // Commit all batched writes
         await batch.commit();
         return { success: true, message: `تمت تسوية حساب الشركة وأرشفة ${shipmentIdsToArchive.length} شحنة بنجاح.` };
     }
