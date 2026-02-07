@@ -51,7 +51,6 @@ export function ReportsPage({
     const [selectedCompanyForReturnsId, setSelectedCompanyForReturnsId] = useState<string | null>(null);
     
     // States for Supply Sheet
-    const [companyReportStatuses, setCompanyReportStatuses] = useState<string[]>([]);
     const [supplySheetDateRange, setSupplySheetDateRange] = useState<DateRange | undefined>();
 
     // States for Update Sheet
@@ -73,11 +72,6 @@ export function ReportsPage({
     const { data: statuses, isLoading: statusesLoading } = useCollection<ShipmentStatusConfig>(statusesQuery);
     
     const isLoading = isPropsLoading || statusesLoading;
-
-    useEffect(() => {
-        // This effect can be used if we need to react to status changes,
-        // for now, we'll just use the `statuses` data directly in calculations.
-    }, [statuses]);
 
     const enabledStatuses = React.useMemo(() => statuses?.filter(s => s.enabled) || [], [statuses]);
 
@@ -163,8 +157,8 @@ export function ReportsPage({
             const shipmentDate = getSafeDate(s.createdAt);
             if (!shipmentDate) return false;
             
-            const from = dateRange.from ? new Date(dateRange.from.setHours(0,0,0,0)) : null;
-            const to = dateRange.to ? new Date(dateRange.to.setHours(23,59,59,999)) : from; // If no 'to', use 'from' as end of day
+            const from = dateRange.from ? new Date(new Date(dateRange.from).setHours(0,0,0,0)) : null;
+            const to = dateRange.to ? new Date(new Date(dateRange.to).setHours(23,59,59,999)) : from;
 
             if (from && shipmentDate < from) return false;
             if (to && shipmentDate > to) return false;
@@ -261,7 +255,7 @@ export function ReportsPage({
 
     const handleExportCompanyReport = (type: 'supply' | 'update') => {
         const companyId = type === 'supply' ? selectedCompanyId : selectedCompanyForUpdateId;
-        const statusFilters = type === 'supply' ? companyReportStatuses : companyUpdateStatuses;
+        const activeDateRange = type === 'supply' ? supplySheetDateRange : updateSheetDateRange;
         const reportType = type === 'supply' ? 'company_shipments' : 'company_update';
         const fileNamePrefix = type === 'supply' ? 'شيت توريد' : 'شيت ابديت';
 
@@ -271,24 +265,25 @@ export function ReportsPage({
         
         let companyShipments = shipments.filter(s => s.companyId === companyId && !s.isArchivedForCompany);
         
-        // فلترة الشحنات المنتهية والمالية فقط لشيت التوريد
         if (type === 'supply') {
+            // شيت التوريد يقتصر فقط على الحالات المالية النهائية
             const financialStatusKeys = ['Delivered', 'Partially Delivered', 'Refused (Paid)'];
             companyShipments = companyShipments.filter(s => financialStatusKeys.includes(s.status));
         }
 
-        companyShipments = filterByDateRange(companyShipments, dateRange);
+        companyShipments = filterByDateRange(companyShipments, activeDateRange);
         
-        const filteredData = filterShipmentsByStatus(companyShipments, statusFilters);
+        // إذا كان شيت أبديت، نستخدم الفلاتر المختارة، وإذا كان توريد نستخدم البيانات المالية المفلترة أعلاه
+        const filteredData = type === 'supply' ? companyShipments : filterShipmentsByStatus(companyShipments, companyUpdateStatuses);
         
         const dataToExport = filteredData.map(shipment => getEnhancedShipmentData(shipment, 'company'));
 
-        const dateStringForFilename = formatDateForFilename(dateRange);
+        const dateStringForFilename = formatDateForFilename(activeDateRange);
         const fileName = `${fileNamePrefix} - ${company.name} - ${dateStringForFilename}`;
         
         const reportHeader = {
             title: `${fileNamePrefix} شركة: ${company.name}`,
-            date: `تاريخ التقرير: ${formatDateRangeForDisplay(dateRange)}`
+            date: `تاريخ التقرير: ${formatDateRangeForDisplay(activeDateRange)}`
         };
 
         handleExport(dataToExport, reportType, fileName, reportHeader);
@@ -369,13 +364,13 @@ export function ReportsPage({
              <div className="mb-8">
                 <h2 className="text-2xl font-bold mb-2">شيت توريد الشركات</h2>
                 <p className="text-muted-foreground">
-                    اختر شركة و حالة الشحنات لاستخراج شيت توريد مفصل.
+                    اختر شركة وتاريخاً لتصدير شيت توريد للشحنات النهائية والمالية فقط.
                 </p>
                  <div className="mt-4">
                      <Card>
                         <CardContent className="pt-6">
-                             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                                 <div className="md:col-span-2">
+                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                 <div>
                                      <label className="text-sm font-medium mb-2 block">اختر الشركة</label>
                                      <Select dir="rtl" onValueChange={setSelectedCompanyId} value={selectedCompanyId || ''}>
                                          <SelectTrigger>
@@ -425,41 +420,9 @@ export function ReportsPage({
                                         </PopoverContent>
                                       </Popover>
                                  </div>
-                                 <div>
-                                     <label className="text-sm font-medium mb-2 block">فلترة حسب الحالة</label>
-                                     <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="outline" className="w-full justify-between">
-                                                <span>
-                                                    {companyReportStatuses.length === 0
-                                                        ? "اختر الحالة..."
-                                                        : companyReportStatuses.length === 1
-                                                        ? enabledStatuses.find(s => s.id === companyReportStatuses[0])?.label
-                                                        : `الحالة (${companyReportStatuses.length})`}
-                                                </span>
-                                                <ChevronDown className="h-4 w-4 opacity-50" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent className="w-56">
-                                            {enabledStatuses.map(status => (
-                                                <DropdownMenuCheckboxItem
-                                                    key={status.id}
-                                                    checked={companyReportStatuses.includes(status.id)}
-                                                    onCheckedChange={(checked) => {
-                                                        setCompanyReportStatuses(prev => 
-                                                            checked ? [...prev, status.id] : prev.filter(s => s !== status.id)
-                                                        );
-                                                    }}
-                                                >
-                                                    {status.label}
-                                                </DropdownMenuCheckboxItem>
-                                            ))}
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                 </div>
                                  <Button onClick={() => handleExportCompanyReport('supply')} disabled={!selectedCompanyId}>
                                      <FileUp className="me-2 h-4 w-4" />
-                                     إنشاء شيت توريد
+                                     إنشاء شيت توريد مالي
                                  </Button>
                              </div>
                         </CardContent>
