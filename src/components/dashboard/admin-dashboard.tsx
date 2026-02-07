@@ -54,15 +54,12 @@ import type { DateRange } from "react-day-picker";
 
 const getSafeDate = (date: any): Date | null => {
     if (!date) return null;
-    // Handle Firestore Timestamp
     if (typeof date.toDate === 'function') {
       return date.toDate();
     }
-    // Handle JS Date object
     if (date instanceof Date) {
       return date;
     }
-    // Handle ISO string or other date string formats
     const parsedDate = new Date(date);
     if (!isNaN(parsedDate.getTime())) {
       return parsedDate;
@@ -177,7 +174,6 @@ const MobileShipmentsView = ({
     };
     
     const handleGenericBulkUpdate = (selectedRows: Shipment[], update: Partial<Shipment>) => {
-        // This is a placeholder or needs to be passed down if specific logic is needed
         onBulkUpdate(selectedRows, update);
     };
 
@@ -200,9 +196,9 @@ const MobileShipmentsView = ({
 
     const handleSelectAll = () => {
         const newSelection: Record<string, boolean> = {};
-        if (areAllSelected) { // If all are selected, unselect all
+        if (areAllSelected) {
             setMobileRowSelection({});
-        } else { // Otherwise, select all in current list
+        } else {
             currentList.forEach(s => {
                 newSelection[s.id] = true;
             });
@@ -211,7 +207,6 @@ const MobileShipmentsView = ({
     };
 
     React.useEffect(() => {
-        // Reset selection when tab changes
         setMobileRowSelection({});
     }, [activeTab]);
 
@@ -568,10 +563,8 @@ const PrintCenterPage = ({
         toast({ title: 'لم يتم تحديد أي شحنات', variant: 'destructive' });
         return;
       }
-      // Step 1: Update Firestore
       await onGenericBulkUpdate(selectedRows, { isLabelPrinted: true });
   
-      // Step 2: Open print window
       const ids = selectedRows.map(row => row.id);
       const printUrl = `/print/bulk?ids=${ids.join(',')}`;
       window.open(printUrl, '_blank', 'width=800,height=600');
@@ -667,13 +660,11 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
 
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
 
-  // State for search terms in management tabs
   const [managementSearchTerm, setManagementSearchTerm] = React.useState('');
   
   const [processingShipments, setProcessingShipments] = React.useState<Set<string>>(new Set());
 
 
-  // We use useUser here to get the auth user (with .uid) for the import logic.
   const { user: authUser } = useUser();
 
   const allShipmentsQuery = useMemoFirebase(() => {
@@ -699,7 +690,6 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
     return chats.reduce((sum, chat) => sum + (chat.unreadCounts?.[user.id] || 0), 0);
   }, [chats, user?.id]);
 
-  // Effect to fetch shipment data if 'edit' param is in the URL
   React.useEffect(() => {
     const editShipmentId = searchParams.get('edit');
     if (editShipmentId && firestore) {
@@ -710,7 +700,6 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
           setEditingShipment({ id: shipmentSnap.id, ...shipmentSnap.data() } as Shipment);
           setShipmentSheetOpen(true);
         } else {
-          console.warn("Shipment to edit not found");
            const newParams = new URLSearchParams(searchParams.toString());
            newParams.delete('edit');
            router.replace(`${pathname}?${newParams.toString()}`);
@@ -724,7 +713,6 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
     setShipmentSheetOpen(open);
     if (!open) {
       setEditingShipment(undefined);
-      // Clean up the URL when the sheet is closed
       const newParams = new URLSearchParams(searchParams.toString());
       if (newParams.has('edit')) {
         newParams.delete('edit');
@@ -859,13 +847,11 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
             const shipmentsToUpdate: { existing: Shipment, new: Partial<Shipment> }[] = [];
 
             for (const row of json) {
-                // --- Data Extraction ---
                 const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
                 const senderNameFromSheet = row['الراسل']?.toString().trim();
                 let shipmentCodeValue = String(row['كود الشحنة'] || '').trim();
                 const orderNumberValue = row['رقم الطلب']?.toString().trim();
                 
-                // --- Validation ---
                 if (!shipmentCodeValue) {
                     result.rejected++;
                     result.errors.push({ ...row, 'سبب الرفض': 'كود الشحنة مفقود' });
@@ -890,12 +876,10 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
                     continue;
                 }
 
-                // --- Find Existing Shipment ---
                 const existingDocsQuery = query(collection(firestore, 'shipments'), where("shipmentCode", "==", shipmentCodeValue));
                 const snapshot = await getDocs(existingDocsQuery);
                 const existingDoc = snapshot.empty ? null : snapshot.docs[0];
 
-                // --- Prepare Data ---
                 const recipientName = String(row['المرسل اليه'] || 'بدون اسم').trim();
                 let recipientPhone = String(row['التليفون']?.toString() || '').trim();
                 if (recipientPhone.length === 10 && recipientPhone.startsWith("1")) {
@@ -1021,7 +1005,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
              }
         })
         .finally(() => {
-            setShipmentToDelete(null); // Assuming single deletion state, might need adjustment for bulk
+            setShipmentToDelete(null);
         });
   };
 
@@ -1037,7 +1021,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
     }
     setIsUserSheetOpen(false);
 
-    if (userId) { // --- UPDATE LOGIC ---
+    if (userId) {
         toast({ title: "جاري تحديث المستخدم...", description: "قد تستغرق هذه العملية بضع لحظات." });
         
         if (data.password) {
@@ -1078,7 +1062,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
                 }
             });
 
-    } else { // --- CREATE LOGIC ---
+    } else {
         toast({ title: "جاري إنشاء المستخدم...", description: "قد تستغرق هذه العملية بضع لحظات." });
 
         const authResult = await createAuthUser({
@@ -1157,7 +1141,6 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
     if (!firestore || !userToDelete) return;
     toast({ title: `جاري حذف ${userToDelete.name}...`});
 
-    // 1. Delete from Auth
     const authResult = await deleteAuthUser({ uid: userToDelete.id });
     if (!authResult.success) {
       toast({ variant: "destructive", title: "فشل حذف المستخدم من نظام المصادقة", description: `حدث خطأ: ${authResult.error}` });
@@ -1165,7 +1148,6 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
       return;
     }
 
-    // 2. Delete from Firestore (users, roles_*, and couriers/companies)
     const batch = writeBatch(firestore);
     
     const userDocRef = doc(firestore, 'users', userToDelete.id);
@@ -1202,7 +1184,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
   const handleSaveCourierPayment = (paymentData: { amount: number; notes?: string }, paymentId?: string) => {
     if (!firestore || !payingCourier || !user) return;
     
-    if (paymentId) { // Update existing payment
+    if (paymentId) {
       const paymentDocRef = doc(firestore, 'courier_payments', paymentId);
       const dataToUpdate = { ...paymentData, updatedAt: serverTimestamp() };
 
@@ -1224,7 +1206,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
           }
         });
 
-    } else { // Create new payment
+    } else {
       const paymentsCollection = collection(firestore, 'courier_payments');
       const paymentDocRef = doc(paymentsCollection);
       const newPayment: CourierPayment = {
@@ -1262,7 +1244,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
     const handleSaveCompanyPayment = (paymentData: { amount: number; notes?: string }, paymentId?: string) => {
     if (!firestore || !payingCompany || !user) return;
     
-    if (paymentId) { // Update existing payment
+    if (paymentId) {
       const paymentDocRef = doc(firestore, 'company_payments', paymentId);
       const dataToUpdate = { ...paymentData, updatedAt: serverTimestamp() };
       updateDoc(paymentDocRef, dataToUpdate)
@@ -1273,7 +1255,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
           }
         });
 
-    } else { // Create new payment
+    } else {
       const paymentsCollection = collection(firestore, 'company_payments');
       const paymentDocRef = doc(paymentsCollection);
       const newPayment: CompanyPayment = {
@@ -1343,7 +1325,6 @@ const handleArchiveCourierData = async () => {
     const netDue = courierDueData.netDue;
     const batch = writeBatch(firestore);
 
-    // Step 1: Handle settlement payment if needed
     if (netDue > 0) {
         const paymentRef = doc(collection(firestore, 'courier_payments'));
         const newPayment: Partial<CourierPayment> = {
@@ -1353,12 +1334,11 @@ const handleArchiveCourierData = async () => {
             paymentDate: serverTimestamp(),
             recordedById: user.id,
             notes: "تسوية وحفظ تلقائي للحساب",
-            isArchived: true, // Archive settlement payment immediately
+            isArchived: true,
         };
         batch.set(paymentRef, newPayment);
     }
     
-    // Step 2: Mark currently active payments for this courier as archived.
     const activePayments = courierPayments?.filter(p => p.courierId === courierToArchive.id && !p.isArchived) || [];
     activePayments.forEach(payment => {
         const paymentRef = doc(firestore, 'courier_payments', payment.id);
@@ -1366,7 +1346,6 @@ const handleArchiveCourierData = async () => {
     });
 
 
-    // Step 3: Archive finished shipments for this courier
     const finishedStatuses = statuses.filter(s => s.affectsCourierBalance).map(s => s.id);
     const courierShipmentsToArchive = allShipmentsForStats?.filter(s => s.assignedCourierId === courierToArchive.id && finishedStatuses.includes(s.status) && !s.isArchivedForCourier) || [];
     
@@ -1374,7 +1353,7 @@ const handleArchiveCourierData = async () => {
         const shipmentRef = doc(firestore, 'shipments', shipment.id);
         batch.update(shipmentRef, { 
             isArchivedForCourier: true, 
-            courierArchivedAt: serverTimestamp(), // ADDED: Record archival timestamp
+            courierArchivedAt: serverTimestamp(),
             updatedAt: serverTimestamp() 
         });
     });
@@ -1404,7 +1383,6 @@ const handleArchiveCompanyData = async () => {
     const netDue = companyDueData.netDue;
     const batch = writeBatch(firestore);
   
-    // Step 1: Create a settlement payment if there's a positive balance (owed TO the company)
     if (netDue > 0) {
         const paymentRef = doc(collection(firestore, 'company_payments'));
         const newPayment: Partial<CompanyPayment> = {
@@ -1414,19 +1392,17 @@ const handleArchiveCompanyData = async () => {
             paymentDate: serverTimestamp(),
             recordedById: user.id,
             notes: "تسوية وحفظ تلقائي للحساب",
-            isArchived: true, // Archive settlement payment immediately
+            isArchived: true,
         };
         batch.set(paymentRef, newPayment);
     }
   
-    // Step 2: Mark all currently active payments for this company as archived.
     const activePayments = companyPayments?.filter(p => p.companyId === companyToArchive.id && !p.isArchived) || [];
     activePayments.forEach(payment => {
         const paymentRef = doc(firestore, 'company_payments', payment.id);
         batch.update(paymentRef, { isArchived: true });
     });
   
-    // Step 3: Archive finished shipments for this company
     const finishedStatuses = statuses.filter(s => s.affectsCompanyBalance).map(s => s.id);
     const companyShipmentsToArchive = allShipmentsForStats?.filter(s => s.companyId === companyToArchive.id && finishedStatuses.includes(s.status) && !s.isArchivedForCompany) || [];
     
@@ -1434,7 +1410,7 @@ const handleArchiveCompanyData = async () => {
         const shipmentRef = doc(firestore, 'shipments', shipment.id);
         batch.update(shipmentRef, { 
             isArchivedForCompany: true, 
-            companyArchivedAt: serverTimestamp(), // ADDED: Record archival timestamp
+            companyArchivedAt: serverTimestamp(),
             updatedAt: serverTimestamp() 
         });
     });
@@ -1462,12 +1438,10 @@ const handleArchiveCompanyData = async () => {
   
     let baseShipments = activeShipments;
   
-    // Apply main search term if it exists
     if (searchTerm) {
         return filterShipmentsBySearch(baseShipments, searchTerm);
     }
   
-    // Apply column filters if search term is empty
     if (columnFilters.length > 0) {
       return baseShipments.filter((shipment) => {
         const dateRangeFilter = columnFilters.find(f => f.id === 'createdAt');
@@ -1590,7 +1564,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
 
         return {
             ...company,
-            totalShipments: companyShipments.length,
+            totalShipments: activeShipments.length,
             totalRevenue,
             totalCompanyCommission,
             totalPaidToCompany,
@@ -1623,7 +1597,6 @@ const returnedToCompanyShipments = React.useMemo(() => {
   React.useEffect(() => {
     if (usersLoading || allShipmentsLoading || companiesLoading) return;
   
-    // Check for high courier dues
     courierDues.forEach(courier => {
       const notificationId = `due_${courier.id}`;
       if (courier.netDue > 5000 && !shownNotificationsRef.current.has(notificationId)) {
@@ -1636,21 +1609,19 @@ const returnedToCompanyShipments = React.useMemo(() => {
       }
     });
 
-    // Check for overloaded couriers
     courierUsers.forEach(courier => {
         const activeShipmentCount = allShipmentsForStats?.filter(s => s.assignedCourierId === courier.id).length || 0;
         const notificationId = `overload_${courier.id}`;
         if (activeShipmentCount > 20 && !shownNotificationsRef.current.has(notificationId)) {
             toast({
                 title: "تنبيه: ضغط عمل على مندوب",
-                description: `لدى ${courier.name} حاليًا ${activeShipmentCount} شحنة نشطة.`,
+                description: `لدى ${courier.name} حالياً ${activeShipmentCount} شحنة نشطة.`,
             });
             shownNotificationsRef.current.add(notificationId);
         }
     });
 
-    // Check for high return rates per company for the day
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const today = new Date().toISOString().split('T')[0];
     companies?.forEach(company => {
       const notificationId = `returns_${company.id}_${today}`;
       const todaysReturns = allShipmentsForStats?.filter(s => {
@@ -1732,13 +1703,11 @@ const returnedToCompanyShipments = React.useMemo(() => {
 
   const getShipmentsByStatus = (status: string | string[]) => {
     const statuses = Array.isArray(status) ? status : [status];
-    const list = filteredShipments.filter(s => statuses.includes(s.status));
-    return list;
+    return filteredShipments.filter(s => statuses.includes(s.status));
   }
   
   const listIsLoading = allShipmentsLoading || governoratesLoading || companiesLoading || usersLoading || statusesLoading || couriersDataLoading;
 
-  // Filtered data for management tabs
   const filteredCourierDues = React.useMemo(() => {
     if (!managementSearchTerm) return courierDues;
     return courierDues.filter(c => c.name?.toLowerCase().includes(managementSearchTerm.toLowerCase()));
@@ -1786,7 +1755,6 @@ const returnedToCompanyShipments = React.useMemo(() => {
             });
         }
     } catch (error) {
-        // Error toast is already handled in handleSaveShipment
     } finally {
         setProcessingShipments(prev => {
             const newSet = new Set(prev);
@@ -2064,7 +2032,7 @@ const generateShipmentCode = () => {
                 {problemCount === 0 && (
                 <div className="flex flex-col items-center justify-center text-center py-16 bg-muted/40 rounded-lg">
                     <CheckSquare className="h-16 w-16 text-green-500 mb-4" />
-                    <h3 className="text-2xl font-bold">لا توجد مشاكل حاليًا</h3>
+                    <h3 className="text-2xl font-bold">لا توجد مشاكل حالياً</h3>
                     <p className="text-muted-foreground mt-2">صندوق المشاكل فارغ. كل الأمور تسير على ما يرام!</p>
                 </div>
                 )}
@@ -2320,7 +2288,7 @@ const generateShipmentCode = () => {
                         </div>
                 </TabsContent>
                 <TabsContent value="account-statements">
-                    <p className="p-4 text-center text-muted-foreground">يتم تحميل كشوفات الحسابات...</p>
+                    <AccountStatementsPage />
                 </TabsContent>
                 <TabsContent value="user-management">
                     <div className="mt-8">
@@ -2471,7 +2439,7 @@ const generateShipmentCode = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>أرشفة وتسوية حساب {courierToArchive?.name}؟</AlertDialogTitle>
             <AlertDialogDescription>
-             سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ المستحق على المندوب حاليًا، ثم وضع علامة "مؤرشف" على جميع الشحنات المنتهية والدفعات الحالية للمندوب لإخفائها من القوائم النشطة.
+             سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ المستحق على المندوب حالياً، ثم وضع علامة "مؤرشف" على جميع الشحنات المنتهية والدفعات الحالية للمندوب لإخفائها من القوائم النشطة.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2566,7 +2534,7 @@ const generateShipmentCode = () => {
                 
                 await Promise.all(updatePromises);
                 toast({ title: "اكتملت عملية التحديث."});
-                setImportResult(null); // Close dialog after confirmation
+                setImportResult(null);
             }}
         />
       )}
