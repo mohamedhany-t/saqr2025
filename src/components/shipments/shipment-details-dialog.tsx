@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React from 'react';
@@ -7,8 +6,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import type { Shipment, Company, User, Governorate } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Building, User as UserIcon, Truck, MapPin, Phone, Hash, Barcode, Calendar, DollarSign, Package } from 'lucide-react';
+import { Building, User as UserIcon, Truck, MapPin, Phone, Hash, Barcode, Calendar, DollarSign, Package, Archive, Clock } from 'lucide-react';
 import { ShipmentHistoryTimeline } from './shipment-history-timeline';
+import { formatToCairoTime } from '@/lib/utils';
 
 interface ShipmentDetailsDialogProps {
   open: boolean;
@@ -60,10 +60,19 @@ export function ShipmentDetailsDialog({
                     <DetailRow icon={Package} label="الراسل" value={shipment.senderName || company?.name} />
                     <DetailRow icon={Building} label="الشركة" value={company?.name} />
                     <DetailRow icon={Hash} label="رقم الطلب" value={shipment.orderNumber} valueClass="font-mono" />
-                    <DetailRow icon={Barcode} label="رقم التتبع" value={shipment.trackingNumber} valueClass="font-mono" />
+                    <DetailRow icon={Barcode} label="كود الشحنة" value={shipment.shipmentCode} valueClass="font-mono" />
                     <DetailRow icon={DollarSign} label="المبلغ الإجمالي" value={shipment.totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })} />
-                    <DetailRow icon={Calendar} label="تاريخ الإنشاء" value={shipment.createdAt?.toDate?.().toLocaleDateString('ar-EG')} />
+                    <DetailRow icon={Calendar} label="تاريخ الإنشاء" value={formatToCairoTime(shipment.createdAt)} />
                  </div>
+                 
+                 <Separator />
+                 <h3 className="font-bold text-sm text-muted-foreground border-b pb-1">تواريخ التتبع الإداري</h3>
+                 <div className="grid grid-cols-2 gap-4">
+                    <DetailRow icon={Clock} label="تسليم المندوب" value={formatToCairoTime(shipment.deliveredToCourierAt)} />
+                    <DetailRow icon={Archive} label="أرشفة المندوب" value={formatToCairoTime(shipment.courierArchivedAt)} />
+                    <DetailRow icon={Archive} label="أرشفة الشركة" value={formatToCairoTime(shipment.companyArchivedAt)} />
+                 </div>
+
                  <Separator />
                  <h3 className="font-bold text-lg text-primary border-b pb-2">بيانات المستلم</h3>
                   <div className="grid grid-cols-2 gap-4">

@@ -127,7 +127,10 @@ const ArchivePage = () => {
         const columns = [
             { accessorKey: "orderNumber", header: "رقم الطلب" },
             { accessorKey: "shipmentCode", header: "رقم الشحنة" },
-            { accessorKey: "createdAt", header: "التاريخ" },
+            { accessorKey: "createdAt", header: "تاريخ الإنشاء" },
+            { accessorKey: "deliveredToCourierAt", header: "تاريخ تسليم المندوب" },
+            { accessorKey: "courierArchivedAt", header: "تاريخ أرشفة المندوب" },
+            { accessorKey: "companyArchivedAt", header: "تاريخ أرشفة الشركة" },
             { accessorKey: "companyId", header: "الشركة" },
             { accessorKey: "assignedCourierId", header: "المندوب" },
             { accessorKey: "recipientName", header: "المرسل اليه" },
@@ -146,29 +149,25 @@ const ArchivePage = () => {
         if (!firestore) return;
         const shipmentRef = doc(firestore, 'shipments', shipment.id);
         
-        let fieldToUpdate: { [key: string]: boolean } = {};
+        let fieldToUpdate: { [key: string]: any } = {};
         
         if (selectedId && entityType) {
-            // If a specific entity type is selected in the filter, only unarchive for that entity.
             if (entityType === 'company') {
                 fieldToUpdate['isArchivedForCompany'] = false;
+                fieldToUpdate['companyArchivedAt'] = null;
             } else if (entityType === 'courier') {
                 fieldToUpdate['isArchivedForCourier'] = false;
+                fieldToUpdate['courierArchivedAt'] = null;
             }
         } else {
-            // If no specific entity is selected (showing 'all'), unarchive for both as a fallback.
-            // This case might need refinement based on desired behavior for the 'All' view.
             fieldToUpdate = {
                 isArchivedForCompany: false,
                 isArchivedForCourier: false,
+                companyArchivedAt: null,
+                courierArchivedAt: null,
             };
         }
         
-        if (Object.keys(fieldToUpdate).length === 0) {
-            toast({ title: 'خطأ', description: 'لا يمكن تحديد طرف لإلغاء الأرشفة.', variant: 'destructive' });
-            return;
-        }
-
         try {
             await writeBatch(firestore).update(shipmentRef, fieldToUpdate).commit();
             toast({ title: 'تم إلغاء الأرشفة بنجاح' });
@@ -184,7 +183,7 @@ const ArchivePage = () => {
             <main className="flex-1 p-4 md:p-8">
                 <h1 className="text-3xl font-bold font-headline mb-2">الأرشيف</h1>
                 <p className="text-muted-foreground mb-6">
-                    استعرض الشحنات المؤرشفة للشركات والمناديب مع إمكانية التصدير.
+                    استعرض الشحنات المؤرشفة للشركات والمناديب مع تفاصيل تواريخ الأرشفة.
                 </p>
 
                 <Card>
@@ -245,8 +244,7 @@ const ArchivePage = () => {
                                 <TableHeader className="sticky top-0 bg-background z-10">
                                     <TableRow>
                                         <TableHead>كود الشحنة</TableHead>
-                                        <TableHead>العميل</TableHead>
-                                        <TableHead>المبلغ الإجمالي</TableHead>
+                                        <TableHead>تاريخ الأرشفة</TableHead>
                                         <TableHead>المبلغ المدفوع</TableHead>
                                         <TableHead>المندوب</TableHead>
                                         <TableHead>الشركة</TableHead>
@@ -255,25 +253,27 @@ const ArchivePage = () => {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {filteredArchivedShipments.map(shipment => (
-                                        <TableRow key={shipment.id}>
-                                            <TableCell className="font-mono">{shipment.shipmentCode}</TableCell>
-                                            <TableCell>{shipment.recipientName}</TableCell>
-                                            <TableCell>{(shipment.totalAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                            <TableCell>{(shipment.paidAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                            <TableCell>{users?.find(u => u.id === shipment.assignedCourierId)?.name}</TableCell>
-                                            <TableCell>{companies?.find(c => c.id === shipment.companyId)?.name}</TableCell>
-                                            <TableCell>{statuses?.find(s => s.id === shipment.status)?.label || shipment.status}</TableCell>
-                                            <TableCell className="flex gap-2">
-                                                <Button variant="ghost" size="icon" onClick={() => setDetailsShipment(shipment)}>
-                                                    <History className="h-4 w-4 text-blue-500" />
-                                                </Button>
-                                                <Button variant="ghost" size="icon" onClick={() => handleUnarchive(shipment)} disabled={!selectedId}>
-                                                    <ArchiveRestore className="h-4 w-4 text-green-500" />
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
+                                    {filteredArchivedShipments.map(shipment => {
+                                        const archiveDate = entityType === 'courier' ? shipment.courierArchivedAt : shipment.companyArchivedAt;
+                                        return (
+                                            <TableRow key={shipment.id}>
+                                                <TableCell className="font-mono">{shipment.shipmentCode}</TableCell>
+                                                <TableCell className="text-xs">{formatToCairoTime(archiveDate)}</TableCell>
+                                                <TableCell>{(shipment.paidAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                                <TableCell>{users?.find(u => u.id === shipment.assignedCourierId)?.name}</TableCell>
+                                                <TableCell>{companies?.find(c => c.id === shipment.companyId)?.name}</TableCell>
+                                                <TableCell>{statuses?.find(s => s.id === shipment.status)?.label || shipment.status}</TableCell>
+                                                <TableCell className="flex gap-2">
+                                                    <Button variant="ghost" size="icon" onClick={() => setDetailsShipment(shipment)}>
+                                                        <History className="h-4 w-4 text-blue-500" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" onClick={() => handleUnarchive(shipment)} disabled={!selectedId}>
+                                                        <ArchiveRestore className="h-4 w-4 text-green-500" />
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
                                 </TableBody>
                             </Table>
                         </ScrollArea>

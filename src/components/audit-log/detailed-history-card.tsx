@@ -47,6 +47,9 @@ const fieldLabels: { [key: string]: string } = {
   requestedAmount: 'المبلغ المطلوب تعديله',
   amountChangeReason: 'سبب طلب تعديل السعر',
   isLabelPrinted: 'تم طباعة الملصق',
+  deliveredToCourierAt: 'تاريخ تسليم المندوب',
+  courierArchivedAt: 'تاريخ أرشفة المندوب',
+  companyArchivedAt: 'تاريخ أرشفة الشركة',
 };
 
 // Function to generate a human-readable title for the change
@@ -111,6 +114,10 @@ export function DetailedHistoryCard({
                 return companies.find(c => c.id === value)?.name || value;
             case 'assignedCourierId':
                 return couriers.find(u => u.id === value)?.name || 'غير معين';
+            case 'deliveredToCourierAt':
+            case 'courierArchivedAt':
+            case 'companyArchivedAt':
+                return formatToCairoTime(value);
             case 'isUrgent':
             case 'isExchange':
             case 'isCustomReturn':
