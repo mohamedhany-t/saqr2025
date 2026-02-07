@@ -1,5 +1,4 @@
 
-
 import type { User as AuthUser } from 'firebase/auth';
 
 export type Role = "admin" | "company" | "courier" | "customer-service";
@@ -40,11 +39,11 @@ export type ShipmentStatusConfig = {
   affectsCourierBalance: boolean; // Determines if it's counted in courier's financial calculations
   affectsCompanyBalance: boolean; // Determines if it's counted in company's financial calculations
   enabled: boolean; // Whether the status is active and can be used
-  visibleToCourier: boolean; // Whether the status is visible in the courier's dropdown
   requiresFullCollection: boolean; // e.g., for "Delivered"
   requiresPartialCollection: boolean; // e.g., for "Partially Delivered", "Refused (Paid)"
   isDeliveredStatus: boolean; // Is this status counted as "delivered" for reports?
   isReturnedStatus: boolean; // Is this status counted as "returned" for reports?
+  visibleToCourier?: boolean;
 };
   
 export type Shipment = {
@@ -73,6 +72,9 @@ export type Shipment = {
   updatedAt: any; // Can be Date or Firebase Timestamp
   isArchivedForCourier?: boolean; // For settling courier accounts
   isArchivedForCompany?: boolean; // For settling company accounts
+  courierArchivedAt?: any; // NEW: Timestamp when archived for courier
+  companyArchivedAt?: any; // NEW: Timestamp when archived for company
+  deliveredToCourierAt?: any; // NEW: Timestamp when assigned to courier
   isWarehouseReturn?: boolean; // To mark if the item is physically in the warehouse
   isReturningToCompany?: boolean; // To mark if the item is on its way back to the company
   isReturnedToCompany?: boolean; // To mark if the item has been returned to the original company

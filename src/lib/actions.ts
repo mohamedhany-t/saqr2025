@@ -262,7 +262,12 @@ export async function settleCompanyAccount(companyId: string, paymentAmount: num
             const shipmentDoc = await shipmentRef.get();
             if (shipmentDoc.exists) {
                 const archivedShipmentRef = db.collection('archived_company_shipments').doc(shipmentId);
-                currentBatch.set(archivedShipmentRef, { ...shipmentDoc.data(), archivedAt: FieldValue.serverTimestamp() });
+                // ADDED: Record company archival time
+                currentBatch.set(archivedShipmentRef, { 
+                    ...shipmentDoc.data(), 
+                    companyArchivedAt: FieldValue.serverTimestamp(),
+                    archivedAt: FieldValue.serverTimestamp() 
+                });
                 currentBatch = addWrite(currentBatch);
                 currentBatch.delete(shipmentRef);
                 currentBatch = addWrite(currentBatch);

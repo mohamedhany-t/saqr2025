@@ -1372,7 +1372,11 @@ const handleArchiveCourierData = async () => {
     
     courierShipmentsToArchive.forEach(shipment => {
         const shipmentRef = doc(firestore, 'shipments', shipment.id);
-        batch.update(shipmentRef, { isArchivedForCourier: true, updatedAt: serverTimestamp() });
+        batch.update(shipmentRef, { 
+            isArchivedForCourier: true, 
+            courierArchivedAt: serverTimestamp(), // ADDED: Record archival timestamp
+            updatedAt: serverTimestamp() 
+        });
     });
 
     try {
@@ -1428,7 +1432,11 @@ const handleArchiveCompanyData = async () => {
     
     companyShipmentsToArchive.forEach(shipment => {
         const shipmentRef = doc(firestore, 'shipments', shipment.id);
-        batch.update(shipmentRef, { isArchivedForCompany: true, updatedAt: serverTimestamp() });
+        batch.update(shipmentRef, { 
+            isArchivedForCompany: true, 
+            companyArchivedAt: serverTimestamp(), // ADDED: Record archival timestamp
+            updatedAt: serverTimestamp() 
+        });
     });
   
     try {
@@ -1582,7 +1590,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
 
         return {
             ...company,
-            totalShipments: activeShipments.length,
+            totalShipments: companyShipments.length,
             totalRevenue,
             totalCompanyCommission,
             totalPaidToCompany,

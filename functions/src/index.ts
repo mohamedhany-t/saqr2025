@@ -37,6 +37,9 @@ const updateShipmentStatusSchema = z.object({
     isReturningToCompany: z.boolean().optional(),
     isArchivedForCourier: z.boolean().optional(),
     isArchivedForCompany: z.boolean().optional(),
+    courierArchivedAt: z.any().optional(),
+    companyArchivedAt: z.any().optional(),
+    deliveredToCourierAt: z.any().optional(),
     senderName: z.string().optional(),
     isCustomReturn: z.boolean().optional(),
     retryAttempt: z.boolean().optional(),
@@ -127,6 +130,11 @@ export const handleShipmentUpdate = functions.runWith(runtimeOpts).https.onReque
                 }
                 
                 let finalUpdateData: { [key: string]: any } = { ...updatePayload };
+
+                // Logic: Set deliveredToCourierAt if courier is assigned or changed
+                if (updatePayload.assignedCourierId && updatePayload.assignedCourierId !== oldData.assignedCourierId) {
+                    finalUpdateData.deliveredToCourierAt = admin.firestore.FieldValue.serverTimestamp();
+                }
 
                 if (finalUpdateData.isPriceChangeDecision) {
                     finalUpdateData.requestedAmount = admin.firestore.FieldValue.delete();
@@ -274,7 +282,10 @@ export const executeCompanySettlement = functions.runWith(runtimeOpts).https.onC
         // Step 2: Mark selected shipments as archived for the company.
         for (const shipmentId of shipmentIdsToArchive) {
             const shipmentRef = db.collection('shipments').doc(shipmentId);
-            batch.update(shipmentRef, { isArchivedForCompany: true });
+            batch.update(shipmentRef, { 
+                isArchivedForCompany: true, 
+                companyArchivedAt: admin.firestore.FieldValue.serverTimestamp() 
+            });
         }
 
         // Commit all batched writes
@@ -287,4 +298,3 @@ export const executeCompanySettlement = functions.runWith(runtimeOpts).https.onC
         throw new functions.https.HttpsError('internal', 'Failed to execute settlement.', error.message);
     }
 });
-    

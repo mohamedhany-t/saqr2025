@@ -1,5 +1,4 @@
 
-
 export type Role = "admin" | "company" | "courier" | "customer-service";
 
 export type User = {
@@ -54,6 +53,9 @@ export type Shipment = {
   updatedAt: any; 
   isArchivedForCourier?: boolean; 
   isArchivedForCompany?: boolean; 
+  courierArchivedAt?: any;
+  companyArchivedAt?: any;
+  deliveredToCourierAt?: any;
   isWarehouseReturn?: boolean; 
   isReturnedToCompany?: boolean; 
   isExchange?: boolean; 
