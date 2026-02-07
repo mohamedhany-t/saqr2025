@@ -1519,11 +1519,11 @@ const returnedToCompanyShipments = React.useMemo(() => {
     if (!users || !allShipmentsForStats || !courierPayments || !statuses) return [];
 
     return courierUsers.map(courier => {
-        const activeShipments = allShipmentsForStats?.filter(s => s.assignedCourierId === courier.id && !s.isArchivedForCourier) || [];
+        const activeShipmentsForCourier = allShipmentsForStats?.filter(s => s.assignedCourierId === courier.id && !s.isArchivedForCourier) || [];
         const activePayments = courierPayments?.filter(p => p.courierId === courier.id && !p.isArchived) || [];
         
-        const totalCollected = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
-        const totalCommission = activeShipments.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
+        const totalCollected = activeShipmentsForCourier.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
+        const totalCommission = activeShipmentsForCourier.reduce((acc, s) => acc + (s.courierCommission || 0), 0);
         const totalPaidByCourier = activePayments.reduce((acc, p) => acc + p.amount, 0);
 
         const netDue = (totalCollected - totalCommission) - totalPaidByCourier;
@@ -1535,9 +1535,9 @@ const returnedToCompanyShipments = React.useMemo(() => {
         
         return {
             ...courier,
-            totalShipments: activeShipments.length,
-            deliveredCount: activeShipments.filter(s => deliveredStatuses.includes(s.status)).length,
-            returnedCount: activeShipments.filter(s => returnedStatusesForCalc.includes(s.status)).length,
+            totalShipments: activeShipmentsForCourier.length,
+            deliveredCount: activeShipmentsForCourier.filter(s => deliveredStatuses.includes(s.status)).length,
+            returnedCount: activeShipmentsForCourier.filter(s => returnedStatusesForCalc.includes(s.status)).length,
             totalCollected,
             totalCommission,
             totalPaidByCourier: allPaymentsForCourier.filter(p => !p.isArchived).reduce((acc, p) => acc + p.amount, 0),
@@ -1551,11 +1551,11 @@ const returnedToCompanyShipments = React.useMemo(() => {
     if (!companies || !allShipmentsForStats || !companyPayments) return [];
     
     return companies.map(company => {
-        const activeShipments = allShipmentsForStats?.filter(s => s.companyId === company.id && !s.isArchivedForCompany) || [];
+        const activeShipmentsForCompany = allShipmentsForStats?.filter(s => s.companyId === company.id && !s.isArchivedForCompany) || [];
         const activePayments = companyPayments?.filter(p => p.companyId === company.id && !p.isArchived) || [];
         
-        const totalRevenue = activeShipments.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
-        const totalCompanyCommission = activeShipments.reduce((acc, s) => acc + (s.companyCommission || 0), 0);
+        const totalRevenue = activeShipmentsForCompany.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
+        const totalCompanyCommission = activeShipmentsForCompany.reduce((acc, s) => acc + (s.companyCommission || 0), 0);
         const totalPaidToCompany = activePayments.reduce((acc, p) => acc + p.amount, 0);
         
         const netDue = (totalRevenue - totalCompanyCommission) - totalPaidToCompany;
@@ -1564,7 +1564,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
 
         return {
             ...company,
-            totalShipments: activeShipments.length,
+            totalShipments: activeShipmentsForCompany.length,
             totalRevenue,
             totalCompanyCommission,
             totalPaidToCompany,
@@ -1835,7 +1835,7 @@ const generateShipmentCode = () => {
                   <TabsTrigger value="settings">
                       <Link href="/settings" className="flex items-center gap-2">
                           <Settings className="w-4 h-4" />
-                          <span>الإعدادات</span>
+                          <span>إعدادات</span>
                       </Link>
                   </TabsTrigger>
                   <TabsTrigger value="audit-log">
@@ -2174,7 +2174,6 @@ const generateShipmentCode = () => {
                                     <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                     <Input
                                         placeholder="ابحث عن شركة..."
-                                        value={managementSearchTerm}
                                         onChange={(e) => setManagementSearchTerm(e.target.value)}
                                         className="pr-8 sm:w-[250px]"
                                     />

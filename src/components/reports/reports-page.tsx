@@ -273,7 +273,7 @@ export function ReportsPage({
 
         companyShipments = filterByDateRange(companyShipments, activeDateRange);
         
-        // إذا كان شيت أبديت، نستخدم الفلاتر المختارة، وإذا كان توريد نستخدم البيانات المالية المفلترة أعلاه
+        // إذا كان شيت أبديت، نستخدم الفلاتر المختارة، وإذا كان توريد نستخدم البيانات المفلترة برمجياً أعلاه
         const filteredData = type === 'supply' ? companyShipments : filterShipmentsByStatus(companyShipments, companyUpdateStatuses);
         
         const dataToExport = filteredData.map(shipment => getEnhancedShipmentData(shipment, 'company'));
