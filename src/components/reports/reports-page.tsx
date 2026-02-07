@@ -262,7 +262,6 @@ export function ReportsPage({
     const handleExportCompanyReport = (type: 'supply' | 'update') => {
         const companyId = type === 'supply' ? selectedCompanyId : selectedCompanyForUpdateId;
         const statusFilters = type === 'supply' ? companyReportStatuses : companyUpdateStatuses;
-        const dateRange = type === 'supply' ? supplySheetDateRange : updateSheetDateRange;
         const reportType = type === 'supply' ? 'company_shipments' : 'company_update';
         const fileNamePrefix = type === 'supply' ? 'شيت توريد' : 'شيت ابديت';
 
@@ -271,6 +270,13 @@ export function ReportsPage({
         if (!company) return;
         
         let companyShipments = shipments.filter(s => s.companyId === companyId && !s.isArchivedForCompany);
+        
+        // فلترة الشحنات المنتهية والمالية فقط لشيت التوريد
+        if (type === 'supply') {
+            const financialStatusKeys = ['Delivered', 'Partially Delivered', 'Refused (Paid)'];
+            companyShipments = companyShipments.filter(s => financialStatusKeys.includes(s.status));
+        }
+
         companyShipments = filterByDateRange(companyShipments, dateRange);
         
         const filteredData = filterShipmentsByStatus(companyShipments, statusFilters);
