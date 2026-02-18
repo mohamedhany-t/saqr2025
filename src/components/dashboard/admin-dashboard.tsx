@@ -1994,7 +1994,7 @@ const returnedToCompanyShipments = useMemo(() => {
                                                                     const courier = courierUsers.find(u => u.id === log.courierId);
                                                                     if (courier) openCourierPaymentForm(courier, log as CourierPayment);
                                                                 } else {
-                                                                    const company = companies.find(c => c.id === log.companyId);
+                                                                    const company = companies?.find(c => c.id === log.companyId);
                                                                     if (company) openCompanyPaymentForm(company, log as CompanyPayment);
                                                                 }
                                                             }}>
@@ -2125,7 +2125,13 @@ const returnedToCompanyShipments = useMemo(() => {
                     { title: "التقارير", desc: "توليد تقارير شاملة", icon: BarChart, value: "reports", color: "text-red-600" },
                     { title: "المصروفات", desc: "إدارة مصاريف المكتب والمناديب", icon: Banknote, link: "/expenses", color: "text-emerald-600" },
                 ].map((item, idx) => (
-                    <Card key={idx} className="hover:shadow-md transition-all cursor-pointer group" onClick={() => item.link ? router.push(item.link) : setActiveTab(item.value)}>
+                    <Card key={idx} className="hover:shadow-md transition-all cursor-pointer group" onClick={() => {
+                        if (item.link) {
+                            router.push(item.link);
+                        } else if (item.value) {
+                            setActiveTab(item.value);
+                        }
+                    }}>
                         <CardHeader className="flex flex-row items-center gap-4 pb-4">
                             <div className={`p-2 rounded-lg bg-muted group-hover:bg-background transition-colors ${item.color}`}>
                                 <item.icon className="h-6 w-6" />
