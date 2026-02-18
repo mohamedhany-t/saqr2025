@@ -1089,7 +1089,7 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
           });
         })
         .catch(serverError => {
-          if (serverer instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+          if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
             const permissionError = new FirestorePermissionError({
                 path: paymentDocRef.path,
                 operation: 'update',
