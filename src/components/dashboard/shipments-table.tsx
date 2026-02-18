@@ -712,6 +712,8 @@ export function ShipmentsTable({
                             isWarehouseReturn: false, 
                             isReturningToCompany: false, 
                             isReturnedToCompany: false, 
+                            isArchivedForCompany: false, 
+                            isArchivedForCourier: false, 
                             retryAttempt: false,
                             requestedAmount: 0,
                             amountChangeReason: ""

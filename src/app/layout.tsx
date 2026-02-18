@@ -4,6 +4,7 @@ import { Inter, Cairo } from "next/font/google";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
+import { FirebaseAppShell } from "@/components/firebase-app-shell";
 import React, { Suspense } from 'react';
 import { Loader2 } from "lucide-react";
 import { ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -33,7 +34,9 @@ export default function RootLayout({
       <body className={`${inter.variable} ${cairo.variable} font-headline`}>
         <Suspense fallback={<div className="flex min-h-screen w-full items-center justify-center bg-muted/30"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
             <FirebaseClientProvider>
-            {children}
+                <FirebaseAppShell>
+                    {children}
+                </FirebaseAppShell>
             </FirebaseClientProvider>
         </Suspense>
         <Toaster />

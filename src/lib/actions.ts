@@ -152,6 +152,7 @@ export async function deleteAuthUser(userData: z.infer<typeof deleteUserSchema>)
 export async function sendPushNotification(notificationData: z.infer<typeof pushNotificationSchema>) {
     if (!vapidPublicKey || !vapidPrivateKey) {
         console.error("Cannot send push notification because VAPID keys are not configured.");
+    console.log("Attempting to send notification with data:", JSON.stringify(notificationData, null, 2));
         return { success: false, error: "VAPID keys not set on server." };
     }
 
@@ -179,6 +180,7 @@ export async function sendPushNotification(notificationData: z.infer<typeof push
             }
         } else {
             recipientIds.push(recipientId);
+        console.log(`Found ${recipientIds.length} recipients for ID/role: ${recipientId}`);
         }
 
         if (recipientIds.length === 0) {

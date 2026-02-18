@@ -28,7 +28,7 @@ interface AdminNoteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   courier: User | undefined;
-  onSend: (message: string) => void;
+  onSend: (message: string) => Promise<void>; // Changed this line
 }
 
 export function AdminNoteDialog({ open, onOpenChange, courier, onSend }: AdminNoteDialogProps) {

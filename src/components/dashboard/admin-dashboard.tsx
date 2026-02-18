@@ -1,9 +1,18 @@
 
 "use client";
-import React from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, Replace, BellRing, ChevronLeft, ChevronRight, BarChart, MessageSquarePlus, Wallet, Plus, Copy, Link as LinkIcon, Sparkles, Merge, GitCompareArrows, RefreshCcw } from "lucide-react";
+import { 
+  PlusCircle, FileUp, Database, User as UserIcon, Building, BadgePercent, DollarSign, 
+  Truck as CourierIcon, CalendarClock, MessageSquare, HandCoins, History, Pencil, 
+  Trash2, WalletCards, Archive, Banknote, Package, FileText, Loader2, Printer, 
+  ChevronDown, Bot, CheckSquare, ListChecks, AlertTriangle, ArchiveRestore, 
+  Warehouse, RefreshCw, FileSpreadsheet, Settings, Search, Check, X, ScanLine, 
+  Replace, BellRing, ChevronLeft, ChevronRight, BarChart, MessageSquarePlus, 
+  Wallet, Plus, Copy, Link as LinkIcon, Sparkles, Merge, GitCompareArrows, 
+  RefreshCcw, Filter, LayoutDashboard, Clock, ReceiptText
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
@@ -21,7 +30,7 @@ import { ImportResult, ImportProgressDialog } from "@/components/shipments/impor
 import { read, utils } from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useUser, useFirebaseApp } from "@/firebase";
-import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc, deleteDoc, increment, orderBy, limit, startAfter, endBefore, limitToLast, DocumentSnapshot, DocumentData } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, writeBatch, doc, getDocs, query, where, updateDoc, getDoc, setDoc, deleteDoc, increment, orderBy, limit, startAfter, endBefore, limitToLast, DocumentSnapshot, DocumentData, Timestamp } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import {
   AlertDialog,
@@ -43,7 +52,7 @@ import { ShipmentCard } from "../shipments/shipment-card";
 import { ColumnFiltersState } from "@tanstack/react-table";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { getColumns as getShipmentColumns, statusVariants } from './shipments-table';
-import { differenceInDays, differenceInHours } from "date-fns";
+import { differenceInDays, differenceInHours, subDays, startOfDay } from "date-fns";
 import { ReportsPage } from "@/components/reports/reports-page";
 import { AuditLogPage } from "../audit-log/audit-log-page";
 import Link from "next/link";
@@ -51,6 +60,8 @@ import { exportToExcel } from "@/lib/export";
 import { ShipmentFilters } from './shipment-filters';
 import { AdminNoteDialog } from "../users/admin-note-dialog";
 import type { DateRange } from "react-day-picker";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
+import { formatToCairoTime } from "@/lib/utils";
 
 const getSafeDate = (date: any): Date | null => {
     if (!date) return null;
@@ -77,9 +88,9 @@ const filterShipmentsBySearch = (list: Shipment[], term: string): Shipment[] => 
         String(shipment.recipientPhone || '').toLowerCase().includes(lowercasedTerm) ||
         String(shipment.address || '').toLowerCase().includes(lowercasedTerm)
     );
-  }
+}
 
-const MobileShipmentsView = ({
+const MobileShipmentsView = React.memo(({
     shipments,
     listIsLoading,
     governorates,
@@ -284,26 +295,24 @@ const MobileShipmentsView = ({
       return (
         <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
             <div className="flex flex-col gap-4 mt-4">
-                <TabsList className="grid grid-cols-4 h-auto">
+                <TabsList className="grid grid-cols-4 h-auto bg-muted/50 p-1">
                     <TabsTrigger value="all-shipments">الكل</TabsTrigger>
                     <TabsTrigger value="unassigned">غير معينة</TabsTrigger>
                     <TabsTrigger value="assigned">معينة</TabsTrigger>
-                    <TabsTrigger value="recently-updated">
-                        <RefreshCw className="h-4 w-4 me-1" />
+                    <TabsTrigger value="recently-updated" className="flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5" />
                         المُحدَّثة
                     </TabsTrigger>
                     <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
                     <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
-                    <TabsTrigger value="returns-with-couriers">مرتجعات بالخارج</TabsTrigger>
-                    <TabsTrigger value="returns-in-warehouse">مرتجعات بالمخزن</TabsTrigger>
-                    <TabsTrigger value="returning-to-company">قيد التوصيل للشركة</TabsTrigger>
-                    <TabsTrigger value="returned-to-company">وصلت للشركة</TabsTrigger>
+                    <TabsTrigger value="returns-with-couriers" className="text-[10px] leading-tight text-center">مرتجعات بالخارج</TabsTrigger>
+                    <TabsTrigger value="returns-in-warehouse" className="text-[10px] leading-tight text-center">مرتجعات بالمخزن</TabsTrigger>
                 </TabsList>
                 <div className="flex flex-col gap-4">
                     <ShipmentFilters governorates={governorates || []} companies={companies || []} courierUsers={courierUsers || []} statuses={statuses || []} onFiltersChange={setColumnFilters} />
                     {currentList.length > 0 && (
-                        <Button variant="outline" size="sm" onClick={handleSelectAll} className="h-8 gap-1 w-full">
-                            <ListChecks className="h-3.5 w-3.5" />
+                        <Button variant="outline" size="sm" onClick={handleSelectAll} className="h-9 gap-2 w-full font-medium shadow-sm">
+                            <ListChecks className="h-4 w-4" />
                             <span>{areAllSelected ? 'إلغاء تحديد الكل' : `تحديد الكل (${currentList.length})`}</span>
                         </Button>
                     )}
@@ -317,17 +326,15 @@ const MobileShipmentsView = ({
             <TabsContent value="postponed"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
             <TabsContent value="returns-with-couriers"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
             <TabsContent value="returns-in-warehouse"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
-            <TabsContent value="returning-to-company"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
-            <TabsContent value="returned-to-company"><VirtualizedShipmentList shipmentList={currentList} /></TabsContent>
             
             {selectedCount > 0 && (
-                <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-2 shadow-lg flex items-center justify-around flex-wrap gap-2 z-40">
-                     <span className="text-sm font-medium">{selectedCount} شحنات محددة</span>
+                <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-md border-t p-3 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] flex items-center justify-around flex-wrap gap-2 z-50">
+                     <span className="text-sm font-bold text-primary w-full text-center mb-1">{selectedCount} شحنات محددة</span>
                      <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                             <Button variant="outline" size="sm">
+                             <Button variant="outline" size="sm" className="flex-1">
                                 <CheckSquare className="me-2 h-4 w-4" />
-                                <span>تغيير الحالة</span>
+                                <span>الحالة</span>
                              </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
@@ -338,7 +345,7 @@ const MobileShipmentsView = ({
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <Button variant="outline" size="sm" className="text-orange-600" onClick={() => handleMobileBulkUpdate({ 
+                    <Button variant="outline" size="sm" className="flex-1 text-orange-600" onClick={() => handleMobileBulkUpdate({ 
                         status: 'Pending', 
                         assignedCourierId: '', 
                         reason: 'إعادة تعيين الشحنة', 
@@ -350,20 +357,16 @@ const MobileShipmentsView = ({
                         amountChangeReason: ""
                     })}>
                         <RefreshCcw className="me-2 h-4 w-4" />
-                        <span>إعادة تعيين</span>
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ retryAttempt: true })}>
-                        <BellRing className="me-2 h-4 w-4" />
-                        <span>إعادة محاولة</span>
+                        <span>إعادة</span>
                     </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                             <Button variant="outline" size="sm">
+                             <Button variant="outline" size="sm" className="flex-1">
                                 <CourierIcon className="me-2 h-4 w-4" />
-                                <span>تعيين مندوب</span>
+                                <span>مندوب</span>
                              </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent>
+                        <DropdownMenuContent className="max-h-[300px] overflow-y-auto">
                             {courierUsers.map((courier) => (
                                  <DropdownMenuItem key={courier.id} onSelect={() => handleMobileBulkUpdate({ assignedCourierId: courier.id })}>
                                      {courier.name}
@@ -371,48 +374,17 @@ const MobileShipmentsView = ({
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                             <Button variant="outline" size="sm">
-                                <Building className="me-2 h-4 w-4" />
-                                <span>تعيين شركة</span>
-                             </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                            {companies.map((company) => (
-                                 <DropdownMenuItem key={company.id} onSelect={() => handleMobileBulkUpdate({ companyId: company.id })}>
-                                     {company.name}
-                                 </DropdownMenuItem>
-                            ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                    <Button variant="outline" size="sm" onClick={handleMobileBulkPrint}>
+                    <Button variant="outline" size="sm" className="flex-1" onClick={handleMobileBulkPrint}>
                         <Printer className="me-2 h-4 w-4" />
                         <span>طباعة</span>
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isWarehouseReturn: true })}>
-                        <Warehouse className="me-2 h-4 w-4" />
-                        للمخزن
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isReturningToCompany: true })}>
-                        <CourierIcon className="me-2 h-4 w-4" />
-                        توصيل للشركة
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleMobileBulkUpdate({ isReturnedToCompany: true })}>
-                        <Building className="me-2 h-4 w-4" />
-                        وصلت للشركة
-                    </Button>
-                    
-                    <Button variant="destructive" size="icon" onClick={handleMobileBulkDelete}>
-                        <Trash2 className="h-4 w-4" />
                     </Button>
                 </div>
             )}
         </Tabs>
       )
-  }
+});
 
-const DesktopShipmentsView = ({
+const DesktopShipmentsView = React.memo(({
     listIsLoading,
     role,
     filteredShipments,
@@ -457,7 +429,7 @@ const DesktopShipmentsView = ({
     columnFilters: ColumnFiltersState,
     setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>,
   }) => {
-    const renderShipmentTable = (shipmentList: Shipment[], activeTab: 'none' | 'company' | 'courier' | 'returns-with-couriers' | 'returns-in-warehouse' | 'returned-to-company' | 'returning-to-company' = 'none') => (
+    const renderShipmentTable = (shipmentList: Shipment[], activeTab: any = 'none') => (
         <ShipmentsTable 
           shipments={shipmentList} 
           isLoading={listIsLoading}
@@ -477,54 +449,68 @@ const DesktopShipmentsView = ({
     );
 
     return (
-        <Tabs defaultValue="all-shipments">
-            <TabsList className="flex-nowrap overflow-x-auto justify-start mt-4">
-                <TabsTrigger value="all-shipments">الكل</TabsTrigger>
-                <TabsTrigger value="unassigned">غير معينة</TabsTrigger>
-                <TabsTrigger value="assigned">معينة</TabsTrigger>
-                <TabsTrigger value="recently-updated">
-                    <RefreshCw className="h-4 w-4 me-1" />
-                    المُحدَّثة مؤخراً
-                </TabsTrigger>
-                <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
-                <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
-                <TabsTrigger value="returns-with-couriers">مرتجعات لدى المناديب</TabsTrigger>
-                <TabsTrigger value="returns-in-warehouse">مرتجعات وصلت المخزن</TabsTrigger>
-                <TabsTrigger value="returning-to-company">قيد التوصيل للشركة</TabsTrigger>
-                <TabsTrigger value="returned-to-company">وصلت للشركة</TabsTrigger>
-            </TabsList>
+        <Tabs defaultValue="all-shipments" className="w-full">
+            <div className="flex items-center justify-between mt-4 mb-2">
+                <TabsList className="bg-muted/50 p-1">
+                    <TabsTrigger value="all-shipments">الكل</TabsTrigger>
+                    <TabsTrigger value="unassigned">غير معينة</TabsTrigger>
+                    <TabsTrigger value="assigned">معينة</TabsTrigger>
+                    <TabsTrigger value="recently-updated" className="flex items-center gap-1">
+                        <Clock className="h-4 w-4" />
+                        المُحدَّثة
+                    </TabsTrigger>
+                    <TabsTrigger value="delivered">تم التسليم</TabsTrigger>
+                    <TabsTrigger value="postponed">المؤجلة</TabsTrigger>
+                    <TabsTrigger value="returns">المرتجعات</TabsTrigger>
+                </TabsList>
+            </div>
             <TabsContent value="all-shipments">{renderShipmentTable(filteredShipments)}</TabsContent>
             <TabsContent value="unassigned">{renderShipmentTable(unassignedShipments)}</TabsContent>
             <TabsContent value="assigned">{renderShipmentTable(assignedShipments)}</TabsContent>
             <TabsContent value="recently-updated">{renderShipmentTable(recentlyUpdatedShipments)}</TabsContent>
             <TabsContent value="delivered">{renderShipmentTable(getShipmentsByStatus(['Delivered']))}</TabsContent>
             <TabsContent value="postponed">{renderShipmentTable(getShipmentsByStatus('Postponed'))}</TabsContent>
-            <TabsContent value="returns-with-couriers">{renderShipmentTable(returnsWithCouriers, 'returns-with-couriers')}</TabsContent>
-            <TabsContent value="returns-in-warehouse">{renderShipmentTable(inWarehouseShipments, 'returns-in-warehouse')}</TabsContent>
-            <TabsContent value="returning-to-company">{renderShipmentTable(returningToCompanyShipments, 'returning-to-company')}</TabsContent>
-            <TabsContent value="returned-to-company">{renderShipmentTable(returnedToCompanyShipments, 'returned-to-company')}</TabsContent>
+            <TabsContent value="returns">
+                <Tabs defaultValue="returns-with-couriers">
+                    <TabsList className="bg-muted/30 p-1 mb-4">
+                        <TabsTrigger value="returns-with-couriers">لدى المناديب ({returnsWithCouriers.length})</TabsTrigger>
+                        <TabsTrigger value="returns-in-warehouse">في المخزن ({inWarehouseShipments.length})</TabsTrigger>
+                        <TabsTrigger value="returning-to-company">قيد التوصيل للشركة ({returningToCompanyShipments.length})</TabsTrigger>
+                        <TabsTrigger value="returned-to-company">وصلت للشركة ({returnedToCompanyShipments.length})</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="returns-with-couriers">{renderShipmentTable(returnsWithCouriers, 'returns-with-couriers')}</TabsContent>
+                    <TabsContent value="returns-in-warehouse">{renderShipmentTable(inWarehouseShipments, 'returns-in-warehouse')}</TabsContent>
+                    <TabsContent value="returning-to-company">{renderShipmentTable(returningToCompanyShipments, 'returning-to-company')}</TabsContent>
+                    <TabsContent value="returned-to-company">{renderShipmentTable(returnedToCompanyShipments, 'returned-to-company')}</TabsContent>
+                </Tabs>
+            </TabsContent>
         </Tabs>
     )
-  }
+});
 
 const ProblemShipmentList = ({ title, icon, shipments, onEdit, children }: { title: string, icon: React.ReactNode, shipments: Shipment[], onEdit: (s: Shipment) => void, children?: (shipment: Shipment) => React.ReactNode }) => {
     if (shipments.length === 0) {
         return null;
     }
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+        <Card className="border-l-4 border-l-primary shadow-sm overflow-hidden transition-all hover:shadow-md">
+            <CardHeader className="bg-muted/30 py-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
                     {icon}
-                    {title} ({shipments.length})
+                    {title} <Badge variant="secondary" className="ms-2">{shipments.length}</Badge>
                 </CardTitle>
             </CardHeader>
-            <CardContent>
-                <div className="space-y-3">
+            <CardContent className="p-0">
+                <div className="divide-y">
                     {shipments.map(s => (
-                        <div key={s.id} className="border p-3 rounded-lg flex justify-between items-center bg-muted/30">
-                            {children ? children(s) : <p>تفاصيل الشحنة {s.recipientName}</p>}
-                            <Button variant="secondary" size="sm" onClick={() => onEdit(s)}>مراجعة</Button>
+                        <div key={s.id} className="p-4 flex justify-between items-center hover:bg-muted/10 transition-colors">
+                            <div className="flex-1">
+                                {children ? children(s) : <p className="font-medium text-sm">تفاصيل الشحنة {s.recipientName}</p>}
+                            </div>
+                            <Button variant="outline" size="sm" className="ms-4 shadow-sm" onClick={() => onEdit(s)}>
+                                <Pencil className="h-3.5 w-3.5 me-1.5" />
+                                مراجعة
+                            </Button>
                         </div>
                     ))}
                 </div>
@@ -533,82 +519,6 @@ const ProblemShipmentList = ({ title, icon, shipments, onEdit, children }: { tit
     );
 };
 
-const PrintCenterPage = ({
-    shipments,
-    isLoading,
-    governorates,
-    companies,
-    courierUsers,
-    statuses,
-    onEdit,
-    role,
-    onGenericBulkUpdate,
-  }: {
-    shipments: Shipment[];
-    isLoading: boolean;
-    governorates: Governorate[];
-    companies: Company[];
-    courierUsers: User[];
-    statuses: ShipmentStatusConfig[];
-    onEdit: (shipment: Shipment) => void;
-    role: Role | null;
-    onGenericBulkUpdate: (selectedRows: Shipment[], update: Partial<Shipment>) => void;
-  }) => {
-    const unprintedShipments = React.useMemo(() => shipments.filter(s => !s.isLabelPrinted), [shipments]);
-    const printedShipments = React.useMemo(() => shipments.filter(s => s.isLabelPrinted), [shipments]);
-    const { toast } = useToast();
-  
-    const handlePrintAndUpdate = async (selectedRows: Shipment[]) => {
-      if (selectedRows.length === 0) {
-        toast({ title: 'لم يتم تحديد أي شحنات', variant: 'destructive' });
-        return;
-      }
-      await onGenericBulkUpdate(selectedRows, { isLabelPrinted: true });
-  
-      const ids = selectedRows.map(row => row.id);
-      const printUrl = `/print/bulk?ids=${ids.join(',')}`;
-      window.open(printUrl, '_blank', 'width=800,height=600');
-    };
-  
-    return (
-      <Tabs defaultValue="unprinted">
-        <TabsList>
-          <TabsTrigger value="unprinted">جاهزة للطباعة ({unprintedShipments.length})</TabsTrigger>
-          <TabsTrigger value="printed">تمت طباعتها ({printedShipments.length})</TabsTrigger>
-        </TabsList>
-        <TabsContent value="unprinted">
-          <ShipmentsTable
-            shipments={unprintedShipments}
-            isLoading={isLoading}
-            governorates={governorates}
-            companies={companies}
-            couriers={courierUsers}
-            statuses={statuses}
-            onEdit={onEdit}
-            role={role}
-            onBulkUpdate={onGenericBulkUpdate}
-            onBulkPrint={handlePrintAndUpdate}
-          />
-        </TabsContent>
-        <TabsContent value="printed">
-          <ShipmentsTable
-            shipments={printedShipments}
-            isLoading={isLoading}
-            governorates={governorates}
-            companies={companies}
-            couriers={courierUsers}
-            statuses={statuses}
-            onEdit={onEdit}
-            role={role}
-            onBulkUpdate={onGenericBulkUpdate}
-            onBulkPrint={handlePrintAndUpdate}
-          />
-        </TabsContent>
-      </Tabs>
-    );
-  };
-
-
 interface AdminDashboardProps {
   user: User;
   role: Role;
@@ -616,6 +526,7 @@ interface AdminDashboardProps {
   initialTab?: string | null;
   initialChatId?: string | null;
 }
+
 export default function AdminDashboard({ user, role, searchTerm, initialTab, initialChatId }: AdminDashboardProps) {
   const [isShipmentSheetOpen, setShipmentSheetOpen] = React.useState(false);
   const [isUserSheetOpen, setIsUserSheetOpen] = React.useState(false);
@@ -634,10 +545,9 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
   const [payingCompany, setPayingCompany] = React.useState<Company | undefined>(undefined);
   const [editingCompanyPayment, setEditingCompanyPayment] = React.useState<CompanyPayment | undefined>(undefined);
   
-
-
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
   const [shipmentToDelete, setShipmentToDelete] = React.useState<Shipment | null>(null);
+  const [isSavingShipment, setIsSavingShipment] = React.useState(false);
   const [courierPaymentToDelete, setCourierPaymentToDelete] = React.useState<CourierPayment | null>(null);
   const [companyPaymentToDelete, setCompanyPaymentToDelete] = React.useState<CompanyPayment | null>(null);
   
@@ -655,25 +565,25 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = React.useState(initialTab || "shipments");
 
-
   const [importResult, setImportResult] = React.useState<ImportResult | null>(null);
-
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
-
   const [managementSearchTerm, setManagementSearchTerm] = React.useState('');
-  
   const [processingShipments, setProcessingShipments] = React.useState<Set<string>>(new Set());
-
 
   const { user: authUser } = useUser();
 
+  // OPTIMIZATION: Limit initial fetch to last 60 days to reduce read count and improve speed
   const allShipmentsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'shipments'));
+    const sixtyDaysAgo = subDays(new Date(), 60);
+    return query(
+        collection(firestore, 'shipments'),
+        where('createdAt', '>=', Timestamp.fromDate(sixtyDaysAgo)),
+        orderBy('createdAt', 'desc')
+    );
   }, [firestore]);
   
   const { data: allShipmentsForStats, isLoading: allShipmentsLoading } = useCollection<Shipment>(allShipmentsQuery);
-
 
   const chatsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.id) return null;
@@ -690,7 +600,7 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
     return chats.reduce((sum, chat) => sum + (chat.unreadCounts?.[user.id] || 0), 0);
   }, [chats, user?.id]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const editShipmentId = searchParams.get('edit');
     if (editShipmentId && firestore) {
       const fetchShipment = async () => {
@@ -747,13 +657,13 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
 
   const courierPaymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'courier_payments'));
+    return query(collection(firestore, 'courier_payments'), orderBy('paymentDate', 'desc'), limit(200));
   }, [firestore, user]);
   const { data: courierPayments } = useCollection<CourierPayment>(courierPaymentsQuery);
 
   const companyPaymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'company_payments'));
+    return query(collection(firestore, 'company_payments'), orderBy('paymentDate', 'desc'), limit(200));
   }, [firestore, user]);
   const { data: companyPayments } = useCollection<CompanyPayment>(companyPaymentsQuery);
   
@@ -763,7 +673,28 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
   }, [firestore]);
   const { data: statuses, isLoading: statusesLoading } = useCollection<ShipmentStatusConfig>(statusesQuery);
 
-  const courierUsers = React.useMemo(() => users?.filter(u => u.role === 'courier') || [], [users]);
+  const courierUsers = useMemo(() => users?.filter(u => u.role === 'courier') || [], [users]);
+
+  // COMBINED PAYMENTS LOG LOGIC
+  const combinedPaymentsLog = useMemo(() => {
+    if (!courierPayments || !companyPayments || !users || !companies) return [];
+    
+    const courierLogs = courierPayments.map(p => ({
+        ...p,
+        type: 'courier' as const,
+        entityName: users.find(u => u.id === p.courierId)?.name || 'غير معروف',
+        date: getSafeDate(p.paymentDate)
+    }));
+
+    const companyLogs = companyPayments.map(p => ({
+        ...p,
+        type: 'company' as const,
+        entityName: companies.find(c => c.id === p.companyId)?.name || 'غير معروف',
+        date: getSafeDate(p.paymentDate)
+    }));
+
+    return [...courierLogs, ...companyLogs].sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+  }, [courierPayments, companyPayments, users, companies]);
   
   const openShipmentForm = (shipment?: Shipment) => {
     setEditingShipment(shipment);
@@ -787,7 +718,7 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
     setIsAdminNoteDialogOpen(true);
   };
   
-    const openCompanyPaymentForm = (company: Company, payment?: CompanyPayment) => {
+  const openCompanyPaymentForm = (company: Company, payment?: CompanyPayment) => {
     setPayingCompany(company);
     setEditingCompanyPayment(payment);
     setIsCompanyPaymentSheetOpen(true);
@@ -797,26 +728,6 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
     fileInputRef.current?.click();
   };
   
-  const parseExcelDate = (excelDate: any): Date | null => {
-    if (!excelDate) return null;
-    if (excelDate instanceof Date && !isNaN(excelDate.getTime())) {
-      return excelDate;
-    }
-    if (typeof excelDate === 'number') {
-      const date = new Date(Math.round((excelDate - 25569) * 86400 * 1000));
-      if (!isNaN(date.getTime())) {
-        return date;
-      }
-    }
-    if (typeof excelDate === 'string') {
-      const date = new Date(excelDate);
-      if (!isNaN(date.getTime())) {
-        return date;
-      }
-    }
-    return null;
-  };
-
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !firestore || !authUser || !companies || !governorates) return;
@@ -825,7 +736,7 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
     reader.onload = async (e) => {
         try {
             const data = e.target?.result;
-            const workbook = read(data, { type: 'binary', cellDates: true });
+            const workbook = read(data, { type: "binary", cellDates: true });
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
             const json = utils.sheet_to_json<any>(worksheet);
@@ -842,144 +753,126 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
             setImportResult(result);
 
             const functions = getFunctions(app);
-            const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
+            const handleShipmentUpdateFn = httpsCallable(functions, "handleShipmentUpdate");
 
             const shipmentsToUpdate: { existing: Shipment, new: Partial<Shipment> }[] = [];
 
             for (const row of json) {
-                const companyNameFromSheet = row['الشركة']?.toString().trim() || row['العميل']?.toString().trim();
-                const senderNameFromSheet = row['الراسل']?.toString().trim();
-                let shipmentCodeValue = String(row['كود الشحنة'] || '').trim();
-                const orderNumberValue = row['رقم الطلب']?.toString().trim();
+                const companyNameFromSheet = row["الشركة"]?.toString().trim() || row["العميل"]?.toString().trim();
+                const senderNameFromSheet = row["الراسل"]?.toString().trim();
+                let shipmentCodeValue = String(row["كود الشحنة"] || "").trim();
                 
                 if (!shipmentCodeValue) {
                     result.rejected++;
-                    result.errors.push({ ...row, 'سبب الرفض': 'كود الشحنة مفقود' });
-                    setImportResult({ ...result });
+                    result.errors.push({ ...row, "سبب الرفض": "كود الشحنة مفقود" });
                     continue;
                 }
 
                 const foundCompany = companies.find(c => c.name === companyNameFromSheet);
                 if (!foundCompany) {
                     result.rejected++;
-                    result.errors.push({ ...row, 'سبب الرفض': `شركة "${companyNameFromSheet}" غير موجودة` });
-                    setImportResult({ ...result });
+                    result.errors.push({ ...row, "سبب الرفض": `شركة "${companyNameFromSheet}" غير موجودة` });
                     continue;
                 }
 
-                const governorateName = String(row['المحافظة'] || '').trim();
+                const governorateName = String(row["المحافظة"] || "").trim();
                 const foundGovernorate = governorates.find(g => g.name === governorateName);
                 if (!foundGovernorate) {
                     result.rejected++;
-                    result.errors.push({ ...row, 'سبب الرفض': `محافظة "${governorateName}" غير موجودة` });
-                    setImportResult({ ...result });
+                    result.errors.push({ ...row, "سبب الرفض": `محافظة "${governorateName}" غير موجودة` });
                     continue;
                 }
 
-                const existingDocsQuery = query(collection(firestore, 'shipments'), where("shipmentCode", "==", shipmentCodeValue));
+                const existingDocsQuery = query(collection(firestore, "shipments"), where("shipmentCode", "==", shipmentCodeValue));
                 const snapshot = await getDocs(existingDocsQuery);
                 const existingDoc = snapshot.empty ? null : snapshot.docs[0];
 
-                const recipientName = String(row['المرسل اليه'] || 'بدون اسم').trim();
-                let recipientPhone = String(row['التليفون']?.toString() || '').trim();
-                if (recipientPhone.length === 10 && recipientPhone.startsWith("1")) {
-                    recipientPhone = "0" + recipientPhone;
-                }
-                const totalAmountValue = String(row['الاجمالي'] || row['الاجمالى'] || '0').replace(/[^0-9.]/g, '');
+                const recipientName = String(row["المرسل اليه"] || "بدون اسم").trim();
+                let recipientPhone = String(row["التليفون"]?.toString() || "").trim();
+                const totalAmountValue = String(row["الاجمالي"] || row["الاجمالى"] || "0").replace(/[^0-9.]/g, "");
 
-                const shipmentData: Partial<Omit<Shipment, 'id'>> = {
+                const shipmentData: Partial<Omit<Shipment, "id">> = {
                     shipmentCode: shipmentCodeValue,
                     senderName: senderNameFromSheet,
-                    orderNumber: orderNumberValue,
                     recipientName: recipientName,
                     recipientPhone: recipientPhone,
                     governorateId: foundGovernorate.id,
-                    address: String(row['العنوان'] || 'N/A').trim(),
+                    address: String(row["العنوان"] || "N/A").trim(),
                     totalAmount: parseFloat(totalAmountValue) || 0,
-                    status: 'Pending',
+                    status: "Pending",
                     companyId: foundCompany.id,
                 };
                 
-                const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ''));
+                const cleanShipmentData = Object.fromEntries(Object.entries(shipmentData).filter(([_, v]) => v !== undefined && v !== null && v !== ""));
 
                 if (existingDoc) {
                     const existingShipmentData = { id: existingDoc.id, ...existingDoc.data() } as Shipment;
-                    if (existingShipmentData.assignedCourierId && existingShipmentData.status !== 'Pending') {
-                        delete cleanShipmentData.status;
+                    const isFullyArchived = existingShipmentData.isArchivedForCompany && existingShipmentData.isArchivedForCourier;
+
+                    if (isFullyArchived) {
+                        const newDocRef = doc(collection(firestore, "shipments"));
+                        await handleShipmentUpdateFn({ shipmentId: newDocRef.id, ...cleanShipmentData });
+                        result.added++;
+                    } else {
+                        if (existingShipmentData.assignedCourierId && existingShipmentData.status !== "Pending") {
+                            delete cleanShipmentData.status;
+                        }
+                        shipmentsToUpdate.push({ existing: existingShipmentData, new: cleanShipmentData });
+                        result.updated++;
                     }
-                    shipmentsToUpdate.push({ existing: existingShipmentData, new: cleanShipmentData });
-                    result.updated++;
                 } else {
                     const newDocRef = doc(collection(firestore, "shipments"));
-                    await handleShipmentUpdateFn({
-                        shipmentId: newDocRef.id,
-                        ...cleanShipmentData
-                    });
+                    await handleShipmentUpdateFn({ shipmentId: newDocRef.id, ...cleanShipmentData });
                     result.added++;
                 }
                 setImportResult({ ...result, shipmentsToUpdate });
             }
-            
             setImportResult(prev => prev ? { ...prev, processing: false } : null);
-
         } catch (error: any) {
             console.error("Error importing file:", error);
-            setImportResult(prev => prev ? { ...prev, processing: false, finalError: "حدث خطأ أثناء معالجة الملف. يرجى التحقق من تنسيق الملف." } : null);
+            setImportResult(prev => prev ? { ...prev, processing: false, finalError: "حدث خطأ أثناء معالجة الملف." } : null);
         } finally {
             if (fileInputRef.current) fileInputRef.current.value = "";
         }
     };
     reader.readAsBinaryString(file);
-};
+  };
 
-const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>>, id?: string) => {
-    if (!firestore || !authUser || !app) {
-        toast({ title: "خطأ في المصادقة", variant: "destructive" });
-        return;
-    }
-
+  const handleSaveShipment = async (data: Partial<Omit<Shipment, "id" | "createdAt" | "updatedAt">>, id?: string) => {
+    if (!firestore || !authUser || !app || isSavingShipment) return;
+    setIsSavingShipment(true);
     try {
         const functions = getFunctions(app);
-        const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
-
-        const payload: any = {
-            ...data,
-        };
-
-        if (!id) {
-            const newDocRef = doc(collection(firestore, "shipments"));
-            payload.shipmentId = newDocRef.id;
-        } else {
-            payload.shipmentId = id;
-        }
-
+        const handleShipmentUpdateFn = httpsCallable(functions, "handleShipmentUpdate");
+        const payload: any = { ...data, shipmentId: id || doc(collection(firestore, "shipments")).id };
+        
         await handleShipmentUpdateFn(payload);
-
-        toast({
-            title: id ? "تم تحديث الشحنة" : "تم حفظ الشحنة",
-            description: "تمت العملية بنجاح",
-        });
-
+        toast({ title: id ? "تم تحديث الشحنة" : "تم حفظ الشحنة", description: "تمت العملية بنجاح" });
         handleSheetOpenChange(false);
 
         if (data.assignedCourierId && (!editingShipment || data.assignedCourierId !== editingShipment.assignedCourierId)) {
-            const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/?edit=${payload.shipmentId}` : `/?edit=${payload.shipmentId}`;
-            sendPushNotification({
+            await sendPushNotification({
                 recipientId: data.assignedCourierId,
-                title: 'شحنة جديدة',
+                title: "شحنة جديدة",
                 body: `تم تعيين شحنة جديدة لك: ${data.recipientName}`,
-                url: notificationUrl,
+                url: `${window.location.origin}/?edit=${payload.shipmentId}`,
+            }).catch(console.error);
+        } else if (id && editingShipment?.assignedCourierId) {
+             await sendPushNotification({
+                recipientId: editingShipment.assignedCourierId,
+                title: "تحديث في شحنة",
+                body: `تم تحديث بيانات الشحنة: ${editingShipment.recipientName}`,
+                url: `${window.location.origin}/?edit=${id}`,
             }).catch(console.error);
         }
     } catch (error: any) {
-        console.error("Error saving shipment via cloud function:", error);
-        toast({
-            title: "فشل تحديث الشحنة",
-            description: error.message || "حدث خطأ غير متوقع.",
-            variant: "destructive",
-        });
+        console.error("Error saving shipment:", error);
+        toast({ title: "فشل التحديث", description: error.message || "حدث خطأ غير متوقع", variant: "destructive" });
+    } finally {
+        setIsSavingShipment(false);
     }
-};
+  };
+
 
   const handleDeleteShipment = (shipmentsToDelete: Shipment[]) => {
     if (!firestore || shipmentsToDelete.length === 0) return;
@@ -1196,7 +1089,7 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
           });
         })
         .catch(serverError => {
-          if (serverError instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
+          if (serverer instanceof Error && 'code' in serverError && serverError.code === 'permission-denied') {
             const permissionError = new FirestorePermissionError({
                 path: paymentDocRef.path,
                 operation: 'update',
@@ -1217,7 +1110,6 @@ const handleSaveShipment = async (data: Partial<Omit<Shipment, 'id' | 'createdAt
           recordedById: user.id,
           notes: paymentData.notes || "",
       };
-
       setDoc(paymentDocRef, newPayment)
         .then(() => {
           toast({
@@ -1375,7 +1267,7 @@ const handleArchiveCompanyData = async () => {
 
     const companyDueData = companyDues.find(d => d.id === companyToArchive.id);
     if (!companyDueData) {
-        toast({ title: "خطأ", description: "لم يتم العثور على البيانات المالية للشركة.", variant: "destructive" });
+        toast({ title: "خطأ", description: "لم يتم العثور على البيانات المالية للشركة.", variant: "destructive"});
         setCompanyToArchive(null);
         return;
     }
@@ -1427,13 +1319,13 @@ const handleArchiveCompanyData = async () => {
 };
 
   
-  const activeShipments = React.useMemo(() => {
+  const activeShipments = useMemo(() => {
     if (!allShipmentsForStats) return [];
     return allShipmentsForStats.filter(s => !(s.isArchivedForCompany && s.isArchivedForCourier));
   }, [allShipmentsForStats]);
 
 
-  const filteredShipments = React.useMemo(() => {
+  const filteredShipments = useMemo(() => {
     if (!activeShipments) return [];
   
     let baseShipments = activeShipments;
@@ -1471,18 +1363,18 @@ const handleArchiveCompanyData = async () => {
   }, [activeShipments, searchTerm, columnFilters]);
   
   
-  const unassignedShipments = React.useMemo(() => {
+  const unassignedShipments = useMemo(() => {
     const unassigned = filteredShipments?.filter(s => !s.assignedCourierId) || [];
     return unassigned;
   }, [filteredShipments]);
 
-  const assignedShipments = React.useMemo(() => {
+  const assignedShipments = useMemo(() => {
       const assigned = filteredShipments?.filter(s => !!s.assignedCourierId) || [];
       return assigned;
   }, [filteredShipments]);
 
     
-  const recentlyUpdatedShipments = React.useMemo(() => {
+  const recentlyUpdatedShipments = useMemo(() => {
     const activeShipmentsForSort = filteredShipments || [];
     const sorted = [...activeShipmentsForSort].sort((a, b) => {
         const timeA = getSafeDate(a.updatedAt)?.getTime() || 0;
@@ -1493,29 +1385,29 @@ const handleArchiveCompanyData = async () => {
   }, [filteredShipments]);
 
 
-const returnedShipmentStatuses = React.useMemo(() => statuses?.filter(s => s.isReturnedStatus).map(s => s.id) || [], [statuses]);
+const returnedShipmentStatuses = useMemo(() => statuses?.filter(s => s.isReturnedStatus).map(s => s.id) || [], [statuses]);
 
-const returnsWithCouriers = React.useMemo(() => {
+const returnsWithCouriers = useMemo(() => {
     const returns = filteredShipments?.filter(s => (returnedShipmentStatuses.includes(s.status) || s.isExchange) && !s.isWarehouseReturn && !s.isReturnedToCompany && !s.isReturningToCompany) || [];
     return returns;
 }, [filteredShipments, returnedShipmentStatuses]);
 
-const inWarehouseShipments = React.useMemo(() => {
+const inWarehouseShipments = useMemo(() => {
     const warehouse = filteredShipments?.filter(s => s.isWarehouseReturn && !s.isReturnedToCompany && !s.isReturningToCompany) || [];
     return warehouse;
 }, [filteredShipments]);
 
-const returningToCompanyShipments = React.useMemo(() => {
+const returningToCompanyShipments = useMemo(() => {
     return filteredShipments?.filter(s => s.isReturningToCompany && !s.isReturnedToCompany) || [];
 }, [filteredShipments]);
 
-const returnedToCompanyShipments = React.useMemo(() => {
+const returnedToCompanyShipments = useMemo(() => {
     const returned = filteredShipments?.filter(s => s.isReturnedToCompany) || [];
     return returned;
 }, [filteredShipments]);
 
 
-  const courierDues = React.useMemo(() => {
+  const courierDues = useMemo(() => {
     if (!users || !allShipmentsForStats || !courierPayments || !statuses) return [];
 
     return courierUsers.map(courier => {
@@ -1547,7 +1439,7 @@ const returnedToCompanyShipments = React.useMemo(() => {
     })
   }, [users, allShipmentsForStats, courierUsers, courierPayments, statuses]);
   
-  const companyDues = React.useMemo(() => {
+  const companyDues = useMemo(() => {
     if (!companies || !allShipmentsForStats || !companyPayments) return [];
     
     return companies.map(company => {
@@ -1574,27 +1466,27 @@ const returnedToCompanyShipments = React.useMemo(() => {
     })
   }, [companies, allShipmentsForStats, companyPayments]);
 
-  const shownNotificationsRef = React.useRef<Set<string>>(new Set());
+  const shownNotificationsRef = useRef<Set<string>>(new Set());
 
-  const returnedShipmentsNeedingAction = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'Returned') || [], [allShipmentsForStats]);
-  const longPostponedShipments = React.useMemo(() => {
+  const returnedShipmentsNeedingAction = useMemo(() => allShipmentsForStats?.filter(s => s.status === 'Returned') || [], [allShipmentsForStats]);
+  const longPostponedShipments = useMemo(() => {
       return allShipmentsForStats?.filter(s => {
           const updatedAt = getSafeDate(s.updatedAt);
           return s.status === 'Postponed' && updatedAt && differenceInDays(new Date(), updatedAt) > 3;
       }) || [];
   }, [allShipmentsForStats]);
-  const staleInTransitShipments = React.useMemo(() => {
+  const staleInTransitShipments = useMemo(() => {
       return allShipmentsForStats?.filter(s => {
           const updatedAt = getSafeDate(s.updatedAt);
           return s.status === 'In-Transit' && updatedAt && differenceInHours(new Date(), updatedAt) > 24;
       }) || [];
   }, [allShipmentsForStats]);
-  const priceChangeRequests = React.useMemo(() => allShipmentsForStats?.filter(s => s.status === 'PriceChangeRequested') || [], [allShipmentsForStats]);
+  const priceChangeRequests = useMemo(() => allShipmentsForStats?.filter(s => s.status === 'PriceChangeRequested') || [], [allShipmentsForStats]);
   
   const problemCount = returnedShipmentsNeedingAction.length + longPostponedShipments.length + staleInTransitShipments.length + priceChangeRequests.length;
 
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (usersLoading || allShipmentsLoading || companiesLoading) return;
   
     courierDues.forEach(courier => {
@@ -1658,33 +1550,32 @@ const returnedToCompanyShipments = React.useMemo(() => {
     const handleShipmentUpdateFn = httpsCallable(functions, 'handleShipmentUpdate');
 
     toast({ title: `جاري تحديث ${selectedRows.length} شحنة...` });
-
     const updatePromises = selectedRows.map(row => {
         const payload: Partial<Shipment> = { ...update };
         if (payload.retryAttempt) {
-            payload.status = 'Pending';
+            payload.status = "Pending";
             payload.isArchivedForCompany = false;
             payload.isArchivedForCourier = false;
+            payload.isWarehouseReturn = false;
+            payload.reason = "إعادة محاولة";
         }
         return handleShipmentUpdateFn({ shipmentId: row.id, ...payload })
           .catch(error => ({ error, shipmentId: row.id }))
     });
 
     const results = await Promise.all(updatePromises);
-    const failedUpdates = results.filter(res => res && 'error' in res);
-
+    const failedUpdates = results.filter(res => res && "error" in res);
     if (failedUpdates.length > 0) {
         toast({ title: `فشل تحديث ${failedUpdates.length} شحنة`, variant: "destructive" });
         console.error("Bulk update failures:", failedUpdates);
     } else {
         toast({ title: `تم تحديث ${selectedRows.length} شحنة بنجاح` });
     }
-  
     if (update.assignedCourierId && selectedRows.length > 0) {
-      const notificationUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : '/';
+      const notificationUrl = typeof window !== "undefined" ? `${window.location.origin}/` : "/";
       await sendPushNotification({
         recipientId: update.assignedCourierId,
-        title: 'شحنات جديدة',
+        title: "شحنات جديدة",
         body: `تم تعيين ${selectedRows.length} شحنة جديدة لك.`,
         url: notificationUrl,
       });
@@ -1708,12 +1599,12 @@ const returnedToCompanyShipments = React.useMemo(() => {
   
   const listIsLoading = allShipmentsLoading || governoratesLoading || companiesLoading || usersLoading || statusesLoading || couriersDataLoading;
 
-  const filteredCourierDues = React.useMemo(() => {
+  const filteredCourierDues = useMemo(() => {
     if (!managementSearchTerm) return courierDues;
     return courierDues.filter(c => c.name?.toLowerCase().includes(managementSearchTerm.toLowerCase()));
   }, [courierDues, managementSearchTerm]);
 
-  const filteredCompanyDues = React.useMemo(() => {
+  const filteredCompanyDues = useMemo(() => {
     if (!managementSearchTerm) return companyDues;
     return companyDues.filter(c => c.name?.toLowerCase().includes(managementSearchTerm.toLowerCase()));
   }, [companyDues, managementSearchTerm]);
@@ -1764,95 +1655,44 @@ const returnedToCompanyShipments = React.useMemo(() => {
     }
 };
 
-const generateShipmentCode = () => {
-    const date = new Date();
-    const dateString = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
-    const randomNum = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-    return `SK-${dateString}-${randomNum}`;
-};
-
-
   return (
-    <div className="flex flex-col w-full">
-        <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
-        <div className="flex items-center">
-            <TabsList className="flex-nowrap overflow-x-auto justify-start">
-              <TabsTrigger value="shipments">الشحنات</TabsTrigger>
-              <TabsTrigger value="duplicates">
-                  <Link href="/duplicates" className="flex items-center gap-2">
-                      <Copy className="w-4 h-4" />
-                      <span>الشحنات المكررة</span>
-                  </Link>
-              </TabsTrigger>
-              <TabsTrigger value="comparison">
-                  <Link href="/comparison" className="flex items-center gap-2">
-                      <GitCompareArrows className="w-4 h-4" />
-                      <span>مقارنة الشيتات</span>
-                  </Link>
-              </TabsTrigger>
-              {role === 'admin' && (
-                <TabsTrigger value="expenses">
-                    <Link href="/expenses">المصروفات</Link>
-                </TabsTrigger>
-              )}
-              <TabsTrigger value="print-center">
-                  <Printer className="w-4 h-4 me-2"/>
-                  مركز الطباعة
-              </TabsTrigger>
-              <TabsTrigger value="problem-inbox" className="relative">
-                صندوق المشاكل
-                {problemCount > 0 && (
-                  <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 justify-center p-0">{problemCount}</Badge>
-                )}
-              </TabsTrigger>
-              {role === 'admin' && (
-                <>
-                  <TabsTrigger value="courier-management">إدارة المناديب</TabsTrigger>
-                  <TabsTrigger value="company-management">إدارة الشركات</TabsTrigger>
-                </>
-              )}
-              <TabsTrigger value="archive">
-                  <Link href="/archive" className="flex items-center gap-2">
-                      <Archive className="w-4 h-4" />
-                      <span>الأرشيف</span>
-                  </Link>
-              </TabsTrigger>
-              <TabsTrigger value="statistics">
-                  <Link href="/statistics" className="flex items-center gap-2">
-                      <BarChart className="w-4 h-4" />
-                      <span>الإحصائيات</span>
-                  </Link>
-              </TabsTrigger>
-              {role === 'admin' && (
-                <>
-                  <TabsTrigger value="account-statements">
-                      <Link href="/accounts" className="flex items-center gap-2">
-                          <FileSpreadsheet className="w-4 h-4" />
-                          <span>كشوفات الحسابات</span>
-                      </Link>
-                  </TabsTrigger>
-                  <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
-                  <TabsTrigger value="settings">
-                      <Link href="/settings" className="flex items-center gap-2">
-                          <Settings className="w-4 h-4" />
-                          <span>إعدادات</span>
-                      </Link>
-                  </TabsTrigger>
-                  <TabsTrigger value="audit-log">
-                      <History className="w-4 h-4 me-2" />
-                      سجل التغييرات
-                  </TabsTrigger>
-                  <TabsTrigger value="reports">التقارير</TabsTrigger>
-                </>
-              )}
-              <TabsTrigger value="chat" className="relative">
-                الدردشة
-                {totalUnreadCount > 0 && (
-                  <Badge className="absolute -top-2 -right-2 h-5 w-5 justify-center p-0">{totalUnreadCount}</Badge>
-                )}
-              </TabsTrigger>
-            </TabsList>
-            <div className="ms-auto flex items-center gap-2">
+    <div className="flex flex-col w-full px-4 sm:px-6 lg:px-8 py-4">
+        <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="overflow-x-auto pb-2 md:pb-0">
+                <TabsList className="inline-flex h-11 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground shadow-sm">
+                    <TabsTrigger value="shipments" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">
+                        <LayoutDashboard className="h-4 w-4 me-2" />
+                        الشحنات
+                    </TabsTrigger>
+                    {role === 'admin' && (
+                        <TabsTrigger value="management" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">
+                            <UserIcon className="h-4 w-4 me-2" />
+                            الإدارة المالية
+                        </TabsTrigger>
+                    )}
+                    <TabsTrigger value="problem-inbox" className="relative data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">
+                        <AlertTriangle className="h-4 w-4 me-2" />
+                        المشاكل
+                        {problemCount > 0 && (
+                        <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 justify-center p-0 text-[10px] border-2 border-background animate-pulse">{problemCount}</Badge>
+                        )}
+                    </TabsTrigger>
+                    <TabsTrigger value="tools" className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">
+                        <Plus className="h-4 w-4 me-2" />
+                        أدوات إضافية
+                    </TabsTrigger>
+                    <TabsTrigger value="chat" className="relative data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">
+                        <MessageSquare className="h-4 w-4 me-2" />
+                        الدردشة
+                        {totalUnreadCount > 0 && (
+                        <Badge className="absolute -top-2 -right-2 h-5 w-5 justify-center p-0 text-[10px] border-2 border-background">{totalUnreadCount}</Badge>
+                        )}
+                    </TabsTrigger>
+                </TabsList>
+            </div>
+            
+            <div className="flex items-center gap-2">
                 <input
                     type="file"
                     ref={fileInputRef}
@@ -1860,24 +1700,27 @@ const generateShipmentCode = () => {
                     className="hidden"
                     accept=".xlsx, .xls"
                 />
-                <Button asChild variant="outline" size="sm">
+                <Button asChild variant="outline" size="sm" className="h-10 shadow-sm border-primary/20 hover:border-primary/50 transition-all">
                     <Link href="/scan">
                         <ScanLine className="h-4 w-4 me-2" />
-                        <span className="sr-only sm:not-sr-only">مسح باركود</span>
+                        <span>مسح باركود</span>
                     </Link>
                 </Button>
-            <Button variant="outline" size="sm" onClick={handleImportClick}>
-                <FileUp className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only">استيراد</span>
-            </Button>
-                <Button size="sm" onClick={() => openShipmentForm()}>
-                <PlusCircle className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only">شحنة جديدة</span>
+                <Button variant="outline" size="sm" onClick={handleImportClick} className="h-10 shadow-sm">
+                    <FileUp className="h-4 w-4 me-2" />
+                    <span>استيراد</span>
+                </Button>
+                <Button size="sm" onClick={() => openShipmentForm()} className="h-10 shadow-md bg-primary hover:bg-primary/90 transition-all">
+                    <PlusCircle className="h-4 w-4 me-2" />
+                    <span>شحنة جديدة</span>
                 </Button>
             </div>
         </div>
-        <StatsCards shipments={allShipmentsForStats || []} role={role} />
-        <TabsContent value="shipments" className={isMobile ? "pb-20" : ""}>
+
+        {/* Dynamic Header Stats */}
+        <StatsCards shipments={activeShipments} role={role} />
+
+        <TabsContent value="shipments" className="mt-0 space-y-4">
             {isMobile ? 
                 <MobileShipmentsView 
                     shipments={filteredShipments || []}
@@ -1922,412 +1765,275 @@ const generateShipmentCode = () => {
                 />
             }
         </TabsContent>
-        <TabsContent value="duplicates">
-             <div className="flex flex-col items-center justify-center text-center py-16 bg-muted/40 rounded-lg">
-                <LinkIcon className="h-16 w-16 text-muted-foreground mb-4" />
-                <h3 className="text-2xl font-bold">تم نقل هذه الصفحة</h3>
-                <p className="text-muted-foreground mt-2 max-w-md">
-                    لتحسين الأداء، تم نقل ميزة الشحنات المكررة إلى صفحة مستقلة خاصة بها.
-                </p>
-                <Button asChild className="mt-4">
-                    <Link href="/duplicates">الانتقال إلى صفحة الشحنات المكررة</Link>
-                </Button>
-            </div>
-        </TabsContent>
-        <TabsContent value="comparison">
-            <div className="flex flex-col items-center justify-center text-center py-16 bg-muted/40 rounded-lg">
-                <LinkIcon className="h-16 w-16 text-muted-foreground mb-4" />
-                <h3 className="text-2xl font-bold">تم نقل هذه الصفحة</h3>
-                <p className="text-muted-foreground mt-2 max-w-md">
-                   لتحسين الأداء، تم نقل ميزة مقارنة الشيتات إلى صفحة مستقلة خاصة بها.
-                </p>
-                <Button asChild className="mt-4">
-                    <Link href="/comparison">الانتقال إلى صفحة مقارنة الشيتات</Link>
-                </Button>
-            </div>
-        </TabsContent>
-        <TabsContent value="expenses">
-            <div className="flex flex-col items-center justify-center text-center py-16 bg-muted/40 rounded-lg">
-                <LinkIcon className="h-16 w-16 text-muted-foreground mb-4" />
-                <h3 className="text-2xl font-bold">تم نقل هذه الصفحة</h3>
-                <p className="text-muted-foreground mt-2 max-w-md">
-                    لتحسين الأداء، تم نقل ميزة إدارة المصروفات إلى صفحة مستقلة خاصة بها.
-                </p>
-                <Button asChild className="mt-4">
-                    <Link href="/expenses">الانتقال إلى صفحة المصروفات</Link>
-                </Button>
-            </div>
-        </TabsContent>
-        <TabsContent value="print-center">
-            <PrintCenterPage 
-                shipments={allShipmentsForStats || []}
-                isLoading={allShipmentsLoading}
-                governorates={governorates || []}
-                companies={companies || []}
-                courierUsers={courierUsers || []}
-                statuses={statuses || []}
-                onEdit={openShipmentForm}
-                role={role}
-                onGenericBulkUpdate={handleGenericBulkUpdate}
-            />
-        </TabsContent>
-         <TabsContent value="problem-inbox">
-            <div className="mt-4 space-y-6">
-                <ProblemShipmentList title="طلبات تعديل أسعار" icon={<DollarSign className="h-5 w-5 text-yellow-500" />} shipments={priceChangeRequests} onEdit={openShipmentForm}>
-                    {(s: Shipment) => {
-                        const courierName = courierUsers.find(c => c.id === s.assignedCourierId)?.name;
-                        const requestedAmountString = s.requestedAmount ? s.requestedAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) : 'N/A';
-                        const isProcessing = processingShipments.has(s.id);
-                        return (
-                            <div>
-                                <p className="font-bold">{s.recipientName} - <span className="text-sm text-muted-foreground">بواسطة {courierName}</span></p>
-                                <div className="text-sm text-muted-foreground flex items-center gap-4">
-                                    <span>السعر الحالي: <span className="font-mono">{s.totalAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span></span>
-                                    <span className="font-bold text-primary">←</span>
-                                    <span>السعر المقترح: <span className="font-mono font-bold text-primary">{requestedAmountString}</span></span>
-                                </div>
-                                <p className="text-xs text-amber-600 mt-1">السبب: {s.amountChangeReason || 'لم يذكر'}</p>
-                                <div className="mt-2 flex gap-2">
-                                    <Button size="sm" variant="outline" className="text-green-600 border-green-600 hover:bg-green-50" onClick={() => handlePriceChangeDecision(s, true)} disabled={isProcessing}>
-                                        {isProcessing ? <Loader2 className="me-2 h-4 w-4 animate-spin"/> : <Check className="me-2 h-4 w-4" />} موافقة
-                                    </Button>
-                                    <Button size="sm" variant="outline" className="text-red-600 border-red-600 hover:bg-red-50" onClick={() => handlePriceChangeDecision(s, false)} disabled={isProcessing}>
-                                        {isProcessing ? <Loader2 className="me-2 h-4 w-4 animate-spin"/> : <X className="me-2 h-4 w-4" />} رفض
-                                    </Button>
-                                </div>
-                            </div>
-                        );
-                    }}
-                </ProblemShipmentList>
-                <ProblemShipmentList title="مرتجعات بحاجة لقرار" icon={<AlertTriangle className="h-5 w-5 text-destructive" />} shipments={returnedShipmentsNeedingAction} onEdit={openShipmentForm}>
-                    {(s: Shipment) => {
-                         const companyName = companies?.find(c => c.id === s.companyId)?.name || "N/A";
-                         const govName = governorates?.find(g => g.id === s.governorateId)?.name || "N/A";
-                        return (<div>
-                            <p className="font-bold">{s.recipientName} - <span className="text-primary">{companyName}</span></p>
-                            <p className="text-sm text-muted-foreground">{s.address}, {govName}</p>
-                        </div>)
-                    }}
-                </ProblemShipmentList>
-                <ProblemShipmentList title="شحنات مؤجلة لفترة طويلة" icon={<AlertTriangle className="h-5 w-5 text-destructive" />} shipments={longPostponedShipments} onEdit={openShipmentForm}>
-                     {(s: Shipment) => {
-                         const companyName = companies?.find(c => c.id === s.companyId)?.name || "N/A";
-                         const lastUpdate = getSafeDate(s.updatedAt);
-                         const daysAgo = lastUpdate ? differenceInDays(new Date(), lastUpdate) : 0;
-                        return (<div>
-                            <p className="font-bold">{s.recipientName} - <span className="text-primary">{companyName}</span></p>
-                            <p className="text-xs text-amber-600">مؤجلة منذ {daysAgo} أيام</p>
-                        </div>)
-                    }}
-                </ProblemShipmentList>
-                <ProblemShipmentList title="شحنات متأخرة عند المناديب" icon={<AlertTriangle className="h-5 w-5 text-destructive" />} shipments={staleInTransitShipments} onEdit={openShipmentForm}>
-                    {(s: Shipment) => {
-                         const companyName = companies?.find(c => c.id === s.companyId)?.name || "N/A";
-                        return (<div>
-                            <p className="font-bold">{s.recipientName} - <span className="text-primary">{companyName}</span></p>
-                            <p className="text-xs text-red-600">لم يتم تحديثها منذ أكثر من 24 ساعة</p>
-                        </div>)
-                    }}
-                </ProblemShipmentList>
-                {problemCount === 0 && (
-                <div className="flex flex-col items-center justify-center text-center py-16 bg-muted/40 rounded-lg">
-                    <CheckSquare className="h-16 w-16 text-green-500 mb-4" />
-                    <h3 className="text-2xl font-bold">لا توجد مشاكل حالياً</h3>
-                    <p className="text-muted-foreground mt-2">صندوق المشاكل فارغ. كل الأمور تسير على ما يرام!</p>
+
+        <TabsContent value="management" className="mt-0">
+            <Tabs defaultValue="courier-management" className="space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                    <TabsList className="bg-muted/50">
+                        <TabsTrigger value="courier-management">حسابات المناديب</TabsTrigger>
+                        <TabsTrigger value="company-management">حسابات الشركات</TabsTrigger>
+                        <TabsTrigger value="payments-log">سجل المدفوعات بالتاريخ</TabsTrigger>
+                        <TabsTrigger value="user-management">إدارة المستخدمين</TabsTrigger>
+                    </TabsList>
+                    <div className="relative">
+                        <Search className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="بحث سريع..."
+                            value={managementSearchTerm}
+                            onChange={(e) => setManagementSearchTerm(e.target.value)}
+                            className="pr-10 w-[250px] h-9 shadow-sm"
+                        />
+                    </div>
                 </div>
-                )}
-          </div>
-        </TabsContent>
-        {role === 'admin' && (
-            <>
+
                 <TabsContent value="courier-management">
-                    <div className="mt-8">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-2xl font-headline font-semibold">إدارة حسابات المناديب</h2>
-                            <div className="relative">
-                                <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    placeholder="ابحث عن مندوب..."
-                                    value={managementSearchTerm}
-                                    onChange={(e) => setManagementSearchTerm(e.target.value)}
-                                    className="pr-8 sm:w-[300px]"
-                                />
-                            </div>
-                        </div>
-                            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                                {filteredCourierDues.map(courier => (
-                                    <Card key={courier.id} className="flex flex-col">
-                                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                            <CardTitle className="text-sm font-medium flex items-center gap-2">
-                                                <UserIcon className="h-4 w-4 text-muted-foreground" />
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        {filteredCourierDues.map(courier => (
+                            <Card key={courier.id} className="flex flex-col shadow-sm border-t-2 border-t-blue-500 overflow-hidden group hover:shadow-md transition-all">
+                                <CardHeader className="bg-muted/10 pb-3">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <CardTitle className="text-base font-bold flex items-center gap-2">
+                                                <UserIcon className="h-4 w-4 text-primary" />
                                                 {courier.name}
                                             </CardTitle>
-                                            <div className={`text-xl font-bold ${courier.netDue >= 0 ? 'text-destructive' : 'text-green-600'}`}>
-                                                {Math.abs(courier.netDue).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-                                            </div>
-                                        </CardHeader>
-                                        <CardContent className="flex-grow">
-                                            <p className="text-xs text-muted-foreground">
-                                                {courier.netDue > 0 ? "المبلغ المستحق على المندوب" : (courier.netDue < 0 ? "المبلغ المستحق للمندوب" : "الحساب مسوى")}
-                                            </p>
-                                            <div className="mt-4 space-y-2 text-sm">
-                                                <div className="flex justify-between items-center border-b pb-2">
-                                                    <span className="flex items-center gap-2 text-muted-foreground">
-                                                        <CourierIcon className="h-4 w-4" />
-                                                        إجمالي الشحنات:
-                                                    </span>
-                                                    <span className="font-medium">{courier.totalShipments}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="flex items-center gap-2 text-muted-foreground">
-                                                        تم التسليم:
-                                                    </span>
-                                                    <span className="font-medium text-green-600">{courier.deliveredCount}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="flex items-center gap-2 text-muted-foreground">
-                                                        مرتجعات:
-                                                    </span>
-                                                    <span className="font-medium text-red-600">{courier.returnedCount}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center pt-2 border-t">
-                                                    <span className="flex items-center gap-2 text-muted-foreground">
-                                                        <DollarSign className="h-4 w-4" />
-                                                        إجمالي التحصيل:
-                                                    </span>
-                                                    <span className="font-medium">{courier.totalCollected.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="flex items-center gap-2 text-muted-foreground">
-                                                        <BadgePercent className="h-4 w-4" />
-                                                        إجمالي العمولات:
-                                                    </span>
-                                                    <span className="font-medium">{courier.totalCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center border-t pt-2 mt-2">
-                                                    <span className="flex items-center gap-2 text-muted-foreground">
-                                                        <WalletCards className="h-4 w-4" />
-                                                        إجمالي المدفوعات:
-                                                    </span>
-                                                    <span className="font-medium text-green-700">{courier.totalPaidByCourier.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                                </div>
-                                                
-                                                {courier.paymentHistory && courier.paymentHistory.length > 0 && (
-                                                    <Collapsible className="pt-2 text-xs">
-                                                        <CollapsibleTrigger asChild>
-                                                            <Button variant="ghost" size="sm" className="flex items-center gap-2 w-full justify-start p-0 h-auto text-xs">
-                                                                <History className="h-3 w-3"/>
-                                                                <span>عرض سجل الدفعات ({courier.paymentHistory.length})</span>
-                                                            </Button>
-                                                        </CollapsibleTrigger>
-                                                        <CollapsibleContent className="space-y-2 mt-2">
-                                                        {courier.paymentHistory.map(payment => (
-                                                            <div key={payment.id} className="flex justify-between items-center text-muted-foreground p-2 rounded-md bg-muted/50">
-                                                                <div>
-                                                                    <span className="font-semibold">{payment.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
-                                                                    <span className="mx-2">-</span>
-                                                                    <span>{new Date(payment.paymentDate?.toDate?.() || Date.now()).toLocaleDateString('ar-EG')}</span>
-                                                                </div>
-                                                                <div className="flex items-center">
-                                                                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openCourierPaymentForm(courier, payment)}>
-                                                                        <Pencil className="h-3 w-3" />
-                                                                    </Button>
-                                                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setCourierPaymentToDelete(payment)}>
-                                                                        <Trash2 className="h-3 w-3" />
-                                                                    </Button>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                        </CollapsibleContent>
-                                                    </Collapsible>
-                                                )}
-                                            </div>
-                                        </CardContent>
-                                        <CardFooter className="flex flex-col items-stretch gap-2">
-                                            <div className="flex gap-2 w-full">
-                                                <Button variant="outline" className="w-full" onClick={() => openCourierPaymentForm(courier)} disabled={courier.netDue <= 0}>
-                                                    <HandCoins className="me-2 h-4 w-4" />
-                                                    تسوية الحساب
-                                                </Button>
-                                                <Button variant="outline" size="icon" onClick={() => openAdminNoteDialog(courier)}>
-                                                    <MessageSquarePlus className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                            {courier.totalShipments > 0 && (
-                                                <Button variant="secondary" className="w-full" onClick={() => setCourierToArchive(courier)}>
-                                                    <Archive className="me-2 h-4 w-4" />
-                                                    أرشفة وتسوية الكل
-                                                </Button>
-                                            )}
-                                        </CardFooter>
-                                    </Card>
-                                ))}
-                            </div>
-                        </div>
+                                            <CardDescription className="text-xs mt-1">
+                                                {courier.phone || 'بدون رقم هاتف'}
+                                            </CardDescription>
+                                        </div>
+                                        <Badge variant={courier.netDue > 0 ? "destructive" : "default"} className="font-mono">
+                                            {Math.abs(courier.netDue).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                                        </Badge>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="flex-grow pt-4">
+                                    <div className="grid grid-cols-2 gap-3 mb-4">
+                                        <div className="bg-muted/30 p-2 rounded-md text-center">
+                                            <p className="text-[10px] text-muted-foreground">شحنات</p>
+                                            <p className="font-bold text-sm">{courier.totalShipments}</p>
+                                        </div>
+                                        <div className="bg-green-50/50 p-2 rounded-md text-center">
+                                            <p className="text-[10px] text-green-600">تسليم</p>
+                                            <p className="font-bold text-sm text-green-700">{courier.deliveredCount}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="space-y-1.5 text-xs">
+                                        <div className="flex justify-between items-center py-1 border-b border-dashed">
+                                            <span className="text-muted-foreground flex items-center gap-1.5">
+                                                <DollarSign className="h-3 w-3" /> تحصيل:
+                                            </span>
+                                            <span className="font-medium">{courier.totalCollected.toLocaleString('ar-EG')}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center py-1 border-b border-dashed">
+                                            <span className="text-muted-foreground flex items-center gap-1.5">
+                                                <BadgePercent className="h-3 w-3" /> عمولات:
+                                            </span>
+                                            <span className="font-medium text-blue-600">{courier.totalCommission.toLocaleString('ar-EG')}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center py-1">
+                                            <span className="text-muted-foreground flex items-center gap-1.5">
+                                                <WalletCards className="h-3 w-3" /> مدفوعات:
+                                            </span>
+                                            <span className="font-medium text-green-600">{courier.totalPaidByCourier.toLocaleString('ar-EG')}</span>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                                <CardFooter className="bg-muted/5 p-3 flex flex-col gap-2">
+                                    <div className="flex gap-2 w-full">
+                                        <Button variant="default" size="sm" className="flex-1 shadow-sm" onClick={() => openCourierPaymentForm(courier)} disabled={courier.netDue <= 0}>
+                                            <HandCoins className="me-2 h-3.5 w-3.5" />
+                                            تسوية
+                                        </Button>
+                                        <Button variant="outline" size="sm" className="px-2" onClick={() => openAdminNoteDialog(courier)}>
+                                            <MessageSquarePlus className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </div>
+                                    {courier.totalShipments > 0 && (
+                                        <Button variant="ghost" size="sm" className="w-full text-[10px] text-muted-foreground hover:text-primary" onClick={() => setCourierToArchive(courier)}>
+                                            <Archive className="me-1.5 h-3 w-3" />
+                                            أرشفة وتسوية الحساب
+                                        </Button>
+                                    )}
+                                </CardFooter>
+                            </Card>
+                        ))}
+                    </div>
                 </TabsContent>
+
                 <TabsContent value="company-management">
-                    <div className="mt-8">
-                        <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
-                            <h2 className="text-2xl font-headline font-semibold">إدارة حسابات الشركات</h2>
-                            <div className="flex items-center gap-2">
-                                <div className="relative">
-                                    <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        placeholder="ابحث عن شركة..."
-                                        onChange={(e) => setManagementSearchTerm(e.target.value)}
-                                        className="pr-8 sm:w-[250px]"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                                {filteredCompanyDues.map(company => (
-                                    <Card key={company.id} className="flex flex-col">
-                                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                            <CardTitle className="text-sm font-medium flex items-center gap-2">
-                                                <Building className="h-4 w-4 text-muted-foreground" />
+                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        {filteredCompanyDues.map(company => (
+                            <Card key={company.id} className="flex flex-col shadow-sm border-t-2 border-t-indigo-500 overflow-hidden hover:shadow-md transition-all">
+                                <CardHeader className="bg-muted/10 pb-3">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <CardTitle className="text-base font-bold flex items-center gap-2">
+                                                <Building className="h-4 w-4 text-indigo-600" />
                                                 {company.name}
                                             </CardTitle>
-                                            <div className={`text-xl font-bold ${company.netDue >= 0 ? 'text-green-600' : 'text-destructive'}`}>
-                                                {Math.abs(company.netDue).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-                                            </div>
-                                        </CardHeader>
-                                        <CardContent className="flex-grow">
-                                            <p className="text-xs text-muted-foreground">
-                                                {company.netDue >= 0 ? 'المبلغ المستحق للدفع للشركة' : 'المبلغ المستحق على الشركة'}
-                                            </p>
-                                            <div className="mt-4 space-y-2 text-sm">
-                                                <div className="flex justify-between items-center border-b pb-2">
-                                                    <span className="flex items-center gap-2 text-muted-foreground">
-                                                        <Package className="h-4 w-4" />
-                                                        إجمالي الشحنات:
-                                                    </span>
-                                                    <span className="font-medium">{company.totalShipments}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center pt-2 border-t">
-                                                    <span className="flex items-center gap-2 text-muted-foreground">
-                                                        <DollarSign className="h-4 w-4" />
-                                                        إجمالي التحصيل:
-                                                    </span>
-                                                    <span className="font-medium">{company.totalRevenue.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                                </div>
-                                                    <div className="flex justify-between items-center">
-                                                    <span className="flex items-center gap-2 text-muted-foreground">
-                                                        <BadgePercent className="h-4 w-4 text-indigo-500" />
-                                                        عمولات الشركة:
-                                                    </span>
-                                                    <span className="font-medium">{company.totalCompanyCommission.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center border-t pt-2 mt-2">
-                                                    <span className="flex items-center gap-2 text-muted-foreground">
-                                                        <WalletCards className="h-4 w-4" />
-                                                        إجمالي المدفوعات:
-                                                    </span>
-                                                    <span className="font-medium text-green-700">{company.totalPaidToCompany.toLocaleString('ar-EG', {style: 'currency', currency: 'EGP'})}</span>
-                                                </div>
-                                                
-                                                {company.paymentHistory && company.paymentHistory.length > 0 && (
-                                                    <Collapsible className="pt-2 text-xs">
-                                                        <CollapsibleTrigger asChild>
-                                                            <Button variant="ghost" size="sm" className="flex items-center gap-2 w-full justify-start p-0 h-auto text-xs">
-                                                                <History className="h-3 w-3"/>
-                                                                <span>عرض سجل الدفعات ({company.paymentHistory.length})</span>
-                                                            </Button>
-                                                        </CollapsibleTrigger>
-                                                        <CollapsibleContent className="space-y-2 mt-2">
-                                                            {company.paymentHistory.map(payment => (
-                                                                <div key={payment.id} className="flex justify-between items-center text-muted-foreground p-2 rounded-md bg-muted/50">
-                                                                    <div>
-                                                                        <span className="font-semibold">{payment.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
-                                                                        <span className="mx-2">-</span>
-                                                                        <span>{new Date(payment.paymentDate?.toDate?.() || Date.now()).toLocaleDateString('ar-EG')}</span>
-                                                                    </div>
-                                                                    <div className="flex items-center">
-                                                                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openCompanyPaymentForm(company, payment)}>
-                                                                            <Pencil className="h-3 w-3" />
-                                                                        </Button>
-                                                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setCompanyPaymentToDelete(payment)}>
-                                                                            <Trash2 className="h-3 w-3" />
-                                                                        </Button>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </CollapsibleContent>
-                                                    </Collapsible>
-                                                )}
-                                            </div>
-                                        </CardContent>
-                                        <CardFooter className="flex flex-col items-stretch gap-2">
-                                                <CompanySettlementDialog
-                                                    company={company}
-                                                    allShipments={allShipmentsForStats || []}
-                                                    adminUser={user}
-                                                    statuses={statuses || []}
-                                                    onSettlementComplete={() => {}}
-                                                >
-                                                    <Button variant="default" className="w-full">
-                                                        <FileSpreadsheet className="me-2 h-4 w-4" />
-                                                        تسوية عبر شيت
-                                                    </Button>
-                                                </CompanySettlementDialog>
-                                            <Button variant="outline" className="w-full" onClick={() => openCompanyPaymentForm(company)} disabled={company.netDue <= 0}>
-                                                <Banknote className="me-2 h-4 w-4" />
-                                                تسوية يدوية
+                                            <CardDescription className="text-xs mt-1">
+                                                إدارة الحساب المالي
+                                            </CardDescription>
+                                        </div>
+                                        <Badge variant={company.netDue >= 0 ? "default" : "destructive"} className="font-mono bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border-none">
+                                            {Math.abs(company.netDue).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                                        </Badge>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="flex-grow pt-4">
+                                    <div className="grid grid-cols-1 gap-2 mb-4">
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-muted-foreground">إجمالي الشحنات:</span>
+                                            <span className="font-bold">{company.totalShipments}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-muted-foreground">صافي التحصيل:</span>
+                                            <span className="font-bold">{(company.totalRevenue - company.totalCompanyCommission).toLocaleString('ar-EG')}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="space-y-2 pt-2 border-t text-[11px]">
+                                         <div className="flex justify-between">
+                                            <span className="text-muted-foreground">الإيرادات:</span>
+                                            <span className="font-medium text-green-600">{company.totalRevenue.toLocaleString('ar-EG')}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">العمولة المستقطعة:</span>
+                                            <span className="font-medium text-red-600">{company.totalCompanyCommission.toLocaleString('ar-EG')}</span>
+                                        </div>
+                                        <div className="flex justify-between font-bold pt-1 border-t border-dashed">
+                                            <span>المدفوع للشركة:</span>
+                                            <span className="text-indigo-600">{company.totalPaidToCompany.toLocaleString('ar-EG')}</span>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                                <CardFooter className="bg-muted/5 p-3 flex flex-col gap-2">
+                                    <div className="grid grid-cols-2 gap-2 w-full">
+                                        <CompanySettlementDialog
+                                            company={company}
+                                            allShipments={allShipmentsForStats || []}
+                                            adminUser={user}
+                                            statuses={statuses || []}
+                                            onSettlementComplete={() => {}}
+                                        >
+                                            <Button variant="default" size="sm" className="w-full text-xs shadow-sm bg-indigo-600 hover:bg-indigo-700">
+                                                <FileSpreadsheet className="me-1.5 h-3.5 w-3.5" />
+                                                تسوية شيت
                                             </Button>
-                                            {company.totalShipments > 0 && (
-                                                <Button variant="secondary" className="w-full" onClick={() => setCompanyToArchive(company)}>
-                                                    <Archive className="me-2 h-4 w-4" />
-                                                    أرشفة وتسوية الكل
-                                                </Button>
-                                            )}
-                                        </CardFooter>
-                                    </Card>
-                                ))}
+                                        </CompanySettlementDialog>
+                                        <Button variant="outline" size="sm" className="w-full text-xs shadow-sm" onClick={() => openCompanyPaymentForm(company)} disabled={company.netDue <= 0}>
+                                            <Banknote className="me-1.5 h-3.5 w-3.5" />
+                                            يدوي
+                                        </Button>
+                                    </div>
+                                    {company.totalShipments > 0 && (
+                                        <Button variant="ghost" size="sm" className="w-full text-[10px] text-muted-foreground" onClick={() => setCompanyToArchive(company)}>
+                                            <Archive className="me-1.5 h-3 w-3" />
+                                            أرشفة وتصفير الحساب
+                                        </Button>
+                                    )}
+                                </CardFooter>
+                            </Card>
+                        ))}
+                    </div>
+                </TabsContent>
+
+                <TabsContent value="payments-log">
+                    <Card className="shadow-sm">
+                        <CardHeader className="bg-muted/10">
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <ReceiptText className="h-5 w-5 text-primary" />
+                                سجل جميع المدفوعات (آخر 200 عملية)
+                            </CardTitle>
+                            <CardDescription>عرض تاريخي لكل المبالغ التي تم تحصيلها أو دفعها</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="text-right">التاريخ والوقت</TableHead>
+                                            <TableHead className="text-right">الكيان (مندوب/شركة)</TableHead>
+                                            <TableHead className="text-right">المبلغ</TableHead>
+                                            <TableHead className="text-right">النوع</TableHead>
+                                            <TableHead className="text-right">ملاحظات</TableHead>
+                                            <TableHead className="text-right">الإجراءات</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {combinedPaymentsLog.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">لا توجد سجلات مدفوعات حالياً</TableCell>
+                                            </TableRow>
+                                        ) : (
+                                            combinedPaymentsLog.map((log) => (
+                                                <TableRow key={log.id} className="hover:bg-muted/30 transition-colors">
+                                                    <TableCell className="font-medium">{formatToCairoTime(log.date)}</TableCell>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-2">
+                                                            {log.type === 'courier' ? <CourierIcon className="h-3 w-3 text-blue-500" /> : <Building className="h-3 w-3 text-indigo-500" />}
+                                                            {log.entityName}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="font-bold text-green-700">
+                                                        {log.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Badge variant="outline" className={log.type === 'courier' ? 'text-blue-600 bg-blue-50 border-blue-100' : 'text-indigo-600 bg-indigo-50 border-indigo-100'}>
+                                                            {log.type === 'courier' ? 'من مندوب' : 'إلى شركة'}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell className="text-xs max-w-[200px] truncate" title={log.notes}>
+                                                        {log.notes || '-'}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-1">
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                                                                if (log.type === 'courier') {
+                                                                    const courier = courierUsers.find(u => u.id === log.courierId);
+                                                                    if (courier) openCourierPaymentForm(courier, log as CourierPayment);
+                                                                } else {
+                                                                    const company = companies.find(c => c.id === log.companyId);
+                                                                    if (company) openCompanyPaymentForm(company, log as CompanyPayment);
+                                                                }
+                                                            }}>
+                                                                <Pencil className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => {
+                                                                if (log.type === 'courier') setCourierPaymentToDelete(log as CourierPayment);
+                                                                else setCompanyPaymentToDelete(log as CompanyPayment);
+                                                            }}>
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        )}
+                                    </TableBody>
+                                </Table>
                             </div>
-                        </div>
+                        </CardContent>
+                    </Card>
                 </TabsContent>
-                <TabsContent value="account-statements">
-                    <AccountStatementsPage />
-                </TabsContent>
+
                 <TabsContent value="user-management">
-                    <div className="mt-8">
-                        <div className="flex justify-between items-center mb-4">
-                            <div>
-                                <h2 className="text-2xl font-headline font-semibold">إدارة المستخدمين والشركات</h2>
-                                <div className="relative mt-2">
-                                    <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        placeholder="ابحث عن مستخدم..."
-                                        value={managementSearchTerm}
-                                        onChange={(e) => setManagementSearchTerm(e.target.value)}
-                                        className="pr-8 sm:w-[300px]"
-                                    />
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <UserFormSheet 
-                                    open={isUserSheetOpen}
-                                    onOpenChange={setIsUserSheetOpen}
-                                    onSave={handleSaveUser}
-                                    user={editingUser}
-                                    companyDetails={editingCompany}
-                                >
-                                    <Button size="sm" onClick={() => openUserForm()}>
-                                        <PlusCircle className="h-4 w-4" />
-                                        <span className="sr-only sm:not-sr-only">
-                                        إضافة مستخدم
-                                        </span>
-                                    </Button>
-                                </UserFormSheet>
-                            </div>
+                     <div className="bg-card rounded-lg border shadow-sm">
+                        <div className="p-4 border-b flex justify-between items-center">
+                            <h3 className="font-bold">المستخدمين والشركات</h3>
+                            <Button size="sm" onClick={() => openUserForm()} className="h-8">
+                                <PlusCircle className="h-4 w-4 me-2" />
+                                إضافة مستخدم
+                            </Button>
                         </div>
                         {isMobile ? 
-                            <div className="space-y-4">
-                                {(users || []).map(user => (
+                            <div className="p-4 space-y-4">
+                                {(users || []).map(u => (
                                     <UserCard 
-                                        key={user.id} 
-                                        user={user}
-                                        company={companies?.find(c => c.id === user.id)}
+                                        key={u.id} 
+                                        user={u}
+                                        company={companies?.find(c => c.id === u.id)}
                                         onEdit={openUserForm}
                                         onDelete={setUserToDelete}
                                     />
@@ -2337,7 +2043,117 @@ const generateShipmentCode = () => {
                         }
                     </div>
                 </TabsContent>
-                <TabsContent value="audit-log">
+            </Tabs>
+        </TabsContent>
+
+        <TabsContent value="problem-inbox" className="mt-0">
+            <div className="grid gap-6">
+                <ProblemShipmentList title="طلبات تعديل أسعار" icon={<DollarSign className="h-5 w-5 text-yellow-500" />} shipments={priceChangeRequests} onEdit={openShipmentForm}>
+                    {(s: Shipment) => {
+                        const courierName = courierUsers.find(c => c.id === s.assignedCourierId)?.name;
+                        const isProcessing = processingShipments.has(s.id);
+                        return (
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <p className="font-bold">{s.recipientName}</p>
+                                    <Badge variant="outline" className="text-[10px] h-4">بواسطة: {courierName}</Badge>
+                                </div>
+                                <div className="text-xs text-muted-foreground flex items-center gap-3">
+                                    <span>الحالي: <span className="font-bold">{s.totalAmount.toLocaleString('ar-EG')}</span></span>
+                                    <Check className="h-3 w-3 text-muted-foreground" />
+                                    <span>المطلوب: <span className="font-bold text-primary">{s.requestedAmount?.toLocaleString('ar-EG')}</span></span>
+                                </div>
+                                {s.amountChangeReason && <p className="text-[10px] text-amber-600 mt-1 italic">السبب: {s.amountChangeReason}</p>}
+                                <div className="mt-3 flex gap-2">
+                                    <Button size="sm" variant="outline" className="h-7 text-[11px] text-green-600 border-green-200 hover:bg-green-50 shadow-sm" onClick={() => handlePriceChangeDecision(s, true)} disabled={isProcessing}>
+                                        {isProcessing ? <Loader2 className="h-3 w-3 animate-spin"/> : <Check className="h-3 w-3 me-1" />} موافقة
+                                    </Button>
+                                    <Button size="sm" variant="outline" className="h-7 text-[11px] text-red-600 border-red-200 hover:bg-red-50 shadow-sm" onClick={() => handlePriceChangeDecision(s, false)} disabled={isProcessing}>
+                                        {isProcessing ? <Loader2 className="h-3 w-3 animate-spin"/> : <X className="h-3 w-3 me-1" />} رفض
+                                    </Button>
+                                </div>
+                            </div>
+                        );
+                    }}
+                </ProblemShipmentList>
+                
+                <div className="grid md:grid-cols-2 gap-6">
+                    <ProblemShipmentList title="مرتجعات بحاجة لقرار" icon={<AlertTriangle className="h-5 w-5 text-orange-500" />} shipments={returnedShipmentsNeedingAction} onEdit={openShipmentForm}>
+                        {(s: Shipment) => {
+                             const companyName = companies?.find(c => c.id === s.companyId)?.name || "N/A";
+                            return (<div>
+                                <p className="font-bold text-sm">{s.recipientName}</p>
+                                <p className="text-[10px] text-primary">{companyName}</p>
+                            </div>)
+                        }}
+                    </ProblemShipmentList>
+
+                    <ProblemShipmentList title="شحنات مؤجلة (+3 أيام)" icon={<CalendarClock className="h-5 w-5 text-destructive" />} shipments={longPostponedShipments} onEdit={openShipmentForm}>
+                         {(s: Shipment) => {
+                             const lastUpdate = getSafeDate(s.updatedAt);
+                             const daysAgo = lastUpdate ? differenceInDays(new Date(), lastUpdate) : 0;
+                            return (<div>
+                                <p className="font-bold text-sm">{s.recipientName}</p>
+                                <p className="text-[10px] text-amber-600 font-medium">مؤجلة منذ {daysAgo} أيام</p>
+                            </div>)
+                        }}
+                    </ProblemShipmentList>
+                </div>
+
+                {problemCount === 0 && (
+                <div className="flex flex-col items-center justify-center text-center py-20 bg-muted/20 border-2 border-dashed rounded-xl">
+                    <div className="bg-green-100 p-4 rounded-full mb-4">
+                        <CheckSquare className="h-10 w-10 text-green-600" />
+                    </div>
+                    <h3 className="text-xl font-bold">كل شيء رائع!</h3>
+                    <p className="text-muted-foreground mt-2">لا توجد شحنات بحاجة لتدخل إداري حالياً.</p>
+                </div>
+                )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="tools" className="mt-0">
+             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {[
+                    { title: "مركز الطباعة", desc: "إدارة طباعة ملصقات الشحنات", icon: Printer, value: "print-center", color: "text-blue-600" },
+                    { title: "الشحنات المكررة", desc: "اكتشاف ومعالجة الشحنات المكررة", icon: Copy, link: "/duplicates", color: "text-orange-600" },
+                    { title: "مقارنة الشيتات", desc: "أداة ذكية لمطابقة ملفات الإكسيل", icon: GitCompareArrows, link: "/comparison", color: "text-purple-600" },
+                    { title: "الإحصائيات", desc: "تقارير بيانية مفصلة عن الأداء", icon: BarChart, link: "/statistics", color: "text-green-600" },
+                    { title: "كشوفات الحسابات", desc: "عرض وتصدير كشوف الحسابات", icon: FileSpreadsheet, link: "/accounts", color: "text-indigo-600" },
+                    { title: "الأرشيف", desc: "استعراض البيانات السابقة", icon: Archive, link: "/archive", color: "text-gray-600" },
+                    { title: "سجل التغييرات", desc: "تتبع كل تعديل تم في النظام", icon: History, value: "audit-log", color: "text-cyan-600" },
+                    { title: "التقارير", desc: "توليد تقارير شاملة", icon: BarChart, value: "reports", color: "text-red-600" },
+                    { title: "المصروفات", desc: "إدارة مصاريف المكتب والمناديب", icon: Banknote, link: "/expenses", color: "text-emerald-600" },
+                ].map((item, idx) => (
+                    <Card key={idx} className="hover:shadow-md transition-all cursor-pointer group" onClick={() => item.link ? router.push(item.link) : setActiveTab(item.value)}>
+                        <CardHeader className="flex flex-row items-center gap-4 pb-4">
+                            <div className={`p-2 rounded-lg bg-muted group-hover:bg-background transition-colors ${item.color}`}>
+                                <item.icon className="h-6 w-6" />
+                            </div>
+                            <div>
+                                <CardTitle className="text-lg">{item.title}</CardTitle>
+                                <CardDescription className="text-xs">{item.desc}</CardDescription>
+                            </div>
+                        </CardHeader>
+                    </Card>
+                ))}
+            </div>
+            
+            <div className="mt-8">
+                {activeTab === 'print-center' && (
+                    <PrintCenterPage 
+                        shipments={allShipmentsForStats || []}
+                        isLoading={allShipmentsLoading}
+                        governorates={governorates || []}
+                        companies={companies || []}
+                        courierUsers={courierUsers || []}
+                        statuses={statuses || []}
+                        onEdit={openShipmentForm}
+                        role={role}
+                        onGenericBulkUpdate={handleGenericBulkUpdate}
+                    />
+                )}
+                {activeTab === 'audit-log' && (
                     <AuditLogPage 
                         users={users || []}
                         shipments={allShipmentsForStats || []}
@@ -2346,8 +2162,8 @@ const generateShipmentCode = () => {
                         statuses={statuses || []}
                         isLoading={listIsLoading}
                     />
-                </TabsContent>
-                <TabsContent value="reports">
+                )}
+                {activeTab === 'reports' && (
                     <ReportsPage 
                         shipments={allShipmentsForStats || []}
                         companies={companies || []}
@@ -2357,13 +2173,16 @@ const generateShipmentCode = () => {
                         courierPayments={courierPayments || []}
                         isLoading={listIsLoading}
                     />
-                </TabsContent>
-            </>
-        )}
-        <TabsContent value="chat">
+                )}
+            </div>
+        </TabsContent>
+
+        <TabsContent value="chat" className="mt-0 border rounded-xl overflow-hidden bg-background h-[calc(100vh-16rem)] shadow-sm">
            <ChatInterface initialChatId={initialChatId}/>
         </TabsContent>
         </Tabs>
+
+      {/* Forms and Dialogs */}
       <ShipmentFormSheet
         open={isShipmentSheetOpen}
         onOpenChange={handleSheetOpenChange}
@@ -2374,9 +2193,16 @@ const generateShipmentCode = () => {
         companies={companies || []}
         statuses={statuses || []}
         role={role}
-      >
-        <div />
-      </ShipmentFormSheet>
+      />
+      
+      <UserFormSheet 
+        open={isUserSheetOpen}
+        onOpenChange={setIsUserSheetOpen}
+        onSave={handleSaveUser}
+        user={editingUser}
+        companyDetails={editingCompany}
+      />
+
        <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -2387,16 +2213,17 @@ const generateShipmentCode = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setUserToDelete(null)}>إلغاء</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteUser}>متابعة</AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteUser} className="bg-destructive hover:bg-destructive/90">تأكيد الحذف</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
         <AlertDialog open={!!shipmentToDelete} onOpenChange={(open) => !open && setShipmentToDelete(null)}>
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>هل أنت متأكد من حذف الشحنة؟</AlertDialogTitle>
                     <AlertDialogDescription>
-                        سيتم حذف الشحنة ({shipmentToDelete?.recipientName}) بشكل نهائي. لا يمكن التراجع عن هذا الإجراء.
+                        سيتم حذف الشحنة ({shipmentToDelete?.recipientName}) بشكل نهائي.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -2405,12 +2232,13 @@ const generateShipmentCode = () => {
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
+
        <AlertDialog open={!!courierPaymentToDelete} onOpenChange={(open) => !open && setCourierPaymentToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>هل أنت متأكد من حذف الدفعة؟</AlertDialogTitle>
             <AlertDialogDescription>
-              سيتم حذف سجل هذه الدفعة بشكل نهائي. سيؤثر هذا على المبلغ المستحق على المندوب. لا يمكن التراجع عن هذا الإجراء.
+              سيتم حذف سجل هذه الدفعة بشكل نهائي.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2419,12 +2247,13 @@ const generateShipmentCode = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
       <AlertDialog open={!!companyPaymentToDelete} onOpenChange={(open) => !open && setCompanyPaymentToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>هل أنت متأكد من حذف الدفعة؟</AlertDialogTitle>
             <AlertDialogDescription>
-              سيتم حذف سجل هذه الدفعة بشكل نهائي. سيؤثر هذا على المبلغ المستحق للشركة. لا يمكن التراجع عن هذا الإجراء.
+              سيتم حذف سجل هذه الدفعة بشكل نهائي.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2433,12 +2262,13 @@ const generateShipmentCode = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
        <AlertDialog open={!!courierToArchive} onOpenChange={(open) => !open && setCourierToArchive(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>أرشفة وتسوية حساب {courierToArchive?.name}؟</AlertDialogTitle>
             <AlertDialogDescription>
-             سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ المستحق على المندوب حالياً، ثم وضع علامة "مؤرشف" على جميع الشحنات المنتهية والدفعات الحالية للمندوب لإخفائها من القوائم النشطة.
+             سيقوم هذا الإجراء بتسجيل دفعة بالمبلغ المستحق على المندوب حالياً، ثم أرشفة جميع الشحنات المنتهية والدفعات الحالية.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2447,12 +2277,13 @@ const generateShipmentCode = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
       <AlertDialog open={!!companyToArchive} onOpenChange={(open) => !open && setCompanyToArchive(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>أرشفة وتسوية حساب {companyToArchive?.name}؟</AlertDialogTitle>
             <AlertDialogDescription>
-              سيؤدي هذا الإجراء إلى وضع علامة "مؤرشف" على جميع الشحنات المنتهية والدفعات الحالية للشركة لإخفائها من القوائم النشطة، مما يؤدي إلى تصفير حسابها لتبدأ دورة عمل جديدة.
+              سيؤدي هذا الإجراء إلى أرشفة جميع الشحنات المنتهية والدفعات الحالية للشركة لإخفائها من القوائم النشطة.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2461,6 +2292,7 @@ const generateShipmentCode = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
       <CourierPaymentFormSheet
         open={isCourierPaymentSheetOpen}
         onOpenChange={(open) => {
@@ -2475,6 +2307,7 @@ const generateShipmentCode = () => {
         onSave={handleSaveCourierPayment}
         netDue={currentCourierNetDue}
       />
+
       <CompanyPaymentFormSheet
         open={isCompanyPaymentSheetOpen}
         onOpenChange={(open) => {
@@ -2489,11 +2322,12 @@ const generateShipmentCode = () => {
         onSave={handleSaveCompanyPayment}
         netDue={currentCompanyNetDue}
       />
+
       <AdminNoteDialog
         open={isAdminNoteDialogOpen}
         onOpenChange={setIsAdminNoteDialogOpen}
         courier={notingCourier}
-        onSend={(message) => {
+        onSend={async (message) => { // Marked as async
           if (!firestore || !notingCourier) return;
           const courierDocRef = doc(firestore, 'couriers', notingCourier.id);
           const notePayload = {
@@ -2501,20 +2335,22 @@ const generateShipmentCode = () => {
             isRead: false,
             updatedAt: serverTimestamp(),
           };
-          updateDoc(courierDocRef, { adminNote: notePayload })
-            .then(() => {
-              toast({ title: 'تم إرسال الملاحظة بنجاح' });
-              sendPushNotification({
-                recipientId: notingCourier.id,
-                title: 'رسالة جديدة من الإدارة',
-                body: message.substring(0, 100),
-                url: typeof window !== 'undefined' ? `${window.location.origin}/` : '/',
-                badgeCount: 1,
-              });
-            })
-            .catch(() => toast({ title: 'فشل إرسال الملاحظة', variant: 'destructive' }));
+          try {
+            await updateDoc(courierDocRef, { adminNote: notePayload });
+            toast({ title: 'تم إرسال الملاحظة بنجاح' });
+            await sendPushNotification({
+              recipientId: notingCourier.id,
+              title: 'رسالة جديدة من الإدارة',
+              body: message.substring(0, 100),
+              url: typeof window !== 'undefined' ? `${window.location.origin}/` : '/',
+            });
+          } catch (error) {
+            console.error("Failed to send note or push notification:", error);
+            toast({ title: 'فشل إرسال الملاحظة', variant: 'destructive' });
+          }
         }}
       />
+
        {importResult && (
         <ImportProgressDialog
           result={importResult}
@@ -2540,3 +2376,79 @@ const generateShipmentCode = () => {
     </div>
   );
 }
+
+// Sub-components as defined in the original file but reused here
+const PrintCenterPage = ({
+    shipments,
+    isLoading,
+    governorates,
+    companies,
+    courierUsers,
+    statuses,
+    onEdit,
+    role,
+    onGenericBulkUpdate,
+  }: {
+    shipments: Shipment[];
+    isLoading: boolean;
+    governorates: Governorate[];
+    companies: Company[];
+    courierUsers: User[];
+    statuses: ShipmentStatusConfig[];
+    onEdit: (shipment: Shipment) => void;
+    role: Role | null;
+    onGenericBulkUpdate: (selectedRows: Shipment[], update: Partial<Shipment>) => void;
+  }) => {
+    const unprintedShipments = useMemo(() => shipments.filter(s => !s.isLabelPrinted), [shipments]);
+    const printedShipments = useMemo(() => shipments.filter(s => s.isLabelPrinted), [shipments]);
+    const { toast } = useToast();
+  
+    const handlePrintAndUpdate = async (selectedRows: Shipment[]) => {
+      if (selectedRows.length === 0) {
+        toast({ title: 'لم يتم تحديد أي شحنات', variant: 'destructive' });
+        return;
+      }
+      await onGenericBulkUpdate(selectedRows, { isLabelPrinted: true });
+  
+      const ids = selectedRows.map(row => row.id);
+      const printUrl = `/print/bulk?ids=${ids.join(',')}`;
+      window.open(printUrl, '_blank', 'width=800,height=600');
+    };
+  
+    return (
+      <Tabs defaultValue="unprinted">
+        <TabsList className="mb-4">
+          <TabsTrigger value="unprinted">جاهزة للطباعة ({unprintedShipments.length})</TabsTrigger>
+          <TabsTrigger value="printed">تمت طباعتها ({printedShipments.length})</TabsTrigger>
+        </TabsList>
+        <TabsContent value="unprinted">
+          <ShipmentsTable
+            shipments={unprintedShipments}
+            isLoading={isLoading}
+            governorates={governorates}
+            companies={companies}
+            couriers={courierUsers}
+            statuses={statuses}
+            onEdit={onEdit}
+            role={role}
+            onBulkUpdate={onGenericBulkUpdate}
+            onBulkPrint={handlePrintAndUpdate}
+          />
+        </TabsContent>
+        <TabsContent value="printed">
+          <ShipmentsTable
+            shipments={printedShipments}
+            isLoading={isLoading}
+            governorates={governorates}
+            companies={companies}
+            couriers={courierUsers}
+            statuses={statuses}
+            onEdit={onEdit}
+            role={role}
+            onBulkUpdate={onGenericBulkUpdate}
+            onBulkPrint={handlePrintAndUpdate}
+          />
+        </TabsContent>
+      </Tabs>
+    );
+  };
