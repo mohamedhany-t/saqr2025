@@ -2,8 +2,8 @@
 'use client';
 import React from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
-import type { ShipmentHistory } from '@/lib/types';
+import { collection, query, orderBy, where } from 'firebase/firestore';
+import type { ShipmentHistory, Governorate, Company, User, ShipmentStatusConfig } from '@/lib/types';
 import { Loader2, History } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { DetailedHistoryCard } from '../audit-log/detailed-history-card';
@@ -23,33 +23,43 @@ export function ShipmentHistoryTimeline({ shipmentId }: ShipmentHistoryTimelineP
     );
   }, [firestore, shipmentId]);
 
-  const { data: history, isLoading } = useCollection<ShipmentHistory>(historyQuery);
+  const { data: history, isLoading: historyLoading } = useCollection<ShipmentHistory>(historyQuery);
 
-  if (isLoading) {
+  // Fetch needed data for labels translation
+  const { data: governorates } = useCollection<Governorate>(useMemoFirebase(() => firestore ? query(collection(firestore, 'governorates')) : null, [firestore]));
+  const { data: companies } = useCollection<Company>(useMemoFirebase(() => firestore ? query(collection(firestore, 'companies')) : null, [firestore]));
+  const { data: couriers } = useCollection<User>(useMemoFirebase(() => firestore ? query(collection(firestore, 'users'), where('role', '==', 'courier')) : null, [firestore]));
+  const { data: statuses } = useCollection<ShipmentStatusConfig>(useMemoFirebase(() => firestore ? query(collection(firestore, 'shipment_statuses')) : null, [firestore]));
+
+  if (historyLoading) {
     return (
-      <div className="flex justify-center items-center h-48">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
       </div>
     );
   }
 
   if (!history || history.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-48 text-muted-foreground text-center">
-        <History className="h-10 w-10 mb-2"/>
-        <p>لا يوجد سجل تتبع لهذه الشحنة.</p>
+      <div className="flex flex-col items-center justify-center h-64 text-muted-foreground text-center">
+        <History className="h-12 w-12 mb-3 opacity-20"/>
+        <p className="text-lg font-medium">لا يوجد سجل تتبع لهذه الشحنة حتى الآن.</p>
       </div>
     );
   }
 
   return (
-    <ScrollArea className="h-96">
-      <div className="space-y-4">
+    <ScrollArea className="h-[500px] pr-4">
+      <div className="space-y-6 py-4">
         {history.map((entry) => (
           <DetailedHistoryCard 
             key={entry.id}
             historyEntry={entry}
-            shipment={null} // We don't need full shipment object here
+            shipment={null}
+            governorates={governorates || []}
+            companies={companies || []}
+            couriers={couriers || []}
+            statuses={statuses || []}
           />
         ))}
       </div>

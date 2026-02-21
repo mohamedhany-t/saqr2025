@@ -2,19 +2,13 @@
 'use client';
 import React from 'react';
 import type { Shipment, ShipmentHistory, Governorate, Company, User, ShipmentStatusConfig, ShipmentHistoryEntry } from '@/lib/types';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Avatar, AvatarFallback } from '../ui/avatar';
+import { Card, CardContent, CardHeader } from '../ui/card';
 import { formatToCairoTime } from '@/lib/utils';
-import { ArrowRight, FileText, Pencil, Trash2 } from 'lucide-react';
-import { Button } from '../ui/button';
-import { Separator } from '../ui/separator';
+import { ArrowRight, User as UserIcon, MapPin, DollarSign, Tag, Clock, CheckCircle2, History as HistoryIcon, Edit3, Trash2, ArrowLeft } from 'lucide-react';
 
 interface DetailedHistoryCardProps {
     historyEntry: ShipmentHistory;
     shipment: Shipment | null | undefined;
-    onShowDetails?: (shipment: Shipment) => void;
-    onEdit?: (shipmentId: string) => void;
-    onDelete?: (historyEntry: ShipmentHistory) => void;
     governorates?: Governorate[];
     companies?: Company[];
     couriers?: User[];
@@ -23,196 +17,152 @@ interface DetailedHistoryCardProps {
 
 const fieldLabels: { [key: string]: string } = {
   status: 'الحالة',
-  reason: 'السبب / الملاحظة',
+  reason: 'الملاحظات / السبب',
   totalAmount: 'المبلغ الإجمالي',
   paidAmount: 'المبلغ المدفوع',
   collectedAmount: 'المبلغ المحصّل',
   recipientName: 'اسم المستلم',
-  recipientPhone: 'هاتف المستلم',
-  address: 'العنوان',
+  recipientPhone: 'رقم الهاتف',
+  address: 'العنوان بالتفصيل',
   governorateId: 'المحافظة',
-  assignedCourierId: 'المندوب',
-  companyId: 'الشركة',
-  orderNumber: 'رقم الطلب',
+  assignedCourierId: 'المندوب المسؤول',
+  companyId: 'الشركة / العميل',
+  orderNumber: 'رقم الأوردر',
   shipmentCode: 'كود الشحنة',
-  senderName: 'الراسل',
-  isUrgent: 'شحنة مستعجلة',
-  isExchange: 'شحنة استبدال',
-  isCustomReturn: 'استرجاع مخصص',
+  senderName: 'اسم الراسل',
+  isUrgent: 'مستعجل',
+  isExchange: 'استبدال',
+  isCustomReturn: 'مرتجع مخصص',
   retryAttempt: 'إعادة محاولة',
-  isWarehouseReturn: 'مرتجع للمخزن',
-  isReturnedToCompany: 'مرتجع للشركة',
-  companyCommission: 'عمولة الشركة',
-  courierCommission: 'عمولة المندوب',
-  requestedAmount: 'المبلغ المطلوب تعديله',
-  amountChangeReason: 'سبب طلب تعديل السعر',
-  isLabelPrinted: 'تم طباعة الملصق',
-  deliveredToCourierAt: 'تاريخ تسليم المندوب',
-  courierArchivedAt: 'تاريخ أرشفة المندوب',
-  companyArchivedAt: 'تاريخ أرشفة الشركة',
+  isWarehouseReturn: 'دخل المخزن',
+  isReturnedToCompany: 'رجع للشركة',
+  isReturningToCompany: 'قيد الرجوع للشركة',
+  isLabelPrinted: 'طباعة الملصق',
+  isArchivedForCompany: 'أرشفة للشركة',
+  isArchivedForCourier: 'أرشفة للمندوب',
 };
 
-// Function to generate a human-readable title for the change
-const getActionTitle = (changes: ShipmentHistoryEntry[] | undefined, oldStatusLabel: string, newStatusLabel: string): string => {
-    if (!changes || changes.length === 0) {
-        return "تحديث شحنة";
-    }
-
-    const changedFields = new Set(changes.map(c => c.field));
-
-    if (changedFields.has('status')) {
-        return `قام بتغيير حالة الشحنة من "${oldStatusLabel}" إلى "${newStatusLabel}"`;
-    }
-    if (changedFields.has('assignedCourierId')) {
-        return "قام بتغيير المندوب المسؤول";
-    }
-    if (changedFields.has('totalAmount')) {
-        return "قام بتعديل مبلغ الشحنة";
-    }
-    if (changedFields.has('address') || changedFields.has('recipientName') || changedFields.has('recipientPhone')) {
-        return "قام بتعديل بيانات العميل";
-    }
-    if (changedFields.has('isWarehouseReturn') && changes.find(c => c.field === 'isWarehouseReturn')?.newValue === true) {
-        return "قام بتحديد الشحنة كمرتجع للمخزن";
-    }
-    if (changes.length === 1) {
-        const singleChange = changes[0];
-        const fieldLabel = fieldLabels[singleChange.field] || singleChange.field;
-        return `قام بتحديث "${fieldLabel}"`;
-    }
-
-    return `قام بتحديث ${changes.length} حقول`;
+const getActionTitle = (changes: ShipmentHistoryEntry[] | undefined, oldS: string, newS: string): { title: string, icon: any, color: string, bgColor: string } => {
+    if (!changes || changes.length === 0) return { title: "تحديث بيانات", icon: Edit3, color: "text-blue-600", bgColor: "bg-blue-50" };
+    
+    const fields = new Set(changes.map(c => c.field));
+    
+    if (fields.has('status')) return { title: `تغيير الحالة: ${newS}`, icon: CheckCircle2, color: "text-green-700", bgColor: "bg-green-50" };
+    if (fields.has('assignedCourierId')) return { title: "تعديل المندوب", icon: UserIcon, color: "text-purple-700", bgColor: "bg-purple-50" };
+    if (fields.has('totalAmount')) return { title: "تعديل السعر", icon: DollarSign, color: "text-amber-700", bgColor: "bg-amber-50" };
+    if (fields.has('address') || fields.has('governorateId')) return { title: "تعديل العنوان", icon: MapPin, color: "text-indigo-700", bgColor: "bg-indigo-50" };
+    if (fields.has('isWarehouseReturn')) return { title: "تحديث حالة المخزن", icon: HistoryIcon, color: "text-slate-700", bgColor: "bg-slate-50" };
+    
+    return { title: "تحديث معلومات", icon: Edit3, color: "text-slate-700", bgColor: "bg-slate-50" };
 };
 
-
-export function DetailedHistoryCard({ 
-    historyEntry, 
-    shipment,
-    onShowDetails,
-    onEdit,
-    onDelete,
-    governorates = [],
-    companies = [],
-    couriers = [],
-    statuses = [],
-}: DetailedHistoryCardProps) {
-
-    const formatValue = (field: string, value: any): string => {
-        if (value === null || value === undefined || value === '') {
-            if (['isUrgent', 'isExchange', 'isCustomReturn', 'retryAttempt', 'isWarehouseReturn', 'isReturnedToCompany', 'isLabelPrinted'].includes(field)) {
-                return 'لا';
-            }
-            return 'فارغ';
-        }
+export function DetailedHistoryCard({ historyEntry, shipment, governorates = [], companies = [], couriers = [], statuses = [] }: DetailedHistoryCardProps) {
+    
+    const formatValue = (field: string, val: any): string => {
+        if (val === null || val === undefined || val === '' || val === 'فارغ') return 'غير محدد';
         
         switch (field) {
-            case 'status':
-                return statuses.find(s => s.id === value)?.label || value;
-            case 'governorateId':
-                return governorates.find(g => g.id === value)?.name || value;
-            case 'companyId':
-                return companies.find(c => c.id === value)?.name || value;
-            case 'assignedCourierId':
-                return couriers.find(u => u.id === value)?.name || 'غير معين';
-            case 'deliveredToCourierAt':
-            case 'courierArchivedAt':
-            case 'companyArchivedAt':
-                return formatToCairoTime(value);
-            case 'isUrgent':
-            case 'isExchange':
-            case 'isCustomReturn':
-            case 'retryAttempt':
-            case 'isWarehouseReturn':
-            case 'isReturnedToCompany':
-            case 'isLabelPrinted':
-                return value ? 'نعم' : 'لا';
-            case 'totalAmount':
-            case 'paidAmount':
-            case 'collectedAmount':
-            case 'requestedAmount':
-            case 'companyCommission':
-            case 'courierCommission':
-                 if (typeof value === 'number') {
-                     return new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP' }).format(value);
-                 }
-                 return String(value);
-            default:
-                return String(value);
+            case 'status': 
+                return statuses.find(s => s.id === val)?.label || val;
+            case 'governorateId': 
+                return governorates.find(g => g.id === val)?.name || val;
+            case 'companyId': 
+                return companies.find(c => c.id === val)?.name || val;
+            case 'assignedCourierId': 
+                const courier = couriers.find(u => u.id === val);
+                return courier ? courier.name : (val === '' ? 'إلغاء التعيين' : 'غير موجود بالنظام');
+            case 'totalAmount': case 'paidAmount': case 'collectedAmount':
+                return typeof val === 'number' ? val.toLocaleString('ar-EG') + ' ج.م' : val;
+            case 'isUrgent': case 'isExchange': case 'isWarehouseReturn': case 'retryAttempt':
+            case 'isReturnedToCompany': case 'isReturningToCompany':
+                return val === true || val === 'true' ? 'نعم' : 'لا';
+            default: 
+                return String(val);
         }
     };
     
-    // Legacy support for old history entries which had a single 'status' change
-    const hasDetailedChanges = historyEntry.changes && historyEntry.changes.length > 0;
+    const changesToShow = (historyEntry.changes || []).filter(c => c.field !== 'updatedAt' && c.field !== 'updatedBy');
     
-    const legacyChange = historyEntry.status && !hasDetailedChanges
-        ? { field: 'status', oldValue: 'غير معروف', newValue: historyEntry.status } as ShipmentHistoryEntry
-        : null;
-
-    const changesToShow = hasDetailedChanges ? historyEntry.changes : (legacyChange ? [legacyChange] : []);
-
     const statusChange = changesToShow.find(c => c.field === 'status');
-    const oldStatusLabel = statusChange ? formatValue('status', statusChange.oldValue) : '';
-    const newStatusLabel = statusChange ? formatValue('status', statusChange.newValue) : '';
-    const actionTitle = getActionTitle(changesToShow, oldStatusLabel, newStatusLabel);
-
+    const { title, icon: ActionIcon, color, bgColor } = getActionTitle(
+        changesToShow, 
+        formatValue('status', statusChange?.oldValue), 
+        formatValue('status', statusChange?.newValue)
+    );
 
     return (
-        <Card>
-            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                <div className="flex items-center gap-3">
-                    <Avatar>
-                        <AvatarFallback>{historyEntry.updatedBy?.charAt(0) || '?'}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                        <CardTitle className="text-base font-bold">{historyEntry.updatedBy}</CardTitle>
-                        <p className="text-xs text-muted-foreground">{formatToCairoTime(historyEntry.updatedAt)}</p>
-                    </div>
-                </div>
-                {shipment && (
-                     <div className="flex items-center gap-2">
-                        {onShowDetails && (
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onShowDetails(shipment)}>
-                                <FileText className="h-4 w-4" />
-                                <span className="sr-only">عرض التفاصيل</span>
-                            </Button>
-                        )}
-                        {onEdit && (
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(shipment.id)}>
-                                <Pencil className="h-4 w-4" />
-                                <span className="sr-only">تعديل</span>
-                            </Button>
-                        )}
-                         {onDelete && (
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => onDelete(historyEntry)}>
-                                <Trash2 className="h-4 w-4" />
-                                <span className="sr-only">حذف</span>
-                            </Button>
-                        )}
-                    </div>
-                )}
-            </CardHeader>
-            <CardContent>
-                 <div className="pb-2">
-                    <p className="font-semibold text-primary">{actionTitle}</p>
-                 </div>
-                <Separator />
-                <div className="space-y-2 pt-2 text-sm">
-                    {changesToShow.map((change, index) => (
-                        <div key={index} className="grid grid-cols-12 gap-2 items-center">
-                            <span className="col-span-3 font-semibold text-muted-foreground">{fieldLabels[change.field] || change.field}:</span>
-                            <span className="col-span-4 truncate text-right">{formatValue(change.field, change.oldValue)}</span>
-                            <ArrowRight className="h-4 w-4 mx-auto text-primary col-span-1" />
-                            <span className="col-span-4 font-bold text-primary truncate">{formatValue(change.field, change.newValue)}</span>
+        <div className="relative pr-8 pb-8 border-r-2 border-slate-200 last:border-r-0 last:pb-0 mr-4 group">
+            {/* Timeline Dot & Icon */}
+            <div className={`absolute -right-[19px] top-0 rounded-full p-2 bg-white border-2 shadow-sm transition-transform group-hover:scale-110 z-10 ${color.replace('text', 'border')}`}>
+                <ActionIcon className={`h-5 w-5 ${color}`} />
+            </div>
+
+            <Card className="overflow-hidden border-none shadow-md hover:shadow-lg transition-shadow bg-white rounded-xl">
+                <CardHeader className={`p-4 flex flex-row items-center justify-between space-y-0 ${bgColor}`}>
+                    <div className="flex flex-col gap-1">
+                        <span className="font-bold text-lg text-slate-800 leading-none">{historyEntry.updatedBy}</span>
+                        <div className="flex items-center gap-2 text-slate-500">
+                            <Clock className="h-3.5 w-3.5" />
+                            <span className="text-xs font-medium">{formatToCairoTime(historyEntry.updatedAt)}</span>
                         </div>
-                    ))}
-                    {historyEntry.reason && !changesToShow.some(c => c.field === 'reason') && (
-                         <div className="grid grid-cols-12 gap-2 items-center">
-                            <span className="col-span-3 font-semibold text-muted-foreground">السبب:</span>
-                            <span className="col-span-9 font-bold">{historyEntry.reason}</span>
+                    </div>
+                    <Badge className={`${color} ${bgColor} border-none shadow-none text-sm font-bold`}>
+                        {title}
+                    </Badge>
+                </CardHeader>
+                
+                <CardContent className="p-4 bg-white">
+                    <div className="space-y-3">
+                        {changesToShow.length > 0 ? (
+                            changesToShow.map((change, i) => (
+                                <div key={i} className="flex flex-col gap-2 p-3 rounded-lg bg-slate-50 border border-slate-100">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                                            <Tag className="h-3.5 w-3.5 opacity-50" />
+                                            {fieldLabels[change.field] || change.field}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-3 bg-white p-2 rounded border border-slate-100 shadow-sm">
+                                        <div className="flex-1 text-center">
+                                            <p className="text-[10px] text-slate-400 mb-1">من</p>
+                                            <span className="text-sm font-medium text-slate-400 line-through truncate block">
+                                                {formatValue(change.field, change.oldValue)}
+                                            </span>
+                                        </div>
+                                        <ArrowLeft className="h-5 w-5 text-slate-300" />
+                                        <div className="flex-1 text-center">
+                                            <p className="text-[10px] text-primary mb-1">إلى</p>
+                                            <span className="text-base font-bold text-primary truncate block">
+                                                {formatValue(change.field, change.newValue)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-sm text-slate-500 text-center py-2">لا توجد تفاصيل إضافية لهذا التعديل</p>
+                        )}
+                    </div>
+                    
+                    {historyEntry.reason && (
+                        <div className="mt-4 p-3 bg-amber-50 border border-amber-100 rounded-lg">
+                            <p className="text-xs font-bold text-amber-700 mb-1 flex items-center gap-1">
+                                <HistoryIcon className="h-3.5 w-3.5" /> ملاحظة إدارية:
+                            </p>
+                            <p className="text-sm text-amber-900 font-medium leading-relaxed">{historyEntry.reason}</p>
                         </div>
                     )}
-                </div>
-            </CardContent>
-        </Card>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+// Simple Badge component since it wasn't exported in the scope
+function Badge({ children, className }: { children: React.ReactNode, className?: string }) {
+    return (
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${className}`}>
+            {children}
+        </span>
     );
 }
