@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, getDoc, query, where, writeBatch, serverTimestamp } from 'firebase/firestore';
 import type { Shipment, Governorate, Company, User, ShipmentStatusConfig, ShipmentHistory } from '@/lib/types';
-import { Loader2, ArrowRight, ScanLine, X, CheckSquare, Trash2, Warehouse, Building, Archive, QrCode, MoreVertical, User as UserIcon } from 'lucide-react';
+import { Loader2, ArrowRight, ScanLine, X, CheckSquare, Trash2, Warehouse, Building, Archive, QrCode, MoreVertical, User as UserIcon, RefreshCcw, BellRing } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -181,6 +181,16 @@ export default function ScanPage() {
             toast({ title: "لم يتم تحديد أي شحنات", variant: "destructive" });
             return;
         }
+
+        const finalUpdate = { ...update };
+        if (update.retryAttempt) {
+            finalUpdate.status = "Pending";
+            finalUpdate.isArchivedForCompany = false;
+            finalUpdate.isArchivedForCourier = false;
+            finalUpdate.isWarehouseReturn = false;
+            finalUpdate.reason = "إعادة محاولة";
+        }
+
         toast({ title: `جاري تحديث ${selectedIds.length} شحنة...` });
 
         const batch = writeBatch(firestore);
@@ -188,14 +198,14 @@ export default function ScanPage() {
 
         selectedShipments.forEach(shipment => {
             const shipmentRef = doc(firestore, 'shipments', shipment.id);
-            batch.update(shipmentRef, { ...update, updatedAt: serverTimestamp() });
-             if (update.status) {
+            batch.update(shipmentRef, { ...finalUpdate, updatedAt: serverTimestamp() });
+             if (finalUpdate.status) {
                 const historyRef = doc(collection(shipmentRef, 'history'));
                 const historyEntry: Omit<ShipmentHistory, 'id'> = {
                     changes: [{
                         field: 'status',
                         oldValue: shipment.status,
-                        newValue: update.status
+                        newValue: finalUpdate.status
                     }],
                     reason: 'تحديث جماعي عبر الماسح',
                     updatedAt: serverTimestamp(),
@@ -210,7 +220,7 @@ export default function ScanPage() {
             await batch.commit();
             toast({ title: `تم تحديث ${selectedIds.length} شحنة بنجاح` });
             // Optimistically update local state
-            setScannedShipments(prev => prev.map(s => selectedIds.includes(s.id) ? { ...s, ...update } as Shipment : s));
+            setScannedShipments(prev => prev.map(s => selectedIds.includes(s.id) ? { ...s, ...finalUpdate } as Shipment : s));
         } catch (error) {
             console.error('Bulk update failed:', error);
             toast({ title: 'فشل التحديث المجمع', variant: 'destructive' });
@@ -246,6 +256,29 @@ export default function ScanPage() {
                   ))}
               </DropdownMenuContent>
           </DropdownMenu>
+
+          <Button variant="outline" size="sm" className="h-8 text-orange-600 border-orange-100 hover:bg-orange-50" onClick={() => handleBulkUpdate({ 
+                status: 'Pending', 
+                assignedCourierId: '', 
+                reason: 'إعادة تعيين الشحنة', 
+                isWarehouseReturn: false, 
+                isReturningToCompany: false, 
+                isReturnedToCompany: false, 
+                isArchivedForCompany: false, 
+                isArchivedForCourier: false, 
+                retryAttempt: false,
+                requestedAmount: 0,
+                amountChangeReason: ""
+            })}>
+                <RefreshCcw className="me-2 h-3.5 w-3.5" />
+                <span>إعادة تعيين</span>
+            </Button>
+
+            <Button variant="outline" size="sm" className="h-8 text-blue-600 border-blue-100 hover:bg-blue-50" onClick={() => handleBulkUpdate({ retryAttempt: true })}>
+                <BellRing className="me-2 h-3.5 w-3.5" />
+                <span>إعادة محاولة</span>
+            </Button>
+
           <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="h-8 gap-1">
@@ -377,7 +410,11 @@ export default function ScanPage() {
             {selectedCount > 0 && (
                 <div className="md:hidden fixed bottom-0 left-0 right-0 bg-background border-t p-2 shadow-lg flex items-center justify-between gap-2 z-50">
                     <span className="text-sm font-semibold">{selectedCount} محددة</span>
-                    {bulkActions}
+                    <div className="flex-1 overflow-x-auto">
+                        <div className="flex gap-2 w-max">
+                            {bulkActions}
+                        </div>
+                    </div>
                 </div>
             )}
             
@@ -404,8 +441,3 @@ export default function ScanPage() {
         </div>
     );
 }
-
-    
-
-    
-
