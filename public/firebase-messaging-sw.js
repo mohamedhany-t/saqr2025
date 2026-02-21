@@ -1,75 +1,47 @@
 
-// This is the service worker file.
-// It's responsible for handling push notifications when the app is in the background or closed.
+importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 
-// The 'install' event is fired when the service worker is first installed.
-self.addEventListener('install', (event) => {
-  console.log('Service Worker: Installed');
-  // This tells the browser to activate the new service worker immediately
-  // without waiting for the old one to be unregistered.
-  self.skipWaiting();
+firebase.initializeApp({
+  apiKey: "AIzaSyArOuBdWNCL56P6H0zyxijkCbhM_Bqoaro",
+  authDomain: "studio-9762882993-dc7cd.firebaseapp.com",
+  projectId: "studio-9762882993-dc7cd",
+  storageBucket: "studio-9762882993-dc7cd.firebasestorage.app",
+  messagingSenderId: "845078294314",
+  appId: "1:845078294314:web:0a724ebcea20963cb87853"
 });
 
-// The 'activate' event is fired when the service worker is activated.
-self.addEventListener('activate', (event) => {
-  console.log('Service Worker: Activated');
-  // This takes control of any pages that are already open.
-  event.waitUntil(self.clients.claim());
-});
+const messaging = firebase.messaging();
 
-// The 'push' event is the core of background notifications.
-// It's triggered when the browser receives a push message from a push service.
-self.addEventListener('push', (event) => {
-  console.log('Service Worker: Push Received.');
-  if (!event.data) {
-    console.log('Service Worker: Push event but no data');
-    return;
-  }
-
-  // Parse the data from the push event. We expect a JSON object.
-  const data = event.data.json();
-  console.log('Service Worker: Push data:', data);
-
-  // Define the options for the notification that will be shown to the user.
-  const options = {
-    body: data.body, // The main text of the notification
-    icon: '/fav.png', // The icon to display
-    badge: '/fav.png', // An icon for the notification tray on some devices
-    vibrate: [200, 100, 200], // A vibration pattern
+// Handle background messages
+messaging.onBackgroundMessage((payload) => {
+  console.log('[firebase-messaging-sw.js] Received background message ', payload);
+  const notificationTitle = payload.notification.title;
+  const notificationOptions = {
+    body: payload.notification.body,
+    icon: '/fav.png',
+    badge: '/fav.png',
     data: {
-      url: data.url || '/', // The URL to open when the notification is clicked
-    },
+        url: payload.data?.url || '/'
+    }
   };
 
-  // Tell the event to wait until the notification is shown.
-  event.waitUntil(
-    self.registration.showNotification(data.title, options)
-  );
+  self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-// The 'notificationclick' event is fired when a user clicks on a notification.
+// Handle notification click
 self.addEventListener('notificationclick', (event) => {
-  console.log('Service Worker: Notification clicked.');
-  
-  // Close the notification itself.
   event.notification.close();
-
-  // Get the URL from the notification's data payload.
   const urlToOpen = event.notification.data.url;
 
-  // This part focuses or opens a new window/tab to the specified URL.
   event.waitUntil(
-    clients.matchAll({
-      type: 'window',
-      includeUncontrolled: true,
-    }).then((clientList) => {
-      // If a window for this app is already open, focus it.
-      for (const client of clientList) {
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (var i = 0; i < windowClients.length; i++) {
+        var client = windowClients[i];
         if (client.url === urlToOpen && 'focus' in client) {
           return client.focus();
         }
       }
-      // If no window is open, open a new one.
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
       }

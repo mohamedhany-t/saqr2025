@@ -191,7 +191,13 @@ export default function AdminDashboard({ user, role, searchTerm, initialTab, ini
 
     const allShipmentsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
-        return query(collection(firestore, 'shipments'), where('createdAt', '>=', Timestamp.fromDate(subDays(new Date(), 60))), orderBy('createdAt', 'desc'));
+        // Optimization: Fetch shipments updated in the last 120 days to ensure active shipments are visible
+        const daysAgo = subDays(new Date(), 120);
+        return query(
+            collection(firestore, 'shipments'), 
+            where('updatedAt', '>=', Timestamp.fromDate(daysAgo)), 
+            orderBy('updatedAt', 'desc')
+        );
     }, [firestore]);
     const { data: allShipmentsForStats, isLoading: allShipmentsLoading } = useCollection<Shipment>(allShipmentsQuery);
 
