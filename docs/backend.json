@@ -1,0 +1,541 @@
+
+
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user in the system, including their role and associated company if applicable.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The Firebase Authentication UID of the user."
+        },
+        "name": {
+          "type": "string",
+          "description": "The user's display name. For 'company' roles, this is the company name."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "role": {
+          "type": "string",
+          "description": "The role of the user within the system.",
+          "enum": ["admin", "company", "courier"]
+        },
+        "companyId": {
+          "type": "string",
+          "description": "For 'company' roles, this is their own UID. For 'courier' roles, this is an optional reference to a company."
+        },
+        "avatarUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL for the user's avatar image."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the user account was created."
+        },
+        "commissionRate": {
+            "type": "number",
+            "description": "Fixed commission rate for couriers."
+        }
+      },
+      "required": ["id", "email", "role", "createdAt"]
+    },
+    "Shipment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Shipment",
+      "type": "object",
+      "description": "Represents a shipment record in the logistics system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the shipment entity."
+        },
+        "senderName": {
+            "type": "string",
+            "description": "Name of the sub-client or sender."
+        },
+        "shipmentCode": {
+          "type": "string",
+          "description": "Unique shipment code in the format SH-YYYYMMDD-0001."
+        },
+        "orderNumber": {
+          "type": "string",
+          "description": "Order number associated with the shipment."
+        },
+        "recipientName": {
+          "type": "string",
+          "description": "Name of the shipment recipient."
+        },
+        "recipientPhone": {
+          "type": "string",
+          "description": "Phone number of the shipment recipient."
+        },
+        "governorateId": {
+          "type": "string",
+          "description": "Reference to Governorate. (Relationship: Governorate 1:N Shipment)"
+        },
+        "address": {
+          "type": "string",
+          "description": "Address of the shipment recipient."
+        },
+        "deliveryDate": {
+          "type": "string",
+          "description": "Expected delivery date for the shipment.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status of the shipment.",
+          "enum": ["Pending", "In-Transit", "Delivered", "Partially Delivered", "Evasion (Phone)", "Evasion (Delivery Attempt)", "Cancelled", "Returned", "Postponed", "Returned to Sender", "Refused (Paid)", "Refused (Unpaid)", "Returned to Warehouse"]
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason for a particular shipment status (e.g., delayed)."
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "Total amount due for the shipment."
+        },
+        "paidAmount": {
+          "type": "number",
+          "description": "Amount already paid for the shipment."
+        },
+        "collectedAmount": {
+            "type": "number",
+            "description": "The actual amount collected by the courier, used for partial deliveries."
+        },
+        "courierCommission": {
+            "type": "number",
+            "description": "The commission earned by the courier for this specific shipment."
+        },
+        "companyCommission": {
+            "type": "number",
+            "description": "The commission earned by the company for this specific shipment."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the User (with 'company' role) that owns this shipment."
+        },
+        "assignedCourierId": {
+          "type": "string",
+          "description": "Reference to Courier. (Relationship: Courier 1:N Shipment)"
+        },
+        "isArchivedForCourier": {
+            "type": "boolean",
+            "description": "Flag to indicate if a shipment is archived for the courier and excluded from their active calculations."
+        },
+        "isArchivedForCompany": {
+            "type": "boolean",
+            "description": "Flag to indicate if a shipment is archived for the company and excluded from their active calculations."
+        },
+        "isExchange": {
+            "type": "boolean",
+            "description": "Flag to indicate if a shipment is an exchange (package-for-package)."
+        },
+        "isLabelPrinted": {
+            "type": "boolean",
+            "description": "Flag to indicate if the shipping label has been printed."
+        }
+      },
+      "required": [
+        "id",
+        "shipmentCode",
+        "orderNumber",
+        "recipientName",
+        "recipientPhone",
+        "address",
+        "deliveryDate",
+        "status",
+        "totalAmount",
+        "paidAmount",
+        "companyId"
+      ]
+    },
+    "ShipmentHistory": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ShipmentHistory",
+      "type": "object",
+      "description": "Represents a single entry in the audit log of a shipment.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID for the history entry." },
+        "status": { "type": "string", "description": "The status the shipment was changed to." },
+        "reason": { "type": "string", "description": "The reason/note provided for this change." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Timestamp of when the change occurred." },
+        "updatedBy": { "type": "string", "description": "The name of the user who made the change." },
+        "userId": { "type": "string", "description": "The UID of the user who made the change." }
+      },
+      "required": ["id", "status", "updatedAt", "updatedBy", "userId"]
+    },
+    "Company": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Company",
+      "type": "object",
+      "description": "Represents a logistics/delivery company. A user with role 'company' has a corresponding document here.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the company entity. This is the same as the User's UID."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the logistics company."
+        },
+        "governorateCommissions": {
+            "type": "object",
+            "description": "A map where keys are governorate IDs and values are the commission fees.",
+            "additionalProperties": {
+                "type": "number"
+            }
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "Courier": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Courier",
+      "type": "object",
+      "description": "Represents a courier responsible for delivering shipments. A user with role 'courier' has a corresponding document here.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the courier entity. This is the same as the User's UID."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the courier."
+        },
+        "commissionRate": {
+            "type": "number",
+            "description": "Fixed commission amount per delivered or evaded shipment."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "Governorate": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Governorate",
+      "type": "object",
+      "description": "Represents a governorate (administrative division).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the governorate entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the governorate."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "CompanyPayment": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "CompanyPayment",
+        "type": "object",
+        "description": "Represents a payment made by the admin to a company to settle their account.",
+        "properties": {
+            "id": { "type": "string", "description": "Unique ID for the payment transaction." },
+            "companyId": { "type": "string", "description": "The UID of the company receiving the payment." },
+            "amount": { "type": "number", "description": "The amount paid." },
+            "paymentDate": { "type": "string", "format": "date-time", "description": "Timestamp of when the payment was recorded." },
+            "recordedById": { "type": "string", "description": "The UID of the admin who recorded the payment." },
+            "notes": { "type": "string", "description": "Optional notes about the payment." },
+            "isArchived": { "type": "boolean", "description": "Flag to indicate if a payment is archived." }
+        },
+        "required": ["id", "companyId", "amount", "paymentDate", "recordedById"]
+    },
+    "CourierPayment": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "CourierPayment",
+        "type": "object",
+        "description": "Represents a payment made by a courier to settle their account.",
+        "properties": {
+            "id": { "type": "string", "description": "Unique ID for the payment transaction." },
+            "courierId": { "type": "string", "description": "The UID of the courier making the payment." },
+            "amount": { "type": "number", "description": "The amount paid." },
+            "paymentDate": { "type": "string", "format": "date-time", "description": "Timestamp of when the payment was recorded." },
+            "recordedById": { "type": "string", "description": "The UID of the admin who recorded the payment." },
+            "notes": { "type": "string", "description": "Optional notes about the payment." },
+            "isArchived": { "type": "boolean", "description": "Flag to indicate if a payment is archived." }
+        },
+        "required": ["id", "courierId", "amount", "paymentDate", "recordedById"]
+    },
+    "Chat": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Chat",
+      "type": "object",
+      "description": "Represents a chat conversation between users.",
+      "properties": {
+        "id": { "type": "string" },
+        "participants": { "type": "array", "items": { "type": "string" }, "description": "Array of user UIDs participating in the chat." },
+        "participantNames": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Map of user UIDs to their display names." },
+        "lastMessage": { "type": "string", "description": "The text of the last message sent." },
+        "lastMessageTimestamp": { "type": "string", "format": "date-time" },
+        "unreadCounts": {
+          "type": "object",
+          "description": "Map of user UIDs to their unread message count.",
+          "additionalProperties": { "type": "number" }
+        }
+      },
+      "required": ["id", "participants", "lastMessageTimestamp"]
+    },
+    "ChatMessage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ChatMessage",
+      "type": "object",
+      "description": "Represents a single message within a chat.",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string", "description": "UID of the user who sent the message." },
+        "text": { "type": "string", "description": "Text content of the message." },
+        "imageUrl": { "type": "string", "format": "uri", "description": "URL of an uploaded image." },
+        "fileUrl": { "type": "string", "format": "uri", "description": "URL of an uploaded file." },
+        "fileName": { "type": "string", "description": "Original name of the uploaded file." },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "senderId", "timestamp"]
+    },
+    "PushSubscription": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "PushSubscription",
+        "type": "object",
+        "description": "Represents a push notification subscription for a user's device.",
+        "properties": {
+            "endpoint": { "type": "string", "format": "uri" },
+            "expirationTime": { "type": ["number", "null"] },
+            "keys": {
+                "type": "object",
+                "properties": {
+                    "p256dh": { "type": "string" },
+                    "auth": { "type": "string" }
+                },
+                "required": ["p256dh", "auth"]
+            },
+            "userId": { "type": "string", "description": "The UID of the user this subscription belongs to." },
+            "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["endpoint", "keys", "userId", "createdAt"]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profile information, including their role.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "Firebase Auth UID of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/pushSubscriptions/{subscriptionId}",
+        "definition": {
+            "entityName": "PushSubscription",
+            "schema": { "$ref": "#/backend/entities/PushSubscription" },
+            "description": "Stores push notification subscriptions for a user.",
+            "params": [
+                { "name": "userId", "description": "The user's UID." },
+                { "name": "subscriptionId", "description": "A unique ID for the subscription." }
+            ]
+        }
+      },
+      {
+        "path": "/shipments/{shipmentId}",
+        "definition": {
+          "entityName": "Shipment",
+          "schema": {
+            "$ref": "#/backend/entities/Shipment"
+          },
+          "description": "Stores active shipment data.",
+          "params": [
+            {
+              "name": "shipmentId",
+              "description": "Unique identifier for the shipment document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/shipments/{shipmentId}/history/{historyId}",
+        "definition": {
+          "entityName": "ShipmentHistory",
+          "schema": {
+            "$ref": "#/backend/entities/ShipmentHistory"
+          },
+          "description": "Stores the audit trail for a single shipment.",
+          "params": [
+            { "name": "shipmentId", "description": "The ID of the parent shipment." },
+            { "name": "historyId", "description": "Unique ID for the history entry." }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}",
+        "definition": {
+          "entityName": "Company",
+          "schema": {
+            "$ref": "#/backend/entities/Company"
+          },
+          "description": "Stores company information. The document ID is the User UID of the company.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "Unique identifier for the company document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/couriers/{courierId}",
+        "definition": {
+          "entityName": "Courier",
+          "schema": {
+            "$ref": "#/backend/entities/Courier"
+          },
+          "description": "Stores courier information. The document ID is the User UID of the courier.",
+          "params": [
+            {
+              "name": "courierId",
+              "description": "Unique identifier for the courier document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/governorates/{governorateId}",
+        "definition": {
+          "entityName": "Governorate",
+          "schema": {
+            "$ref": "#/backend/entities/Governorate"
+          },
+          "description": "Stores governorate information.",
+          "params": [
+            {
+              "name": "governorateId",
+              "description": "Unique identifier for the governorate document."
+            }
+          ]
+        }
+      },
+       {
+        "path": "/courier_payments/{paymentId}",
+        "definition": {
+          "entityName": "CourierPayment",
+          "schema": { "$ref": "#/backend/entities/CourierPayment" },
+          "description": "Stores records of active payments made by couriers.",
+          "params": [{ "name": "paymentId", "description": "Unique ID for the payment." }]
+        }
+      },
+      {
+        "path": "/company_payments/{paymentId}",
+        "definition": {
+          "entityName": "CompanyPayment",
+          "schema": { "$ref": "#/backend/entities/CompanyPayment" },
+          "description": "Stores records of active payments made to companies.",
+          "params": [{ "name": "paymentId", "description": "Unique ID for the payment." }]
+        }
+      },
+      {
+        "path": "/chats/{chatId}",
+        "definition": {
+          "entityName": "Chat",
+          "schema": { "$ref": "#/backend/entities/Chat" },
+          "description": "Stores metadata for a single chat conversation.",
+          "params": [{ "name": "chatId", "description": "Unique ID for the chat." }]
+        }
+      },
+      {
+        "path": "/chats/{chatId}/messages/{messageId}",
+        "definition": {
+          "entityName": "ChatMessage",
+          "schema": { "$ref": "#/backend/entities/ChatMessage" },
+          "description": "Stores all messages for a given chat.",
+          "params": [
+            { "name": "chatId", "description": "The ID of the parent chat." },
+            { "name": "messageId", "description": "Unique ID for the message." }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "user",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Documents in this collection grant admin role to the user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "Firebase Auth UID of the admin user."
+            }
+          ]
+        }
+      },
+       {
+        "path": "/roles_company/{userId}",
+        "definition": {
+          "entityName": "user",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Documents in this collection grant company role to the user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "Firebase Auth UID of the company user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_courier/{userId}",
+        "definition": {
+          "entityName": "user",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Documents in this collection grant courier role to the user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "Firebase Auth UID of the courier user."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure now includes a 'company' role. Companies are users that can manage their own shipments. Couriers are independent and are assigned to shipments directly. The 'companies' collection stores public profiles for these company users. The 'shipments' collection now uses 'companyId' to link to the user UID of the owning company."
+  }
+}
+

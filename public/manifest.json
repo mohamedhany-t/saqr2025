@@ -1,0 +1,22 @@
+{
+    "name": "AlSaqr Logistics",
+    "short_name": "AlSaqr",
+    "description": "Streamlined shipment management for AlSaqr Logistics.",
+    "icons": [
+        {
+            "src": "/fav.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/fav.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ],
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#4570b0",
+    "theme_color": "#5F9EA0",
+    "scope": "/"
+}

@@ -1,0 +1,35 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# Node dependencies
+/node_modules
+
+# Firebase
+serviceAccountKey.json
+database-debug.log
+firestore-debug.log
+*.rules
+
+# Local Environment Variables
+
+.env*.local
+!.env.example
+
+# Production build folder
+.next/
+out/
+
+# Other
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp/
+.pnp.js
+
+# Misc
+.DS_Store
+*.pem
+
+# Vercel
+.vercel
+
+.firebase/
