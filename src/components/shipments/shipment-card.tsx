@@ -77,6 +77,32 @@ export function ShipmentCard({
     const isCustomerService = userProfile?.role === 'customer-service';
     const hasPhoneNumber = !!recipientPhone;
 
+    // Helper to format Egyptian phone numbers correctly for WhatsApp
+    const formatWhatsAppNumber = (phone: string) => {
+        if (!phone) return '';
+        // Remove everything except numbers
+        let cleaned = phone.replace(/\D/g, '');
+        
+        // If it starts with 1, 5, etc (Egyptian mobile prefixes), add 20
+        // Numbers like 1012345678, 1112345678, 1212345678, 1512345678
+        if (cleaned.length === 10 && (cleaned.startsWith('10') || cleaned.startsWith('11') || cleaned.startsWith('12') || cleaned.startsWith('15'))) {
+            return '20' + cleaned;
+        }
+        
+        // If it starts with 01, replace with 201
+        if (cleaned.startsWith('01') && cleaned.length === 11) {
+            return '20' + cleaned.substring(1);
+        }
+        
+        // If it already has 20, just return it
+        if (cleaned.startsWith('20') && (cleaned.length === 12)) {
+            return cleaned;
+        }
+
+        // Default fallback: remove leading 0 and add 20
+        return cleaned.replace(/^0/, '20');
+    };
+
     const handleWhatsApp = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (!hasPhoneNumber) return;
@@ -119,7 +145,7 @@ export function ShipmentCard({
 
 
         const encodedMessage = encodeURIComponent(message);
-        const whatsappNumber = recipientPhone.replace(/\D/g, '').replace(/^0/, '20');
+        const whatsappNumber = formatWhatsAppNumber(recipientPhone);
         window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');
     };
 

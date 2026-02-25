@@ -136,6 +136,22 @@ export const statusText: Record<string, string> = {
     'PriceChangeRejected': 'مرفوض - تابع مع الإدارة'
 };
 
+// Helper to format Egyptian phone numbers correctly for WhatsApp
+const formatWhatsAppNumber = (phone: string) => {
+    if (!phone) return '';
+    let cleaned = phone.replace(/\D/g, '');
+    if (cleaned.length === 10 && (cleaned.startsWith('10') || cleaned.startsWith('11') || cleaned.startsWith('12') || cleaned.startsWith('15'))) {
+        return '20' + cleaned;
+    }
+    if (cleaned.startsWith('01') && cleaned.length === 11) {
+        return '20' + cleaned.substring(1);
+    }
+    if (cleaned.startsWith('20') && (cleaned.length === 12)) {
+        return cleaned;
+    }
+    return cleaned.replace(/^0/, '20');
+};
+
 
 type ActionCellProps = {
   row: Row<Shipment>;
@@ -177,7 +193,8 @@ const ActionsCell: React.FC<ActionCellProps> = ({ row, onEdit, onBulkUpdate, rol
       ].join('\n');
 
       const encodedMessage = encodeURIComponent(shipmentDetails);
-      window.open(`whatsapp://send?text=${encodedMessage}`, '_blank');
+      const whatsappNumber = formatWhatsAppNumber(shipment.recipientPhone);
+      window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');
   };
   
     const handleToggleWarehouseReturn = () => {
