@@ -2,11 +2,11 @@
 "use client";
 import React, { useState, useMemo } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where, Timestamp, or, writeBatch, doc, and } from 'firebase/firestore';
+import { collection, query, where, Timestamp, or, writeBatch, doc, and, orderBy, limit } from 'firebase/firestore';
 import type { Shipment, Company, User, Governorate, ShipmentStatusConfig } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, FileUp, CalendarIcon, Search, History, ArchiveRestore } from 'lucide-react';
+import { Loader2, FileUp, CalendarIcon, Search, History, ArchiveRestore, Filter } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,7 @@ import { formatToCairoTime, cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import type { DateRange } from 'react-day-picker';
-import { format, startOfDay, endOfDay } from 'date-fns';
+import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { exportToExcel } from '@/lib/export';
 import { Header } from '@/components/dashboard/header';
@@ -37,7 +37,10 @@ const ArchivePage = () => {
     const { toast } = useToast();
     const [entityType, setEntityType] = useState<'courier' | 'company'>('company');
     const [selectedId, setSelectedId] = useState<string | null>(null);
-    const [dateRange, setDateRange] = useState<DateRange | undefined>();
+    const [dateRange, setDateRange] = useState<DateRange | undefined>({
+        from: subDays(new Date(), 120),
+        to: new Date()
+    });
     const [searchTerm, setSearchTerm] = useState('');
     const [detailsShipment, setDetailsShipment] = useState<Shipment | null>(null);
 
@@ -48,30 +51,27 @@ const ArchivePage = () => {
 
     const couriers = useMemo(() => users?.filter(u => u.role === 'courier') || [], [users]);
 
+    // Simplified query to avoid index errors and permission issues with complex range filters
     const shipmentsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
+        if (!firestore || !selectedId) return null;
 
         const filters: any[] = [];
         
-        if (selectedId) {
-            // If a specific entity is selected, filter by its ID and its specific archive flag
-            if (entityType === 'courier') {
-                filters.push(where('assignedCourierId', '==', selectedId));
-                filters.push(where('isArchivedForCourier', '==', true));
-            } else { // company
-                filters.push(where('companyId', '==', selectedId));
-                filters.push(where('isArchivedForCompany', '==', true));
-            }
-        } else {
-            // If no specific entity is selected, get all archived shipments
-            filters.push(or(
-                where('isArchivedForCourier', '==', true),
-                where('isArchivedForCompany', '==', true)
-            ));
+        if (entityType === 'courier') {
+            filters.push(where('assignedCourierId', '==', selectedId));
+            filters.push(where('isArchivedForCourier', '==', true));
+        } else { // company
+            filters.push(where('companyId', '==', selectedId));
+            filters.push(where('isArchivedForCompany', '==', true));
         }
         
-        // Combine all filters with 'and'
-        return query(collection(firestore, 'shipments'), and(...filters));
+        // Removed range filter (createdAt >= ...) and orderBy from server-side query
+        // to ensure it works without complex composite indexes
+        return query(
+            collection(firestore, 'shipments'), 
+            and(...filters),
+            limit(1500) // Increased limit but kept simple filters
+        );
 
     }, [firestore, selectedId, entityType]);
 
@@ -82,7 +82,7 @@ const ArchivePage = () => {
         
         let clientFiltered = archivedShipments;
 
-        // Apply date range filter on the client side
+        // Apply date range filter on CLIENT side for maximum compatibility and performance
         if (dateRange?.from) {
             const fromDate = startOfDay(dateRange.from);
             clientFiltered = clientFiltered.filter(s => {
@@ -90,6 +90,7 @@ const ArchivePage = () => {
                 return shipmentDate ? shipmentDate >= fromDate : false;
             });
         }
+        
         if (dateRange?.to) {
             const toDate = endOfDay(dateRange.to);
             clientFiltered = clientFiltered.filter(s => {
@@ -98,18 +99,26 @@ const ArchivePage = () => {
             });
         }
 
-        if (!searchTerm) return clientFiltered;
-        
-        const lowercasedTerm = searchTerm.toLowerCase();
-        return clientFiltered.filter(shipment =>
-            shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
-            shipment.recipientName?.toLowerCase().includes(lowercasedTerm) ||
-            shipment.recipientPhone?.toLowerCase().includes(lowercasedTerm) ||
-            shipment.address?.toLowerCase().includes(lowercasedTerm)
-        );
+        if (searchTerm) {
+            const lowercasedTerm = searchTerm.toLowerCase();
+            clientFiltered = clientFiltered.filter(shipment =>
+                shipment.shipmentCode?.toLowerCase().includes(lowercasedTerm) ||
+                shipment.recipientName?.toLowerCase().includes(lowercasedTerm) ||
+                shipment.recipientPhone?.toLowerCase().includes(lowercasedTerm) ||
+                shipment.address?.toLowerCase().includes(lowercasedTerm) ||
+                shipment.orderNumber?.toLowerCase().includes(lowercasedTerm)
+            );
+        }
+
+        // Sort by date on client side
+        return clientFiltered.sort((a, b) => {
+            const dateA = getSafeDate(a.createdAt)?.getTime() || 0;
+            const dateB = getSafeDate(b.createdAt)?.getTime() || 0;
+            return dateB - dateA;
+        });
     }, [archivedShipments, searchTerm, dateRange]);
 
-    const isLoading = companiesLoading || usersLoading || governoratesLoading || shipmentsLoading || statusesLoading;
+    const isLoading = companiesLoading || usersLoading || governoratesLoading || (selectedId && shipmentsLoading) || statusesLoading;
 
     const handleExport = () => {
         if (!filteredArchivedShipments || filteredArchivedShipments.length === 0) {
@@ -181,102 +190,138 @@ const ArchivePage = () => {
         <div className="flex min-h-screen w-full flex-col">
             <Header onSearchChange={setSearchTerm} searchTerm={searchTerm} />
             <main className="flex-1 p-4 md:p-8">
-                <h1 className="text-3xl font-bold font-headline mb-2">الأرشيف</h1>
-                <p className="text-muted-foreground mb-6">
-                    استعرض الشحنات المؤرشفة للشركات والمناديب مع تفاصيل تواريخ الأرشفة.
-                </p>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                    <div>
+                        <h1 className="text-3xl font-bold font-headline mb-1">الأرشيف</h1>
+                        <p className="text-muted-foreground text-sm">
+                            استعرض الشحنات المؤرشفة للشركات والمناديب.
+                        </p>
+                    </div>
+                </div>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle>فلترة الأرشيف</CardTitle>
-                        <CardDescription>
-                            اختر نوع الكيان والاسم ونطاق التاريخ لعرض البيانات المؤرشفة.
-                        </CardDescription>
+                <Card className="border-primary/10 shadow-sm">
+                    <CardHeader className="pb-4">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <Filter className="h-5 w-5 text-primary" />
+                            تخصيص العرض
+                        </CardTitle>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <RadioGroup defaultValue="company" value={entityType} onValueChange={(value: "courier" | "company") => { setEntityType(value); setSelectedId(null); }} className="flex gap-4">
-                            <div className="flex items-center space-x-2 space-x-reverse"><RadioGroupItem value="company" id="r-company" /><Label htmlFor="r-company">شركة</Label></div>
-                            <div className="flex items-center space-x-2 space-x-reverse"><RadioGroupItem value="courier" id="r-courier" /><Label htmlFor="r-courier">مندوب</Label></div>
-                        </RadioGroup>
+                    <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        <div className="space-y-2">
+                            <Label>نوع البحث</Label>
+                            <RadioGroup defaultValue="company" value={entityType} onValueChange={(value: "courier" | "company") => { setEntityType(value); setSelectedId(null); }} className="flex gap-4 p-2 border rounded-md bg-muted/30">
+                                <div className="flex items-center space-x-2 space-x-reverse"><RadioGroupItem value="company" id="r-company" /><Label htmlFor="r-company">شركة</Label></div>
+                                <div className="flex items-center space-x-2 space-x-reverse"><RadioGroupItem value="courier" id="r-courier" /><Label htmlFor="r-courier">مندوب</Label></div>
+                            </RadioGroup>
+                        </div>
 
-                        <Select dir="rtl" onValueChange={(value) => setSelectedId(value === "all" ? null : value)} value={selectedId || 'all'}>
-                            <SelectTrigger><SelectValue placeholder={`اختر ${entityType === 'courier' ? 'مندوبًا' : 'شركة'}...`} /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">الكل</SelectItem>
-                                {entityType === 'courier' 
-                                    ? couriers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>) 
-                                    : companies?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
+                        <div className="space-y-2">
+                            <Label>الاسم</Label>
+                            <Select dir="rtl" onValueChange={(value) => setSelectedId(value === "none" ? null : value)} value={selectedId || 'none'}>
+                                <SelectTrigger className="w-full"><SelectValue placeholder={`اختر ${entityType === 'courier' ? 'مندوبًا' : 'شركة'}...`} /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">اختر من القائمة...</SelectItem>
+                                    {entityType === 'courier' 
+                                        ? couriers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>) 
+                                        : companies?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
 
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button id="date" variant={"outline"} className={cn("w-full justify-start text-right font-normal", !dateRange && "text-muted-foreground")}>
-                                    <CalendarIcon className="ml-2 h-4 w-4" />
-                                    {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "LLL dd, y", { locale: ar })} - {format(dateRange.to, "LLL dd, y", { locale: ar })}</>) : format(dateRange.from, "LLL dd, y", { locale: ar })) : (<span>اختر فترة</span>)}
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} locale={ar}/>
-                            </PopoverContent>
-                        </Popover>
+                        <div className="space-y-2">
+                            <Label>نطاق التاريخ</Label>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button id="date" variant={"outline"} className={cn("w-full justify-start text-right font-normal h-10", !dateRange && "text-muted-foreground")}>
+                                        <CalendarIcon className="ml-2 h-4 w-4" />
+                                        {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "LLL dd, y", { locale: ar })} - {format(dateRange.to, "LLL dd, y", { locale: ar })}</>) : format(dateRange.from, "LLL dd, y", { locale: ar })) : (<span>اختر فترة</span>)}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} locale={ar}/>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
 
-                        <Button variant="outline" onClick={handleExport} disabled={!filteredArchivedShipments || filteredArchivedShipments.length === 0}>
+                        <Button variant="outline" onClick={handleExport} disabled={!filteredArchivedShipments || filteredArchivedShipments.length === 0} className="h-10">
                             <FileUp className="me-2 h-4 w-4" />
-                            تصدير إلى Excel
+                            تصدير للتميز
                         </Button>
                     </CardContent>
                 </Card>
 
                 <div className="mt-8">
-                    {isLoading ? (
-                         <div className="flex h-64 w-full items-center justify-center">
-                            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                    {!selectedId ? (
+                        <div className="flex flex-col items-center justify-center py-24 bg-muted/20 border-2 border-dashed rounded-xl text-center px-4">
+                            <div className="bg-primary/10 p-4 rounded-full mb-4">
+                                <Search className="h-10 w-10 text-primary" />
+                            </div>
+                            <h3 className="text-xl font-bold">بانتظار اختيار {entityType === 'courier' ? 'مندوب' : 'شركة'}</h3>
+                            <p className="text-muted-foreground mt-2 max-w-md">يرجى اختيار {entityType === 'courier' ? 'مندوب' : 'شركة'} من القائمة أعلاه لعرض البيانات المؤرشفة.</p>
+                        </div>
+                    ) : isLoading ? (
+                         <div className="flex flex-col items-center justify-center py-24">
+                            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                            <p className="text-muted-foreground animate-pulse">جاري جلب بيانات الأرشيف...</p>
                         </div>
                     ) : filteredArchivedShipments.length === 0 ? (
-                        <div className="text-center py-16 text-muted-foreground bg-muted/30 rounded-lg">
-                             <h3 className="text-2xl font-bold">الأرشيف فارغ</h3>
-                             <p>لا توجد شحنات مؤرشفة تطابق الفلاتر المحددة.</p>
+                        <div className="text-center py-24 text-muted-foreground bg-muted/30 rounded-lg border-2 border-dashed">
+                             <h3 className="text-2xl font-bold mb-2">لا توجد نتائج</h3>
+                             <p>لم يتم العثور على أي شحنات مؤرشفة لهذا {entityType === 'courier' ? 'المندوب' : 'الشركة'} في الفترة المحددة.</p>
                         </div>
                     ) : (
-                        <ScrollArea className="h-[60vh] rounded-md border">
-                            <Table>
-                                <TableHeader className="sticky top-0 bg-background z-10">
-                                    <TableRow>
-                                        <TableHead>كود الشحنة</TableHead>
-                                        <TableHead>تاريخ الأرشفة</TableHead>
-                                        <TableHead>المبلغ المدفوع</TableHead>
-                                        <TableHead>المندوب</TableHead>
-                                        <TableHead>الشركة</TableHead>
-                                        <TableHead>الحالة</TableHead>
-                                        <TableHead>الإجراءات</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {filteredArchivedShipments.map(shipment => {
-                                        const archiveDate = entityType === 'courier' ? shipment.courierArchivedAt : shipment.companyArchivedAt;
-                                        return (
-                                            <TableRow key={shipment.id}>
-                                                <TableCell className="font-mono">{shipment.shipmentCode}</TableCell>
-                                                <TableCell className="text-xs">{formatToCairoTime(archiveDate)}</TableCell>
-                                                <TableCell>{(shipment.paidAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                                <TableCell>{users?.find(u => u.id === shipment.assignedCourierId)?.name}</TableCell>
-                                                <TableCell>{companies?.find(c => c.id === shipment.companyId)?.name}</TableCell>
-                                                <TableCell>{statuses?.find(s => s.id === shipment.status)?.label || shipment.status}</TableCell>
-                                                <TableCell className="flex gap-2">
-                                                    <Button variant="ghost" size="icon" onClick={() => setDetailsShipment(shipment)}>
-                                                        <History className="h-4 w-4 text-blue-500" />
-                                                    </Button>
-                                                    <Button variant="ghost" size="icon" onClick={() => handleUnarchive(shipment)} disabled={!selectedId}>
-                                                        <ArchiveRestore className="h-4 w-4 text-green-500" />
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })}
-                                </TableBody>
-                            </Table>
-                        </ScrollArea>
+                        <Card className="overflow-hidden border-none shadow-md">
+                            <div className="bg-primary/5 px-4 py-2 border-b flex justify-between items-center text-sm">
+                                <span className="font-medium">عدد النتائج: {filteredArchivedShipments.length}</span>
+                            </div>
+                            <ScrollArea className="h-[65vh]">
+                                <Table>
+                                    <TableHeader className="bg-muted/50 sticky top-0 z-20">
+                                        <TableRow className="hover:bg-transparent">
+                                            <TableHead className="w-[150px]">كود الشحنة</TableHead>
+                                            <TableHead>تاريخ الأرشفة</TableHead>
+                                            <TableHead>المبلغ المحصل</TableHead>
+                                            <TableHead>الاسم</TableHead>
+                                            <TableHead>الحالة</TableHead>
+                                            <TableHead className="text-left w-[120px]">الإجراءات</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {filteredArchivedShipments.map(shipment => {
+                                            const archiveDate = entityType === 'courier' ? shipment.courierArchivedAt : shipment.companyArchivedAt;
+                                            return (
+                                                <TableRow key={shipment.id} className="hover:bg-muted/20 transition-colors">
+                                                    <TableCell className="font-mono text-sm font-medium">{shipment.shipmentCode}</TableCell>
+                                                    <TableCell className="text-xs text-muted-foreground">{formatToCairoTime(archiveDate)}</TableCell>
+                                                    <TableCell className="font-bold text-green-700">{(shipment.paidAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                                    <TableCell className="text-sm">
+                                                        <div className="flex flex-col">
+                                                            <span>{shipment.recipientName}</span>
+                                                            <span className="text-[10px] text-muted-foreground">{shipment.recipientPhone}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="text-xs px-2 py-1 rounded-full bg-slate-100 inline-block">
+                                                            {statuses?.find(s => s.id === shipment.status)?.label || shipment.status}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-1 justify-end">
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600" onClick={() => setDetailsShipment(shipment)}>
+                                                                <History className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-green-50 hover:text-green-600" onClick={() => handleUnarchive(shipment)} title="إلغاء الأرشفة">
+                                                                <ArchiveRestore className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </ScrollArea>
+                        </Card>
                     )}
                 </div>
             </main>
