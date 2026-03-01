@@ -454,7 +454,15 @@ export const getColumns = ({
   },
   {
     accessorKey: "reason",
-    header: "السبب",
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        السبب
+        <ArrowUpDown className="ms-2 h-4 w-4" />
+      </Button>
+    ),
     cell: ({ row }) => <div>{row.getValue("reason")}</div>,
   },
   {
@@ -876,6 +884,23 @@ export function ShipmentsTable({
         }
     }
   })
+
+  // Automatic sorting when 'Cancelled' filter is applied
+  React.useEffect(() => {
+    const currentFilters = filters || columnFilters;
+    const statusFilter = currentFilters.find(f => f.id === 'status');
+    
+    // Check if 'Cancelled' is among the selected status filters
+    if (statusFilter && Array.isArray(statusFilter.value) && statusFilter.value.includes('Cancelled')) {
+      // Automatically sort by 'reason' if no other sorting is active or if we're not already sorting by reason
+      const isAlreadySortingByReason = sorting.length === 1 && sorting[0].id === 'reason';
+      const isManualSortActive = sorting.length > 0 && !isAlreadySortingByReason;
+      
+      if (!isAlreadySortingByReason && !isManualSortActive) {
+        setSorting([{ id: 'reason', desc: false }]);
+      }
+    }
+  }, [filters, columnFilters]); // Run when filters change
 
   const { rows } = table.getRowModel()
 
